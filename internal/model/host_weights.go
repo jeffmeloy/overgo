@@ -51,66 +51,6 @@ func DecodeHostTensor(info gguf.TensorInfo, storage []byte) (reference.Value, er
 	return reference.Value{Shape: shape, Data: data}, nil
 }
 
-// LoadHostRows dequantizes selected table entries.
-func LoadHostRows(
-	ctx context.Context,
-	file *gguf.File,
-	info gguf.TensorInfo,
-	indices []uint32,
-) (reference.Value, error) {
-	if err := ctx.Err(); err != nil {
-		return reference.Value{}, err
-	}
-	if file == nil {
-		return reference.Value{}, errors.New("host rows: GGUF file is nil")
-	}
-	if len(indices) == tensor.FirstOffset {
-		return reference.Value{}, errors.New("host rows: row list is empty")
-	}
-	layout, err := info.RowLayout()
-	if err != nil {
-		return reference.Value{}, fmt.Errorf("host rows: %w", err)
-	}
-	if layout.BytesPerRow > uint64(math.MaxInt) || layout.ElementsPerRow > uint64(math.MaxInt) ||
-		uint64(len(indices)) > math.MaxUint64/layout.ElementsPerRow ||
-		uint64(len(indices))*layout.ElementsPerRow > uint64(math.MaxInt) {
-		return reference.Value{}, errors.New("host rows: result exceeds addressable memory")
-	}
-	storage := make([]byte, int(layout.BytesPerRow))
-	output := make([]float32, int(layout.ElementsPerRow)*len(indices))
-	seen := make(map[uint32]int, len(indices))
-	for outputIndex, index := range indices {
-		if err := ctx.Err(); err != nil {
-			return reference.Value{}, err
-		}
-		if uint64(index) >= layout.Count {
-			return reference.Value{}, fmt.Errorf("host rows: row %d exceeds tensor row count %d", index, layout.Count)
-		}
-		first := outputIndex * int(layout.ElementsPerRow)
-		last := first + int(layout.ElementsPerRow)
-		if prior, duplicate := seen[index]; duplicate {
-			copy(output[first:last], output[prior:prior+int(layout.ElementsPerRow)])
-			continue
-		}
-		offset := uint64(index) * layout.BytesPerRow
-		if err := file.ReadTensorRange(info, offset, storage); err != nil {
-			return reference.Value{}, fmt.Errorf("read host row %d from %q: %w", index, info.Name, err)
-		}
-		if err := ctx.Err(); err != nil {
-			return reference.Value{}, err
-		}
-		if err := quant.DequantizeInto(info.Type, storage, output[first:last]); err != nil {
-			return reference.Value{}, fmt.Errorf("dequantize host row %d from %q: %w", index, info.Name, err)
-		}
-		seen[index] = first
-	}
-	shape, err := tensor.NewShape(layout.ElementsPerRow, uint64(len(indices)))
-	if err != nil {
-		return reference.Value{}, err
-	}
-	return reference.Value{Shape: shape, Data: output}, nil
-}
-
 // DotRows: streams rank-2 output table and computes one logit per row
 func DotRows(
 	ctx context.Context,

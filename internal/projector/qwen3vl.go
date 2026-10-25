@@ -245,8 +245,53 @@ func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, opt
 func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options qwen3VLPreprocessOptions) (qwen3VLOutput, error) {
 	return executePreparedProjector(
 		ctx, r != nil && r.file != nil, frames, r.Spec(), options,
-		PreprocessQwen3VLFrames, r.encodeGraph,
+		PreprocessQwen3VLFrames, func(ctx context.Context, input Qwen3VLImage) (qwen3VLOutput, error) {
+			return r.encodeTemporal(ctx, input, qwen3VLEncodePatches)
+		},
 	)
+}
+
+// qwen3VLEncodePatches bounds the patches one encode reads: a 1024-token picture's, whose workspace fits the device
+// memory a hybrid model's expert cache leaves (a VidGen clip encoded whole asked 3.6 GB of its 2 GiB).
+const qwen3VLEncodePatches = 4096
+
+// encodeTemporal encodes a video's temporal groups a few at a time, at most patches a time where a group holds no
+// more: the encoder attends within a group and every other operation reads a patch or a merged cell, so the rows are
+// those of one encode, in its order.
+func (r *Qwen3VLRunner) encodeTemporal(ctx context.Context, input Qwen3VLImage, patches int) (qwen3VLOutput, error) {
+	spatial := input.GridH * input.GridW
+	groups := max(1, patches/max(1, spatial))
+	if input.GridT <= groups {
+		return r.encodeGraph(ctx, input)
+	}
+	groupValues := len(input.PixelValues) / input.GridT
+	var whole qwen3VLOutput
+	for start := 0; start < input.GridT; start += groups {
+		count := min(groups, input.GridT-start)
+		part, err := r.encodeGraph(ctx, Qwen3VLImage{
+			PixelValues: input.PixelValues[start*groupValues : (start+count)*groupValues],
+			GridT:       count, GridH: input.GridH, GridW: input.GridW,
+		})
+		if err != nil {
+			return qwen3VLOutput{}, err
+		}
+		if start == 0 {
+			whole = part
+			continue
+		}
+		whole.Embeddings = appendRows(whole.Embeddings, part.Embeddings)
+		for stream := range whole.DeepstackEmbeddings {
+			whole.DeepstackEmbeddings[stream] = appendRows(whole.DeepstackEmbeddings[stream], part.DeepstackEmbeddings[stream])
+		}
+	}
+	whole.GridT = input.GridT
+	return whole, nil
+}
+
+// appendRows appends right's rows to left's, of one encoder's width.
+func appendRows(left, right reference.Value) reference.Value {
+	data := append(left.Data, right.Data...)
+	return reference.Value{Shape: tensor.MustShape(left.Shape.Dims[0], uint64(len(data))/left.Shape.Dims[0]), Data: data}
 }
 
 func mergedGrid(height, width, merge int) ([]int, []int) {

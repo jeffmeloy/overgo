@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/atomicfile"
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
@@ -127,20 +128,28 @@ func (l *landing) trunkFollows(ctx context.Context, landed string) (func(moved b
 		}
 		aside := filepath.Join(l.trunk, processlock.StateDirectory, planAside)
 		if edited != nil {
-			// The merge reads the plan's file as the tip's; the lead's waits beside it.
-			if err := errors.Join(os.WriteFile(aside, working, clioptions.PrivateFileMode), os.WriteFile(planPath, held, clioptions.PrivateFileMode)); err != nil {
+			// The merge reads the plan's file as the tip's; the lead's waits beside it, kept there before the tip's
+			// replaces it, so a failure to keep it leaves the lead's plan as it was.
+			if err := atomicfile.Write(aside, working, clioptions.PrivateFileMode); err != nil {
+				return err
+			}
+			if err := atomicfile.Write(planPath, held, clioptions.PrivateFileMode); err != nil {
 				return err
 			}
 			_, _ = there("update-index", "-q", "--refresh")
 		}
 		if _, err := there("read-tree", "-m", "-u", own, merged); err != nil {
 			if edited != nil {
-				err = errors.Join(err, os.WriteFile(planPath, working, clioptions.PrivateFileMode))
+				err = errors.Join(err, atomicfile.Write(planPath, working, clioptions.PrivateFileMode))
 			}
 			return err
 		}
 		if edited != nil {
-			if err := errors.Join(os.WriteFile(planPath, edited, clioptions.PrivateFileMode), os.Remove(aside)); err != nil {
+			// The lead's plan, merged, is in place before the copy beside it goes.
+			if err := atomicfile.Write(planPath, edited, clioptions.PrivateFileMode); err != nil {
+				return err
+			}
+			if err := os.Remove(aside); err != nil {
 				return err
 			}
 		}

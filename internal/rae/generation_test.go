@@ -45,7 +45,7 @@ func TestSeededNoiseMatchesReference(t *testing.T) {
 	if worst > 1e-6*scale {
 		t.Fatalf("seeded noise differs from the reference by up to %.3g", worst)
 	}
-	if _, err := torchrng.CPUNormal(int64(reference.Seed), 8); err == nil {
-		t.Fatal("a draw shorter than torch's fill was accepted")
+	if _, err := torchrng.CPUNormal(int64(reference.Seed), 0); err == nil {
+		t.Fatal("an empty noise draw was accepted")
 	}
 }

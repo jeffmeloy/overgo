@@ -174,6 +174,20 @@
           "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open."
         }
       ]
+    },
+    {
+      "Model": "model:sha256:d7ff4ba52790c0fd4169982fe91872b73bc33e0f15029f2d614802e63e463da7",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:81d75bcb8e4a3bb7df4a696bca72d0c1eea22173c31005807ae436e284ec7def",
+          "Proofs": [
+            "verification/flashnext-capacity-protocol#candidate-execution"
+          ],
+          "Scope": "Qwen3.8-Flash-Next UD-IQ4_XS under its capacity session: the eight protocol cases of fixtures/protocol_acceptance.json (arithmetic, grounding, history, reasoning, a required tool call, a stream, a cancelled stream and the request after it) answered through the chat, responses and messages handlers, and its first chat case bound as the exact plan recipe measure replays. Vision, long context and speculation are not claimed here; no benchmark or quality claim."
+        }
+      ]
     }
   ],
   "Proofs": [
@@ -267,6 +281,13 @@
       "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/hfconvert -run '^TestDeepSeekOCRProjectorReadsBack' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
       "Preparation": "evidence:sha256:a35736a6e2dc57f814220d7d286cee72a2514e1cfd872d32214b8b3184577d6d",
       "Result": "evidence:sha256:76c6f7457a3f2b30c34df3046c5c0b2dd2065630d92f6f44a8254acae57e1d18"
+    },
+    {
+      "Reference": "verification/flashnext-capacity-protocol",
+      "Commit": "fe2ec7ad774a3a83080c17d3b58c2f14e18a5785",
+      "Verify": "go run ./cmd/recipe verify -task inference -protocol -input-file fixtures/protocol_acceptance.json C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
+      "Result": "evidence:sha256:cd79c6c8f1f8002d39d1e260ed06c256b8a732de5d39271b52722e2b0298f5bd",
+      "Check": "candidate-execution"
     }
   ],
   "Inputs": {

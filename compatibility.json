@@ -591,7 +591,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:e3762bf281eced149248ee62aab15ac03b650320215e036838eab904a809f140"
+     "identity": "file:sha256:be3872af0e33bc416d6e592a8aa89f313b5e8eb3f7bcb665feac836347764647"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -612,7 +612,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -844,13 +844,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:ff49b0a8d57bb7de8802fde093893e791060b859e9d0db92c04e8fba6d408063"
+     "identity": "file:sha256:9ae3ffcfbd3e612816076118dc73d49b534ebfabee20a76c130d5c38c2b7589f"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a0d3b1d4d7779245299a37a9ecb760a21aebee95532dd7d13db9b7960d77301a"
+     "identity": "evidence:sha256:99af6943ba09c3e2200b30e3dc9f6d0522bc522c3157bd34c24bd00c092ba00b"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:e593a86375b441193f30e29d915f73c22c427bf06d470bbe31af5cb4bbef6400"
+     "identity": "file:sha256:bf8e3d50d7c3f58d674a7fd20e7a2ffe4164c3a3da6d24e6a2188847b7d4991b"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -886,13 +886,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:d5d00e46127fc2143710ffdfb854a91b65bd9d49b033a3305ed15ba71ca0014c"
+     "identity": "file:sha256:4e2f09ffe7b4d4912773a9d7984e470930da160733cd1a5d530b78d5e5fe2a4e"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:2c9b81c36c6cb6322ee500b8a4176afbe37790ff8e89efb3d6d0ea603a074cf1"
+     "identity": "evidence:sha256:66ec7e29837a1351339f59ebee098be47e9a06b518a7d2a5b0c3cb89ce51aa1f"
     }
    ],
    "id": "editable-prompt-cache",
@@ -929,7 +929,7 @@
      "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -950,7 +950,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -971,7 +971,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
+     "identity": "file:sha256:c959287c9e4ea738c07bf404da6c7248efc05064dfe0f595fb82a60a7317a976"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -1097,13 +1097,13 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:e3762bf281eced149248ee62aab15ac03b650320215e036838eab904a809f140"
+     "identity": "file:sha256:be3872af0e33bc416d6e592a8aa89f313b5e8eb3f7bcb665feac836347764647"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:5598a85a38a483ef71f05f2e5d59c90503d3547681192850af16b3aba0808939"
+     "identity": "file:sha256:baf853c1cced565d7b18a7ac7364d67a264b90527626e2910a0df87080781378"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:710431f2f9caa7840abaecb4e6c4fa7f609cd28a1b262c65327a5c7b9e91bfd7"
+     "identity": "file:sha256:8c7ba4771887d7a0a936d24e159d2e48d82ca4db574b15f1cb02b05b205886f8"
     },
     {
      "contains": "func ReadWeights(",

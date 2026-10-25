@@ -64,9 +64,11 @@ type GenerateOptions struct {
 	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
 	// SpeculativeDecode: NextN MTP speculation under raw-greedy device
-	// decode — several emissions per trunk weight read. Opt-in until span
-	// decode sessions amortize per-round graph compilation.
+	// decode — several emissions per trunk weight read. A model's own draft
+	// head is opt-in; a runner opened with a draft speculates by default.
 	SpeculativeDecode bool
+	// PlainDecode decodes a token a step though the runner holds an attached draft.
+	PlainDecode bool
 	// OnDraftSpan: each speculative verify span's drafted tokens and how
 	// many of them the trunk accepted.
 	OnDraftSpan func(drafted, accepted int)
@@ -195,11 +197,20 @@ type preparedModel struct {
 	outputBias          []float32
 	outputExclusions    []tokenizer.TokenRange
 	promptCacheCapacity int
-	modelSignature      [32]byte
-	modelSignatureErr   error
-	modelSignatureOnce  sync.Once
-	audioTables         *audioWaveformTables
-	audioTablesOnce     sync.Once
+	// promptBoundaryTokens: the fewest tokens before a prompt's last turn for which its read keeps a boundary there.
+	promptBoundaryTokens int
+	// promptChunkTokens: the most tokens a prompt's read appends a chunk (devicePromptChunkTokens).
+	promptChunkTokens  int
+	modelSignature     [32]byte
+	modelSignatureErr  error
+	modelSignatureOnce sync.Once
+	audioTables        *audioWaveformTables
+	audioTablesOnce    sync.Once
+	// ngramRows reads the n-gram table's rows and keeps those read, built by the first request that reads them.
+	ngramRows *model.HostRows
+
+	// hyperDraft is the attached draft layer of a hyper-connection trunk, nil without one.
+	hyperDraft *hyperDraft
 
 	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
 	grammarVocabularyMu sync.Mutex
@@ -214,6 +225,10 @@ type runnerState struct {
 	decodeSession *deviceDecodeSession
 	// decodeSessions keeps the single-branch decode sessions by identity, so each capacity page and span length compiles once a process.
 	decodeSessions map[decodeSessionIdentity]*deviceDecodeSession
+	// speculating: a request has speculated, so the verify spans keep fixed output slots and the executor more captured graphs.
+	speculating bool
+	// spanSlots are the buffers a speculating runner's verify spans write their non-token outputs into, and its prompt reads their layers' states.
+	spanSlots [spanSlotCount]*spanSlot
 }
 
 // Runner: prepared assets + mutable request state.
@@ -234,6 +249,21 @@ type cachedPrompt struct {
 	// Decoded: the entry ends in generated tokens, and its Hidden holds only
 	// the last row, the one that predicts the pending token after Tokens.
 	Decoded bool
+	// Boundaries are a recurrent model's device caches of the entry's leading tokens on its storage, ascending, each
+	// before a turn it read: a request that keeps a boundary's tokens and not the entry's reads on from the longest.
+	Boundaries []*deviceKVCache
+}
+
+// deviceCaches is the entry's device caches, its boundaries and its own.
+func (p *cachedPrompt) deviceCaches() []*deviceKVCache {
+	if p == nil {
+		return nil
+	}
+	caches := slices.Clone(p.Boundaries)
+	if p.Device != nil {
+		caches = append(caches, p.Device)
+	}
+	return caches
 }
 
 type OpenOptions struct {
@@ -242,6 +272,12 @@ type OpenOptions struct {
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
 	LoRAAdapters       []LoRAConfig
+	// Draft names a draft file that attaches a draft layer to the trunk (a qwen4exp-mtp file for Flash-Next);
+	// raw-greedy device decoding drafts with it when a request asks for speculation.
+	Draft string
+	// ExpertProfile names an expert profile file (STRP) whose top-ranked experts a file-backed expert residency
+	// places on the card at load, where it would place them in index order.
+	ExpertProfile string
 }
 
 func (r *Runner) Spec() model.Spec {

@@ -50,7 +50,7 @@ func TestLoopViewAndStop(t *testing.T) {
 		t.Fatal("the stop did not wake the live supervisor")
 	}
 	stopped := view()
-	if !stopped.Stopped || stopped.StopReason != "user-stop: stopped from the workbench" || stopped.Row != "next/do" {
+	if !stopped.Stopped || stopped.StopReason != "requested: stopped from the workbench" || stopped.Row != "next/do" {
 		t.Fatalf("stopped view = %+v", stopped)
 	}
 	held, err := ReadStop(t.Context(), repository, "", ExecutionUnattended)

@@ -71,11 +71,8 @@ func MeasureGGUF(
 			!slices.Equal(fact.Shape, tensor.Shape[:tensor.Dimensions]) {
 			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q differs from inventory", tensor.Name)
 		}
-		samples, elements, bytesNeeded, err := sampleGGUFTensorValues(file, tensor, policy.MaxSamplesPerTensor)
+		samples, elements, err := sampleGGUFTensorValues(file, tensor, policy.MaxSamplesPerTensor, meter.charge)
 		if err != nil {
-			return TensorMeasurementDocument{}, err
-		}
-		if err := meter.charge(bytesNeeded); err != nil {
 			return TensorMeasurementDocument{}, err
 		}
 		measurement, err := measurementFromSamples(tensor.Name, elements, samples)
@@ -158,32 +155,40 @@ func collectMatrixSpectrum(
 // fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
 // storage order. It is sampleGGUFTensorValues at full coverage: with the sample
 // count equal to the block count, evenlySpacedIndex is the identity, so the read
-// is sequential. Callers must bound the tensor size (see SpectralMaxDim).
+// is sequential. Callers must bound the tensor size (see SpectralMaxDim) and charge
+// its read, as collectMatrixSpectrum does before it calls.
 func fullGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo) ([]float64, error) {
-	values, _, _, err := sampleGGUFTensorValues(file, tensor, math.MaxUint64)
+	values, _, err := sampleGGUFTensorValues(file, tensor, math.MaxUint64, nil)
 	return values, err
 }
 
 // sampleGGUFTensorValues evenly samples up to maxSamples stored values from one
-// GGUF tensor, dequantizing each sampled block to float64. It returns the
-// samples, the tensor's total element count, and the bytes read. The sampling
-// is deterministic (evenly spaced blocks) so repeated reads agree.
-func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples uint64) ([]float64, uint64, uint64, error) {
+// GGUF tensor, dequantizing each sampled block to float64, and returns the
+// samples and the tensor's total element count. charge, where set, is charged the
+// bytes the samples read at their checked geometry, before anything is allocated or
+// read for them. The sampling is deterministic (evenly spaced blocks) so repeated
+// reads agree.
+func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples uint64, charge func(uint64) error) ([]float64, uint64, error) {
 	traits, ok := tensor.Type.Traits()
 	if !ok {
-		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
+		return nil, 0, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
 	}
 	elements, err := tensor.ElementCount()
 	blocks, aligned := traits.BlockCount(elements)
 	if err != nil || !aligned {
-		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
+		return nil, 0, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
 	}
 	blockSamples := min(blocks, maxSamples/traits.BlockSize)
 	sampleElements, elementOK := checked.Mul64(blockSamples, traits.BlockSize)
 	capacity, capacityOK := checked.Int(sampleElements)
 	bytesRead, bytesOK := checked.Bytes(blockSamples, traits.TypeSize)
 	if !checked.Nonzero(blockSamples) || !elementOK || !capacityOK || !bytesOK {
-		return nil, 0, 0, errors.New("model artifact: invalid GGUF measurement policy")
+		return nil, 0, errors.New("model artifact: invalid GGUF measurement policy")
+	}
+	if charge != nil {
+		if err := charge(bytesRead); err != nil {
+			return nil, 0, err
+		}
 	}
 	samples := make([]float64, 0, capacity)
 	storage := make([]byte, traits.TypeSize)
@@ -191,16 +196,16 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 	for sample := range blockSamples {
 		block := evenlySpacedIndex(sample, blockSamples, blocks)
 		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
-			return nil, 0, 0, err
+			return nil, 0, err
 		}
 		if err := quant.DequantizeInto(tensor.Type, storage, values); err != nil {
-			return nil, 0, 0, err
+			return nil, 0, err
 		}
 		for _, value := range values {
 			samples = append(samples, float64(value))
 		}
 	}
-	return samples, elements, bytesRead, nil
+	return samples, elements, nil
 }
 
 func MeasureSafetensors(

@@ -106,6 +106,23 @@ func FromGGUFContext(ctx context.Context, file *gguf.File, kind artifact.Kind) (
 // the size it had, without reading the file.
 type Claimer func(path string) (artifact.ID, uint64, bool)
 
+// Claim is a Claimer over the inventory: the identity and size it recorded
+// for the component file at an absolute path, which whoever reads the bytes
+// next must prove.
+func (i Inventory) Claim(path string) (artifact.ID, uint64, bool) {
+	for _, location := range i.Locations {
+		if location.Kind != artifact.LocationFile || location.Value != path {
+			continue
+		}
+		for _, component := range i.Components {
+			if component.ID == location.Artifact {
+				return component.ID, component.Size, true
+			}
+		}
+	}
+	return artifact.ID{}, 0, false
+}
+
 // describeShard names a shard's identity from the claimer when it has one of
 // the size the parsed file has, and by hashing the file otherwise.
 func describeShard(ctx context.Context, path string, size uint64, claimer Claimer) (descriptor artifact.Descriptor, absolute string, claimed bool, err error) {
@@ -214,7 +231,7 @@ func VerifyClaims(file *gguf.File, claims []artifact.ID) error {
 }
 
 func tensorBearingKind(kind artifact.Kind) bool {
-	return kind == artifact.KindModel || kind == artifact.KindProjector
+	return kind == artifact.KindModel || kind == artifact.KindProjector || kind == artifact.KindDraft
 }
 
 // FromHFRepository: inventory from an already-validated Safetensors repository

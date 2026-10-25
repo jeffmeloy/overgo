@@ -57,6 +57,11 @@ constexpr unsigned int F32_ROW_WARPS_MAX = 32;
 // ROW_READS_IN_FLIGHT = the weight reads a thread of an F32 row dot issues before it uses any.
 //   - a one-token product reads each weight once, so the reads in flight bound its rate where few warps share the card
 constexpr unsigned int ROW_READS_IN_FLIGHT = 4;
+// DECODE_READS_IN_FLIGHT = the key channels or keys' values a thread of attention_decode_f32 reads before it adds any.
+constexpr unsigned int DECODE_READS_IN_FLIGHT = 8;
+// NORM_ROW_VALUES = the values a normalization thread holds in registers, so a row of up to blockDim.x times as many is
+// read once.
+constexpr unsigned int NORM_ROW_VALUES = 16;
 
 __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) {
     const size_t address = reinterpret_cast<size_t>(source);
@@ -932,6 +937,143 @@ extern "C" __global__ void activated_gate_q8_0_f32(
     store_q8_input_warp(quantized, block, value, lane);
 }
 
+// stream_value is a stream's value at at: the gate's activation times values
+// where a gate is given, values alone otherwise, rounded as activated_gate_f32
+// rounds it.
+__device__ __forceinline__ float stream_value(
+        const float * gate,
+        const float * values,
+        unsigned int at,
+        unsigned int activation) {
+    if (gate == nullptr) {
+        return values[at];
+    }
+    return __fmul_rn(activated_gate_value(gate[at], activation), values[at]);
+}
+
+// stream_sum_value sums a token's streams, each a slice of width values, in
+// stream order and scales the sum, each step rounded as the group slices, adds
+// and scale it replaces round theirs: no product folds into an add.
+__device__ __forceinline__ float stream_sum_value(
+        const float * gate,
+        const float * values,
+        unsigned int index,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale) {
+    const unsigned int base = (index / width) * width * streams + index % width;
+    float sum = stream_value(gate, values, base, activation);
+    for (unsigned int stream = 1; stream < streams; ++stream) {
+        sum = __fadd_rn(sum, stream_value(gate, values, base + stream * width, activation));
+    }
+    return __fmul_rn(sum, scale);
+}
+
+// stream_sum_f32 writes each token's scaled sum of its streams: a gated
+// hyper-connection mix's group slices, adds and scale in one pass, with the
+// activated gate folded in where gate is given.
+extern "C" __global__ void stream_sum_f32(
+        const float * gate,
+        const float * values,
+        float * output,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = stream_sum_value(gate, values, index, activation, width, streams, scale);
+    }
+}
+
+// stream_sum_q8_0_f32 is stream_sum_f32 that also writes its output as the
+// Q8_0 input of the product reading it, a block of 32 values a warp.
+extern "C" __global__ void stream_sum_q8_0_f32(
+        const float * gate,
+        const float * values,
+        float * output,
+        unsigned char * quantized,
+        unsigned int activation,
+        unsigned int width,
+        unsigned int streams,
+        float scale,
+        unsigned int count) {
+    const unsigned int block = blockIdx.x;
+    const unsigned int lane = threadIdx.x;
+    const unsigned int index = block * Q8_0_BLOCK_WIDTH + lane;
+    if (index >= count || lane >= Q8_0_BLOCK_WIDTH) {
+        return;
+    }
+    const float value = stream_sum_value(gate, values, index, activation, width, streams, scale);
+    output[index] = value;
+    store_q8_input_warp(quantized, block, value, lane);
+}
+
+// stream_combine_f32 adds to each stream of residual the token's current row
+// times the stream's gate, as broadcast_multiply_f32 and add_f32 round it: a
+// hyper-connection combine's repeat, product and add in one pass. With scaled
+// set the gate is outer * sigmoid(inner * gate), rounded as the injection's
+// scale_f32, sigmoid_f32 and scale_f32 round it.
+extern "C" __global__ void stream_combine_f32(
+        const float * residual,
+        const float * current,
+        const float * gate,
+        float * output,
+        unsigned int width,
+        unsigned int streams,
+        unsigned int scaled,
+        float inner,
+        float outer,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int row = index / width;
+    float value = gate[row];
+    if (scaled != 0) {
+        value = __fmul_rn(1.0f / (1.0f + expf(-__fmul_rn(value, inner))), outer);
+    }
+    output[index] = __fadd_rn(residual[index], __fmul_rn(current[(row / streams) * width + index % width], value));
+}
+
+// scaled_activation_f32 writes the activation of the scaled input, rounded
+// as scale_f32 and then silu_f32 or sigmoid_f32 round it.
+extern "C" __global__ void scaled_activation_f32(
+        const float * input,
+        float * output,
+        unsigned int activation,
+        float scale,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = activated_gate_value(__fmul_rn(input[index], scale), activation);
+    }
+}
+
+// scaled_activation_q8_0_f32 is scaled_activation_f32 that also writes its
+// output as the Q8_0 input of the product reading it, a block of 32 values a
+// warp.
+extern "C" __global__ void scaled_activation_q8_0_f32(
+        const float * input,
+        float * output,
+        unsigned char * quantized,
+        unsigned int activation,
+        float scale,
+        unsigned int count) {
+    const unsigned int block = blockIdx.x;
+    const unsigned int lane = threadIdx.x;
+    const unsigned int index = block * Q8_0_BLOCK_WIDTH + lane;
+    if (index >= count || lane >= Q8_0_BLOCK_WIDTH) {
+        return;
+    }
+    const float value = activated_gate_value(__fmul_rn(input[index], scale), activation);
+    output[index] = value;
+    store_q8_input_warp(quantized, block, value, lane);
+}
+
 extern "C" __global__ void gelu_f32(
         const float * input,
         float * output,
@@ -1376,7 +1518,111 @@ __device__ __forceinline__ group_moments_f32 group_warp_f32(group_moments_f32 va
 	return value;
 }
 
+// sam_attention_grouped_f32 computes sam_attention_f32's outputs with a block
+// a query token, head and batch: each key's score is computed once, with the
+// same function, into shared memory, and each value channel sums the
+// probabilities and weighted values over the keys in order, where
+// sam_attention_f32 computed every score again for each value channel, twice.
+extern "C" __global__ void sam_attention_grouped_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * relative_w,
+		const float * relative_h,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_heads,
+		unsigned int tokens,
+		unsigned int batches,
+		unsigned int spatial_size,
+		unsigned int relative_w_length,
+		unsigned int relative_h_length,
+		float scale,
+		float relative_scale) {
+	extern __shared__ float probabilities[];
+	__shared__ float maxima[32];
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int query_head = blockIdx.y;
+	const unsigned int batch = blockIdx.z;
+	if (query_token >= tokens || query_head >= query_heads || batch >= batches) {
+		return;
+	}
+	const unsigned int key_head = query_head / (query_heads / key_heads);
+	float maximum = -3.402823466e+38F;
+	for (unsigned int key_token = threadIdx.x; key_token < tokens; key_token += blockDim.x) {
+		const float score = sam_attention_score(query, key, relative_w, relative_h,
+			key_width, query_heads, key_heads, tokens, batch, query_token, key_token,
+			query_head, key_head, spatial_size, relative_w_length, relative_h_length, scale, relative_scale);
+		probabilities[key_token] = score;
+		maximum = fmaxf(maximum, score);
+	}
+	for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+		maximum = fmaxf(maximum, __shfl_xor_sync(0xffffffff, maximum, offset));
+	}
+	if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
+		maxima[threadIdx.x / CUDA_WARP_WIDTH] = maximum;
+	}
+	__syncthreads();
+	maximum = maxima[0];
+	for (unsigned int warp = 1; warp < blockDim.x / CUDA_WARP_WIDTH; ++warp) {
+		maximum = fmaxf(maximum, maxima[warp]);
+	}
+	for (unsigned int key_token = threadIdx.x; key_token < tokens; key_token += blockDim.x) {
+		probabilities[key_token] = expf(probabilities[key_token] - maximum);
+	}
+	__syncthreads();
+	for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+		float sum = 0.0f;
+		float result = 0.0f;
+		for (unsigned int key_token = 0; key_token < tokens; ++key_token) {
+			const float probability = probabilities[key_token];
+			const unsigned int value_base = value_width * (key_head + key_heads * (key_token + tokens * batch));
+			sum += probability;
+			result += probability * value[value_base + channel];
+		}
+		output[channel + value_width * (query_head + query_heads * (query_token + tokens * batch))] = result / sum;
+	}
+}
+
 extern "C" __global__ void group_norm_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		float epsilon,
+		unsigned int count) {
+	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (index >= count) {
+		return;
+	}
+	const unsigned int channel = index % channels;
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = (channel / channels_per_group) * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	float mean = 0.0f;
+	for (unsigned int token = 0; token < tokens; ++token) {
+		for (unsigned int item = 0; item < channels_per_group; ++item) {
+			mean += input[token * channels + first_channel + item];
+		}
+	}
+	mean /= (float) values_per_group;
+	float variance = 0.0f;
+	for (unsigned int token = 0; token < tokens; ++token) {
+		for (unsigned int item = 0; item < channels_per_group; ++item) {
+			const float delta = input[token * channels + first_channel + item] - mean;
+			variance += delta * delta;
+		}
+	}
+	const float normalized = (input[index] - mean) * rsqrtf(variance / (float) values_per_group + epsilon);
+	output[index] = normalized * weight[channel] + bias[channel];
+}
+
+extern "C" __global__ void group_norm_native_f32(
 		const float * input,
 		const float * weight,
 		const float * bias,
@@ -1422,6 +1668,56 @@ extern "C" __global__ void group_norm_f32(
 			const float shift = __fadd_rn(__fmul_rn(-scale, mean), bias[channel]);
 			output[index] = fmaf(scale, input[index], shift);
 		}
+	}
+}
+
+// group_norm_grouped_f32 computes group_norm_f32's outputs with a block a
+// group: its first thread sums the group's mean and variance once, in
+// group_norm_f32's order, and the block normalizes the group's values,
+// where group_norm_f32 summed the whole group again for every value.
+extern "C" __global__ void group_norm_grouped_f32(
+		const float * input,
+		const float * weight,
+		const float * bias,
+		float * output,
+		unsigned int channels,
+		unsigned int tokens,
+		unsigned int groups,
+		float epsilon) {
+	__shared__ float statistics[2];
+	const unsigned int group = blockIdx.x;
+	if (group >= groups) {
+		return;
+	}
+	const unsigned int channels_per_group = channels / groups;
+	const unsigned int first_channel = group * channels_per_group;
+	const unsigned int values_per_group = channels_per_group * tokens;
+	if (threadIdx.x == 0) {
+		float mean = 0.0f;
+		for (unsigned int token = 0; token < tokens; ++token) {
+			for (unsigned int item = 0; item < channels_per_group; ++item) {
+				mean += input[token * channels + first_channel + item];
+			}
+		}
+		mean /= (float) values_per_group;
+		float variance = 0.0f;
+		for (unsigned int token = 0; token < tokens; ++token) {
+			for (unsigned int item = 0; item < channels_per_group; ++item) {
+				const float delta = input[token * channels + first_channel + item] - mean;
+				variance += delta * delta;
+			}
+		}
+		statistics[0] = mean;
+		statistics[1] = variance;
+	}
+	__syncthreads();
+	const float mean = statistics[0];
+	const float variance = statistics[1];
+	for (unsigned int item = threadIdx.x; item < values_per_group; item += blockDim.x) {
+		const unsigned int index = (item / channels_per_group) * channels + first_channel + item % channels_per_group;
+		const unsigned int channel = index % channels;
+		const float normalized = (input[index] - mean) * rsqrtf(variance / (float) values_per_group + epsilon);
+		output[index] = normalized * weight[channel] + bias[channel];
 	}
 }
 
@@ -2199,6 +2495,298 @@ extern "C" __global__ void gated_delta_net_f32(
     }
 }
 
+#define GATED_DELTA_NET_ROW_COLUMNS 8
+
+// gated_delta_net_rows_f32 computes gated_delta_net_f32's outputs and final
+// state with the same operations in the same order, a warp a state row with
+// the row in registers: a lane holds the columns lane, lane + 32, ..., as the
+// per-head kernel's lane reads them, so each dot product and update keeps its
+// order, and the blocks of a head's rows spread across the card.
+extern "C" __global__ void gated_delta_net_rows_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        float * output,
+        unsigned int size,
+        unsigned int query_heads,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int gate_width,
+        unsigned int repeat_interleave) {
+    const unsigned int index = blockIdx.x;
+    if (index >= heads * sequences) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int row = blockIdx.y * (blockDim.x / CUDA_WARP_WIDTH) + threadIdx.x / CUDA_WARP_WIDTH;
+    if (row >= size) {
+        return;
+    }
+    const unsigned int head = index % heads;
+    const unsigned int sequence = index / heads;
+    const unsigned int attention_elements = size * heads * tokens * sequences;
+    const unsigned int state_elements = size * size;
+    float * state_row = output + attention_elements + index * state_elements + row * size;
+    const float * source_row = input_state + index * state_elements + row * size;
+    const float scale = rsqrtf((float) size);
+    const unsigned int query_head = repeat_interleave ? head / (heads / query_heads) : head % query_heads;
+    const unsigned int key_head = repeat_interleave ? head / (heads / key_heads) : head % key_heads;
+    float state[GATED_DELTA_NET_ROW_COLUMNS];
+#pragma unroll
+    for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+        const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+        state[part] = column < size ? source_row[column] : 0.0f;
+    }
+    for (unsigned int token = 0; token < tokens; ++token) {
+        const unsigned int value_base = ((sequence * tokens + token) * heads + head) * size;
+        const unsigned int query_base = ((sequence * tokens + token) * query_heads + query_head) * size;
+        const unsigned int key_base = ((sequence * tokens + token) * key_heads + key_head) * size;
+        const unsigned int gate_base = ((sequence * tokens + token) * heads + head) * gate_width;
+        const float beta_value = beta[(sequence * tokens + token) * heads + head];
+        if (gate_width == 1) {
+            const float gate_scale = expf(gate[gate_base]);
+#pragma unroll
+            for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+                if (lane + part * CUDA_WARP_WIDTH < size) {
+                    state[part] *= gate_scale;
+                }
+            }
+        } else {
+#pragma unroll
+            for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+                const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+                if (column < size) {
+                    state[part] *= expf(gate[gate_base + column]);
+                }
+            }
+        }
+        float dot = 0.0f;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                dot += state[part] * key[key_base + column];
+            }
+        }
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            dot += __shfl_down_sync(0xffffffff, dot, offset);
+        }
+        dot = __shfl_sync(0xffffffff, dot, 0);
+        const float delta = (value[value_base + row] - dot) * beta_value;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                state[part] += delta * key[key_base + column];
+            }
+        }
+        dot = 0.0f;
+#pragma unroll
+        for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+            const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+            if (column < size) {
+                dot += state[part] * query[query_base + column];
+            }
+        }
+        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+            dot += __shfl_down_sync(0xffffffff, dot, offset);
+        }
+        if (lane == 0) {
+            output[value_base + row] = dot * scale;
+        }
+    }
+#pragma unroll
+    for (unsigned int part = 0; part < GATED_DELTA_NET_ROW_COLUMNS; ++part) {
+        const unsigned int column = lane + part * CUDA_WARP_WIDTH;
+        if (column < size) {
+            state_row[column] = state[part];
+        }
+    }
+}
+
+// The key-head kernel's shape (Strata's gdn_rec_kh_kernel, src/prefill/kernels.cu): a block takes a key head's
+// GDN_KH_COLUMNS value columns of every value head sharing the key head, GDN_KH_GROUPS row groups of
+// GDN_KH_ROWS key rows a thread, and stages GDN_KH_TOKENS tokens' inputs a buffer while the block computes the
+// tokens before.
+constexpr unsigned int GDN_KH_SIZE = 128;
+constexpr unsigned int GDN_KH_COLUMNS = 32;
+constexpr unsigned int GDN_KH_GROUPS = 4;
+constexpr unsigned int GDN_KH_ROWS = GDN_KH_SIZE / GDN_KH_GROUPS;
+constexpr unsigned int GDN_KH_TOKENS = 8;
+constexpr unsigned int GDN_KH_THREADS = GDN_KH_COLUMNS * GDN_KH_GROUPS;
+
+__device__ __forceinline__ void gdn_kh_copy4(float * shared, const float * global) {
+    asm volatile("cp.async.ca.shared.global [%0], [%1], 4;\n" ::"r"((unsigned int) __cvta_generic_to_shared(shared)), "l"(global));
+}
+
+__device__ __forceinline__ void gdn_kh_copy16(float * shared, const float * global) {
+    asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::"r"((unsigned int) __cvta_generic_to_shared(shared)), "l"(global));
+}
+
+// gated_delta_net_keyhead computes gated_delta_net_rows_f32's outputs and final state for VPK value heads a
+// key head, a 128-wide state and one gate a head: each thread holds GDN_KH_ROWS key rows of one value column
+// of each of the key head's value heads, so a token's key and query are read once for the VPK heads, and the
+// inputs of the next GDN_KH_TOKENS tokens arrive by cp.async while these are computed. A token decays the
+// state, takes its key product, updates the state and takes its query product as the rows kernel does; the
+// products sum in another order.
+template <unsigned int VPK>
+__device__ __forceinline__ void gated_delta_net_keyhead(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * gate,
+        const float * beta,
+        const float * input_state,
+        float * output,
+        unsigned int key_heads,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int sequences,
+        unsigned int repeat_interleave) {
+    __shared__ __align__(16) float sq[2][GDN_KH_TOKENS][GDN_KH_SIZE];
+    __shared__ __align__(16) float sk[2][GDN_KH_TOKENS][GDN_KH_SIZE];
+    __shared__ __align__(16) float sv[2][GDN_KH_TOKENS][VPK][GDN_KH_COLUMNS];
+    __shared__ float sg[2][GDN_KH_TOKENS][VPK];
+    __shared__ float sb[2][GDN_KH_TOKENS][VPK];
+    __shared__ float key_sums[VPK][GDN_KH_GROUPS][GDN_KH_COLUMNS];
+    __shared__ float query_sums[VPK][GDN_KH_GROUPS][GDN_KH_COLUMNS];
+    const unsigned int column_blocks = GDN_KH_SIZE / GDN_KH_COLUMNS;
+    const unsigned int block = blockIdx.x % column_blocks;
+    const unsigned int key_head = (blockIdx.x / column_blocks) % key_heads;
+    const unsigned int sequence = blockIdx.x / (column_blocks * key_heads);
+    if (sequence >= sequences) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x, group = threadIdx.y, thread = group * GDN_KH_COLUMNS + lane;
+    const unsigned int column = block * GDN_KH_COLUMNS + lane;
+    const size_t state_elements = (size_t) GDN_KH_SIZE * GDN_KH_SIZE;
+    const size_t attention_elements = (size_t) GDN_KH_SIZE * heads * tokens * sequences;
+    unsigned int head_of[VPK];
+    float state[VPK][GDN_KH_ROWS];
+#pragma unroll
+    for (unsigned int j = 0; j < VPK; ++j) {
+        head_of[j] = repeat_interleave ? key_head * VPK + j : key_head + j * key_heads;
+        const float * source = input_state + (sequence * heads + head_of[j]) * state_elements + (size_t) column * GDN_KH_SIZE + group * GDN_KH_ROWS;
+#pragma unroll
+        for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+            state[j][r] = source[r];
+        }
+    }
+    const unsigned int staged_blocks = (tokens + GDN_KH_TOKENS - 1) / GDN_KH_TOKENS;
+    auto stage = [&](unsigned int staged) {
+        const unsigned int buffer = staged & 1, first = staged * GDN_KH_TOKENS;
+        const unsigned int pieces = GDN_KH_SIZE / 4;
+        for (unsigned int p = thread; p < GDN_KH_TOKENS * 2 * pieces; p += GDN_KH_THREADS) {
+            const unsigned int i = p / (2 * pieces), which = (p % (2 * pieces)) / pieces, at = (p % pieces) * 4;
+            if (first + i < tokens) {
+                const size_t row = ((size_t) (sequence * tokens + first + i) * key_heads + key_head) * GDN_KH_SIZE + at;
+                gdn_kh_copy16(which ? &sk[buffer][i][at] : &sq[buffer][i][at], (which ? key : query) + row);
+            }
+        }
+        const unsigned int value_pieces = GDN_KH_COLUMNS / 4;
+        for (unsigned int p = thread; p < GDN_KH_TOKENS * VPK * value_pieces; p += GDN_KH_THREADS) {
+            const unsigned int i = p / (VPK * value_pieces), j = (p % (VPK * value_pieces)) / value_pieces, at = (p % value_pieces) * 4;
+            if (first + i < tokens) {
+                gdn_kh_copy16(&sv[buffer][i][j][at], value + ((size_t) (sequence * tokens + first + i) * heads + head_of[j]) * GDN_KH_SIZE + block * GDN_KH_COLUMNS + at);
+            }
+        }
+        for (unsigned int p = thread; p < 2 * GDN_KH_TOKENS * VPK; p += GDN_KH_THREADS) {
+            const unsigned int which = p / (GDN_KH_TOKENS * VPK), i = (p % (GDN_KH_TOKENS * VPK)) / VPK, j = p % VPK;
+            if (first + i < tokens) {
+                const size_t at = (size_t) (sequence * tokens + first + i) * heads + head_of[j];
+                gdn_kh_copy4(which ? &sb[buffer][i][j] : &sg[buffer][i][j], (which ? beta : gate) + at);
+            }
+        }
+    };
+    const float scale = rsqrtf((float) GDN_KH_SIZE);
+    if (staged_blocks > 0) {
+        stage(0);
+    }
+    asm volatile("cp.async.commit_group;\n" ::);
+    for (unsigned int staged = 0; staged < staged_blocks; ++staged) {
+        // The buffer staged next was last read by the block before, whose last token's second barrier every thread has passed.
+        if (staged + 1 < staged_blocks) {
+            stage(staged + 1);
+        }
+        asm volatile("cp.async.commit_group;\n" ::);
+        asm volatile("cp.async.wait_group 1;\n" ::);
+        __syncthreads();
+        const unsigned int buffer = staged & 1, first = staged * GDN_KH_TOKENS;
+        const unsigned int count = min(GDN_KH_TOKENS, tokens - first);
+        for (unsigned int i = 0; i < count; ++i) {
+            float keys[GDN_KH_ROWS];
+#pragma unroll
+            for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                keys[r] = sk[buffer][i][group * GDN_KH_ROWS + r];
+            }
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
+                const float decay = expf(sg[buffer][i][j]);
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                    state[j][r] *= decay;
+                    dot += state[j][r] * keys[r];
+                }
+                key_sums[j][group][lane] = dot;
+            }
+            __syncthreads();
+            float queried[VPK];
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int g = 0; g < GDN_KH_GROUPS; ++g) {
+                    dot += key_sums[j][g][lane];
+                }
+                const float delta = (sv[buffer][i][j][lane] - dot) * sb[buffer][i][j];
+                queried[j] = 0.0f;
+#pragma unroll
+                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                    state[j][r] += delta * keys[r];
+                    queried[j] += state[j][r] * sq[buffer][i][group * GDN_KH_ROWS + r];
+                }
+                query_sums[j][group][lane] = queried[j];
+            }
+            __syncthreads();
+            if (group < VPK) {
+                float dot = 0.0f;
+#pragma unroll
+                for (unsigned int g = 0; g < GDN_KH_GROUPS; ++g) {
+                    dot += query_sums[group][g][lane];
+                }
+                output[((size_t) (sequence * tokens + first + i) * heads + head_of[group]) * GDN_KH_SIZE + column] = dot * scale;
+            }
+        }
+    }
+#pragma unroll
+    for (unsigned int j = 0; j < VPK; ++j) {
+        float * target = output + attention_elements + (sequence * heads + head_of[j]) * state_elements + (size_t) column * GDN_KH_SIZE + group * GDN_KH_ROWS;
+#pragma unroll
+        for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+            target[r] = state[j][r];
+        }
+    }
+}
+
+#define GATED_DELTA_NET_KEYHEAD(VPK)                                                                                     \
+    extern "C" __global__ void __launch_bounds__(GDN_KH_THREADS) gated_delta_net_keyhead##VPK##_f32(                     \
+            const float * query, const float * key, const float * value, const float * gate, const float * beta,      \
+            const float * input_state, float * output, unsigned int key_heads, unsigned int heads, unsigned int tokens, \
+            unsigned int sequences, unsigned int repeat_interleave) {                                                 \
+        gated_delta_net_keyhead<VPK>(query, key, value, gate, beta, input_state, output, key_heads, heads, tokens,  \
+            sequences, repeat_interleave);                                                                            \
+    }
+GATED_DELTA_NET_KEYHEAD(1)
+GATED_DELTA_NET_KEYHEAD(2)
+GATED_DELTA_NET_KEYHEAD(3)
+GATED_DELTA_NET_KEYHEAD(4)
+
 // gated_delta_net_backward_f32: VJP of gated_delta_net_f32, the BPTT through the
 // per-(sequence,head,row) gated delta recurrence. One thread per (sequence,head,
 // row): the token loop is inherently sequential per row, rows are independent.
@@ -2527,6 +3115,12 @@ __device__ bool top_k_before(
 	return left > right;
 }
 
+// ARGMAX_THREADS: a row's block; a wide row (a vocabulary's logits) is read four values a load across them, so the
+// row's reads stay in flight together.
+constexpr unsigned int ARGMAX_THREADS = 1024;
+constexpr unsigned int ARGMAX_VECTOR = 4;
+
+// argmax_f32 writes each row's index of its largest value, the lower index on a tie, or -1 where the row holds a NaN.
 extern "C" __global__ void argmax_f32(
 		const float * input,
 		float * output,
@@ -2541,17 +3135,33 @@ extern "C" __global__ void argmax_f32(
 	unsigned int best_index = 0xffffffffU;
 	float best_value = 0.0f;
 	unsigned int invalid = 0;
-	for (unsigned int candidate = lane; candidate < width; candidate += blockDim.x) {
-		const float value = input[base + candidate];
+	const auto consider = [&](float value, unsigned int candidate) {
 		invalid |= isnan(value);
 		if (best_index == 0xffffffffU || top_k_before(value, candidate, best_value, best_index)) {
 			best_index = candidate;
 			best_value = value;
 		}
+	};
+	// The ordering is total, so the order the values are read in leaves the result as a serial scan's.
+	unsigned int vectored = 0;
+	if (reinterpret_cast<size_t>(input + base) % sizeof(float4) == 0) {
+		vectored = width / ARGMAX_VECTOR * ARGMAX_VECTOR;
+		const float4 * quads = reinterpret_cast<const float4 *>(input + base);
+		for (unsigned int quad = lane; quad < vectored / ARGMAX_VECTOR; quad += blockDim.x) {
+			const float4 value = quads[quad];
+			const unsigned int candidate = quad * ARGMAX_VECTOR;
+			consider(value.x, candidate);
+			consider(value.y, candidate + 1);
+			consider(value.z, candidate + 2);
+			consider(value.w, candidate + 3);
+		}
 	}
-	__shared__ float values[256];
-	__shared__ unsigned int indices[256];
-	__shared__ unsigned int invalids[256];
+	for (unsigned int candidate = vectored + lane; candidate < width; candidate += blockDim.x) {
+		consider(input[base + candidate], candidate);
+	}
+	__shared__ float values[ARGMAX_THREADS];
+	__shared__ unsigned int indices[ARGMAX_THREADS];
+	__shared__ unsigned int invalids[ARGMAX_THREADS];
 	values[lane] = best_value;
 	indices[lane] = best_index;
 	invalids[lane] = invalid;
@@ -2632,6 +3242,145 @@ extern "C" __global__ void top_k_f32(
 		for (unsigned int token = visible * block_size; token <= query_start + row; ++token) {
 			output[output_base + blocks * block_size + token - visible * block_size] = (float) token;
 		}
+	}
+}
+
+#define TOP_K_BLOCK_RADIX_BITS 8
+#define TOP_K_BLOCK_RADIX_BINS 256
+#define TOP_K_BLOCK_KEY_BITS 64
+
+// top_k_key orders a candidate as top_k_before does, larger first: a
+// finite value before a NaN, a larger value before a smaller, and equal
+// values (zero, its sign and a subnormal compare equal under the flushed
+// comparison) the lower index first. The value takes the high word, the
+// reversed index the low, so every candidate of a row has its own key.
+__device__ __forceinline__ unsigned long long top_k_key(float value, unsigned int index) {
+	unsigned int high = 0u;
+	if (!isnan(value)) {
+		unsigned int bits = __float_as_uint(value);
+		if ((bits & 0x7fffffffu) < 0x00800000u) {
+			bits = 0u;
+		}
+		high = (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
+	}
+	return ((unsigned long long) high << 32) | (unsigned long long) (0xffffffffu - index);
+}
+
+// top_k_block_f32 writes top_k_f32's output with a block a row: a radix
+// select finds the row's k-th key, the keys at or above it are gathered and
+// sorted larger first in shared memory, and the row's output is written
+// from them, a selected block's tokens and the incomplete block's tokens
+// after them as top_k_f32 writes them.
+extern "C" __global__ void top_k_block_f32(
+		const float * input,
+		float * output,
+		unsigned int width,
+		unsigned int k,
+		unsigned int rows,
+		unsigned int block_size,
+		const unsigned int * first_query,
+		unsigned int output_width,
+		unsigned int capacity) {
+	extern __shared__ unsigned long long selected[];
+	__shared__ unsigned int histogram[TOP_K_BLOCK_RADIX_BINS];
+	__shared__ unsigned long long prefix;
+	__shared__ unsigned int remaining;
+	__shared__ unsigned int gathered;
+	const unsigned int row = blockIdx.x;
+	if (row >= rows) {
+		return;
+	}
+	const unsigned int query_start = block_size ? *first_query : 0;
+	const size_t input_base = (size_t) row * width;
+	const size_t output_base = (size_t) row * output_width;
+	const unsigned int visible = block_size ? min(width, (query_start + row + 1) / block_size) : width;
+	const unsigned int chosen = min(k, visible);
+	unsigned long long threshold = 0ull;
+	if (visible > k) {
+		if (threadIdx.x == 0) {
+			prefix = 0ull;
+			remaining = k;
+		}
+		for (int shift = TOP_K_BLOCK_KEY_BITS - TOP_K_BLOCK_RADIX_BITS; shift >= 0; shift -= TOP_K_BLOCK_RADIX_BITS) {
+			for (unsigned int bin = threadIdx.x; bin < TOP_K_BLOCK_RADIX_BINS; bin += blockDim.x) {
+				histogram[bin] = 0u;
+			}
+			__syncthreads();
+			const unsigned long long resolved = shift == TOP_K_BLOCK_KEY_BITS - TOP_K_BLOCK_RADIX_BITS
+				? 0ull : ~0ull << (shift + TOP_K_BLOCK_RADIX_BITS);
+			const unsigned long long want = prefix;
+			for (unsigned int candidate = threadIdx.x; candidate < visible; candidate += blockDim.x) {
+				const unsigned long long key = top_k_key(input[input_base + candidate], candidate);
+				if ((key & resolved) == want) {
+					atomicAdd(&histogram[(key >> shift) & (TOP_K_BLOCK_RADIX_BINS - 1)], 1u);
+				}
+			}
+			__syncthreads();
+			if (threadIdx.x == 0) {
+				unsigned int above = 0u;
+				unsigned int bin = TOP_K_BLOCK_RADIX_BINS - 1;
+				while (above + histogram[bin] < remaining) {
+					above += histogram[bin];
+					--bin;
+				}
+				prefix |= (unsigned long long) bin << shift;
+				remaining -= above;
+			}
+			__syncthreads();
+		}
+		threshold = prefix;
+	}
+	if (threadIdx.x == 0) {
+		gathered = 0u;
+	}
+	__syncthreads();
+	for (unsigned int candidate = threadIdx.x; candidate < visible; candidate += blockDim.x) {
+		const unsigned long long key = top_k_key(input[input_base + candidate], candidate);
+		if (key >= threshold) {
+			selected[atomicAdd(&gathered, 1u)] = key;
+		}
+	}
+	unsigned int padded = 1u;
+	while (padded < chosen) {
+		padded <<= 1;
+	}
+	for (unsigned int slot = chosen + threadIdx.x; slot < padded; slot += blockDim.x) {
+		selected[slot] = 0ull;
+	}
+	__syncthreads();
+	for (unsigned int size = 2u; size <= padded; size <<= 1) {
+		for (unsigned int stride = size >> 1; stride > 0u; stride >>= 1) {
+			for (unsigned int slot = threadIdx.x; slot < padded; slot += blockDim.x) {
+				const unsigned int partner = slot ^ stride;
+				if (partner > slot) {
+					const unsigned long long left = selected[slot];
+					const unsigned long long right = selected[partner];
+					if (((slot & size) == 0u) ? left < right : left > right) {
+						selected[slot] = right;
+						selected[partner] = left;
+					}
+				}
+			}
+			__syncthreads();
+		}
+	}
+	for (unsigned int position = threadIdx.x; position < output_width; position += blockDim.x) {
+		float value = -1.0f;
+		if (block_size) {
+			const unsigned int rank = position / block_size;
+			if (rank < chosen) {
+				const unsigned int block = 0xffffffffu - (unsigned int) selected[rank];
+				value = (float) (block * block_size + position % block_size);
+			} else if (position >= chosen * block_size) {
+				const unsigned int token = visible * block_size + position - chosen * block_size;
+				if (token <= query_start + row) {
+					value = (float) token;
+				}
+			}
+		} else if (position < chosen) {
+			value = (float) (0xffffffffu - (unsigned int) selected[position]);
+		}
+		output[output_base + position] = value;
 	}
 }
 
@@ -2902,6 +3651,548 @@ extern "C" __global__ void sparse_attention_f32(
 	output[index] = weighted / sum;
 }
 
+#define SPARSE_ATTENTION_GROUPED_THREADS 256
+#define SPARSE_ATTENTION_GROUPED_PAIRS 16
+
+// sparse_attention_grouped_f32 computes sparse_attention_f32's outputs with
+// the same operations in the same order, once per query head instead of once
+// per value channel. A block takes one query token, one key/value head and a
+// chunk of the query heads that share it; each tile of selected slots stages
+// its keys and values in shared memory. A slot's dot product runs over the
+// channels in order, each head's maximum over its valid slots, and each
+// head's sum and each (head, channel) output accumulate over the slots in
+// order.
+extern "C" __global__ void sparse_attention_grouped_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query,
+		unsigned int chunk_heads,
+		unsigned int tile) {
+	extern __shared__ float shared[];
+	__shared__ unsigned int valid_count;
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int chunk_start = blockIdx.z * chunk_heads;
+	if (query_token >= query_tokens || chunk_start >= group) {
+		return;
+	}
+	const unsigned int first_head = key_value_head * group + chunk_start;
+	const unsigned int heads = min(chunk_heads, group - chunk_start);
+	const unsigned int query_start = *first_query;
+	const unsigned int key_stride = key_width + 1;
+	float * queries = shared;
+	float * keys = queries + chunk_heads * key_width;
+	float * values = keys + tile * key_stride;
+	float * scores = values + tile * value_width;
+	float * maxima = scores + chunk_heads * tile;
+	float * sums = maxima + chunk_heads;
+	int * rows = reinterpret_cast<int *>(sums + chunk_heads);
+	const size_t index_base = (size_t) query_token * selected;
+	for (unsigned int element = threadIdx.x; element < heads * key_width; element += blockDim.x) {
+		const unsigned int head = element / key_width;
+		queries[element] = query[((size_t) query_token * query_heads + first_head + head) * key_width + element % key_width];
+	}
+	for (unsigned int head = threadIdx.x; head < heads; head += blockDim.x) {
+		maxima[head] = -3.402823466e+38F;
+		sums[head] = 0.0f;
+	}
+	if (threadIdx.x == 0) {
+		valid_count = 0;
+	}
+	// Each pass stages a tile's slots: its rows (-1 for a slot the scalar
+	// kernel skips) and the rows' keys, and the second pass their values.
+	for (unsigned int pass = 0; pass < 2; ++pass) {
+		float weighted[SPARSE_ATTENTION_GROUPED_PAIRS];
+#pragma unroll
+		for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+			weighted[pair] = 0.0f;
+		}
+		for (unsigned int base = 0; base < selected; base += tile) {
+			const unsigned int count = min(tile, selected - base);
+			__syncthreads();
+			for (unsigned int slot = threadIdx.x; slot < count; slot += blockDim.x) {
+				const float raw = indices[index_base + base + slot];
+				int row = -1;
+				if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+					const unsigned int key_token = (unsigned int) raw;
+					if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+						row = (int) key_token;
+					}
+				}
+				rows[slot] = row;
+			}
+			__syncthreads();
+			for (unsigned int element = threadIdx.x; element < count * key_width; element += blockDim.x) {
+				const unsigned int slot = element / key_width;
+				if (rows[slot] >= 0) {
+					keys[slot * key_stride + element % key_width] =
+						key[((size_t) rows[slot] * key_value_heads + key_value_head) * key_width + element % key_width];
+				}
+			}
+			if (pass == 1) {
+				for (unsigned int element = threadIdx.x; element < count * value_width; element += blockDim.x) {
+					const unsigned int slot = element / value_width;
+					if (rows[slot] >= 0) {
+						values[element] =
+							value[((size_t) rows[slot] * key_value_heads + key_value_head) * value_width + element % value_width];
+					}
+				}
+			}
+			__syncthreads();
+			for (unsigned int item = threadIdx.x; item < heads * count; item += blockDim.x) {
+				const unsigned int head = item / count;
+				const unsigned int slot = item % count;
+				if (rows[slot] < 0) {
+					continue;
+				}
+				const float * head_query = queries + head * key_width;
+				const float * slot_key = keys + slot * key_stride;
+				float dot = 0.0f;
+				for (unsigned int channel = 0; channel < key_width; ++channel) {
+					dot += head_query[channel] * slot_key[channel];
+				}
+				if (pass == 0) {
+					scores[head * tile + slot] = dot * scale;
+				} else {
+					// The per-channel kernel's code generator fuses this
+					// product and difference; an explicit fused multiply-add
+					// keeps the same rounding whatever this kernel's
+					// generator would choose.
+					scores[head * tile + slot] = expf(__fmaf_rn(dot, scale, -maxima[head]));
+				}
+			}
+			__syncthreads();
+			for (unsigned int head = threadIdx.x; head < heads; head += blockDim.x) {
+				for (unsigned int slot = 0; slot < count; ++slot) {
+					if (rows[slot] < 0) {
+						continue;
+					}
+					if (pass == 0) {
+						maxima[head] = fmaxf(maxima[head], scores[head * tile + slot]);
+					} else {
+						sums[head] += scores[head * tile + slot];
+					}
+				}
+			}
+			if (pass == 0 && threadIdx.x == 0) {
+				for (unsigned int slot = 0; slot < count; ++slot) {
+					valid_count += rows[slot] >= 0;
+				}
+			}
+			if (pass == 1) {
+#pragma unroll
+				for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+					const unsigned int item = threadIdx.x + pair * blockDim.x;
+					if (item >= heads * value_width) {
+						continue;
+					}
+					const unsigned int head = item / value_width;
+					const unsigned int channel = item % value_width;
+					for (unsigned int slot = 0; slot < count; ++slot) {
+						if (rows[slot] < 0) {
+							continue;
+						}
+						weighted[pair] += scores[head * tile + slot] * values[slot * value_width + channel];
+					}
+				}
+			}
+		}
+		__syncthreads();
+		if (pass == 0 && valid_count == 0) {
+			for (unsigned int item = threadIdx.x; item < heads * value_width; item += blockDim.x) {
+				output[((size_t) query_token * query_heads + first_head + item / value_width) * value_width + item % value_width] = 0.0f;
+			}
+			return;
+		}
+		if (pass == 1) {
+#pragma unroll
+			for (unsigned int pair = 0; pair < SPARSE_ATTENTION_GROUPED_PAIRS; ++pair) {
+				const unsigned int item = threadIdx.x + pair * blockDim.x;
+				if (item < heads * value_width) {
+					const unsigned int head = item / value_width;
+					output[((size_t) query_token * query_heads + first_head + head) * value_width + item % value_width] =
+						weighted[pair] / sums[head];
+				}
+			}
+		}
+	}
+}
+
+#define SPARSE_ATTENTION_SPLIT_THREADS 256
+#define SPARSE_ATTENTION_SPLIT_HEADS 16
+#define SPARSE_ATTENTION_SPLIT_KEY_LANES 8
+
+// sparse_attention_split_f32 computes sparse_attention_f32's outputs for a
+// step of few query tokens, a decode step's: the selected slots split into
+// spans of span slots across gridDim.z, and a block takes one query token, one
+// key/value head and one span. A warp scores a slot for every query head that
+// shares the key/value head, its lanes splitting the channels; each head's
+// maximum and sum reduce over the span's valid slots; and a thread a value
+// channel weighs the span's values for every head. With one span the block
+// writes the outputs; with more, each head's maximum, sum and weighted values
+// as attention_decode_f32's partials, which attention_decode_combine_f32
+// folds. Sums run in another order than the per-channel kernel's, so outputs
+// differ at rounding level. A head with no valid slot outputs zeros.
+//   - at most SPARSE_ATTENTION_SPLIT_HEADS query heads a key/value head, key
+//     and value widths at most SPARSE_ATTENTION_SPLIT_THREADS
+//   - scores[h * span + s] = slot s's scaled dot product for head h, then its
+//     exponential against the head's maximum; a slot the per-channel kernel
+//     skips weighs zero
+extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_SPLIT_THREADS) sparse_attention_split_f32(
+		const float * query,
+		const float * key,
+		const float * value,
+		const float * indices,
+		float * output,
+		float * partials,
+		unsigned int key_width,
+		unsigned int value_width,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query,
+		unsigned int span,
+		unsigned int splits) {
+	extern __shared__ float shared[];
+	__shared__ float maxima[SPARSE_ATTENTION_SPLIT_HEADS];
+	__shared__ float sums[SPARSE_ATTENTION_SPLIT_HEADS];
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	const unsigned int split = blockIdx.z;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int first_head = key_value_head * group;
+	const unsigned int first_slot = split * span;
+	const unsigned int slots = first_slot < selected ? min(span, selected - first_slot) : 0;
+	const unsigned int query_start = *first_query;
+	const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+	const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+	const unsigned int warps = blockDim.x / CUDA_WARP_WIDTH;
+	float * queries = shared;
+	float * scores = queries + group * key_width;
+	int * rows = reinterpret_cast<int *>(scores + group * span);
+	for (unsigned int element = threadIdx.x; element < group * key_width; element += blockDim.x) {
+		queries[element] = query[((size_t) query_token * query_heads + first_head) * key_width + element];
+	}
+	for (unsigned int slot = threadIdx.x; slot < slots; slot += blockDim.x) {
+		const float raw = indices[(size_t) query_token * selected + first_slot + slot];
+		int row = -1;
+		if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+			const unsigned int key_token = (unsigned int) raw;
+			if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+				row = (int) key_token;
+			}
+		}
+		rows[slot] = row;
+	}
+	__syncthreads();
+	for (unsigned int slot = warp; slot < slots; slot += warps) {
+		const int row = rows[slot];
+		if (row < 0) {
+			continue;
+		}
+		const float * slot_key = key + ((size_t) row * key_value_heads + key_value_head) * key_width;
+		float keys[SPARSE_ATTENTION_SPLIT_KEY_LANES];
+#pragma unroll
+		for (unsigned int part = 0; part < SPARSE_ATTENTION_SPLIT_KEY_LANES; ++part) {
+			const unsigned int channel = part * CUDA_WARP_WIDTH + lane;
+			keys[part] = channel < key_width ? slot_key[channel] : 0.0f;
+		}
+		for (unsigned int head = 0; head < group; ++head) {
+			float dot = 0.0f;
+#pragma unroll
+			for (unsigned int part = 0; part < SPARSE_ATTENTION_SPLIT_KEY_LANES; ++part) {
+				const unsigned int channel = part * CUDA_WARP_WIDTH + lane;
+				if (channel < key_width) {
+					dot += queries[head * key_width + channel] * keys[part];
+				}
+			}
+			dot = warp_sum_down(dot);
+			if (lane == 0) {
+				scores[head * span + slot] = dot * scale;
+			}
+		}
+	}
+	__syncthreads();
+	for (unsigned int head = warp; head < group; head += warps) {
+		float maximum = -3.402823466e+38F;
+		for (unsigned int slot = lane; slot < slots; slot += CUDA_WARP_WIDTH) {
+			if (rows[slot] >= 0) {
+				maximum = fmaxf(maximum, scores[head * span + slot]);
+			}
+		}
+		for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+			maximum = fmaxf(maximum, __shfl_xor_sync(0xffffffffu, maximum, offset));
+		}
+		float sum = 0.0f;
+		for (unsigned int slot = lane; slot < slots; slot += CUDA_WARP_WIDTH) {
+			const float probability = rows[slot] >= 0 ? expf(scores[head * span + slot] - maximum) : 0.0f;
+			scores[head * span + slot] = probability;
+			sum += probability;
+		}
+		sum = warp_sum_down(sum);
+		if (lane == 0) {
+			maxima[head] = maximum;
+			sums[head] = sum;
+		}
+	}
+	__syncthreads();
+	for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+		float weighted[SPARSE_ATTENTION_SPLIT_HEADS] = {};
+		for (unsigned int slot = 0; slot < slots; ++slot) {
+			const int row = rows[slot];
+			if (row < 0) {
+				continue;
+			}
+			const float slot_value = value[((size_t) row * key_value_heads + key_value_head) * value_width + channel];
+#pragma unroll
+			for (unsigned int head = 0; head < SPARSE_ATTENTION_SPLIT_HEADS; ++head) {
+				if (head < group) {
+					weighted[head] += scores[head * span + slot] * slot_value;
+				}
+			}
+		}
+#pragma unroll
+		for (unsigned int head = 0; head < SPARSE_ATTENTION_SPLIT_HEADS; ++head) {
+			if (head >= group) {
+				continue;
+			}
+			const size_t row = (size_t) query_token * query_heads + first_head + head;
+			if (splits == 1) {
+				output[row * value_width + channel] = sums[head] > 0.0f ? weighted[head] / sums[head] : 0.0f;
+				continue;
+			}
+			float * partial = partials + (row * splits + split) * (value_width + 2);
+			partial[2 + channel] = weighted[head];
+			if (channel == 0) {
+				partial[0] = maxima[head];
+				partial[1] = sums[head];
+			}
+		}
+	}
+}
+
+#define SPARSE_ATTENTION_MMA_WIDTH 256
+#define SPARSE_ATTENTION_MMA_ROWS 16
+#define SPARSE_ATTENTION_MMA_CELLS 32
+#define SPARSE_ATTENTION_MMA_THREADS 128
+#define SPARSE_ATTENTION_MMA_Q_STRIDE (SPARSE_ATTENTION_MMA_WIDTH + 4)
+#define SPARSE_ATTENTION_MMA_S_STRIDE (SPARSE_ATTENTION_MMA_CELLS + 4)
+
+// half2_pack rounds two f32 values to an FP16 pair, the first in the low half, as an mma fragment register holds them.
+__device__ __forceinline__ unsigned int half2_pack(float low, float high) {
+	const __half2 packed = __floats2half2_rn(low, high);
+	return *reinterpret_cast<const unsigned int *>(&packed);
+}
+
+// mma_f16_16x8x16 multiplies FP16 fragments on tensor cores and accumulates in f32.
+__device__ __forceinline__ void mma_f16_16x8x16(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
+	asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+		"{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+		: "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+		: "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+// sparse_attention_mma_f32 computes a prompt's selected attention on tensor
+// cores for 256-channel heads, at most 16 query heads to a key/value head: a
+// block takes a query token and a key/value head, its query heads as the 16
+// rows of m16n8k16 products (absent rows zero), and walks the selected slots
+// 32 at a time with an online softmax. q.k and p.v are FP16 products with f32
+// accumulation over the keys and values the launcher converts to FP16 (half the
+// bytes each query token gathers); queries and probabilities round to FP16 as
+// their fragments load, as attention_flash_<width>_f32's do, so the result
+// differs from sparse_attention_grouped_f32 at FP16 rounding of the operands. A
+// query with no valid slot writes zeros.
+//   - each lane reads the keys and values of its mma fragments from the FP16
+//     rows itself, so the shared memory holds the queries and the scores alone
+//     and several blocks share a multiprocessor
+extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) sparse_attention_mma_f32(
+		const float * query,
+		const __half * key,
+		const __half * value,
+		const float * indices,
+		float * output,
+		unsigned int query_heads,
+		unsigned int key_value_heads,
+		unsigned int query_tokens,
+		unsigned int key_value_tokens,
+		unsigned int selected,
+		float scale,
+		unsigned int causal,
+		const unsigned int * first_query) {
+	extern __shared__ float shared[];
+	float * queries = shared;
+	float * scores = queries + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_Q_STRIDE;
+	float * maxima = scores + SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_S_STRIDE;
+	float * sums = maxima + SPARSE_ATTENTION_MMA_ROWS;
+	float * rescale = sums + SPARSE_ATTENTION_MMA_ROWS;
+	int * rows = reinterpret_cast<int *>(rescale + SPARSE_ATTENTION_MMA_ROWS);
+	const unsigned int query_token = blockIdx.x;
+	const unsigned int key_value_head = blockIdx.y;
+	if (query_token >= query_tokens) {
+		return;
+	}
+	const unsigned int group = query_heads / key_value_heads;
+	const unsigned int first_head = key_value_head * group;
+	const unsigned int query_start = *first_query;
+	const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+	const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+	const unsigned int row = lane / 4;
+	const unsigned int column = lane % 4;
+	for (unsigned int element = threadIdx.x; element < SPARSE_ATTENTION_MMA_ROWS * SPARSE_ATTENTION_MMA_WIDTH; element += blockDim.x) {
+		const unsigned int head = element / SPARSE_ATTENTION_MMA_WIDTH;
+		const unsigned int channel = element % SPARSE_ATTENTION_MMA_WIDTH;
+		queries[head * SPARSE_ATTENTION_MMA_Q_STRIDE + channel] = head < group
+			? query[((size_t) query_token * query_heads + first_head + head) * SPARSE_ATTENTION_MMA_WIDTH + channel]
+			: 0.0f;
+	}
+	if (threadIdx.x < SPARSE_ATTENTION_MMA_ROWS) {
+		maxima[threadIdx.x] = -INFINITY;
+		sums[threadIdx.x] = 0.0f;
+	}
+	float accumulated[8][4];
+#pragma unroll
+	for (int tile = 0; tile < 8; ++tile) {
+		accumulated[tile][0] = accumulated[tile][1] = accumulated[tile][2] = accumulated[tile][3] = 0.0f;
+	}
+	const size_t index_base = (size_t) query_token * selected;
+	for (unsigned int base = 0; base < selected; base += SPARSE_ATTENTION_MMA_CELLS) {
+		const unsigned int count = min((unsigned int) SPARSE_ATTENTION_MMA_CELLS, selected - base);
+		__syncthreads();
+		if (threadIdx.x < SPARSE_ATTENTION_MMA_CELLS) {
+			int slot_row = -1;
+			if (threadIdx.x < count) {
+				const float raw = indices[index_base + base + threadIdx.x];
+				if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+					const unsigned int key_token = (unsigned int) raw;
+					if (!(raw != (float) key_token || causal && key_token > query_start + query_token)) {
+						slot_row = (int) key_token;
+					}
+				}
+			}
+			rows[threadIdx.x] = slot_row;
+		}
+		__syncthreads();
+		// A cell's key and value rows in the cache, or none for a cell that is not attended, whose weights read as zeros.
+		const auto cell_row = [&](const __half * cache, unsigned int cell) -> const __half * {
+			return rows[cell] >= 0
+				? cache + ((size_t) rows[cell] * key_value_heads + key_value_head) * SPARSE_ATTENTION_MMA_WIDTH
+				: nullptr;
+		};
+		// A warp scores its 8 cells for all 16 rows.
+		float score[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		const __half * key_row = cell_row(key, 8 * warp + row);
+#pragma unroll 4
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_WIDTH / 16; ++step) {
+			const unsigned int k = step * 16 + 2 * column;
+			const float2 low = *reinterpret_cast<const float2 *>(queries + row * SPARSE_ATTENTION_MMA_Q_STRIDE + k);
+			const float2 high = *reinterpret_cast<const float2 *>(queries + (row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k);
+			const float2 low_far = *reinterpret_cast<const float2 *>(queries + row * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 8);
+			const float2 high_far = *reinterpret_cast<const float2 *>(queries + (row + 8) * SPARSE_ATTENTION_MMA_Q_STRIDE + k + 8);
+			const unsigned int a[4] = {
+				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
+			const unsigned int near_key = key_row ? __ldg(reinterpret_cast<const unsigned int *>(key_row + k)) : 0u;
+			const unsigned int far_key = key_row ? __ldg(reinterpret_cast<const unsigned int *>(key_row + k + 8)) : 0u;
+			mma_f16_16x8x16(score, a, near_key, far_key);
+		}
+		const unsigned int cell_column = 8 * warp + 2 * column;
+		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[0] * scale;
+		scores[row * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column + 1] = score[1] * scale;
+		scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column] = score[2] * scale;
+		scores[(row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + cell_column + 1] = score[3] * scale;
+		__syncthreads();
+		// A thread a row: the running maximum, the rescale of what came before, the chunk's weights.
+		if (threadIdx.x < SPARSE_ATTENTION_MMA_ROWS) {
+			float * row_scores = scores + threadIdx.x * SPARSE_ATTENTION_MMA_S_STRIDE;
+			const float previous = maxima[threadIdx.x];
+			float maximum = previous;
+			for (unsigned int cell = 0; cell < count; ++cell) {
+				if (rows[cell] >= 0) {
+					maximum = fmaxf(maximum, row_scores[cell]);
+				}
+			}
+			float sum = 0.0f;
+			for (unsigned int cell = 0; cell < SPARSE_ATTENTION_MMA_CELLS; ++cell) {
+				const float weight = cell < count && rows[cell] >= 0 ? expf(row_scores[cell] - maximum) : 0.0f;
+				row_scores[cell] = weight;
+				sum += weight;
+			}
+			const float factor = maximum == -INFINITY ? 0.0f : expf(previous - maximum);
+			sums[threadIdx.x] = sums[threadIdx.x] * factor + sum;
+			maxima[threadIdx.x] = maximum;
+			rescale[threadIdx.x] = factor;
+		}
+		__syncthreads();
+		// A warp accumulates 64 output channels for all 16 rows.
+		const float low_factor = rescale[row];
+		const float high_factor = rescale[row + 8];
+#pragma unroll
+		for (int tile = 0; tile < 8; ++tile) {
+			accumulated[tile][0] *= low_factor;
+			accumulated[tile][1] *= low_factor;
+			accumulated[tile][2] *= high_factor;
+			accumulated[tile][3] *= high_factor;
+		}
+#pragma unroll
+		for (unsigned int step = 0; step < SPARSE_ATTENTION_MMA_CELLS / 16; ++step) {
+			const unsigned int k = step * 16 + 2 * column;
+			const float2 low = *reinterpret_cast<const float2 *>(scores + row * SPARSE_ATTENTION_MMA_S_STRIDE + k);
+			const float2 high = *reinterpret_cast<const float2 *>(scores + (row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k);
+			const float2 low_far = *reinterpret_cast<const float2 *>(scores + row * SPARSE_ATTENTION_MMA_S_STRIDE + k + 8);
+			const float2 high_far = *reinterpret_cast<const float2 *>(scores + (row + 8) * SPARSE_ATTENTION_MMA_S_STRIDE + k + 8);
+			const unsigned int a[4] = {
+				half2_pack(low.x, low.y), half2_pack(high.x, high.y), half2_pack(low_far.x, low_far.y), half2_pack(high_far.x, high_far.y)};
+			// The four cells a lane's B fragment reads: k and k + 1, and the two eight further on.
+			const __half * cells[4] = {cell_row(value, k), cell_row(value, k + 1), cell_row(value, k + 8), cell_row(value, k + 9)};
+#pragma unroll
+			for (int tile = 0; tile < 8; ++tile) {
+				const unsigned int channel = 64 * warp + 8 * tile + row;
+				unsigned short v[4];
+#pragma unroll
+				for (int cell = 0; cell < 4; ++cell) {
+					v[cell] = cells[cell] ? __ldg(reinterpret_cast<const unsigned short *>(cells[cell] + channel)) : 0u;
+				}
+				mma_f16_16x8x16(accumulated[tile], a, v[0] | (unsigned int) v[1] << 16, v[2] | (unsigned int) v[3] << 16);
+			}
+		}
+	}
+	__syncthreads();
+#pragma unroll
+	for (int tile = 0; tile < 8; ++tile) {
+		const unsigned int channel = 64 * warp + 8 * tile + 2 * column;
+#pragma unroll
+		for (int half = 0; half < 2; ++half) {
+			const unsigned int head = row + 8 * half;
+			if (head < group) {
+				const float total = sums[head];
+				const float inverse = total > 0.0f ? 1.0f / total : 0.0f;
+				float * out = output + ((size_t) query_token * query_heads + first_head + head) * SPARSE_ATTENTION_MMA_WIDTH + channel;
+				out[0] = accumulated[tile][2 * half] * inverse;
+				out[1] = accumulated[tile][2 * half + 1] * inverse;
+			}
+		}
+	}
+}
+
 extern "C" __global__ void indexer_score_f32(
 		const float * query,
 		const float * key,
@@ -3021,6 +4312,7 @@ extern "C" __global__ void weighted_rms_norm_f32(
         float * output,
         unsigned int width,
         unsigned int rows,
+        unsigned int weight_rows,
         float epsilon) {
     const unsigned int row = blockIdx.x;
     if (row >= rows) {
@@ -3036,7 +4328,7 @@ extern "C" __global__ void weighted_rms_norm_f32(
     sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        output[offset + column] = input[offset + column] * inverse * weight[column];
+        output[offset + column] = input[offset + column] * inverse * weight[(row % weight_rows) * width + column];
     }
 }
 
@@ -3072,30 +4364,57 @@ extern "C" __global__ void weighted_rms_norm_q8_0_f32(
         unsigned char * quantized,
         unsigned int width,
         unsigned int rows,
+        unsigned int weight_rows,
         float epsilon) {
     const unsigned int row = blockIdx.x;
     if (row >= rows) {
         return;
     }
     const unsigned int offset = row * width;
+    const float * row_weight = weight + (row % weight_rows) * width;
+    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    __shared__ float partial[256];
+    // A row of at most NORM_ROW_VALUES values a thread is read once, every load in flight at once, and normalized from
+    // the registers; the sum keeps the strided loop's order, so either way gives the same bits.
+    if (width <= NORM_ROW_VALUES * blockDim.x) {
+        float values[NORM_ROW_VALUES], weights[NORM_ROW_VALUES];
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            const unsigned int column = threadIdx.x + index * blockDim.x;
+            values[index] = column < width ? input[offset + column] : 0.0f;
+            weights[index] = column < width ? row_weight[column] : 0.0f;
+        }
+        float sum_squares = 0.0f;
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            sum_squares += values[index] * values[index];
+        }
+        sum_squares = block_sum_f32(sum_squares, partial);
+        const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
+#pragma unroll
+        for (unsigned int index = 0; index < NORM_ROW_VALUES; ++index) {
+            const unsigned int column = threadIdx.x + index * blockDim.x;
+            if (column >= width) {
+                break;
+            }
+            const float value = values[index] * inverse * weights[index];
+            output[offset + column] = value;
+            store_q8_input_warp(quantized, row * blocks_per_row + column / Q8_0_BLOCK_WIDTH, value, lane);
+        }
+        return;
+    }
     float sum_squares = 0.0f;
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
         const float value = input[offset + column];
         sum_squares += value * value;
     }
-    __shared__ float partial[256];
     sum_squares = block_sum_f32(sum_squares, partial);
     const float inverse = rsqrtf(sum_squares / (float) width + epsilon);
-    const unsigned int blocks_per_row = width / Q8_0_BLOCK_WIDTH;
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        const float value = input[offset + column] * inverse * weight[column];
+        const float value = input[offset + column] * inverse * row_weight[column];
         output[offset + column] = value;
-        store_q8_input_warp(
-            quantized,
-            row * blocks_per_row + column / Q8_0_BLOCK_WIDTH,
-            value,
-            lane);
+        store_q8_input_warp(quantized, row * blocks_per_row + column / Q8_0_BLOCK_WIDTH, value, lane);
     }
 }
 
@@ -3276,22 +4595,6 @@ extern "C" __global__ void layer_norm_modulate_f32(
     }
 }
 
-// broadcast_gate_add_f32: out = residual + value*gate[channel] — the gated
-// residual join (rank-1 gate broadcast over tokens) in one pass, rounding
-// exactly like the broadcast_multiply + add pair it replaces.
-extern "C" __global__ void broadcast_gate_add_f32(
-        const float * value,
-        const float * gate,
-        const float * residual,
-        float * output,
-        unsigned int width,
-        unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count) {
-        output[index] = __fadd_rn(residual[index], __fmul_rn(value[index], gate[index % width]));
-    }
-}
-
 extern "C" __global__ void softmax_f32(
         const float * input,
         float * output,
@@ -3462,8 +4765,14 @@ extern "C" __global__ void mul_mat_f32(
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
     const float * weights = left + (size_t) row * inner;
     float sums[Q8_INPUT_SPAN_MAX] = {};
+    // A span's columns take the instantiation of their count: eight sums for two columns ran Flash-Next's 4-, 48- and
+    // 1-row products 7.7, 3.3 and 3.1 us a launch against 2.3, 1.8 and 1.4 for one column.
     if (right_rows == 1) {
         f32_row_dots<1>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
+    } else if (right_rows == 2) {
+        f32_row_dots<2>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
+    } else if (right_rows <= 4) {
+        f32_row_dots<4>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
     } else {
         f32_row_dots<Q8_INPUT_SPAN_MAX>(weights, right, inner, threadIdx.x, blockDim.x, right_rows, sums);
     }
@@ -3481,6 +4790,192 @@ extern "C" __global__ void mul_mat_f32(
         output[(size_t) column * left_rows + row] = sum;
     }
 }
+
+// GATED_DELTA_FUSED_KERNEL and GATED_DELTA_FUSED_STATE_WIDTH = the largest convolution kernel and the widest state
+// gated_delta_conv_f32 takes (tensor.GatedDeltaFused).
+#define GATED_DELTA_FUSED_KERNEL 8
+#define GATED_DELTA_FUSED_STATE_WIDTH 1024
+
+// gated_delta_conv_f32 is tensor.Builder.GatedDeltaConv: a block takes one head's state_width channels, a thread one
+// channel, holding its window and taps in registers. A channel's value at a token adds its taps in order over the
+// window's rows and the token's, as ssm_conv_f32 does, then takes the SiLU; a query or key head divides its values by
+// max(their L2 norm, epsilon), summed as l2_norm_f32 sums it. The window after each token is written for the next
+// state and a span's checkpoints.
+extern "C" __global__ void gated_delta_conv_f32(
+        const float * state,
+        const float * qkv,
+        const float * weights,
+        float * output,
+        unsigned int channels,
+        unsigned int state_width,
+        unsigned int key_heads,
+        unsigned int value_heads,
+        unsigned int kernel,
+        unsigned int tokens,
+        float epsilon) {
+    __shared__ float sums[GATED_DELTA_FUSED_STATE_WIDTH];
+    const unsigned int head = blockIdx.x;
+    const unsigned int channel = head * state_width + threadIdx.x;
+    const unsigned int history = kernel - 1;
+    const unsigned int key_channels = key_heads * state_width;
+    const unsigned int value_channels = value_heads * state_width;
+    const bool normalized = head < 2 * key_heads;
+    float window[GATED_DELTA_FUSED_KERNEL];
+    float taps[GATED_DELTA_FUSED_KERNEL];
+#pragma unroll
+    for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+        window[index] = index < history ? state[channel * history + index] : 0.0f;
+        taps[index] = index < kernel ? weights[channel * kernel + index] : 0.0f;
+    }
+    for (unsigned int token = 0; token < tokens; ++token) {
+        const float x = qkv[token * channels + channel];
+        float sum = 0.0f;
+#pragma unroll
+        for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+            if (index < history) {
+                sum += window[index] * taps[index];
+            } else if (index == history) {
+                sum += x * taps[index];
+            }
+        }
+        float value = sum / (1.0f + expf(-sum));
+        // The window moves on by the token, and the rows after it are written.
+        float * after = output + (size_t) channels * (tokens + token * history) + (size_t) channel * history;
+#pragma unroll
+        for (unsigned int index = 0; index < GATED_DELTA_FUSED_KERNEL; ++index) {
+            if (index + 1 < history) {
+                window[index] = window[index + 1];
+            } else if (index + 1 == history) {
+                window[index] = x;
+            }
+            if (index < history) {
+                after[index] = window[index];
+            }
+        }
+        if (normalized) {
+            // l2_norm_f32's reduction tree, so the norm's bits are its.
+            const float total = block_sum_f32(value * value, sums);
+            value *= 1.0f / fmaxf(sqrtf(total), epsilon);
+        }
+        if (channel < key_channels) {
+            output[token * key_channels + channel] = value;
+        } else if (channel < 2 * key_channels) {
+            output[(size_t) key_channels * tokens + token * key_channels + channel - key_channels] = value;
+        } else {
+            output[(size_t) 2 * key_channels * tokens + token * value_channels + channel - 2 * key_channels] = value;
+        }
+    }
+}
+
+// gated_delta_conv_row is the convolution input's row at time index of channel: the state's history rows, then the
+// tokens' qkv rows.
+__device__ __forceinline__ float gated_delta_conv_row(
+        const float * state, const float * qkv, unsigned int channel, unsigned int channels, unsigned int history,
+        unsigned int index) {
+    return index < history ? state[channel * history + index] : qkv[(size_t) (index - history) * channels + channel];
+}
+
+// gated_delta_conv_prompt_f32 is tensor.Builder.GatedDeltaPromptConv, gated_delta_conv_f32 for a prompt's tokens: a block
+// takes one head's state_width channels at one token (blockIdx.x the token, blockIdx.y the head), a thread one channel,
+// reading the rows that end at its token where they lie, so the tokens run side by side. A value adds its taps in
+// gated_delta_conv_f32's order, takes the same SiLU and the same norm, and only the window after the last token is
+// written.
+extern "C" __global__ void gated_delta_conv_prompt_f32(
+        const float * state,
+        const float * qkv,
+        const float * weights,
+        float * output,
+        unsigned int channels,
+        unsigned int state_width,
+        unsigned int key_heads,
+        unsigned int value_heads,
+        unsigned int kernel,
+        unsigned int tokens,
+        float epsilon) {
+    __shared__ float sums[GATED_DELTA_FUSED_STATE_WIDTH];
+    const unsigned int token = blockIdx.x;
+    const unsigned int head = blockIdx.y;
+    const unsigned int channel = head * state_width + threadIdx.x;
+    const unsigned int history = kernel - 1;
+    const unsigned int key_channels = key_heads * state_width;
+    const unsigned int value_channels = value_heads * state_width;
+    float sum = 0.0f;
+    for (unsigned int index = 0; index < kernel; ++index) {
+        sum += gated_delta_conv_row(state, qkv, channel, channels, history, token + index) * weights[channel * kernel + index];
+    }
+    float value = sum / (1.0f + expf(-sum));
+    if (head < 2 * key_heads) {
+        // l2_norm_f32's reduction tree, so the norm's bits are its.
+        const float total = block_sum_f32(value * value, sums);
+        value *= 1.0f / fmaxf(sqrtf(total), epsilon);
+    }
+    if (channel < key_channels) {
+        output[(size_t) token * key_channels + channel] = value;
+    } else if (channel < 2 * key_channels) {
+        output[(size_t) key_channels * tokens + (size_t) token * key_channels + channel - key_channels] = value;
+    } else {
+        output[(size_t) 2 * key_channels * tokens + (size_t) token * value_channels + channel - 2 * key_channels] = value;
+    }
+    if (token + 1 == tokens) {
+        float * after = output + (size_t) channels * tokens + (size_t) channel * history;
+        for (unsigned int index = 0; index < history; ++index) {
+            after[index] = gated_delta_conv_row(state, qkv, channel, channels, history, tokens + index);
+        }
+    }
+}
+
+// gated_delta_gates_f32 is tensor.Builder.GatedDeltaGates: a block an alpha row, then a beta row, each product summed
+// as mul_mat_f32 sums it (f32_row_dots, then the warps' sums in warp order), so its bits are the composed product's; the
+// alpha rows' gate is then softplus(product + time step) * decay and the beta rows' the sigmoid of the product, as
+// broadcast_add_f32, softplus_f32, broadcast_multiply_f32 and sigmoid_f32 round them.
+extern "C" __global__ void gated_delta_gates_f32(
+        const float * input,
+        const float * alpha,
+        const float * beta,
+        const float * time_step,
+        const float * decay,
+        float * output,
+        unsigned int embedding,
+        unsigned int heads,
+        unsigned int tokens) {
+    __shared__ float partials[F32_ROW_WARPS_MAX][Q8_INPUT_SPAN_MAX];
+    const unsigned int row = blockIdx.x;
+    if (row >= 2 * heads || tokens > Q8_INPUT_SPAN_MAX) return;
+    const bool is_beta = row >= heads;
+    const unsigned int head = is_beta ? row - heads : row;
+    const float * weights = (is_beta ? beta : alpha) + (size_t) head * embedding;
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    float sums[Q8_INPUT_SPAN_MAX] = {};
+    if (tokens == 1) {
+        f32_row_dots<1>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else if (tokens == 2) {
+        f32_row_dots<2>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else if (tokens <= 4) {
+        f32_row_dots<4>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    } else {
+        f32_row_dots<Q8_INPUT_SPAN_MAX>(weights, input, embedding, threadIdx.x, blockDim.x, tokens, sums);
+    }
+    #pragma unroll
+    for (unsigned int token = 0; token < Q8_INPUT_SPAN_MAX; ++token) {
+        if (token >= tokens) break;
+        const float sum = warp_sum_down(sums[token]);
+        if (lane == 0) partials[warp][token] = sum;
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    for (unsigned int token = 0; token < tokens; ++token) {
+        float sum = 0.0f;
+        for (unsigned int part = 0; part < blockDim.x / CUDA_WARP_WIDTH; ++part) sum += partials[part][token];
+        if (is_beta) {
+            output[heads * tokens + token * heads + head] = 1.0f / (1.0f + expf(-sum));
+        } else {
+            const float value = sum + time_step[head];
+            output[token * heads + head] = (fmaxf(value, 0.0f) + log1pf(expf(-fabsf(value)))) * decay[head];
+        }
+    }
+}
+
 
 extern "C" __global__ void get_rows_f32(
         const float * table,
@@ -3916,6 +5411,9 @@ extern "C" __global__ void moe_router_dot_f32(
     if (lane == 0) logits[(size_t) token * experts + expert] = router_bias ? logit + router_bias[expert] : logit;
 }
 
+// MOE_ROUTE_WARP_EXPERTS: the most experts one warp selects among, a lane's chosen experts a bit of one word.
+constexpr unsigned int MOE_ROUTE_WARP_EXPERTS = CUDA_WARP_WIDTH * 32;
+
 // moe_route_f32 turns one token's expert logits into its routed experts and weights.
 //   - routed_experts != nullptr => each routed bank expert (expert / expert_index_divisor) sets its flag there
 //   - a flag is a plain store of one value, because the flags may be host memory the card maps, which a device atomic does not reach over PCIe
@@ -3958,11 +5456,17 @@ extern "C" __global__ void moe_route_f32(
     const float maximum = block_scalar;
     float denominator = 0.0f;
     if (routing == 1) {
-        // The softmax denominator is summed in expert order, so its bits match a serial sum.
+        // The softmax denominator is summed across the block: one thread's serial sum over 512 experts took about
+        // half of a Flash-Next decode layer's 12 us of routing.
+        float sum = 0.0f;
+        for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) sum += expf(logits[expert] - maximum);
+        for (unsigned int offset = 16u; offset > 0u; offset >>= 1) sum += __shfl_down_sync(0xffffffffu, sum, offset);
+        if (lane == 0u) warp_score[warp] = sum;
+        __syncthreads();
         if (threadIdx.x == 0u) {
-            float sum = 0.0f;
-            for (unsigned int expert = 0; expert < experts; ++expert) sum += expf(logits[expert] - maximum);
-            block_scalar = sum;
+            float total = 0.0f;
+            for (unsigned int index = 0; index < warps; ++index) total += warp_score[index];
+            block_scalar = total;
         }
         __syncthreads();
         denominator = block_scalar;
@@ -3990,52 +5494,89 @@ extern "C" __global__ void moe_route_f32(
         }
     } else {
         // Each slot takes the highest score among unchosen experts, the lowest index on a tie, as a serial scan would.
-        if (threadIdx.x == 0u) *selected_sum = 0.0f;
-        __syncthreads();
-        for (unsigned int slot = 0; slot < top_k; ++slot) {
-            int best = -1;
-            float best_score = -3.402823466e+38F;
-            for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
-                bool used = false;
-                for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
-                if (used) continue;
-                const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
-                if (best < 0 || score > best_score) {
-                    best = (int) expert;
-                    best_score = score;
-                }
-            }
-            for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
-                const float other_score = __shfl_down_sync(0xffffffffu, best_score, offset);
-                const int other = __shfl_down_sync(0xffffffffu, best, offset);
-                if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
-                    best = other;
-                    best_score = other_score;
-                }
-            }
-            if (lane == 0u) {
-                warp_score[warp] = best_score;
-                warp_expert[warp] = best;
-            }
-            __syncthreads();
-            if (threadIdx.x == 0u) {
-                int chosen = -1;
-                float chosen_score = -3.402823466e+38F;
-                for (unsigned int index = 0; index < warps; ++index) {
-                    const int candidate = warp_expert[index];
-                    const float candidate_score = warp_score[index];
-                    if (candidate >= 0 && (chosen < 0 || candidate_score > chosen_score || (candidate_score == chosen_score && candidate < chosen))) {
-                        chosen = candidate;
-                        chosen_score = candidate_score;
+        if (experts <= MOE_ROUTE_WARP_EXPERTS) {
+            // One warp selects: lane l holds experts l, l + 32, ..., and a slot is a warp argmax, with no block barrier
+            // (ten of them took about half of a Flash-Next decode layer's routing).
+            if (warp != 0u) return;
+            unsigned int chosen_bits = 0u;
+            float sum = 0.0f;
+            for (unsigned int slot = 0; slot < top_k; ++slot) {
+                int best = -1;
+                float best_score = -3.402823466e+38F;
+                for (unsigned int expert = lane, bit = 0; expert < experts; expert += CUDA_WARP_WIDTH, ++bit) {
+                    if (chosen_bits >> bit & 1u) continue;
+                    const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
+                    if (best < 0 || score > best_score) {
+                        best = (int) expert;
+                        best_score = score;
                     }
                 }
-                selected[slot] = (unsigned int) chosen;
-                routes[slot] = logits[chosen];
-                *selected_sum += logits[chosen];
+                // A butterfly leaves every lane the warp's winner under one total order.
+                for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
+                    const float other_score = __shfl_xor_sync(0xffffffffu, best_score, offset);
+                    const int other = __shfl_xor_sync(0xffffffffu, best, offset);
+                    if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
+                        best = other;
+                        best_score = other_score;
+                    }
+                }
+                if (best >= 0 && (unsigned int) best % CUDA_WARP_WIDTH == lane) chosen_bits |= 1u << ((unsigned int) best / CUDA_WARP_WIDTH);
+                if (lane == 0u) {
+                    selected[slot] = (unsigned int) best;
+                    routes[slot] = logits[best];
+                }
+                sum += logits[best];
             }
+            if (lane != 0u) return;
+            *selected_sum = sum;
+        } else {
+            if (threadIdx.x == 0u) *selected_sum = 0.0f;
             __syncthreads();
+            for (unsigned int slot = 0; slot < top_k; ++slot) {
+                int best = -1;
+                float best_score = -3.402823466e+38F;
+                for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
+                    bool used = false;
+                    for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
+                    if (used) continue;
+                    const float score = logits[expert] + (selection_bias ? selection_bias[expert] : 0.0f);
+                    if (best < 0 || score > best_score) {
+                        best = (int) expert;
+                        best_score = score;
+                    }
+                }
+                for (unsigned int offset = 16u; offset > 0u; offset >>= 1) {
+                    const float other_score = __shfl_down_sync(0xffffffffu, best_score, offset);
+                    const int other = __shfl_down_sync(0xffffffffu, best, offset);
+                    if (other >= 0 && (best < 0 || other_score > best_score || (other_score == best_score && other < best))) {
+                        best = other;
+                        best_score = other_score;
+                    }
+                }
+                if (lane == 0u) {
+                    warp_score[warp] = best_score;
+                    warp_expert[warp] = best;
+                }
+                __syncthreads();
+                if (threadIdx.x == 0u) {
+                    int chosen = -1;
+                    float chosen_score = -3.402823466e+38F;
+                    for (unsigned int index = 0; index < warps; ++index) {
+                        const int candidate = warp_expert[index];
+                        const float candidate_score = warp_score[index];
+                        if (candidate >= 0 && (chosen < 0 || candidate_score > chosen_score || (candidate_score == chosen_score && candidate < chosen))) {
+                            chosen = candidate;
+                            chosen_score = candidate_score;
+                        }
+                    }
+                    selected[slot] = (unsigned int) chosen;
+                    routes[slot] = logits[chosen];
+                    *selected_sum += logits[chosen];
+                }
+                __syncthreads();
+            }
+            if (threadIdx.x != 0u) return;
         }
-        if (threadIdx.x != 0u) return;
     }
     if (routed_experts) {
         for (unsigned int slot = 0; slot < top_k; ++slot) {
@@ -4201,71 +5742,15 @@ extern "C" __global__ void moe_down_f32(
         index, 0, 1, nullptr);
 }
 
-extern "C" __global__ void moe_gather_f32(
-        const float * input, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int top_k, unsigned int count) {
+// moe_host_slots_f32 places the slot outputs the CPU computed for experts in
+// host memory, packed row after row, at their slots for moe_combine_f32.
+//   - slots[positions[r] * hidden + c] = rows[r * hidden + c]
+extern "C" __global__ void moe_host_slots_f32(
+        const float * rows, const unsigned int * positions, float * slots, unsigned int hidden, unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
-    const unsigned int slot = table[batch + index / hidden];
-    output[index] = slot == 0xffffffffu ? 0.0f : input[(size_t) (slot / top_k) * hidden + index % hidden];
-}
-
-extern "C" __global__ void moe_stage_f32(
-        const void * gate, const void * up, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int intermediate, unsigned int gate_storage, unsigned int up_storage,
-        unsigned int fused, unsigned int indexed, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const size_t bank_elements = (size_t) hidden * intermediate;
-    const unsigned int expert = table[index / (2 * bank_elements)];
-    const size_t within = index % (2 * bank_elements);
-    const bool is_up = within >= bank_elements;
-    const void * bank = is_up ? up : gate;
-    if (indexed) bank = reinterpret_cast<const void * const *>(bank)[expert];
-    const size_t base = indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * bank_elements;
-    const size_t offset = within % bank_elements + (fused && is_up ? bank_elements : 0);
-    output[index] = moe_expert_value(bank, base + offset, is_up ? up_storage : gate_storage);
-}
-
-extern "C" __global__ void moe_activate_f32(
-        float * gu, const unsigned int * table, const float * gate_bias, const float * up_bias,
-        unsigned int intermediate, unsigned int rows, unsigned int activation, unsigned int routing,
-        float swiglu_clamp, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int inner = index % intermediate;
-    const size_t offset = (size_t) (index / intermediate) * 2 * intermediate + inner;
-    float gate_dot = gu[offset], up_dot = gu[offset + intermediate];
-    if (gate_bias) {
-        const unsigned int expert = table[index / (rows * intermediate)];
-        gate_dot += gate_bias[(size_t) expert * intermediate + inner];
-        up_dot += up_bias[(size_t) expert * intermediate + inner];
-    }
-    gu[offset] = moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
-}
-
-extern "C" __global__ void moe_stage_down_f32(
-        const void * down, const unsigned int * table, float * output,
-        unsigned int hidden, unsigned int intermediate, unsigned int storage, unsigned int indexed, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const size_t bank_elements = (size_t) hidden * intermediate;
-    const unsigned int expert = table[index / bank_elements];
-    const void * bank = indexed ? reinterpret_cast<const void * const *>(down)[expert] : down;
-    output[index] = moe_expert_value(bank, (indexed ? 0 : (size_t) expert * bank_elements) + index % bank_elements, storage);
-}
-
-extern "C" __global__ void moe_scatter_f32(
-        const float * input, const unsigned int * table, float * slots, const float * down_bias,
-        unsigned int hidden, unsigned int rows, unsigned int batch, unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= count) return;
-    const unsigned int slot = table[batch + index / hidden];
-    if (slot == 0xffffffffu) return;
-    const unsigned int channel = index % hidden;
-    float value = input[index];
-    if (down_bias) value += down_bias[(size_t) table[index / (rows * hidden)] * hidden + channel];
-    slots[(size_t) slot * hidden + channel] = value;
+    const unsigned int row = index / hidden, channel = index % hidden;
+    slots[(size_t) positions[row] * hidden + channel] = rows[index];
 }
 
 extern "C" __global__ void moe_combine_f32(
@@ -4493,6 +5978,10 @@ extern "C" __global__ void attention_f32(
 // 12k keys, on the batched GEMM path at a hundred launches per token
 // with a graph instantiated every third token, and that path read the
 // whole capacity as keys.
+// query_tokens > 1 is a causal span (a speculative verify step): its
+// queries are the last query_tokens positions, so query t reads the keys
+// through its own position, the device count less the queries after it,
+// and its row walks them exactly as a one-query step at that count does.
 extern "C" __global__ void attention_decode_f32(
         const float * query,
         const float * key,
@@ -4505,24 +5994,27 @@ extern "C" __global__ void attention_decode_f32(
         const unsigned int * key_value_token_count,
         unsigned int key_value_stride,
         unsigned int sequences,
+        unsigned int query_tokens,
         float scale,
         unsigned int window,
         float softcap,
         unsigned int tile_tokens,
         unsigned int splits,
         float * partials) {
-    // splits blocks share one (sequence, head) row, each walking its
-    // slice of the keys; with one split the block writes the output,
+    // splits blocks share one (sequence, query, head) row, each walking
+    // its slice of the keys; with one split the block writes the output,
     // with more it leaves its maximum, sum, and unnormalized output for
     // attention_decode_combine_f32.
     const unsigned int row = blockIdx.x / splits;
     const unsigned int split = blockIdx.x % splits;
     const unsigned int query_head = row % query_heads;
-    const unsigned int sequence = row / query_heads;
+    const unsigned int query_row = row / query_heads;
+    const unsigned int query_token = query_row % query_tokens;
+    const unsigned int sequence = query_row / query_tokens;
     if (sequence >= sequences) {
         return;
     }
-    const unsigned int key_value_tokens = key_value_token_count[0];
+    const unsigned int key_value_tokens = key_value_token_count[0] - (query_tokens - 1 - query_token);
     const unsigned int window_first = window > 0 && key_value_tokens > window ? key_value_tokens - window : 0;
     const unsigned int span = (key_value_tokens - window_first + splits - 1) / splits;
     const unsigned int key_first = window_first + split * span;
@@ -4543,7 +6035,7 @@ extern "C" __global__ void attention_decode_f32(
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_offset =
-        (sequence * query_heads + query_head) * key_width;
+        (query_row * query_heads + query_head) * key_width;
     extern __shared__ float shared[];
     float * scores = shared;
     float * partial = shared + tile_tokens;
@@ -4563,7 +6055,21 @@ extern "C" __global__ void attention_decode_f32(
             const unsigned int key_offset =
                 ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
             float dot = 0.0f;
-            for (unsigned int channel = 0; channel < key_width; ++channel) {
+            unsigned int channel = 0;
+            // DECODE_READS_IN_FLIGHT channels are read before any is added, in channel order, so the walk waits on
+            // one read in that many and keeps the serial sum's bits.
+            for (; channel + DECODE_READS_IN_FLIGHT <= key_width; channel += DECODE_READS_IN_FLIGHT) {
+                float keys[DECODE_READS_IN_FLIGHT];
+#pragma unroll
+                for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                    keys[read] = key[key_offset + channel + read];
+                }
+#pragma unroll
+                for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                    dot += query[query_offset + channel + read] * keys[read];
+                }
+            }
+            for (; channel < key_width; ++channel) {
                 dot += query[query_offset + channel] * key[key_offset + channel];
             }
             float score = dot * scale;
@@ -4599,7 +6105,24 @@ extern "C" __global__ void attention_decode_f32(
             const unsigned int channel = channel_first + threadIdx.x % value_lanes;
             float weighted = 0.0f;
             if (group < value_groups) {
-                for (unsigned int token = tile_first + group; token < tile_end; token += value_groups) {
+                unsigned int token = tile_first + group;
+                // DECODE_READS_IN_FLIGHT keys' values are read before any is added, in key order: one block a head
+                // walked a 235-key cache in 48 us, waiting on each key's read.
+                for (; token + (DECODE_READS_IN_FLIGHT - 1) * value_groups < tile_end;
+                        token += DECODE_READS_IN_FLIGHT * value_groups) {
+                    float values[DECODE_READS_IN_FLIGHT];
+#pragma unroll
+                    for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                        const unsigned int value_offset = ((sequence * key_value_stride + token + read * value_groups) *
+                            key_value_heads + key_value_head) * value_width;
+                        values[read] = value[value_offset + channel];
+                    }
+#pragma unroll
+                    for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
+                        weighted += scores[token + read * value_groups - tile_first] * values[read];
+                    }
+                }
+                for (; token < tile_end; token += value_groups) {
                     const unsigned int value_offset =
                         ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
                     weighted += scores[token - tile_first] * value[value_offset + channel];
@@ -4627,7 +6150,7 @@ extern "C" __global__ void attention_decode_f32(
     }
     if (splits == 1) {
         for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
-            output[(sequence * query_heads + query_head) * value_width + channel] = accumulator[channel] / running_sum;
+            output[row * value_width + channel] = accumulator[channel] / running_sum;
         }
         return;
     }
@@ -4640,10 +6163,11 @@ extern "C" __global__ void attention_decode_f32(
     }
 }
 
-// attention_decode_combine_f32: one block per (sequence, head) row folds
+// attention_decode_combine_f32: one block per (sequence, query, head) row folds
 // the split partials of attention_decode_f32 into the output, each split
 // weighted by the exponential of its maximum against the row maximum
-// (the flash-attention combine of the llama.cpp lineage).
+// (the flash-attention combine of the llama.cpp lineage). A row no split
+// weighed, a selected attention's with no valid slot, outputs zeros.
 extern "C" __global__ void attention_decode_combine_f32(
         const float * partials,
         float * output,
@@ -4670,7 +6194,7 @@ extern "C" __global__ void attention_decode_combine_f32(
             const float * partial_row = partial_rows + split * (value_width + 2);
             numerator += expf(partial_row[0] - maximum) * partial_row[2 + channel];
         }
-        output[row * value_width + channel] = numerator / denominator;
+        output[row * value_width + channel] = denominator > 0.0f ? numerator / denominator : 0.0f;
     }
 }
 
@@ -4839,16 +6363,19 @@ extern "C" __global__ void attention_online_init_f32(
 
 // attention_online_softmax_f32: exact online softmax over one L2-resident
 // score tile (SGEMM QK^T staging, layout [heads][chunk][key_chunk]). One
-// block per (head, row): update the running max, rescale the accumulated
-// output row (skip the exact *1.0 identity), write probabilities in place
-// for the PV accumulate, fold the tile sum into the running sum. FP64
-// shared reductions. Port of the proven external online softmax structure;
+// warp per (head, row), ATTENTION_ONLINE_ROWS rows a block: update the running
+// max, rescale the accumulated output row (skip the exact *1.0 identity), write
+// probabilities in place for the PV accumulate, fold the tile sum into the
+// running sum. The sum accumulates in FP64 in registers and reduces across the
+// warp (a block a row, reducing through shared memory, took half a vision
+// encoder's attention). Port of the proven external online softmax structure;
 // output rows live in the interleaved [token][head][channel] layout.
 // query_start is the absolute position of the chunk's first row; with
 // causal set a row reads keys below its own position plus one, and a
 // window keeps only the last `window` of those; a masked key writes a
 // zero probability so the PV accumulate ignores it. softcap > 0 caps
 // the scaled score with tanh before the bias, as the reference does.
+#define ATTENTION_ONLINE_ROWS 8u
 extern "C" __global__ void attention_online_softmax_f32(
         float * scores,
         float * output,
@@ -4866,19 +6393,20 @@ extern "C" __global__ void attention_online_softmax_f32(
         unsigned int causal,
         unsigned int window,
         float softcap) {
-    extern __shared__ double reduce_shared[];
-    __shared__ float alpha_shared;
-    __shared__ float maximum_shared;
-    const unsigned int head = blockIdx.x / rows;
-    const unsigned int row = blockIdx.x % rows;
-    const unsigned int tid = threadIdx.x;
+    const unsigned int lane = threadIdx.x & 31u;
+    const unsigned int pair = blockIdx.x * ATTENTION_ONLINE_ROWS + (threadIdx.x >> 5u);
+    if (pair >= heads * rows) {
+        return;
+    }
+    const unsigned int head = pair / rows;
+    const unsigned int row = pair % rows;
     const unsigned int base = (head * chunk + row) * key_chunk;
     const unsigned int stat = head * chunk + row;
     const unsigned int stat_rows = heads * chunk;
     const unsigned int causal_limit = causal ? query_start + row + 1 : 0xFFFFFFFFu;
     const unsigned int key_first = window > 0 && causal_limit > window ? causal_limit - window : 0;
     float local_maximum = -3.402823466e+38F;
-    for (unsigned int j = tid; j < keys; j += blockDim.x) {
+    for (unsigned int j = lane; j < keys; j += 32u) {
         const unsigned int key_token = key_start + j;
         if (key_token >= causal_limit || key_token < key_first) {
             continue;
@@ -4890,32 +6418,24 @@ extern "C" __global__ void attention_online_softmax_f32(
         const float bias = key_bias != nullptr ? key_bias[key_token] : 0.0f;
         local_maximum = fmaxf(local_maximum, score + bias);
     }
-    reduce_shared[tid] = (double) local_maximum;
-    __syncthreads();
-    for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            reduce_shared[tid] = fmax(reduce_shared[tid], reduce_shared[tid + stride]);
-        }
-        __syncthreads();
+    for (unsigned int offset = 16u; offset > 0u; offset >>= 1u) {
+        local_maximum = fmaxf(local_maximum, __shfl_xor_sync(0xFFFFFFFFu, local_maximum, offset));
     }
-    if (tid == 0) {
-        const float old = stats[stat];
-        const float next = fmaxf(old, (float) reduce_shared[0]);
-        maximum_shared = next;
-        alpha_shared = old <= -3.4028233e+38F ? 0.0f : expf(old - next);
-        stats[stat] = next;
+    const float old = stats[stat];
+    const float maximum = fmaxf(old, local_maximum);
+    const float alpha = old <= -3.4028233e+38F ? 0.0f : expf(old - maximum);
+    __syncwarp();
+    if (lane == 0) {
+        stats[stat] = maximum;
     }
-    __syncthreads();
-    const float alpha = alpha_shared;
-    const float maximum = maximum_shared;
     if (alpha != 1.0f) {
         float * output_row = output + (row * heads + head) * width;
-        for (unsigned int channel = tid; channel < width; channel += blockDim.x) {
+        for (unsigned int channel = lane; channel < width; channel += 32u) {
             output_row[channel] *= alpha;
         }
     }
     double sum = 0.0;
-    for (unsigned int j = tid; j < keys; j += blockDim.x) {
+    for (unsigned int j = lane; j < keys; j += 32u) {
         const unsigned int key_token = key_start + j;
         if (key_token >= causal_limit || key_token < key_first) {
             scores[base + j] = 0.0f;
@@ -4930,16 +6450,11 @@ extern "C" __global__ void attention_online_softmax_f32(
         scores[base + j] = probability;
         sum += (double) probability;
     }
-    reduce_shared[tid] = sum;
-    __syncthreads();
-    for (unsigned int stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
-        if (tid < stride) {
-            reduce_shared[tid] += reduce_shared[tid + stride];
-        }
-        __syncthreads();
+    for (unsigned int offset = 16u; offset > 0u; offset >>= 1u) {
+        sum += __shfl_xor_sync(0xFFFFFFFFu, sum, offset);
     }
-    if (tid == 0) {
-        stats[stat_rows + stat] = stats[stat_rows + stat] * alpha + (float) reduce_shared[0];
+    if (lane == 0) {
+        stats[stat_rows + stat] = stats[stat_rows + stat] * alpha + (float) sum;
     }
 }
 
@@ -5593,6 +7108,276 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_native_bf16_f32(
     }
 }
 
+
+// Dense prompt attention on tensor cores (attention_flash_<width>_f32): a block takes 64 rows of one sequence's
+// key/value head, a row being a query token and one of the group's query heads (token-major, so a group's heads
+// share every key and value tile), four warps of 16 rows. Key and value tiles of ATTENTION_FLASH_KEYS(width) tokens
+// copy from the f32 cache into shared memory by cp.async (the value tile during the scores, the next key tile during
+// the value product); each warp keeps its queries as FP16 mma fragments, its scores and an online softmax in
+// registers and its output in f32 accumulators, so no score leaves the multiprocessor. Products are m16n8k16 FP16
+// with f32 accumulation: queries, keys, values and probabilities round to FP16 as their fragments load, which
+// differs from the strided-batched f32 path at FP16 rounding of the operands. The scores scale, cap and take the key
+// bias as attention_online_softmax_f32 does, and a row with no key it may read writes zeros.
+#define ATTENTION_FLASH_ROWS 64u
+#define ATTENTION_FLASH_THREADS 128u
+#define ATTENTION_FLASH_KEY_PAD 8u
+#define ATTENTION_FLASH_VALUE_PAD 4u
+
+// attention_flash_stage copies a tile of KEYS cache rows from first into shared rows of STRIDE floats; rows past the
+// keys zero-fill, so a masked key's value multiplies a zero probability by zeros.
+template <unsigned int WIDTH, unsigned int KEYS, unsigned int STRIDE>
+__device__ __forceinline__ void attention_flash_stage(
+        const float * cache, float * tile, unsigned int first, unsigned int keys, size_t token_stride) {
+    const unsigned int copies = KEYS * (WIDTH / 4u);
+    for (unsigned int copy = threadIdx.x; copy < copies; copy += ATTENTION_FLASH_THREADS) {
+        const unsigned int row = copy / (WIDTH / 4u);
+        const unsigned int channel = (copy % (WIDTH / 4u)) * 4u;
+        float * destination = tile + row * STRIDE + channel;
+        if (first + row < keys) {
+            __pipeline_memcpy_async(destination, cache + (size_t) (first + row) * token_stride + channel, 16);
+        } else {
+            *reinterpret_cast<float4 *>(destination) = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+    }
+}
+
+template <unsigned int WIDTH, unsigned int KEYS>
+__device__ __forceinline__ void attention_flash(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * key_bias,
+        float * output,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int key_capacity_tokens,
+        float scale,
+        unsigned int query_start,
+        unsigned int causal,
+        unsigned int window,
+        float softcap) {
+    constexpr unsigned int KEY_STRIDE = WIDTH + ATTENTION_FLASH_KEY_PAD;
+    constexpr unsigned int VALUE_STRIDE = WIDTH + ATTENTION_FLASH_VALUE_PAD;
+    extern __shared__ float attention_flash_shared[];
+    float * key_tile = attention_flash_shared;
+    float * value_tile = key_tile + KEYS * KEY_STRIDE;
+    const unsigned int key_value_head = blockIdx.y;
+    const unsigned int sequence = blockIdx.z;
+    const unsigned int group = query_heads / key_value_heads;
+    const unsigned int rows = query_tokens * group;
+    const unsigned int block_row = blockIdx.x * ATTENTION_FLASH_ROWS;
+    if (block_row >= rows) {
+        return;
+    }
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int g = lane / 4u;
+    const unsigned int t = lane % 4u;
+
+    // A lane's two rows: g and g + 8 of its warp's 16.
+    unsigned int row_token[2];
+    unsigned int row_head[2];
+    bool row_valid[2];
+    unsigned int row_limit[2];
+    unsigned int row_first[2];
+    for (unsigned int half = 0; half < 2u; ++half) {
+        const unsigned int row = block_row + warp * 16u + g + 8u * half;
+        row_valid[half] = row < rows;
+        row_token[half] = row_valid[half] ? row / group : 0u;
+        row_head[half] = key_value_head * group + (row_valid[half] ? row % group : 0u);
+        // A causal row reads keys below its position plus one, and a window keeps the last window of those.
+        const unsigned int limit = causal ? query_start + row_token[half] + 1u : key_value_tokens;
+        row_limit[half] = row_valid[half] ? min(limit, key_value_tokens) : 0u;
+        row_first[half] = causal && window > 0u && limit > window ? limit - window : 0u;
+    }
+
+    // Queries as m16n8k16 A fragments, one per 16 channels.
+    unsigned int queries[WIDTH / 16u][4];
+    const float * query_row[2];
+    for (unsigned int half = 0; half < 2u; ++half) {
+        query_row[half] = query + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH;
+    }
+#pragma unroll
+    for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
+        const unsigned int channel = step * 16u + 2u * t;
+        float2 low = make_float2(0.0f, 0.0f), high = low, low_far = low, high_far = low;
+        if (row_valid[0]) {
+            low = *reinterpret_cast<const float2 *>(query_row[0] + channel);
+            low_far = *reinterpret_cast<const float2 *>(query_row[0] + channel + 8u);
+        }
+        if (row_valid[1]) {
+            high = *reinterpret_cast<const float2 *>(query_row[1] + channel);
+            high_far = *reinterpret_cast<const float2 *>(query_row[1] + channel + 8u);
+        }
+        queries[step][0] = half2_pack(low.x, low.y);
+        queries[step][1] = half2_pack(high.x, high.y);
+        queries[step][2] = half2_pack(low_far.x, low_far.y);
+        queries[step][3] = half2_pack(high_far.x, high_far.y);
+    }
+
+    // The keys any row of the block reads.
+    const unsigned int last_row = min(rows, block_row + ATTENTION_FLASH_ROWS) - 1u;
+    const unsigned int first_limit = causal ? query_start + block_row / group + 1u : key_value_tokens;
+    const unsigned int key_end = causal ? min(key_value_tokens, query_start + last_row / group + 1u) : key_value_tokens;
+    const unsigned int key_begin = causal && window > 0u && first_limit > window ? first_limit - window : 0u;
+
+    const size_t token_stride = (size_t) key_value_heads * WIDTH;
+    const float * key_cache = key + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+    const float * value_cache = value + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+
+    float weighted[WIDTH / 8u][4];
+#pragma unroll
+    for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+        weighted[tile][0] = weighted[tile][1] = weighted[tile][2] = weighted[tile][3] = 0.0f;
+    }
+    float maximum[2] = {-INFINITY, -INFINITY};
+    float sum[2] = {0.0f, 0.0f};
+
+    if (key_begin < key_end) {
+        attention_flash_stage<WIDTH, KEYS, KEY_STRIDE>(key_cache, key_tile, key_begin, key_end, token_stride);
+        __pipeline_commit();
+    }
+    for (unsigned int base = key_begin; base < key_end; base += KEYS) {
+        // The key tile is in, and every warp finished the last value product, so the value tile is free.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        attention_flash_stage<WIDTH, KEYS, VALUE_STRIDE>(value_cache, value_tile, base, key_end, token_stride);
+        __pipeline_commit();
+
+        float scores[KEYS / 8u][4];
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+            scores[column][0] = scores[column][1] = scores[column][2] = scores[column][3] = 0.0f;
+            const float * key_row = key_tile + (column * 8u + g) * KEY_STRIDE + 2u * t;
+#pragma unroll
+            for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
+                const float2 near = *reinterpret_cast<const float2 *>(key_row + step * 16u);
+                const float2 far = *reinterpret_cast<const float2 *>(key_row + step * 16u + 8u);
+                mma_f16_16x8x16(scores[column], queries[step], half2_pack(near.x, near.y), half2_pack(far.x, far.y));
+            }
+        }
+
+        // Scale, cap, bias and mask the scores, then the running maximum of each of the lane's rows over its quad.
+        float tile_maximum[2] = {-INFINITY, -INFINITY};
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const unsigned int key_token = base + column * 8u + 2u * t + element % 2u;
+                float score = scores[column][element] * scale;
+                if (softcap > 0.0f) {
+                    score = softcap * tanhf(score / softcap);
+                }
+                if (key_bias != nullptr && key_token < key_value_tokens) {
+                    score += key_bias[key_token];
+                }
+                const bool attended = key_token < row_limit[half] && key_token >= row_first[half];
+                scores[column][element] = attended ? score : -INFINITY;
+                tile_maximum[half] = fmaxf(tile_maximum[half], scores[column][element]);
+            }
+        }
+        float rescale[2];
+#pragma unroll
+        for (unsigned int half = 0; half < 2u; ++half) {
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 1));
+            tile_maximum[half] = fmaxf(tile_maximum[half], __shfl_xor_sync(0xffffffffu, tile_maximum[half], 2));
+            const float next = fmaxf(maximum[half], tile_maximum[half]);
+            rescale[half] = maximum[half] == -INFINITY ? 0.0f : expf(maximum[half] - next);
+            maximum[half] = next;
+            sum[half] *= rescale[half];
+        }
+#pragma unroll
+        for (unsigned int column = 0; column < KEYS / 8u; ++column) {
+#pragma unroll
+            for (unsigned int element = 0; element < 4u; ++element) {
+                const unsigned int half = element / 2u;
+                const float score = scores[column][element];
+                const float probability = score == -INFINITY ? 0.0f : expf(score - maximum[half]);
+                scores[column][element] = probability;
+                sum[half] += probability;
+            }
+        }
+#pragma unroll
+        for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+            weighted[tile][0] *= rescale[0];
+            weighted[tile][1] *= rescale[0];
+            weighted[tile][2] *= rescale[1];
+            weighted[tile][3] *= rescale[1];
+        }
+
+        // The value tile is in, and every warp finished its scores, so the next key tile may load during the product.
+        __pipeline_wait_prior(0);
+        __syncthreads();
+        if (base + KEYS < key_end) {
+            attention_flash_stage<WIDTH, KEYS, KEY_STRIDE>(key_cache, key_tile, base + KEYS, key_end, token_stride);
+            __pipeline_commit();
+        }
+#pragma unroll
+        for (unsigned int step = 0; step < KEYS / 16u; ++step) {
+            // Two score tiles' accumulators are the A fragment of 16 keys.
+            const unsigned int probabilities[4] = {
+                half2_pack(scores[2u * step][0], scores[2u * step][1]),
+                half2_pack(scores[2u * step][2], scores[2u * step][3]),
+                half2_pack(scores[2u * step + 1u][0], scores[2u * step + 1u][1]),
+                half2_pack(scores[2u * step + 1u][2], scores[2u * step + 1u][3])};
+            const float * value_rows = value_tile + (step * 16u + 2u * t) * VALUE_STRIDE + g;
+#pragma unroll
+            for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+                const float * column = value_rows + tile * 8u;
+                mma_f16_16x8x16(
+                    weighted[tile], probabilities,
+                    half2_pack(column[0], column[VALUE_STRIDE]),
+                    half2_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]));
+            }
+        }
+    }
+
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 1);
+        sum[half] += __shfl_xor_sync(0xffffffffu, sum[half], 2);
+    }
+#pragma unroll
+    for (unsigned int half = 0; half < 2u; ++half) {
+        if (!row_valid[half]) {
+            continue;
+        }
+        const float inverse = sum[half] > 0.0f ? 1.0f / sum[half] : 0.0f;
+        float * out = output + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH + 2u * t;
+#pragma unroll
+        for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
+            *reinterpret_cast<float2 *>(out + tile * 8u) =
+                make_float2(weighted[tile][2u * half] * inverse, weighted[tile][2u * half + 1u] * inverse);
+        }
+    }
+}
+
+// attention_flash_64_f32, attention_flash_128_f32 and attention_flash_256_f32 take heads of 64, 128 and 256
+// channels; the key tiles narrow as the heads widen, so a block's accumulators and tiles fit two blocks a
+// multiprocessor.
+#define ATTENTION_FLASH_ARGUMENTS \
+        const float * query, const float * key, const float * value, const float * key_bias, float * output, \
+        unsigned int query_heads, unsigned int key_value_heads, unsigned int query_tokens, \
+        unsigned int key_value_tokens, unsigned int key_capacity_tokens, float scale, unsigned int query_start, \
+        unsigned int causal, unsigned int window, float softcap
+#define ATTENTION_FLASH_FORWARD \
+        query, key, value, key_bias, output, query_heads, key_value_heads, query_tokens, key_value_tokens, \
+        key_capacity_tokens, scale, query_start, causal, window, softcap
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_64_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<64u, 64u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_128_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<128u, 32u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_256_f32(ATTENTION_FLASH_ARGUMENTS) {
+    attention_flash<256u, 16u>(ATTENTION_FLASH_FORWARD);
+}
 extern "C" __global__ void concat_f32(
         const float * left,
         const float * right,
@@ -5843,6 +7628,124 @@ extern "C" __global__ void mul_mat_q8_0_input_f32(
             break;
         }
         output[span * left_rows + left_row] = sums[span];
+    }
+}
+
+// q8_0_input_product_row sums the block's warp's Q8_0 weight row with each of right_rows q8 input columns as
+// mul_mat_q8_0_input_f32 sums it, into sums, and returns whether this thread holds a row's sums (the row's first lane of
+// its first warp), setting left_row; partials is the block's scratch for the row's warps.
+__device__ __forceinline__ bool q8_0_input_product_row(
+        const unsigned char * left,
+        const unsigned char * right,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps,
+        float (*partials)[Q8_INPUT_SPAN_MAX],
+        float * sums,
+        unsigned int & left_row) {
+    const unsigned int warp = threadIdx.x / CUDA_WARP_WIDTH;
+    const unsigned int part = warp % row_warps;
+    left_row = blockIdx.x * (Q8_INPUT_BLOCK_WARPS / row_warps) + warp / row_warps;
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int first = part * CUDA_WARP_WIDTH + lane;
+    const unsigned int step = row_warps * CUDA_WARP_WIDTH;
+    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        sums[span] = 0.0f;
+    }
+    if (left_row < left_rows && right_rows == 1) {
+        sums[0] = q8_0_input_dot_row(left, right, inner, left_row, first, step);
+    } else if (left_row < left_rows) {
+        q8_0_input_span_dots(left, right, blocks_per_row, left_row, first, step, right_rows, sums);
+    }
+    if (row_warps > 1) {
+        if (lane == 0) {
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                partials[warp][span] = sums[span];
+            }
+        }
+        __syncthreads();
+        if (part == 0 && lane == 0) {
+#pragma unroll
+            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+                float sum = 0.0f;
+                for (unsigned int other = 0; other < row_warps; ++other) {
+                    sum += partials[warp + other][span];
+                }
+                sums[span] = sum;
+            }
+        }
+    }
+    return left_row < left_rows && part == 0 && lane == 0;
+}
+
+// mul_mat_q8_0_input_pair_f32 is two mul_mat_q8_0_input_f32 products of one q8 input in one launch, a gated layer's
+// gate and up rows: a warp sums its row of each, so each output's bits are the single product's.
+extern "C" __global__ void mul_mat_q8_0_input_pair_f32(
+        const unsigned char * gate,
+        const unsigned char * up,
+        const unsigned char * right,
+        float * gate_output,
+        float * up_output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps) {
+    __shared__ float gate_partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    __shared__ float up_partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    if (right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    float gate_sums[Q8_INPUT_SPAN_MAX], up_sums[Q8_INPUT_SPAN_MAX];
+    unsigned int left_row;
+    const bool holds = q8_0_input_product_row(gate, right, inner, left_rows, right_rows, row_warps, gate_partials, gate_sums, left_row);
+    q8_0_input_product_row(up, right, inner, left_rows, right_rows, row_warps, up_partials, up_sums, left_row);
+    if (!holds) {
+        return;
+    }
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        if (span >= right_rows) {
+            break;
+        }
+        gate_output[span * left_rows + left_row] = gate_sums[span];
+        up_output[span * left_rows + left_row] = up_sums[span];
+    }
+}
+
+// mul_mat_q8_0_input_gated_add_f32 is a mul_mat_q8_0_input_f32 product scaled by the sigmoid of its column's gate and
+// added to addend, as sigmoid_f32, broadcast_multiply_f32 and add_f32 round them: a gated shared expert's down product
+// into the routed output.
+extern "C" __global__ void mul_mat_q8_0_input_gated_add_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        const float * gate,
+        const float * addend,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows,
+        unsigned int row_warps) {
+    __shared__ float partials[Q8_INPUT_BLOCK_WARPS][Q8_INPUT_SPAN_MAX];
+    if (right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    float sums[Q8_INPUT_SPAN_MAX];
+    unsigned int left_row;
+    if (!q8_0_input_product_row(left, right, inner, left_rows, right_rows, row_warps, partials, sums, left_row)) {
+        return;
+    }
+#pragma unroll
+    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
+        if (span >= right_rows) {
+            break;
+        }
+        const unsigned int index = span * left_rows + left_row;
+        const float sigmoid = 1.0f / (1.0f + expf(-gate[span]));
+        output[index] = __fadd_rn(addend[index], __fmul_rn(sums[span], sigmoid));
     }
 }
 
@@ -7334,6 +9237,42 @@ extern "C" __global__ void dequant_rows_q6_K_f16(
     output[index] = __float2half(dequant_q6_K_value(block, column % 256));
 }
 
+// dequant_rows_iq4_nl_f16 and dequant_rows_iq4_xs_f16 expand the non-linear 4-bit types the UD mixes carry beside
+// their K-quants, so those weights prefill on tensor cores with the rest instead of the per-row dot kernels.
+extern "C" __global__ void dequant_rows_iq4_nl_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 32;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 32) * 18;
+    output[index] = __float2half(dequant_iq4_nl_value(block, column % 32));
+}
+
+extern "C" __global__ void dequant_rows_iq4_xs_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 256;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 136;
+    output[index] = __float2half(dequant_iq4_xs_value(block, column % 256));
+}
+
 extern "C" __global__ void get_rows_q6_K_f32(
         const unsigned char * table,
         const unsigned int * rows,
@@ -7644,80 +9583,16 @@ extern "C" __global__ void mul_mat_q5_K_input_f32(
     }
 }
 
-// mul_mat_q6_K_input_f32: integer fast path for decode — the input
-// vector arrives as q8 blocks (quantize_q8_0_input_f32), and each
-// four-column run reduces through one dp4a with the q6_K -32 offset
-// folded through a ones-vector dot. Bit layout mirrors
-// dequant_q6_K_value exactly.
-extern "C" __global__ void mul_mat_q6_K_input_f32(
-        const unsigned char * left,
-        const unsigned char * right,
-        float * output,
-        unsigned int inner,
-        unsigned int left_rows,
-        unsigned int right_rows) {
-    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int left_row = thread_index / CUDA_WARP_WIDTH;
-    if (left_row >= left_rows || right_rows > Q8_INPUT_SPAN_MAX) {
-        return;
-    }
-    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
-    const unsigned int superblocks = inner / 256;
-    const unsigned char * weight_row =
-        left + (size_t) left_row * superblocks * 210;
-    if (right_rows == 1) {
-        float sum = 0.0f;
-        for (unsigned int super = 0; super < superblocks; ++super) {
-            const unsigned char * block = weight_row + super * 210;
-            const unsigned char * lower = block;
-            const unsigned char * high = block + 128;
-            const signed char * scales =
-                reinterpret_cast<const signed char *>(block + 192);
-            const float d =
-                __half2float(*reinterpret_cast<const __half *>(block + 208));
-            for (unsigned int run = lane; run < 64; run += CUDA_WARP_WIDTH) {
-                const unsigned int column = run * 4;
-                const unsigned int group = column / 128;
-                const unsigned int within = column % 128;
-                const unsigned int quarter = within / 32;
-                const unsigned int qlane = within % 32;
-                const unsigned int low_word = (unsigned int) load_i32_unaligned(
-                    lower + group * 64 + qlane +
-                    (quarter == 1 || quarter == 3 ? 32 : 0));
-                const unsigned int high_word = (unsigned int) load_i32_unaligned(
-                    high + group * 32 + qlane);
-                const unsigned int low = quarter < 2
-                    ? (low_word & 0x0f0f0f0fu)
-                    : ((low_word >> 4) & 0x0f0f0f0fu);
-                const unsigned int packed = low |
-                    (((high_word >> (quarter * 2)) & 0x03030303u) << 4);
-                const unsigned char * input_block = right +
-                    (super * 8 + column / 32) * Q8_INPUT_BLOCK_BYTES;
-                const float input_scale =
-                    *reinterpret_cast<const float *>(input_block);
-                const int input_word = load_i32_unaligned(
-                    input_block + sizeof(float) + (column % 32));
-                int dot = __dp4a((int) packed, input_word, 0);
-                dot -= 32 * __dp4a(0x01010101, input_word, 0);
-                const signed char block_scale =
-                    scales[group * 8 + quarter * 2 + qlane / 16];
-                sum += d * input_scale * (float) ((int) block_scale * dot);
-            }
-        }
-        for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
-            sum += __shfl_down_sync(0xffffffffu, sum, offset);
-        }
-        if (lane == 0) {
-            output[left_row] = sum;
-        }
-        return;
-    }
-    const unsigned int input_stride = (inner / 32) * Q8_INPUT_BLOCK_BYTES;
-    float sums[Q8_INPUT_SPAN_MAX];
-#pragma unroll
-    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
-        sums[span] = 0.0f;
-    }
+// q6_K_input_span_row stores a Q6_K weight row's dot with each of COLUMNS q8 input columns, each summed as the
+// one-column path sums it, the weights read once for every column.
+//   - a count the launch fixes unrolls the column loop: one bound read each run held two columns at 60 percent of the
+//     card's DRAM rate where one column reached 88 (Flash-Next's head, 2560 x 248,320)
+template <unsigned int COLUMNS>
+__device__ __forceinline__ void q6_K_input_span_row(
+        const unsigned char * weight_row, const unsigned char * right, float * output, unsigned int superblocks,
+        unsigned int left_rows, unsigned int left_row, unsigned int lane) {
+    const unsigned int input_stride = superblocks * 8 * Q8_INPUT_BLOCK_BYTES;
+    float sums[COLUMNS] = {};
     for (unsigned int super = 0; super < superblocks; ++super) {
         const unsigned char * block = weight_row + super * 210;
         const unsigned char * lower = block;
@@ -7747,15 +9622,12 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
             const unsigned int input_offset =
                 (super * 8 + column / 32) * Q8_INPUT_BLOCK_BYTES;
 #pragma unroll
-            for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
-                if (span >= right_rows) {
-                    break;
-                }
+            for (unsigned int span = 0; span < COLUMNS; ++span) {
                 const unsigned char * input_block =
                     right + span * input_stride + input_offset;
                 const float input_scale =
                     *reinterpret_cast<const float *>(input_block);
-                const int input_word = load_i32_unaligned(
+                const int input_word = *reinterpret_cast<const int *>(
                     input_block + sizeof(float) + (column % 32));
                 int dot = __dp4a((int) packed, input_word, 0);
                 dot -= 32 * __dp4a(0x01010101, input_word, 0);
@@ -7764,10 +9636,7 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
         }
     }
 #pragma unroll
-    for (unsigned int span = 0; span < Q8_INPUT_SPAN_MAX; ++span) {
-        if (span >= right_rows) {
-            break;
-        }
+    for (unsigned int span = 0; span < COLUMNS; ++span) {
         float sum = sums[span];
         for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
             sum += __shfl_down_sync(0xffffffffu, sum, offset);
@@ -7775,6 +9644,39 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
         if (lane == 0) {
             output[span * left_rows + left_row] = sum;
         }
+    }
+}
+
+// mul_mat_q6_K_input_f32: integer fast path for decode — the input
+// vector arrives as q8 blocks (quantize_q8_0_input_f32), and each
+// four-column run reduces through one dp4a with the q6_K -32 offset
+// folded through a ones-vector dot. Bit layout mirrors
+// dequant_q6_K_value exactly.
+extern "C" __global__ void mul_mat_q6_K_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int left_row = thread_index / CUDA_WARP_WIDTH;
+    if (left_row >= left_rows || right_rows > Q8_INPUT_SPAN_MAX) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int superblocks = inner / 256;
+    const unsigned char * weight_row =
+        left + (size_t) left_row * superblocks * 210;
+    switch (right_rows) {
+    case 1: q6_K_input_span_row<1>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 2: q6_K_input_span_row<2>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 3: q6_K_input_span_row<3>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 4: q6_K_input_span_row<4>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 5: q6_K_input_span_row<5>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 6: q6_K_input_span_row<6>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    case 7: q6_K_input_span_row<7>(weight_row, right, output, superblocks, left_rows, left_row, lane); return;
+    default: q6_K_input_span_row<Q8_INPUT_SPAN_MAX>(weight_row, right, output, superblocks, left_rows, left_row, lane);
     }
 }
 
@@ -7927,31 +9829,81 @@ __device__ __forceinline__ float q8_quad_dot(unsigned int bytes, float4 x) {
         signed_byte_float<2>(bytes) * x.z + signed_byte_float<3>(bytes) * x.w;
 }
 
-// A block format names a storage's block width in weights, its block bytes and its block dot.
+// iq3_s_quad_weights writes the four magnitudes of an IQ3_S grid entry, bit i of signs negating magnitude i.
+__device__ __forceinline__ void iq3_s_quad_weights(unsigned int grid, unsigned int signs, float * w) {
+    const float w0 = byte_float<0>(grid);
+    const float w1 = byte_float<1>(grid);
+    const float w2 = byte_float<2>(grid);
+    const float w3 = byte_float<3>(grid);
+    w[0] = signs & 1 ? -w0 : w0;
+    w[1] = signs & 2 ? -w1 : w1;
+    w[2] = signs & 4 ? -w2 : w2;
+    w[3] = signs & 8 ? -w3 : w3;
+}
+
+// iq4_nibble_weights writes the eight IQ4_NL codebook values packed in four bytes: the low nibbles, then the high.
+__device__ __forceinline__ void iq4_nibble_weights(unsigned int packed, const float * values, float * w) {
+    #pragma unroll
+    for (unsigned int i = 0; i < BLOCK_DOT_WEIGHTS / 2; ++i) {
+        w[i] = values[(packed >> (8 * i)) & 0x0f];
+        w[BLOCK_DOT_WEIGHTS / 2 + i] = values[(packed >> (8 * i + 4)) & 0x0f];
+    }
+}
+
+// q8_quad_weights writes four signed bytes.
+__device__ __forceinline__ void q8_quad_weights(unsigned int bytes, float * w) {
+    w[0] = signed_byte_float<0>(bytes);
+    w[1] = signed_byte_float<1>(bytes);
+    w[2] = signed_byte_float<2>(bytes);
+    w[3] = signed_byte_float<3>(bytes);
+}
+
+// A block format names a storage's block width in weights, its block bytes, its block dot and its weights.
 //   - width and bytes = ggml's layout, which the storage's dequant_*_value function reads
 //   - dot(block, group, x, codebooks) dots BLOCK_DOT_WEIGHTS weights of the block with x
 //   - x starts at the block's first weight, 16-byte aligned
-//   - the weights decode as the storage's dequant_*_value function decodes them
+//   - weights(block, group, codebooks, w) writes the same weights as whole numbers and returns their scale:
+//     w[0..3] from weight offset(group), w[4..7] from offset(group) + split, all in one BLOCK_SCALE_WEIGHTS-weight span of one scale
+//   - the weights times their scale decode as the storage's dequant_*_value function decodes them
+
+// BLOCK_SCALE_WEIGHTS: the weights one scale of every block format covers, a sub-block or a block of 32.
+constexpr unsigned int BLOCK_SCALE_WEIGHTS = 32;
 
 // iq3_s_blocks dots weights 8 * group to 8 * group + 7.
 struct iq3_s_blocks {
     static constexpr unsigned int width = 256;
     static constexpr unsigned int bytes = 110;
-    __device__ static __forceinline__ float dot(
-            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+    static constexpr unsigned int split = BLOCK_DOT_WEIGHTS / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS * group; }
+    // entries reads a group's two grid entries and its signs, and returns its scale.
+    __device__ static __forceinline__ float entries(const unsigned char * block, unsigned int group,
+            const block_dot_codebooks & codebooks, unsigned int & first, unsigned int & second, unsigned int & signs) {
         const unsigned int pair = group / 8;
         const unsigned int half = group / 4 % 2;
         const unsigned int sub_group = group % 4;
         const unsigned int indices = load_u16(block + 2 + pair * 16 + half * 8 + sub_group * 2);
         const unsigned int high = load_u8(block + 66 + pair * 2 + half);
-        const unsigned int signs = load_u8(block + 74 + pair * 8 + half * 4 + sub_group);
+        signs = load_u8(block + 74 + pair * 8 + half * 4 + sub_group);
         const unsigned int group_scale = (load_u8(block + 106 + pair) >> (4 * half)) & 0x0f;
-        const unsigned int first = codebooks.iq3_s[(indices & 0xff) | ((high << (8 - 2 * sub_group)) & 0x0100)];
-        const unsigned int second = codebooks.iq3_s[(indices >> 8) | ((high << (7 - 2 * sub_group)) & 0x0100)];
-        const float scale = load_half(block) * (float) (1 + 2 * group_scale);
+        first = codebooks.iq3_s[(indices & 0xff) | ((high << (8 - 2 * sub_group)) & 0x0100)];
+        second = codebooks.iq3_s[(indices >> 8) | ((high << (7 - 2 * sub_group)) & 0x0100)];
+        return load_half(block) * (float) (1 + 2 * group_scale);
+    }
+    __device__ static __forceinline__ float dot(
+            const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
+        unsigned int first, second, signs;
+        const float scale = entries(block, group, codebooks, first, second, signs);
         const float * group_x = x + BLOCK_DOT_WEIGHTS * group;
         return scale * (iq3_s_quad_dot(first, signs, load_f32x4(group_x)) +
             iq3_s_quad_dot(second, signs >> 4, load_f32x4(group_x + 4)));
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        unsigned int first, second, signs;
+        const float scale = entries(block, group, codebooks, first, second, signs);
+        iq3_s_quad_weights(first, signs, w);
+        iq3_s_quad_weights(second, signs >> 4, w + split);
+        return scale;
     }
 };
 
@@ -7959,11 +9911,18 @@ struct iq3_s_blocks {
 struct iq4_nl_blocks {
     static constexpr unsigned int width = 32;
     static constexpr unsigned int bytes = 18;
+    static constexpr unsigned int split = width / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS / 2 * group; }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
         const unsigned int packed = load_u32_halves(block + 2 + 4 * group);
         return load_half(block) *
             iq4_nibble_dot(packed, load_f32x4(x + 4 * group), load_f32x4(x + 16 + 4 * group), codebooks.iq4_nl);
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        iq4_nibble_weights(load_u32_halves(block + 2 + 4 * group), codebooks.iq4_nl, w);
+        return load_half(block);
     }
 };
 
@@ -7972,19 +9931,34 @@ struct iq4_nl_blocks {
 struct iq4_xs_blocks {
     static constexpr unsigned int width = 256;
     static constexpr unsigned int bytes = 136;
+    static constexpr unsigned int split = iq4_nl_blocks::split;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) {
+        return iq4_nl_blocks::width * (group / 4) + iq4_nl_blocks::offset(group % 4);
+    }
+    // sub_block_scale returns the scale of the group's sub-block.
+    __device__ static __forceinline__ float sub_block_scale(const unsigned char * block, unsigned int sub_block) {
+        const unsigned int high_scales = load_u16(block + 2);
+        const unsigned int sub_scale = ((load_u8(block + 4 + sub_block / 2) >> (4 * (sub_block % 2))) & 0x0f) |
+            (((high_scales >> (2 * sub_block)) & 0x03) << 4);
+        return load_half(block) * (float) ((int) sub_scale - 32);
+    }
+    __device__ static __forceinline__ const unsigned char * nibbles(const unsigned char * block, unsigned int group) {
+        return block + 8 + 16 * (group / 4) + 4 * (group % 4);
+    }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks & codebooks) {
         const unsigned int sub_block = group / 4;
         const unsigned int quarter = group % 4;
-        const unsigned int high_scales = load_u16(block + 2);
-        const unsigned int sub_scale = ((load_u8(block + 4 + sub_block / 2) >> (4 * (sub_block % 2))) & 0x0f) |
-            (((high_scales >> (2 * sub_block)) & 0x03) << 4);
-        const unsigned int packed =
-            __ldg(reinterpret_cast<const unsigned int *>(block + 8 + 16 * sub_block + 4 * quarter));
+        const unsigned int packed = __ldg(reinterpret_cast<const unsigned int *>(nibbles(block, group)));
         const float * sub_x = x + iq4_nl_blocks::width * sub_block;
-        return load_half(block) * (float) ((int) sub_scale - 32) *
+        return sub_block_scale(block, sub_block) *
             iq4_nibble_dot(packed, load_f32x4(sub_x + 4 * quarter), load_f32x4(sub_x + 16 + 4 * quarter),
                 codebooks.iq4_nl);
+    }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks & codebooks, float * w) {
+        iq4_nibble_weights(__ldg(reinterpret_cast<const unsigned int *>(nibbles(block, group))), codebooks.iq4_nl, w);
+        return sub_block_scale(block, group / 4);
     }
 };
 
@@ -7992,6 +9966,8 @@ struct iq4_xs_blocks {
 struct q8_0_blocks {
     static constexpr unsigned int width = Q8_0_BLOCK_WIDTH;
     static constexpr unsigned int bytes = Q8_0_BLOCK_BYTES;
+    static constexpr unsigned int split = BLOCK_DOT_WEIGHTS / 2;
+    __device__ static __forceinline__ unsigned int offset(unsigned int group) { return BLOCK_DOT_WEIGHTS * group; }
     __device__ static __forceinline__ float dot(
             const unsigned char * block, unsigned int group, const float * x, const block_dot_codebooks &) {
         const unsigned char * quantized = block + Q8_0_SCALE_BYTES + BLOCK_DOT_WEIGHTS * group;
@@ -7999,14 +9975,18 @@ struct q8_0_blocks {
         return load_half(block) * (q8_quad_dot(load_u32_halves(quantized), load_f32x4(group_x)) +
             q8_quad_dot(load_u32_halves(quantized + 4), load_f32x4(group_x + 4)));
     }
+    __device__ static __forceinline__ float weights(
+            const unsigned char * block, unsigned int group, const block_dot_codebooks &, float * w) {
+        const unsigned char * quantized = block + Q8_0_SCALE_BYTES + BLOCK_DOT_WEIGHTS * group;
+        q8_quad_weights(load_u32_halves(quantized), w);
+        q8_quad_weights(load_u32_halves(quantized + split), w + split);
+        return load_half(block);
+    }
 };
 
-// visit_block_format calls visit with the block format of a storage.
-//   - it refuses a storage without a block dot, or activations x that do not start 16-byte aligned, and then does not call visit
-//   - a row of a block storage spans whole blocks of at least 32 weights, so each of its activation rows keeps x's alignment
+// visit_block_storage calls visit with the block format of a storage, and refuses a storage without one.
 template <typename Visit>
-__device__ __forceinline__ bool visit_block_format(unsigned int storage, const float * x, Visit visit) {
-    if ((reinterpret_cast<size_t>(x) & (sizeof(float4) - 1)) != 0) return false;
+__device__ __forceinline__ bool visit_block_storage(unsigned int storage, Visit visit) {
     switch (storage) {
     case GGML_IQ3_S: visit(iq3_s_blocks{}); return true;
     case GGML_IQ4_XS: visit(iq4_xs_blocks{}); return true;
@@ -8014,6 +9994,15 @@ __device__ __forceinline__ bool visit_block_format(unsigned int storage, const f
     case GGML_Q8_0: visit(q8_0_blocks{}); return true;
     default: return false;
     }
+}
+
+// visit_block_format calls visit with the block format of a storage.
+//   - it refuses a storage without a block dot, or activations x that do not start 16-byte aligned, and then does not call visit
+//   - a row of a block storage spans whole blocks of at least 32 weights, so each of its activation rows keeps x's alignment
+template <typename Visit>
+__device__ __forceinline__ bool visit_block_format(unsigned int storage, const float * x, Visit visit) {
+    if ((reinterpret_cast<size_t>(x) & (sizeof(float4) - 1)) != 0) return false;
+    return visit_block_storage(storage, visit);
 }
 
 // block_row returns the first block of the row of a bank that starts at weight first.
@@ -8257,6 +10246,7 @@ extern "C" __global__ void moe_hidden_dot_f32(
 }
 
 // moe_down_dot_f32 gives each output channel of a launch group's tokens a warp, which sums the channel over its routed slots.
+//   - a channel's tokens take adjacent warps, so the rows of the experts they share are read together
 extern "C" __global__ void moe_down_dot_f32(
         const unsigned int * route_state,
         const float * activations,
@@ -8275,13 +10265,1015 @@ extern "C" __global__ void moe_down_dot_f32(
         unsigned int count) {
     __shared__ block_dot_codebooks codebooks;
     block_dot_codebooks_load(codebooks, expert_storage, expert_storage);
-    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
-    if (index >= count) return;
+    const unsigned int warp = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp >= count) return;
     const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int tokens = count / hidden;
+    const unsigned int index = warp % tokens * hidden + warp / tokens;
     const float result = moe_down_channel(route_state, activations, down, expert_scale, down_bias, hidden, top_k,
         intermediate, normalize_top_k, routed_scale, expert_storage, expert_index_divisor, indexed_experts,
         index, lane, CUDA_WARP_WIDTH, &codebooks);
     if (lane == 0) output[index] = result;
+}
+
+// ---- Routed experts on q8 activations ----
+// A decode group's routed products take its input and its slots' activations as q8 blocks (Q8_INPUT_BLOCK_BYTES: a float
+// scale, then MOE_Q8_WIDTH int8) and dot a routed row's MOE_Q8_WIDTH-weight sub-blocks with them in integers, as llama.cpp's
+// vec_dot_*_q8_1 dots and Strata's native expert kernels do (Strata src/kernels/cuda/iq_kernels.cu).
+//   - a sub-block's dot takes dp4a over eight words of whole numbers: a block format's codebook values fit int8
+//   - its weight scale and the q8 scale then weigh the integer sum in F32
+constexpr unsigned int MOE_Q8_WIDTH = 32;
+constexpr unsigned int MOE_Q8_WORDS = MOE_Q8_WIDTH / 4;
+// MOE_Q8_ROW_LANES: the lanes that share a routed row, half a warp; Flash-Next's 2,560-wide rows give each lane five
+// sub-blocks, as Strata's 16-lane rows do.
+constexpr unsigned int MOE_Q8_ROW_LANES = CUDA_WARP_WIDTH / 2;
+// MOE_SPAN_TOKENS: the most tokens of a group that read their shared experts' rows once, a verify span's.
+//   - a routed slot, token * top_k + slot, takes MOE_SPAN_SLOT_BITS bits of a packed word
+constexpr unsigned int MOE_SPAN_TOKENS = 4;
+constexpr unsigned int MOE_SPAN_SLOT_BITS = 8;
+
+// q8_scale returns a q8 block's scale.
+__device__ __forceinline__ float q8_scale(const unsigned char * block) {
+    return *reinterpret_cast<const float *>(block);
+}
+
+// q8_values loads a q8 block's values as eight words.
+__device__ __forceinline__ void q8_values(const unsigned char * block, int * x) {
+    #pragma unroll
+    for (unsigned int word = 0; word < MOE_Q8_WORDS; ++word) {
+        x[word] = reinterpret_cast<const int *>(block + sizeof(float))[word];
+    }
+}
+
+// iq4_q8_values returns eight packed IQ4 indices' int8 codebook values: the low nibbles' word, then the high nibbles'.
+//   - the sixteen values sit in four words, which byte permutes select from (llama.cpp's get_int_from_table_16)
+__device__ __forceinline__ int2 iq4_q8_values(unsigned int packed) {
+    // -127 -104 -83 -65 | -49 -35 -22 -10 | 1 13 25 38 | 53 69 89 113, iq4nl_values as int8
+    constexpr unsigned int table0 = 0xbfad9881u, table1 = 0xf6eaddcfu, table2 = 0x26190d01u, table3 = 0x71594535u;
+    const unsigned int selection = 0x32103210u | ((packed & 0x88888888u) >> 1);
+    unsigned int parts[2];
+    #pragma unroll
+    for (unsigned int half = 0; half < 2; ++half) {
+        const unsigned int shift = 16 * half;
+        const unsigned int low = __byte_perm(table0, table1, packed >> shift);
+        const unsigned int high = __byte_perm(table2, table3, packed >> shift);
+        parts[half] = __byte_perm(low, high, selection >> shift);
+    }
+    return make_int2((int) __byte_perm(parts[0], parts[1], 0x6420), (int) __byte_perm(parts[0], parts[1], 0x7531));
+}
+
+// iq4_q8_dot dots four words of packed IQ4 indices with x: each word's low nibbles x[word], its high nibbles x[word + 4].
+template <typename Packed>
+__device__ __forceinline__ int iq4_q8_dot(Packed packed, const int * x) {
+    int sum = 0;
+    #pragma unroll
+    for (unsigned int word = 0; word < 4; ++word) {
+        const int2 values = iq4_q8_values(packed(word));
+        sum = __dp4a(values.x, x[word], sum);
+        sum = __dp4a(values.y, x[word + 4], sum);
+    }
+    return sum;
+}
+
+// A q8 format names a block storage's MOE_Q8_WIDTH-weight sub-blocks of one scale.
+//   - width and bytes = the block's, as its block format's
+//   - dot(block, sub, x, codebooks, scale) returns sub-block sub's integer dot with x and sets scale to its weight scale
+
+// iq3_s_q8: a sub-block's eight grid entries and their signs, as block_iq3_s holds them.
+struct iq3_s_q8 {
+    static constexpr unsigned int width = iq3_s_blocks::width;
+    static constexpr unsigned int bytes = iq3_s_blocks::bytes;
+    __device__ static __forceinline__ int dot(
+            const unsigned char * block, unsigned int sub, const int * x, const block_dot_codebooks & codebooks,
+            float & scale) {
+        const unsigned int indices[2] = {load_u32_halves(block + 2 + sub * 8), load_u32_halves(block + 6 + sub * 8)};
+        const unsigned int high = load_u8(block + 66 + sub);
+        const unsigned int signs = load_u32_halves(block + 74 + sub * 4);
+        int sum = 0;
+        #pragma unroll
+        for (unsigned int entry = 0; entry < 8; entry += 2) {
+            const unsigned int pair = indices[entry / 4] >> (8 * (entry % 4));
+            const unsigned int first = codebooks.iq3_s[(pair & 0xff) | ((high << (8 - entry)) & 0x100)];
+            const unsigned int second = codebooks.iq3_s[((pair >> 8) & 0xff) | ((high << (7 - entry)) & 0x100)];
+            const unsigned int sign = (signs >> (4 * entry)) & 0xff;
+            // A byte whose sign bit is set becomes 0xff, and x ^ m - m negates the bytes m marks.
+            const unsigned int first_signs = __vcmpne4(((sign & 0x03) << 7) | ((sign & 0x0c) << 21), 0);
+            const unsigned int second_signs = __vcmpne4(((sign & 0x30) << 3) | ((sign & 0xc0) << 17), 0);
+            sum = __dp4a((int) __vsub4(first ^ first_signs, first_signs), x[entry], sum);
+            sum = __dp4a((int) __vsub4(second ^ second_signs, second_signs), x[entry + 1], sum);
+        }
+        scale = load_half(block) * (float) (1 + 2 * ((load_u8(block + 106 + sub / 2) >> (4 * (sub % 2))) & 0x0f));
+        return sum;
+    }
+};
+
+// iq4_xs_q8: a sub-block's sixteen bytes of nibbles and its six-bit scale.
+struct iq4_xs_q8 {
+    static constexpr unsigned int width = iq4_xs_blocks::width;
+    static constexpr unsigned int bytes = iq4_xs_blocks::bytes;
+    __device__ static __forceinline__ int dot(
+            const unsigned char * block, unsigned int sub, const int * x, const block_dot_codebooks &, float & scale) {
+        const unsigned int * packed = reinterpret_cast<const unsigned int *>(block + 8 + 16 * sub);
+        scale = iq4_xs_blocks::sub_block_scale(block, sub);
+        return iq4_q8_dot([&](unsigned int word) { return __ldg(packed + word); }, x);
+    }
+};
+
+// iq4_nl_q8: the block's sixteen bytes of nibbles.
+struct iq4_nl_q8 {
+    static constexpr unsigned int width = iq4_nl_blocks::width;
+    static constexpr unsigned int bytes = iq4_nl_blocks::bytes;
+    __device__ static __forceinline__ int dot(
+            const unsigned char * block, unsigned int, const int * x, const block_dot_codebooks &, float & scale) {
+        scale = load_half(block);
+        return iq4_q8_dot([&](unsigned int word) { return load_u32_halves(block + 2 + 4 * word); }, x);
+    }
+};
+
+// q8_0_q8: the block's 32 signed bytes.
+struct q8_0_q8 {
+    static constexpr unsigned int width = q8_0_blocks::width;
+    static constexpr unsigned int bytes = q8_0_blocks::bytes;
+    __device__ static __forceinline__ int dot(
+            const unsigned char * block, unsigned int, const int * x, const block_dot_codebooks &, float & scale) {
+        int sum = 0;
+        #pragma unroll
+        for (unsigned int word = 0; word < MOE_Q8_WORDS; ++word) {
+            sum = __dp4a((int) load_u32_halves(block + Q8_0_SCALE_BYTES + 4 * word), x[word], sum);
+        }
+        scale = load_half(block);
+        return sum;
+    }
+};
+
+// visit_q8_format calls visit with the q8 format of a storage, and refuses a storage without one.
+//   - the routed-expert launch names the same storages (moeQ8Storage)
+template <typename Visit>
+__device__ __forceinline__ bool visit_q8_format(unsigned int storage, Visit visit) {
+    switch (storage) {
+    case GGML_IQ3_S: visit(iq3_s_q8{}); return true;
+    case GGML_IQ4_XS: visit(iq4_xs_q8{}); return true;
+    case GGML_IQ4_NL: visit(iq4_nl_q8{}); return true;
+    case GGML_Q8_0: visit(q8_0_q8{}); return true;
+    default: return false;
+    }
+}
+
+// q8_row returns the first block of the row of a bank that starts at weight first.
+template <typename Format>
+__device__ __forceinline__ const unsigned char * q8_row(const void * bank, size_t first) {
+    return reinterpret_cast<const unsigned char *>(bank) + first / Format::width * Format::bytes;
+}
+
+// moe_q8_rows_dot adds a lane's share of two rows' dots with each of COLUMNS q8 columns to sums[row][column].
+//   - the lane takes sub-blocks first, first + step, ... of the rows
+//   - a column's sums do not depend on the other columns; the rows' reads and decode, alike for every column, are the
+//     compiler's to share
+template <typename Format, unsigned int COLUMNS>
+__device__ __forceinline__ void moe_q8_rows_dot(
+        const unsigned char * const * rows, const unsigned char * const * columns, unsigned int sub_blocks,
+        unsigned int first, unsigned int step, const block_dot_codebooks & codebooks, float (*sums)[COLUMNS]) {
+    constexpr unsigned int subs = Format::width / MOE_Q8_WIDTH;
+    #pragma unroll 1
+    for (unsigned int sub = first; sub < sub_blocks; sub += step) {
+        int x[COLUMNS][MOE_Q8_WORDS];
+        float x_scale[COLUMNS];
+        #pragma unroll
+        for (unsigned int column = 0; column < COLUMNS; ++column) {
+            const unsigned char * values = columns[column] + (size_t) sub * Q8_INPUT_BLOCK_BYTES;
+            q8_values(values, x[column]);
+            x_scale[column] = q8_scale(values);
+        }
+        #pragma unroll
+        for (unsigned int row = 0; row < 2; ++row) {
+            const unsigned char * block = rows[row] + (size_t) (sub / subs) * Format::bytes;
+            #pragma unroll
+            for (unsigned int column = 0; column < COLUMNS; ++column) {
+                float scale;
+                const int dot = Format::dot(block, sub % subs, x[column], codebooks, scale);
+                sums[row][column] += scale * x_scale[column] * (float) dot;
+            }
+        }
+    }
+}
+
+// moe_q8_row_sum adds a value across its half warp, whose first lane holds the sum.
+__device__ __forceinline__ float moe_q8_row_sum(float value) {
+    const unsigned int mask = 0xffffu << (threadIdx.x % CUDA_WARP_WIDTH / MOE_Q8_ROW_LANES * MOE_Q8_ROW_LANES);
+    for (unsigned int offset = MOE_Q8_ROW_LANES / 2; offset > 0; offset /= 2) {
+        value += __shfl_down_sync(mask, value, offset, MOE_Q8_ROW_LANES);
+    }
+    return value;
+}
+
+// moe_span_slot is column's routed slot among slots: the whole slot where one column is stored, else the column's
+// MOE_SPAN_SLOT_BITS bits of a span's packed word (a group of 26 Flash-Next tokens routes 260 slots, past those bits).
+__device__ __forceinline__ unsigned int moe_span_slot(unsigned int slots, unsigned int columns, unsigned int column) {
+    return columns == 1 ? slots : slots >> (MOE_SPAN_SLOT_BITS * column) & ((1u << MOE_SPAN_SLOT_BITS) - 1);
+}
+
+// moe_q8_hidden stores the activations of one expert's gate and up row for each of COLUMNS routed slots.
+//   - slots is one column's slot, or packs a span's, MOE_SPAN_SLOT_BITS bits each, the first in the low bits
+//   - input holds each token's q8 blocks, hidden / MOE_Q8_WIDTH a token
+template <typename Format, unsigned int COLUMNS>
+__device__ __forceinline__ void moe_q8_hidden(
+        const unsigned char * gate_row, const unsigned char * up_row, const unsigned char * input, unsigned int slots,
+        const float * gate_bias, const float * up_bias, float * activations, unsigned int hidden, unsigned int top_k,
+        unsigned int intermediate, unsigned int inner_index, unsigned int expert, unsigned int routing,
+        unsigned int activation, float swiglu_clamp, unsigned int lane, const block_dot_codebooks & codebooks) {
+    const unsigned char * rows[2] = {gate_row, up_row};
+    const unsigned char * columns[COLUMNS];
+    #pragma unroll
+    for (unsigned int column = 0; column < COLUMNS; ++column) {
+        const unsigned int slot = moe_span_slot(slots, COLUMNS, column);
+        columns[column] = input + (size_t) (slot / top_k) * (hidden / MOE_Q8_WIDTH) * Q8_INPUT_BLOCK_BYTES;
+    }
+    float dots[2][COLUMNS] = {};
+    moe_q8_rows_dot<Format, COLUMNS>(rows, columns, hidden / MOE_Q8_WIDTH, lane, MOE_Q8_ROW_LANES, codebooks, dots);
+    #pragma unroll
+    for (unsigned int column = 0; column < COLUMNS; ++column) {
+        float gate_dot = moe_q8_row_sum(dots[0][column]);
+        float up_dot = moe_q8_row_sum(dots[1][column]);
+        if (lane == 0) {
+            if (gate_bias) {
+                gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
+                up_dot += up_bias[(size_t) expert * intermediate + inner_index];
+            }
+            const unsigned int slot = moe_span_slot(slots, COLUMNS, column);
+            activations[(size_t) slot * intermediate + inner_index] =
+                moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
+        }
+    }
+}
+
+// moe_q8_banks points a routed row's gate and up at its expert's blocks.
+template <typename Format>
+__device__ __forceinline__ void moe_q8_banks(
+        const void * gate, const void * up, unsigned int expert, unsigned int hidden, unsigned int intermediate,
+        unsigned int inner_index, unsigned int fused_gate_up, unsigned int indexed_experts,
+        const unsigned char *& gate_row, const unsigned char *& up_row) {
+    if (indexed_experts) {
+        gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
+    const size_t first =
+        (size_t) (indexed_experts ? 0 : expert) * (fused_gate_up ? 2 : 1) * intermediate * hidden +
+        (size_t) inner_index * hidden;
+    gate_row = q8_row<Format>(gate, first);
+    up_row = q8_row<Format>(up, first + (fused_gate_up ? (size_t) intermediate * hidden : 0));
+}
+
+// moe_q8_columns stores routed row index's activation for each of the columns slots packs, its half warp's.
+//   - a storage without a q8 format stores NaN, which no caller's launch names
+__device__ __forceinline__ void moe_q8_columns(
+        const unsigned char * input, const void * gate, const void * up, const float * gate_bias,
+        const float * up_bias, float * activations, unsigned int hidden, unsigned int top_k, unsigned int intermediate,
+        unsigned int routing, unsigned int storage, unsigned int fused_gate_up, unsigned int activation,
+        float swiglu_clamp, unsigned int indexed_experts, unsigned int expert, unsigned int inner_index,
+        unsigned int slots, unsigned int columns, unsigned int lane, const block_dot_codebooks & codebooks) {
+    if (!visit_q8_format(storage, [&](auto format) {
+            using Format = decltype(format);
+            const unsigned char * gate_row;
+            const unsigned char * up_row;
+            moe_q8_banks<Format>(gate, up, expert, hidden, intermediate, inner_index, fused_gate_up, indexed_experts,
+                gate_row, up_row);
+            switch (columns) {
+            case 1:
+                moe_q8_hidden<Format, 1>(gate_row, up_row, input, slots, gate_bias, up_bias, activations, hidden,
+                    top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+                break;
+            case 2:
+                moe_q8_hidden<Format, 2>(gate_row, up_row, input, slots, gate_bias, up_bias, activations, hidden,
+                    top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+                break;
+            case 3:
+                moe_q8_hidden<Format, 3>(gate_row, up_row, input, slots, gate_bias, up_bias, activations, hidden,
+                    top_k, intermediate, inner_index, expert, routing, activation, swiglu_clamp, lane, codebooks);
+                break;
+            default:
+                moe_q8_hidden<Format, MOE_SPAN_TOKENS>(gate_row, up_row, input, slots, gate_bias, up_bias,
+                    activations, hidden, top_k, intermediate, inner_index, expert, routing, activation,
+                    swiglu_clamp, lane, codebooks);
+            }
+        }) && lane == 0) {
+        activations[(size_t) moe_span_slot(slots, columns, 0) * intermediate + inner_index] = __int_as_float(0x7fc00000);
+    }
+}
+
+// ---- The expert doorbell ----
+// A decode group's routed experts in host memory are computed by the CPU beside the card, as Strata's doorbell does
+// (src/core/layer.cpp, THE DOORBELL): the first block of the group's hidden products hands the CPU the group's routes
+// and inputs in host memory the card maps and rings, the card's products skip the experts on_host marks, and the last
+// block of its down products to finish waits for the CPU's answer and adds the CPU's slots, each weighed as
+// moe_down_q8_f32 weighs a slot. Neither takes a launch of its own: a decode step's 48 routed nodes would add 96.
+//   - words, host memory the card maps: the ring, the CPU's answer, the last ring that handed the CPU slots, the ring
+//     a wait gave up on, and the host's abandonment of the run
+//   - the CPU answers a ring with its number once its slots' products are written; rings and answers only grow, and a
+//     ring that hands slots over holds the card until its answer, so the CPU reads a later ring's words only after it
+constexpr unsigned int MOE_DOORBELL_RING = 0;
+constexpr unsigned int MOE_DOORBELL_ANSWER = 1;
+constexpr unsigned int MOE_DOORBELL_WORK = 2;
+constexpr unsigned int MOE_DOORBELL_FAILED = 3;
+constexpr unsigned int MOE_DOORBELL_ABANDONED = 4;
+// MOE_DOORBELL_HOST_SLOT marks a handed-over slot's expert the CPU computes.
+constexpr unsigned int MOE_DOORBELL_HOST_SLOT = 0x80000000u;
+// MOE_DOORBELL_WAIT_NS: the longest a wait for an answer lasts, well inside the display watchdog's two seconds.
+constexpr unsigned long long MOE_DOORBELL_WAIT_NS = 250000000ull;
+// MOE_DOORBELL_SLOTS: the most routed slots a group hands over; MOE_DOORBELL_VECTORS: the answer's float4s a thread
+// of the last block reads at once.
+constexpr unsigned int MOE_DOORBELL_SLOTS = 128;
+constexpr unsigned int MOE_DOORBELL_VECTORS = 4;
+
+// moe_doorbell is a doorbell's card memory: the rings so far, the ring the group's down products wait for (0: none),
+// the down products' blocks finished, then the addresses of the words, the slot ids, the input rows and the answer
+// rows in host memory the card maps.
+//   - ids[t * top_k + s] = token t's slot s's routed expert, with MOE_DOORBELL_HOST_SLOT where on_host marks it,
+//     rows[t * hidden + c] = token t's input, answer[(t * top_k + s) * hidden + c] = the CPU's down product of the slot
+struct moe_doorbell {
+    unsigned int rings;
+    unsigned int waiting;
+    unsigned int finished;
+    unsigned int padding;
+    unsigned int * words;
+    unsigned int * ids;
+    float * rows;
+    const float * answer;
+};
+
+// global_nanoseconds reads the card's global timer.
+__device__ __forceinline__ unsigned long long global_nanoseconds() {
+    unsigned long long now;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(now));
+    return now;
+}
+
+// moe_doorbell_publish: a block rings for a decode group of tokens, handing the CPU the group's routes and inputs when
+// one of its routed experts is on host. Every thread of the block calls it.
+//   - every writer fences its writes to the system before the block's barrier, so the ring follows them on the link
+__device__ __noinline__ void moe_doorbell_publish(
+        const unsigned int * route_state, const unsigned char * on_host, const float * input, moe_doorbell * doorbell,
+        unsigned int tokens, unsigned int top_k, unsigned int hidden, unsigned int expert_index_divisor) {
+    const unsigned int token_words = 2 * top_k + 1;
+    bool hosted = false;
+    for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
+        hosted = hosted ||
+            on_host[route_state[(size_t) (index / top_k) * token_words + index % top_k] / expert_index_divisor] != 0;
+    }
+    const bool work = __syncthreads_or(hosted) != 0;
+    if (work) {
+        for (unsigned int index = threadIdx.x; index < tokens * top_k; index += blockDim.x) {
+            const unsigned int id = route_state[(size_t) (index / top_k) * token_words + index % top_k];
+            doorbell->ids[index] = on_host[id / expert_index_divisor] ? id | MOE_DOORBELL_HOST_SLOT : id;
+        }
+        for (unsigned int index = threadIdx.x; index < tokens * hidden; index += blockDim.x) {
+            doorbell->rows[index] = input[index];
+        }
+        __threadfence_system();
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    volatile unsigned int * words = doorbell->words;
+    const unsigned int ring = doorbell->rings + 1;
+    doorbell->rings = ring;
+    doorbell->waiting = work ? ring : 0u;
+    if (work) words[MOE_DOORBELL_WORK] = ring;
+    __threadfence_system();
+    words[MOE_DOORBELL_RING] = ring;
+}
+
+// moe_doorbell_add: the last block of a group's down products to finish waits for the CPU's answer to the group's
+// ring and adds the CPU's slots to every output. Every thread of every block calls it once its outputs are written.
+//   - a block's outputs are fenced before it counts itself finished, so the last block reads every block's
+//   - the answer is read past the card's caches, float4s at once, the rows' latency over the link overlapped
+//   - a wait past MOE_DOORBELL_WAIT_NS, or the host's abandonment, records the ring and writes NaN
+__device__ __noinline__ void moe_doorbell_add(
+        const unsigned int * route_state, const unsigned char * on_host, const float * expert_scale,
+        moe_doorbell * doorbell, float * output, unsigned int tokens, unsigned int hidden, unsigned int top_k,
+        unsigned int normalize_top_k, float routed_scale, unsigned int expert_index_divisor) {
+    __shared__ bool last;
+    __shared__ unsigned int host_slots;
+    __shared__ unsigned int slot_index[MOE_DOORBELL_SLOTS];
+    __shared__ float slot_weight[MOE_DOORBELL_SLOTS];
+    const unsigned int ring = doorbell->waiting;
+    if (ring == 0u) return;
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) last = atomicAdd(&doorbell->finished, 1u) == gridDim.x - 1;
+    __syncthreads();
+    if (!last) return;
+    if (threadIdx.x == 0) {
+        doorbell->finished = 0;
+        volatile unsigned int * words = doorbell->words;
+        const unsigned long long start = global_nanoseconds();
+        bool failed = false;
+        while ((int) (words[MOE_DOORBELL_ANSWER] - ring) < 0) {
+            if (words[MOE_DOORBELL_ABANDONED] != 0u || global_nanoseconds() - start > MOE_DOORBELL_WAIT_NS) {
+                failed = true;
+                break;
+            }
+        }
+        if (failed) words[MOE_DOORBELL_FAILED] = ring;
+        __threadfence();
+        // Each host slot's weight = its route, scaled, normalized when asked, times its expert's scale.
+        unsigned int count = 0;
+        for (unsigned int slot = 0; slot < tokens * top_k && !failed; ++slot) {
+            const unsigned int * selected = route_state + (size_t) (slot / top_k) * (2 * top_k + 1);
+            const float * routes = reinterpret_cast<const float *>(selected + top_k);
+            const unsigned int expert = selected[slot % top_k] / expert_index_divisor;
+            if (!on_host[expert]) continue;
+            float weight = routes[slot % top_k] * routed_scale;
+            if (normalize_top_k) weight /= fmaxf(routes[top_k], 6.103515625e-5f);
+            weight *= expert_scale ? expert_scale[expert] : 1.0f;
+            slot_index[count] = slot;
+            slot_weight[count++] = weight;
+        }
+        host_slots = failed ? MOE_DOORBELL_SLOTS + 1 : count;
+    }
+    __syncthreads();
+    const unsigned int vectors = tokens * hidden / 4;
+    float4 * output4 = reinterpret_cast<float4 *>(output);
+    const float4 * answer4 = reinterpret_cast<const float4 *>(doorbell->answer);
+    for (unsigned int first = threadIdx.x; first < vectors; first += blockDim.x * MOE_DOORBELL_VECTORS) {
+        float4 sums[MOE_DOORBELL_VECTORS] = {};
+        for (unsigned int host = 0; host < host_slots && host_slots <= MOE_DOORBELL_SLOTS; ++host) {
+            const unsigned int slot = slot_index[host];
+            const float weight = slot_weight[host];
+#pragma unroll
+            for (unsigned int part = 0; part < MOE_DOORBELL_VECTORS; ++part) {
+                const unsigned int vector = first + part * blockDim.x;
+                if (vector >= vectors || vector * 4 / hidden != slot / top_k) continue;
+                const float4 value = __ldcv(answer4 + (size_t) slot * (hidden / 4) + vector % (hidden / 4));
+                sums[part].x += weight * value.x;
+                sums[part].y += weight * value.y;
+                sums[part].z += weight * value.z;
+                sums[part].w += weight * value.w;
+            }
+        }
+#pragma unroll
+        for (unsigned int part = 0; part < MOE_DOORBELL_VECTORS; ++part) {
+            const unsigned int vector = first + part * blockDim.x;
+            if (vector >= vectors) continue;
+            float4 value = __ldcg(output4 + vector);
+            if (host_slots > MOE_DOORBELL_SLOTS) {
+                value = make_float4(__int_as_float(0x7fc00000), __int_as_float(0x7fc00000), __int_as_float(0x7fc00000),
+                    __int_as_float(0x7fc00000));
+            } else {
+                value.x += sums[part].x;
+                value.y += sums[part].y;
+                value.z += sums[part].z;
+                value.w += sums[part].w;
+            }
+            output4[vector] = value;
+        }
+    }
+}
+
+// moe_hidden_q8_f32 gives each routed row of a decode group half a warp, which stores the row's activation.
+//   - input = the group's q8 blocks, and gate and up share a q8 format
+//   - on_host != nullptr => a row of an expert it marks is the CPU's, and its half warp stores nothing
+//   - doorbell != nullptr => the first block rings it for the group, handing over doorbell_input (moe_doorbell_publish)
+extern "C" __global__ void moe_hidden_q8_f32(
+        const unsigned char * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int indexed_experts,
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell,
+        const float * doorbell_input) {
+    if (doorbell && blockIdx.x == 0) {
+        moe_doorbell_publish(route_state, on_host, doorbell_input, doorbell, count / (top_k * intermediate), top_k, hidden,
+            expert_index_divisor);
+    }
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / MOE_Q8_ROW_LANES;
+    if (index >= count) return;
+    const unsigned int selected = index / intermediate;
+    const unsigned int expert =
+        route_state[(size_t) (selected / top_k) * (2 * top_k + 1) + selected % top_k] / expert_index_divisor;
+    if (on_host && on_host[expert]) return;
+    moe_q8_columns(input, gate, up, gate_bias, up_bias, activations, hidden, top_k, intermediate, routing, up_storage,
+        fused_gate_up, activation, swiglu_clamp, indexed_experts, expert, index % intermediate, selected, 1,
+        threadIdx.x % MOE_Q8_ROW_LANES, codebooks);
+}
+
+// moe_hidden_span_q8_f32 is moe_hidden_q8_f32 for a group of at most MOE_SPAN_TOKENS tokens, which reads each routed
+// expert's gate and up rows once for all the group's tokens that route to it.
+//   - the half warp of a row's first token that routes to its expert dots it with that token's input and every later
+//     one's, and a later token's half warp leaves the row to it
+//   - a token that routes twice to the expert, through the index divisor or repeated selections, leaves each of the
+//     expert's half warps its own row, as every one of them finds
+//   - a token's activations are bit for bit those it computes alone
+//   - a row of an expert on_host marks is the CPU's for every token, as in moe_hidden_q8_f32
+extern "C" __global__ void moe_hidden_span_q8_f32(
+        const unsigned char * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int indexed_experts,
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell,
+        const float * doorbell_input) {
+    if (doorbell && blockIdx.x == 0) {
+        moe_doorbell_publish(route_state, on_host, doorbell_input, doorbell, count / (top_k * intermediate), top_k, hidden,
+            expert_index_divisor);
+    }
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int index = (blockIdx.x * blockDim.x + threadIdx.x) / MOE_Q8_ROW_LANES;
+    if (index >= count) return;
+    const unsigned int lane = threadIdx.x % MOE_Q8_ROW_LANES;
+    const unsigned int half = threadIdx.x % CUDA_WARP_WIDTH / MOE_Q8_ROW_LANES * MOE_Q8_ROW_LANES;
+    const unsigned int tokens = count / (top_k * intermediate);
+    const unsigned int selected = index / intermediate;
+    const unsigned int token = selected / top_k;
+    const unsigned int token_words = 2 * top_k + 1;
+    const unsigned int expert = route_state[(size_t) token * token_words + selected % top_k] / expert_index_divisor;
+    // The half warp's lanes share the row, so they leave together, before the ballots.
+    if (on_host && on_host[expert]) return;
+    // Lane s of the half reads slots s, s + MOE_Q8_ROW_LANES, ... of each token.
+    unsigned int slots = selected;
+    unsigned int columns = 1;
+    bool earlier = false;
+    bool repeated = false;
+    for (unsigned int other = 0; other < tokens && other < MOE_SPAN_TOKENS; ++other) {
+        unsigned int routes = 0;
+        for (unsigned int first = 0; first < top_k; first += MOE_Q8_ROW_LANES) {
+            const unsigned int slot = first + lane;
+            const bool routed = slot < top_k &&
+                route_state[(size_t) other * token_words + slot] / expert_index_divisor == expert;
+            routes |= (__ballot_sync(0xffffu << half, routed) >> half & 0xffffu) << first;
+        }
+        repeated |= __popc(routes) > 1;
+        if (other == token || routes == 0) continue;
+        earlier |= other < token;
+        if (other > token) slots |= (other * top_k + __ffs(routes) - 1) << (MOE_SPAN_SLOT_BITS * columns++);
+    }
+    if (repeated) {
+        slots = selected;
+        columns = 1;
+    } else if (earlier) {
+        return;
+    }
+    moe_q8_columns(input, gate, up, gate_bias, up_bias, activations, hidden, top_k, intermediate, routing, up_storage,
+        fused_gate_up, activation, swiglu_clamp, indexed_experts, expert, index % intermediate, slots, columns, lane,
+        codebooks);
+}
+
+// moe_down_q8_f32 gives each output channel of a decode group's tokens a warp, which sums the channel over its routed
+// slots' sub-blocks against their q8 activations.
+//   - activations = the group's q8 blocks, intermediate / MOE_Q8_WIDTH a routed slot
+//   - a channel's tokens take adjacent warps, so the rows of the experts they share are read together
+//   - a slot of an expert on_host marks is the CPU's, which the last block to finish adds once the CPU answers (moe_doorbell_add)
+//   - its launch's blocks are MOE_DOWN_THREADS wide, and an SM keeps MOE_DOWN_RESIDENT_BLOCKS of them, as many as before
+//     the doorbell's epilogue, whose registers would otherwise cost one
+constexpr unsigned int MOE_DOWN_THREADS = 256;
+constexpr unsigned int MOE_DOWN_RESIDENT_BLOCKS = 6;
+extern "C" __global__ void __launch_bounds__(MOE_DOWN_THREADS, MOE_DOWN_RESIDENT_BLOCKS) moe_down_q8_f32(
+        const unsigned int * route_state,
+        const unsigned char * activations,
+        const void * down,
+        const float * expert_scale,
+        const float * down_bias,
+        float * output,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int normalize_top_k,
+        float routed_scale,
+        unsigned int expert_storage,
+        unsigned int expert_index_divisor,
+        unsigned int indexed_experts,
+        unsigned int count,
+        const unsigned char * on_host,
+        moe_doorbell * doorbell) {
+    __shared__ block_dot_codebooks codebooks;
+    block_dot_codebooks_load(codebooks, expert_storage, expert_storage);
+    const unsigned int warp = (blockIdx.x * blockDim.x + threadIdx.x) / CUDA_WARP_WIDTH;
+    if (warp < count) {
+        const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+        const unsigned int tokens = count / hidden;
+        const unsigned int index = warp % tokens * hidden + warp / tokens;
+        const unsigned int output_channel = index % hidden;
+        const unsigned int token = index / hidden;
+        const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+        const float * routes = reinterpret_cast<const float *>(selected + top_k);
+        const float selected_sum = routes[top_k];
+        const unsigned int row_subs = intermediate / MOE_Q8_WIDTH;
+        const unsigned char * token_values = activations + (size_t) token * top_k * row_subs * Q8_INPUT_BLOCK_BYTES;
+        float sum = 0.0f;
+        if (!visit_q8_format(expert_storage, [&](auto format) {
+                using Format = decltype(format);
+                constexpr unsigned int subs = Format::width / MOE_Q8_WIDTH;
+                for (unsigned int item = lane; item < top_k * row_subs; item += CUDA_WARP_WIDTH) {
+                    const unsigned int slot = item / row_subs;
+                    const unsigned int sub = item % row_subs;
+                    const unsigned int expert = selected[slot] / expert_index_divisor;
+                    if (on_host && on_host[expert]) continue;
+                    // A slot's weight = its route, scaled, normalized when asked, times its expert's scale.
+                    float weight = routes[slot] * routed_scale;
+                    if (normalize_top_k) weight /= fmaxf(selected_sum, 6.103515625e-5f);
+                    weight *= expert_scale ? expert_scale[expert] : 1.0f;
+                    const void * bank = indexed_experts ? reinterpret_cast<const void * const *>(down)[expert] : down;
+                    const unsigned char * row = q8_row<Format>(
+                        bank, ((size_t) (indexed_experts ? 0 : expert) * hidden + output_channel) * intermediate);
+                    const unsigned char * values = token_values + (size_t) (slot * row_subs + sub) * Q8_INPUT_BLOCK_BYTES;
+                    int x[MOE_Q8_WORDS];
+                    q8_values(values, x);
+                    float scale;
+                    const int dot = Format::dot(row + (size_t) (sub / subs) * Format::bytes, sub % subs, x, codebooks, scale);
+                    float product = scale * q8_scale(values) * (float) dot;
+                    if (down_bias && sub == 0) product += down_bias[(size_t) expert * hidden + output_channel];
+                    sum += weight * product;
+                }
+            })) {
+            sum = __int_as_float(0x7fc00000);
+        }
+        sum = warp_sum_down(sum);
+        if (lane == 0) output[index] = sum;
+    }
+    if (doorbell) {
+        moe_doorbell_add(route_state, on_host, expert_scale, doorbell, output, count / hidden, hidden, top_k,
+            normalize_top_k, routed_scale, expert_index_divisor);
+    }
+}
+
+// ---- Grouped expert products ----
+// A prompt group's routed rows, ordered by expert, multiply as tiles on the tensor cores.
+//   - tiles[MOE_TILE_WORDS * t] = the tile's expert, then its first position and its rows, at most MOE_TILE_TOKENS
+//   - positions[p] = the routed slot, token * top_k + slot, of the p-th routed row in expert order
+//   - a block computes MOE_TILE_ROWS weight rows of one tile, and a warp MOE_MMA_ROWS of them
+//   - a step decodes MOE_TILE_DEPTH weights of each row into shared memory: a block format's whole numbers, which f16 holds
+//     exactly, and their scale a BLOCK_SCALE_WEIGHTS-weight span; and it gathers the tile's inputs as a high and a low f16 part
+//   - mma.m16n8k16 multiplies a span's whole numbers by both input parts into F32, and the span's scale weighs that sum,
+//     so a product keeps an input to about 2^-22 of its value
+//   - a tile reads each weight of its expert once for all its rows
+constexpr unsigned int MOE_TILE_WORDS = 3;
+constexpr unsigned int MOE_TILE_TOKENS = 32;
+constexpr unsigned int MOE_TILE_ROWS = 64;
+constexpr unsigned int MOE_TILE_DEPTH = 64;
+constexpr unsigned int MOE_TILE_SPANS = MOE_TILE_DEPTH / BLOCK_SCALE_WEIGHTS;
+// MOE_MMA_ROWS, MOE_MMA_TOKENS, MOE_MMA_DEPTH: the rows, columns and inner width of one mma tile; a warp takes one row tile.
+constexpr unsigned int MOE_MMA_ROWS = 16;
+constexpr unsigned int MOE_MMA_TOKENS = 8;
+constexpr unsigned int MOE_MMA_DEPTH = 16;
+constexpr unsigned int MOE_TILE_THREADS = MOE_TILE_ROWS / MOE_MMA_ROWS * CUDA_WARP_WIDTH;
+constexpr unsigned int MOE_TILE_COLUMNS = MOE_TILE_TOKENS / MOE_MMA_TOKENS;
+// MOE_TILE_STRIDE: a tile row's f16 stride; eight halves of padding keep rows 16-byte aligned and put ldmatrix's eight rows in distinct banks.
+constexpr unsigned int MOE_TILE_STRIDE = MOE_TILE_DEPTH + 8;
+// MOE_MMA_ELEMENTS: the accumulators a lane holds of one mma tile, rows g and g + 8 by columns 2t and 2t + 1.
+constexpr unsigned int MOE_MMA_ELEMENTS = 4;
+// MOE_INPUT_PARTS: an input's high f16 part and the low f16 part of what the high part rounds away.
+constexpr unsigned int MOE_INPUT_PARTS = 2;
+
+// half_mma accumulates the product of a 16x16 f16 A fragment and a 16x8 f16 B fragment into a 16x8 F32 tile.
+__device__ __forceinline__ void half_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
+        "{%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, {%0,%1,%2,%3};"
+        : "+f"(c[0]), "+f"(c[1]), "+f"(c[2]), "+f"(c[3])
+        : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+// moe_tile_store writes four weights as f16.
+__device__ __forceinline__ void moe_tile_store(__half * at, const float * w) {
+    const __half2 low = __floats2half2_rn(w[0], w[1]);
+    const __half2 high = __floats2half2_rn(w[2], w[3]);
+    *reinterpret_cast<uint2 *>(at) = make_uint2(
+        *reinterpret_cast<const unsigned int *>(&low), *reinterpret_cast<const unsigned int *>(&high));
+}
+
+// moe_tile_source names a tile's MOE_TILE_ROWS weight rows of a bank: the weight that starts the first, the
+// weights a row holds, which are also the inner width, the rows that lie in the bank, and the bank's storage.
+struct moe_tile_source {
+    const void * bank;
+    size_t first;
+    unsigned int depth;
+    unsigned int rows;
+    unsigned int storage;
+};
+
+// moe_tile_elements decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows one weight a thread in turn, as f16 under a scale of 1.
+//   - it serves a storage without a block format, and stays out of line so the block formats' steps keep their code compact
+__device__ __noinline__ void moe_tile_elements(__half * tile, float * scales, moe_tile_source source, unsigned int k0, unsigned int thread) {
+    for (unsigned int item = thread; item < MOE_TILE_ROWS * MOE_TILE_DEPTH; item += MOE_TILE_THREADS) {
+        const unsigned int row = item / MOE_TILE_DEPTH;
+        const unsigned int column = item % MOE_TILE_DEPTH;
+        tile[row * MOE_TILE_STRIDE + column] = __float2half_rn(row < source.rows && k0 + column < source.depth
+            ? moe_expert_value(source.bank, source.first + (size_t) row * source.depth + k0 + column, source.storage)
+            : 0.0f);
+        if (column % BLOCK_SCALE_WEIGHTS == 0) scales[row * MOE_TILE_SPANS + column / BLOCK_SCALE_WEIGHTS] = 1.0f;
+    }
+}
+
+// moe_tile_blocks decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows of a block storage and their scales.
+//   - a thread takes a group of BLOCK_DOT_WEIGHTS weights of a row in each pass, and the passes' reads are in flight together
+//   - the groups of a span write its scale alike; rows past the bank, and blocks past the row, take zeros
+template <typename Format>
+__device__ __forceinline__ void moe_tile_blocks(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
+        const block_dot_codebooks & codebooks, unsigned int thread) {
+    constexpr unsigned int groups = MOE_TILE_DEPTH / BLOCK_DOT_WEIGHTS;
+    constexpr unsigned int block_groups = Format::width / BLOCK_DOT_WEIGHTS;
+    #pragma unroll 2
+    for (unsigned int pass = 0; pass < MOE_TILE_ROWS * groups / MOE_TILE_THREADS; ++pass) {
+        const unsigned int item = pass * MOE_TILE_THREADS + thread;
+        const unsigned int row = item / groups;
+        const unsigned int global = k0 / BLOCK_DOT_WEIGHTS + item % groups;
+        const unsigned int block = global / block_groups;
+        const unsigned int group = global % block_groups;
+        float w[BLOCK_DOT_WEIGHTS] = {};
+        float scale = 0.0f;
+        if (row < source.rows && block * Format::width < source.depth) {
+            scale = Format::weights(block_row<Format>(source.bank, source.first + (size_t) row * source.depth) +
+                (size_t) block * Format::bytes, group, codebooks, w);
+        }
+        const unsigned int column = block * Format::width + Format::offset(group) - k0;
+        __half * at = tile + row * MOE_TILE_STRIDE + column;
+        moe_tile_store(at, w);
+        moe_tile_store(at + Format::split, w + BLOCK_DOT_WEIGHTS / 2);
+        scales[row * MOE_TILE_SPANS + column / BLOCK_SCALE_WEIGHTS] = scale;
+    }
+}
+
+// moe_tile_weights decodes weights k0 to k0 + MOE_TILE_DEPTH of a tile's rows and their spans' scales into shared memory.
+__device__ __forceinline__ void moe_tile_weights(__half * tile, float * scales, const moe_tile_source & source, unsigned int k0,
+        const block_dot_codebooks & codebooks, unsigned int thread) {
+    if (!visit_block_storage(source.storage, [&](auto format) {
+            moe_tile_blocks<decltype(format)>(tile, scales, source, k0, codebooks, thread);
+        })) {
+        moe_tile_elements(tile, scales, source, k0, thread);
+    }
+}
+
+// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as their high and low f16 parts.
+//   - THREADS threads share the gather, thread being this one's place among them
+//   - a thread reads four columns at once where they lie 16-byte aligned, and splits them once all its reads are in flight
+//   - row_input(row) = the input row of tile row row; rows from count and columns from depth take zeros
+template <unsigned int THREADS, typename RowInput>
+__device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int count, unsigned int k0, unsigned int depth, RowInput row_input, unsigned int thread) {
+    constexpr unsigned int quad = sizeof(float4) / sizeof(float);
+    constexpr unsigned int quads = MOE_TILE_TOKENS * MOE_TILE_DEPTH / quad / THREADS;
+    float4 values[quads];
+    #pragma unroll
+    for (unsigned int pass = 0; pass < quads; ++pass) {
+        const unsigned int item = pass * THREADS + thread;
+        const unsigned int row = item / (MOE_TILE_DEPTH / quad);
+        const unsigned int column = item % (MOE_TILE_DEPTH / quad) * quad;
+        values[pass] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (row >= count) continue;
+        const float * source = row_input(row) + k0 + column;
+        if (k0 + column + quad - 1 < depth && reinterpret_cast<size_t>(source) % sizeof(float4) == 0) {
+            values[pass] = *reinterpret_cast<const float4 *>(source);
+        } else {
+            if (k0 + column < depth) values[pass].x = source[0];
+            if (k0 + column + 1 < depth) values[pass].y = source[1];
+            if (k0 + column + 2 < depth) values[pass].z = source[2];
+            if (k0 + column + 3 < depth) values[pass].w = source[3];
+        }
+    }
+    #pragma unroll
+    for (unsigned int pass = 0; pass < quads; ++pass) {
+        const unsigned int item = pass * THREADS + thread;
+        const unsigned int row = item / (MOE_TILE_DEPTH / quad);
+        const unsigned int column = item % (MOE_TILE_DEPTH / quad) * quad;
+        const float w[quad] = {values[pass].x, values[pass].y, values[pass].z, values[pass].w};
+        float high[quad], low[quad];
+        #pragma unroll
+        for (unsigned int i = 0; i < quad; ++i) {
+            const __half h = __float2half_rn(w[i]);
+            high[i] = __half2float(h);
+            low[i] = w[i] - high[i];
+        }
+        moe_tile_store(tile + row * MOE_TILE_STRIDE + column, high);
+        moe_tile_store(tile + (MOE_TILE_TOKENS + row) * MOE_TILE_STRIDE + column, low);
+    }
+}
+
+// moe_tile_product adds a step's products of a warp's MOE_MMA_ROWS decoded rows with the tile's inputs to sums.
+//   - each span's whole numbers multiply both input parts, and the span's scale of each row weighs the span's sums
+//   - the lane addresses of ldmatrix are attention_tiled_bf16_f32's: A takes row halves first, B column halves first
+__device__ __forceinline__ void moe_tile_product(const __half * weights, const float * scales, const __half * inputs,
+        float (&sums)[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS]) {
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int a_row = (lane & 7) + ((lane >> 3) & 1) * 8;
+    const unsigned int a_column = (lane >> 4) * 8;
+    const unsigned int b_row = (lane & 7) + (lane >> 4) * 8;
+    const unsigned int b_column = ((lane >> 3) & 1) * 8;
+    #pragma unroll
+    for (unsigned int span = 0; span < MOE_TILE_SPANS; ++span) {
+        float parts[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+        #pragma unroll
+        for (unsigned int k = span * BLOCK_SCALE_WEIGHTS; k < (span + 1) * BLOCK_SCALE_WEIGHTS; k += MOE_MMA_DEPTH) {
+            unsigned int a[4];
+            attention_ldx4(attention_shared_address(weights + a_row * MOE_TILE_STRIDE + k + a_column), a[0], a[1], a[2], a[3]);
+            #pragma unroll
+            for (unsigned int part = 0; part < MOE_INPUT_PARTS; ++part) {
+                #pragma unroll
+                for (unsigned int column = 0; column < MOE_TILE_COLUMNS; column += 2) {
+                    unsigned int b0, b1, b2, b3;
+                    attention_ldx4(attention_shared_address(inputs +
+                            ((part * MOE_TILE_TOKENS + column * MOE_MMA_TOKENS) + b_row) * MOE_TILE_STRIDE + k + b_column),
+                        b0, b1, b2, b3);
+                    half_mma(parts[column], a, b0, b1);
+                    half_mma(parts[column + 1], a, b2, b3);
+                }
+            }
+        }
+        // A lane's elements 0 and 1 lie in row g and 2 and 3 in row g + 8.
+        const float low = scales[(lane / 4) * MOE_TILE_SPANS + span];
+        const float high = scales[(lane / 4 + 8) * MOE_TILE_SPANS + span];
+        #pragma unroll
+        for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+            sums[column][0] += low * parts[column][0];
+            sums[column][1] += low * parts[column][1];
+            sums[column][2] += high * parts[column][2];
+            sums[column][3] += high * parts[column][3];
+        }
+    }
+}
+
+// moe_tile_element names the row and the tile token of a lane's accumulator element of one mma tile column of the warp
+// whose rows start at warp_row.
+__device__ __forceinline__ void moe_tile_element(unsigned int warp_row, unsigned int column, unsigned int element,
+        unsigned int & row, unsigned int & token) {
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    row = warp_row + lane / 4 + element / 2 * 8;
+    token = column * MOE_MMA_TOKENS + lane % 4 * 2 + element % 2;
+}
+
+// MOE_HIDDEN_THREADS: the hidden products' block, a MOE_TILE_THREADS half for the gate rows and one for the up rows.
+constexpr unsigned int MOE_HIDDEN_THREADS = 2 * MOE_TILE_THREADS;
+
+// moe_grouped_hidden_f32 gives a tile's routed rows their activations: a block takes MOE_TILE_ROWS gate rows and the same up rows.
+//   - the first half of the block decodes and multiplies the gate rows, the second the up rows, and the up half takes
+//     the gate half's sums through shared memory
+//   - activations[p * intermediate + r] = the activation of position p's row r
+extern "C" __global__ void __launch_bounds__(MOE_HIDDEN_THREADS) moe_grouped_hidden_f32(
+        const float * input,
+        const unsigned int * tiles,
+        const unsigned int * positions,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int intermediate,
+        unsigned int top_k,
+        unsigned int gate_storage,
+        unsigned int up_storage,
+        unsigned int fused,
+        unsigned int activation,
+        unsigned int routing,
+        float swiglu_clamp,
+        unsigned int indexed) {
+    __shared__ block_dot_codebooks codebooks;
+    __shared__ __align__(16) __half weights[2 * MOE_TILE_ROWS * MOE_TILE_STRIDE];
+    __shared__ float scales[2 * MOE_TILE_ROWS * MOE_TILE_SPANS];
+    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    __shared__ const float * input_rows[MOE_TILE_TOKENS];
+    block_dot_codebooks_load(codebooks, gate_storage, up_storage);
+    const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
+    const unsigned int expert = tile[0], first = tile[1], count = tile[2];
+    const unsigned int row0 = blockIdx.y * MOE_TILE_ROWS;
+    if (indexed) {
+        gate = reinterpret_cast<const void * const *>(gate)[expert];
+        up = reinterpret_cast<const void * const *>(up)[expert];
+    }
+    const size_t gate_first = (indexed ? 0 : (size_t) expert * (fused ? 2 : 1) * intermediate * hidden) + (size_t) row0 * hidden;
+    const unsigned int rows = min(MOE_TILE_ROWS, intermediate - row0);
+    // Gate rows fill the tile's first half and the same up rows its second; a fused bank holds its up rows after its gate rows.
+    const unsigned int half = threadIdx.x / MOE_TILE_THREADS;
+    const unsigned int thread = threadIdx.x % MOE_TILE_THREADS;
+    const moe_tile_source source = half == 0
+        ? moe_tile_source{gate, gate_first, hidden, rows, gate_storage}
+        : moe_tile_source{up, gate_first + (fused ? (size_t) intermediate * hidden : 0), hidden, rows, up_storage};
+    // The tile's input rows, read once; the first step's barrier publishes them.
+    if (threadIdx.x < count) input_rows[threadIdx.x] = input + (size_t) (positions[first + threadIdx.x] / top_k) * hidden;
+    const auto input_row = [&](unsigned int row) { return input_rows[row]; };
+    const unsigned int warp_row = thread / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
+    const unsigned int half_row = half * MOE_TILE_ROWS + warp_row;
+    float sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    for (unsigned int k0 = 0; k0 < hidden; k0 += MOE_TILE_DEPTH) {
+        __syncthreads();
+        moe_tile_weights(weights + half * MOE_TILE_ROWS * MOE_TILE_STRIDE, scales + half * MOE_TILE_ROWS * MOE_TILE_SPANS,
+            source, k0, codebooks, thread);
+        moe_tile_inputs<MOE_HIDDEN_THREADS>(inputs, count, k0, hidden, input_row, threadIdx.x);
+        __syncthreads();
+        moe_tile_product(weights + half_row * MOE_TILE_STRIDE, scales + half_row * MOE_TILE_SPANS, inputs, sums);
+    }
+    // The gate half's sums cross to the up half through the weights' shared memory.
+    float * gate_dots = reinterpret_cast<float *>(weights);
+    __syncthreads();
+    if (half == 0) {
+        #pragma unroll
+        for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+            #pragma unroll
+            for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+                unsigned int row, token;
+                moe_tile_element(warp_row, column, element, row, token);
+                gate_dots[row * MOE_TILE_TOKENS + token] = sums[column][element];
+            }
+        }
+    }
+    __syncthreads();
+    if (half == 0) return;
+    #pragma unroll
+    for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+        #pragma unroll
+        for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+            unsigned int row, token;
+            moe_tile_element(warp_row, column, element, row, token);
+            float gate_dot = gate_dots[row * MOE_TILE_TOKENS + token];
+            row += row0;
+            if (token >= count || row >= intermediate) continue;
+            float up_dot = sums[column][element];
+            if (gate_bias) {
+                gate_dot += gate_bias[(size_t) expert * intermediate + row];
+                up_dot += up_bias[(size_t) expert * intermediate + row];
+            }
+            activations[(size_t) (first + token) * intermediate + row] =
+                moe_activation(gate_dot, up_dot, 1, activation, routing, swiglu_clamp);
+        }
+    }
+}
+
+// moe_grouped_down_f32 gives a tile's routed slots their down products: a block takes MOE_TILE_ROWS output channels.
+//   - slots[s * hidden + h] = routed slot s's channel h, its down bias added
+extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_f32(
+        const float * activations,
+        const unsigned int * tiles,
+        const unsigned int * positions,
+        const void * down,
+        const float * down_bias,
+        float * slots,
+        unsigned int hidden,
+        unsigned int intermediate,
+        unsigned int storage,
+        unsigned int indexed) {
+    __shared__ block_dot_codebooks codebooks;
+    __shared__ __align__(16) __half weights[MOE_TILE_ROWS * MOE_TILE_STRIDE];
+    __shared__ float scales[MOE_TILE_ROWS * MOE_TILE_SPANS];
+    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    block_dot_codebooks_load(codebooks, storage, storage);
+    const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
+    const unsigned int expert = tile[0], first = tile[1], count = tile[2];
+    const unsigned int row0 = blockIdx.y * MOE_TILE_ROWS;
+    if (indexed) down = reinterpret_cast<const void * const *>(down)[expert];
+    const moe_tile_source source = {down, (indexed ? 0 : (size_t) expert * hidden * intermediate) + (size_t) row0 * intermediate,
+        intermediate, min(MOE_TILE_ROWS, hidden - row0), storage};
+    const auto input_row = [&](unsigned int row) { return activations + (size_t) (first + row) * intermediate; };
+    const unsigned int warp_row = threadIdx.x / CUDA_WARP_WIDTH * MOE_MMA_ROWS;
+    float sums[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS] = {};
+    for (unsigned int k0 = 0; k0 < intermediate; k0 += MOE_TILE_DEPTH) {
+        __syncthreads();
+        moe_tile_weights(weights, scales, source, k0, codebooks, threadIdx.x);
+        moe_tile_inputs<MOE_TILE_THREADS>(inputs, count, k0, intermediate, input_row, threadIdx.x);
+        __syncthreads();
+        moe_tile_product(weights + warp_row * MOE_TILE_STRIDE, scales + warp_row * MOE_TILE_SPANS, inputs, sums);
+    }
+    #pragma unroll
+    for (unsigned int column = 0; column < MOE_TILE_COLUMNS; ++column) {
+        #pragma unroll
+        for (unsigned int element = 0; element < MOE_MMA_ELEMENTS; ++element) {
+            unsigned int channel, token;
+            moe_tile_element(warp_row, column, element, channel, token);
+            channel += row0;
+            if (token >= count || channel >= hidden) continue;
+            slots[(size_t) positions[first + token] * hidden + channel] =
+                sums[column][element] + (down_bias ? down_bias[(size_t) expert * hidden + channel] : 0.0f);
+        }
+    }
 }
 
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----

@@ -79,7 +79,7 @@ func TestMOSSRotaryRefinementRMSBoundary(t *testing.T) {
 	defer runtime.Close(context.WithoutCancel(t.Context()))
 	b := tensor.NewBuilder()
 	x := b.Input("x", dtype.F32, tensor.MustShape(128))
-	y := b.BF16Round(b.RMSNorm(x, 1e-6))
+	y := b.BF16Round(b.RMSNormNativeMean(x, 1e-6))
 	program, err := runtime.Compile(t.Context(), "native RMS boundary", nil, y)
 	if err != nil {
 		t.Fatal(err)

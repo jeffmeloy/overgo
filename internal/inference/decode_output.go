@@ -23,9 +23,14 @@ const (
 )
 
 // deviceOutputPlan: graph reduction and publication contract.
+//   - streams keeps every row's draft streams on the card too, as a span does: a prompt read whose request drafts over it
 type deviceOutputPlan struct {
-	mode deviceOutputMode
-	topK uint32
+	mode    deviceOutputMode
+	topK    uint32
+	streams bool
+	// promptExperts marks a prompt read's routed nodes (tensor.Builder.SetPromptExperts): the second part of a
+	// two-part read, whose few tokens follow the part before it.
+	promptExperts bool
 }
 
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {
@@ -70,6 +75,19 @@ func (p deviceOutputPlan) graphOutput(graph deviceBatchGraph) *tensor.Tensor {
 	default:
 		return graph.logits
 	}
+}
+
+// readBack names to a decode run's compiled graph the outputs collect reads on the host, which then come down with
+// the run: each branch's selection, candidates or logits, and a span's hidden rows.
+func (p deviceOutputPlan) readBack(compiled *executor.CompiledGraph, graphs ...deviceBatchGraph) error {
+	var outputs []*tensor.Tensor
+	for _, graph := range graphs {
+		outputs = append(outputs, p.graphOutput(graph))
+		if p.is(deviceOutputGreedySpan) && graph.hidden != nil {
+			outputs = append(outputs, graph.hidden)
+		}
+	}
+	return compiled.ReadBack(outputs...)
 }
 
 func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *executor.RetainedOutputs, graph deviceBatchGraph, caches []*deviceKVCache) error {

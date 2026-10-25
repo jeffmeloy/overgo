@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelartifact"
@@ -140,8 +141,10 @@ func TestFrozenDiffusionGeneration(t *testing.T) {
 				t.Fatal("frozen image pixels or geometry changed")
 			}
 			// EncodePlanarPNG rejects every non-finite float before quantization.
-			// Require fresh device execution; a stored output alone cannot pass.
-			if after.Execution.KernelLaunches <= before.Execution.KernelLaunches || after.Execution.DeviceToHostBytes <= before.Execution.DeviceToHostBytes {
+			// Require fresh device execution; a stored output alone cannot pass. A later request replays the graphs the
+			// first captured, so its kernels run inside graph launches.
+			launched := func(stats driver.ExecutionStats) uint64 { return stats.KernelLaunches + stats.GraphLaunches }
+			if launched(after.Execution) <= launched(before.Execution) || after.Execution.DeviceToHostBytes <= before.Execution.DeviceToHostBytes {
 				t.Fatal("request performed no GPU work")
 			}
 			measurement, err := json.Marshal(map[string]any{"case": t.Name(), "model": inventory.Manifest.ID, "recipe": definition.ID, "input": input.Descriptor.ID, "output": result.Run.Outputs[0], "run": result.Run.ID, "request_ns": wall.Nanoseconds(), "allocated_bytes": hostAfter.TotalAlloc - hostBefore.TotalAlloc, "before": before, "after": after, "phases": result.NodeWalls, "minimum": image.Minimum, "maximum": image.Maximum, "scope": "Shared GPU correctness; one resident generator; request includes temporary-store publication, excludes loading and close. Per-session counters are not whole-device usage. No isolated performance claim."})

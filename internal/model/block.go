@@ -42,9 +42,20 @@ type DenseBlockResult struct {
 	Value     *tensor.Tensor
 	Auxiliary *tensor.Tensor
 	States    CacheStates[*tensor.Tensor]
+	// Streams: the residual streams a hyper-connection head mixed into Output, [embedding, streams, tokens]; nil elsewhere.
+	Streams *tensor.Tensor
 	// Optional exact-attention replay inputs.
 	Query          *tensor.Tensor
 	AttentionScale float32
+	// Checkpoints are the layer's fixed cache states after each of CachedBlockContext.Checkpoints' token counts.
+	Checkpoints []LayerCheckpoint
+}
+
+// LayerCheckpoint is a layer's fixed cache state at a checkpoint inside its block: the recurrent pair and the fixed
+// states, nil where the layer keeps none.
+type LayerCheckpoint struct {
+	Key, Value *tensor.Tensor
+	States     CacheStates[*tensor.Tensor]
 }
 
 type denseBlockContext struct {
@@ -862,6 +873,7 @@ func buildGatedDeltaMixCached(
 	sequences uint64,
 	convState, ssmState *tensor.Tensor,
 	deltaPolicy gatedDeltaPolicy,
+	checkpointTokens []uint32,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
@@ -938,8 +950,23 @@ func buildGatedDeltaMixCached(
 	} else {
 		z = spec.Arithmetic.project(builder, weights.AttentionGate, normalized)
 	}
-	var beta, alpha *tensor.Tensor
-	if deltaPolicy == gatedDeltaInterleavedProjections {
+	// A decode step's or a verify span's separate-projection layer prepares its query, key, value, gate and beta in two
+	// operations (GatedDeltaConv, GatedDeltaGates) whose bits are the composed operations': Flash-Next's decode ran the
+	// composed preparation as 17 kernels a layer.
+	fused := spec.Arithmetic != ArithmeticTransformersBF16 && deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
+		tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type)
+	// Tokens no checkpoint divides (a prompt's) prepare their query, key and value in one operation too
+	// (GatedDeltaPromptConv), with the composed operations' bits: a Flash-Next 16K read ran the composed preparation's
+	// six kernels for about 450 ms.
+	promptConv := spec.Arithmetic != ArithmeticTransformersBF16 && !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
+		tensor.GatedDeltaConvFits(stateWidth, uint64(spec.SSMConvKernel), weights.SSMConv1D.Type)
+	var beta, alpha, gate *tensor.Tensor
+	switch {
+	case fused:
+		gates := builder.GatedDeltaGates(normalized, weights.SSMAlpha, weights.SSMBeta, weights.SSMTimeStep, weights.SSMA)
+		gate = builder.FlatSlice(gates, tensor.FirstOffset, tensor.SingletonExtent, valueHeads, tokens, sequences)
+		beta = builder.FlatSlice(gates, valueHeads*tokens, tensor.SingletonExtent, valueHeads, tokens, sequences)
+	case deltaPolicy == gatedDeltaInterleavedProjections:
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := spec.Arithmetic.project(builder, weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
@@ -951,7 +978,7 @@ func buildGatedDeltaMixCached(
 		)
 		beta = builder.Reshape(builder.Sigmoid(beta), tensor.SingletonExtent, valueHeads, tokens, sequences)
 		alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
-	} else {
+	default:
 		beta = builder.Reshape(
 			spec.Arithmetic.round(builder, builder.Sigmoid(spec.Arithmetic.project(builder, weights.SSMBeta, normalized))),
 			tensor.SingletonExtent, valueHeads, tokens, sequences,
@@ -961,81 +988,130 @@ func buildGatedDeltaMixCached(
 			alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 		}
 	}
-	decay, step := weights.SSMA, builder.Add(alpha, weights.SSMTimeStep)
-	if spec.Arithmetic == ArithmeticTransformersBF16 {
-		decay = builder.Scale(builder.ExpNative(decay), -1)
-		step = builder.SoftplusNative(step)
-	} else {
-		step = builder.Softplus(step)
-	}
-	gate := builder.Multiply(step, decay)
-	gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
-
-	var qkvTime *tensor.Tensor
-	if sequences > tensor.SingletonExtent && tokens == tensor.SingletonExtent {
-		qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
-	} else {
-		qkvTime = builder.Transpose2D(qkvMixed)
-		if sequences > tensor.SingletonExtent {
-			qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
+	if !fused {
+		decay, step := weights.SSMA, builder.Add(alpha, weights.SSMTimeStep)
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			decay = builder.Scale(builder.ExpNative(decay), -1)
+			step = builder.SoftplusNative(step)
+		} else {
+			step = builder.Softplus(step)
 		}
+		gate = builder.Multiply(step, decay)
+		gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
 	}
-	convInput := builder.Concat(convState, qkvTime, tensor.FirstOffset)
-	nextConvState := builder.GroupSlice(
-		convInput,
-		tokens,
-		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
-		tensor.SingletonExtent,
-		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
-	)
-	if sequences == tensor.SingletonExtent {
-		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels,
+
+	var query, key, value, nextConvState *tensor.Tensor
+	// window is the convolution's window after the first at tokens, the state a checkpoint keeps.
+	var window func(at uint64) *tensor.Tensor
+	if fused || promptConv {
+		layout := tensor.GatedDeltaConvLayout{
+			StateWidth: stateWidth, KeyHeads: keyHeads, ValueHeads: valueHeads, Kernel: uint64(spec.SSMConvKernel), Tokens: tokens,
+			LastWindow: promptConv,
+		}
+		conv := builder.GatedDeltaConv
+		if promptConv {
+			conv = builder.GatedDeltaPromptConv
+		}
+		prepared := conv(
+			convState, qkvMixed, weights.SSMConv1D, uint32(stateWidth), uint32(keyHeads), uint32(valueHeads), spec.RMSNormEpsilon,
 		)
+		query = builder.FlatSlice(prepared, tensor.FirstOffset, stateWidth, keyHeads, tokens, sequences)
+		key = builder.FlatSlice(prepared, layout.Key(), stateWidth, keyHeads, tokens, sequences)
+		value = builder.FlatSlice(prepared, layout.Value(), stateWidth, valueHeads, tokens, sequences)
+		window = func(at uint64) *tensor.Tensor {
+			return builder.FlatSlice(prepared, layout.Window(at-tensor.SingletonExtent), convStateWidth, convChannels)
+		}
+		nextConvState = window(tokens)
 	} else {
-		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
+		var qkvTime *tensor.Tensor
+		if sequences > tensor.SingletonExtent && tokens == tensor.SingletonExtent {
+			qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
+		} else {
+			qkvTime = builder.Transpose2D(qkvMixed)
+			if sequences > tensor.SingletonExtent {
+				qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
+			}
+		}
+		convInput := builder.Concat(convState, qkvTime, tensor.FirstOffset)
+		nextConvState = builder.GroupSlice(
+			convInput,
+			tokens,
+			uint64(spec.SSMConvKernel-tensor.SingletonExtent),
+			tensor.SingletonExtent,
+			uint64(spec.SSMConvKernel-tensor.SingletonExtent),
 		)
+		if sequences == tensor.SingletonExtent {
+			nextConvState = builder.Reshape(
+				nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels,
+			)
+		} else {
+			nextConvState = builder.Reshape(
+				nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
+			)
+		}
+		window = func(at uint64) *tensor.Tensor {
+			return builder.Reshape(
+				builder.GroupSlice(convInput, at, convStateWidth, tensor.SingletonExtent, convStateWidth),
+				convStateWidth, convChannels,
+			)
+		}
+		convolved := spec.Arithmetic.round(builder, spec.Arithmetic.silu(builder, spec.Arithmetic.round(builder, builder.SSMConv(convInput, weights.SSMConv1D))))
+		query = builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
+		key = builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
+		value = builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			query = builder.L2NormNativeBF16(query, spec.RMSNormEpsilon)
+			key = builder.L2NormNativeBF16(key, spec.RMSNormEpsilon)
+		} else {
+			query = builder.L2Norm(query, spec.RMSNormEpsilon)
+			key = builder.L2Norm(key, spec.RMSNormEpsilon)
+		}
+		query = builder.Reshape(query, stateWidth, keyHeads, tokens, sequences)
+		key = builder.Reshape(key, stateWidth, keyHeads, tokens, sequences)
+		value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	}
-	convolved := spec.Arithmetic.round(builder, spec.Arithmetic.silu(builder, spec.Arithmetic.round(builder, builder.SSMConv(convInput, weights.SSMConv1D))))
-	query := builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
-	key := builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
-	value := builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
-	if spec.Arithmetic == ArithmeticTransformersBF16 {
-		query = builder.L2NormNativeBF16(query, spec.RMSNormEpsilon)
-		key = builder.L2NormNativeBF16(key, spec.RMSNormEpsilon)
+	// scan advances the state over count tokens from first and returns their outputs and the state after them.
+	scan := func(first, count uint64, state *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor) {
+		slice := func(input *tensor.Tensor) *tensor.Tensor {
+			if first == tensor.FirstOffset && count == tokens {
+				return input
+			}
+			width, heads := input.Shape.Dims[0], input.Shape.Dims[1]
+			return builder.FlatSlice(input, first*width*heads, width, heads, count, sequences)
+		}
+		var packed *tensor.Tensor
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			packed = builder.GatedDeltaNetChunked(slice(query), slice(key), slice(value), slice(gate), slice(beta), state, true)
+		} else if deltaPolicy == gatedDeltaInterleavedProjections {
+			packed = builder.GatedDeltaNetRepeatInterleave(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
+		} else {
+			packed = builder.GatedDeltaNet(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
+		}
+		outputs := stateWidth * valueHeads * count * sequences
+		return builder.FlatSlice(packed, tensor.FirstOffset, stateWidth, valueHeads, count, sequences),
+			builder.FlatSlice(packed, outputs, stateWidth, stateWidth, valueHeads, sequences)
+	}
+	var checkpoints []LayerCheckpoint
+	var attention, nextSSMState *tensor.Tensor
+	if spanCheckpoints(checkpointTokens, tokens) && sequences == tensor.SingletonExtent {
+		// A verify span keeps the state after its pending tokens and after each prefix of its drafts: the same scan in
+		// one launch a checkpoint and one more, each ending at its checkpoint.
+		state, start := ssmState, uint64(tensor.FirstOffset)
+		for _, at := range checkpointTokens {
+			var part *tensor.Tensor
+			var checkpoint LayerCheckpoint
+			part, checkpoint.Value = scan(start, uint64(at)-start, state)
+			checkpoint.Key = window(uint64(at))
+			attention = concatTokens(builder, attention, part)
+			checkpoints = append(checkpoints, checkpoint)
+			state, start = checkpoint.Value, uint64(at)
+		}
+		var tail *tensor.Tensor
+		tail, nextSSMState = scan(start, tokens-start, state)
+		attention = concatTokens(builder, attention, tail)
 	} else {
-		query = builder.L2Norm(query, spec.RMSNormEpsilon)
-		key = builder.L2Norm(key, spec.RMSNormEpsilon)
+		attention, nextSSMState = scan(tensor.FirstOffset, tokens, ssmState)
 	}
-	query = builder.Reshape(query, stateWidth, keyHeads, tokens, sequences)
-	key = builder.Reshape(key, stateWidth, keyHeads, tokens, sequences)
-	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
-	var packed *tensor.Tensor
-	if spec.Arithmetic == ArithmeticTransformersBF16 {
-		packed = builder.GatedDeltaNetChunked(query, key, value, gate, beta, ssmState, true)
-	} else if deltaPolicy == gatedDeltaInterleavedProjections {
-		packed = builder.GatedDeltaNetRepeatInterleave(query, key, value, gate, beta, ssmState)
-	} else {
-		packed = builder.GatedDeltaNet(query, key, value, gate, beta, ssmState)
-	}
-	attentionElements := stateWidth * valueHeads * tokens * sequences
-	attention := builder.FlatSlice(
-		packed,
-		tensor.FirstOffset,
-		stateWidth,
-		valueHeads,
-		tokens,
-		sequences,
-	)
-	nextSSMState := builder.FlatSlice(
-		packed,
-		attentionElements,
-		stateWidth,
-		stateWidth,
-		valueHeads,
-		sequences,
-	)
 	z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	if deltaPolicy == gatedDeltaSeparateSigmoid {
 		z = builder.Sigmoid(z)
@@ -1054,7 +1130,28 @@ func buildGatedDeltaMixCached(
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
-	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState}, nil
+	return DenseBlockResult{Output: attention, Key: nextConvState, Value: nextSSMState, Checkpoints: checkpoints}, nil
+}
+
+// gatedDeltaTokenAxis is the token axis of a gated-delta scan's per-token outputs (width, heads, tokens, sequences).
+const gatedDeltaTokenAxis uint32 = 2
+
+// spanCheckpoints reports checkpoint token counts a block of tokens can keep: some, ascending, each inside the block.
+func spanCheckpoints(checkpoints []uint32, tokens uint64) bool {
+	for index, at := range checkpoints {
+		if at == tensor.FirstOffset || uint64(at) >= tokens || index > 0 && at <= checkpoints[index-1] {
+			return false
+		}
+	}
+	return len(checkpoints) > 0
+}
+
+// concatTokens appends a scan's per-token outputs to those before it, nil before the first.
+func concatTokens(builder *tensor.Builder, before, part *tensor.Tensor) *tensor.Tensor {
+	if before == nil {
+		return part
+	}
+	return builder.Concat(before, part, gatedDeltaTokenAxis)
 }
 
 func buildRoutedSwiGLUFeedForwardMix(

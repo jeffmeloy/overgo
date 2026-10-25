@@ -2,8 +2,10 @@ package overgodb
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -156,6 +158,65 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	defer damaged.Close()
 	if _, _, _, err := damaged.OpenContent(t.Context(), contents[0].Descriptor.ID); err == nil {
 		t.Fatal("a pack whose index does not match its digest still served a blob")
+	}
+}
+
+// TestBlobVerificationStopsWhenCancelled holds verification to its caller's
+// cancellation before it reads: a store with nothing to verify, a pack whose
+// member no longer matches (whose read would answer the mismatch) and a loose
+// blob each answer the cancellation.
+func TestBlobVerificationStopsWhenCancelled(t *testing.T) {
+	t.Parallel()
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	empty, err := Open(filepath.Join(t.TempDir(), "empty"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer empty.Close()
+	if _, err := empty.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("an empty store's cancelled verification answered %v", err)
+	}
+	root := filepath.Join(t.TempDir(), "store")
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := []artifact.Content{
+		retentionContent(t, artifact.KindEvidence, "packed small"),
+		retentionContent(t, artifact.KindEvidence, bytes.Repeat([]byte("loose "), inlineContentLimit)),
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cancel/fixture", Contents: contents}); err != nil {
+		t.Fatal(err)
+	}
+	if report, err := packBlobsUnder(t.Context(), store, int64(contents[0].Descriptor.Size)+int64(inlineContentLimit)); err != nil || report.Packed != 1 {
+		t.Fatalf("pack = %+v, %v; want the small blob packed", report, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	pack := filepath.Join(root, blobDirectory, blobPackFilename)
+	document, err := os.ReadFile(pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document[len(document)-1] ^= 0xFF
+	if err := os.WriteFile(pack, document, storeFileMode); err != nil {
+		t.Fatal(err)
+	}
+	damaged, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer damaged.Close()
+	if _, err := damaged.VerifyBlobs(t.Context()); err == nil || errors.Is(err, context.Canceled) {
+		t.Fatalf("the damaged pack's verification answered %v, want the mismatch", err)
+	}
+	if _, err := damaged.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a cancelled verification of the damaged pack answered %v", err)
+	}
+	if err := damaged.blobs.verify(cancelled, contents[1].Descriptor.ID); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a cancelled loose blob's verification answered %v", err)
 	}
 }
 

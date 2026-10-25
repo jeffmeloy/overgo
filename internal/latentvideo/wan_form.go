@@ -6,6 +6,9 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/artifact"
+	"overgo/internal/discovery"
+	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 )
@@ -41,13 +44,26 @@ const (
 // beside it (TextConditioningSpec.content). A stored answer is kept under it
 // as well as under the model (capabilityruntime.Reading), so a changed
 // encoder or tokenizer asks again. A file that is not there is named so,
-// since a request that brings its own contexts is served without it.
-func TextPipelineIdentity(modelDirectory string) (string, error) {
+// since a request that brings its own contexts is served without it. The
+// checkpoint is named through the store's identity memo, which keeps what a
+// process reads of it for the next (6.6 to 11.2 s of a LiveEdit first output
+// when every process read it).
+func TextPipelineIdentity(ctx context.Context, store artifact.Repository, modelDirectory string) (string, error) {
 	if IsLiveEdit(modelDirectory) {
 		modelDirectory, _ = LiveEditArtifacts(modelDirectory)
 	}
-	identity, _, err := WanTextConditioningSpec(modelDirectory, 1).content(true)
-	return identity, err
+	var names *discovery.Memo
+	if store != nil {
+		names = discovery.LoadMemo(ctx, store)
+	}
+	identity, _, err := WanTextConditioningSpec(modelDirectory, 1).content(true, names)
+	if err != nil {
+		return "", err
+	}
+	if err := discovery.PublishMemo(ctx, store, names); err != nil && !errors.Is(err, overgodb.ErrReadOnly) {
+		return "", err
+	}
+	return identity, nil
 }
 
 // WanTextConditioningSpec locates the text pipeline inside a Wan model
@@ -144,7 +160,7 @@ type wanConditioning struct {
 // otherwise the pipeline's own, which the memo then holds.
 func (memo *wanConditioning) contexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
 	naming := processmeasure.Stage(ctx, "text pipeline named")
-	content, _, err := spec.content(false)
+	content, _, err := spec.content(false, nil)
 	naming()
 	if err != nil {
 		return nil, nil, err

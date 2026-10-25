@@ -78,6 +78,12 @@ func dumpOpCounts(compiled *CompiledGraph) {
 				}
 			case compiledFusionActivatedGate:
 				key = "fused:activated_gate"
+			case compiledFusionStreamSum:
+				key = "fused:stream_sum"
+			case compiledFusionStreamCombine:
+				key = "fused:stream_combine"
+			case compiledFusionScaledActivation:
+				key = "fused:scaled_activation"
 			case compiledFusionWeightedRMSGate:
 				key = "fused:weighted_rms_gate"
 			case compiledFusionQ8ArgmaxPartials, compiledFusionQ8ArgmaxReduction:

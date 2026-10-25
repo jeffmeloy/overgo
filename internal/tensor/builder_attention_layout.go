@@ -298,6 +298,7 @@ type attentionOptions struct {
 	naiveF32              bool
 	memoryEfficientF32    bool
 	nativeMath            bool
+	tensorCores           bool
 	queryStart, window    uint32
 }
 
@@ -323,6 +324,8 @@ type AttentionOptions struct {
 	NaiveF32 bool
 	// MemoryEfficientF32 selects the native wide-head F32 panel arithmetic.
 	MemoryEfficientF32 bool
+	// TensorCores admits a prompt's causal attention to the half-precision tensor-core kernel (AttentionAttributes.TensorCores).
+	TensorCores bool
 }
 
 // NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
@@ -347,7 +350,8 @@ func (b *Builder) AttentionWithOptions(
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
 		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
-		nativeMath: options.NativeMath,
+		nativeMath:  options.NativeMath,
+		tensorCores: options.TensorCores,
 	})
 }
 
@@ -545,6 +549,7 @@ func (b *Builder) buildAttention(
 			HasKeyBias:            options.keyBias != nil,
 			NaiveF32:              options.naiveF32,
 			MemoryEfficientF32:    options.memoryEfficientF32,
+			TensorCores:           options.tensorCores,
 		},
 	)
 }

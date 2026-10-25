@@ -74,6 +74,11 @@ func (l *Library) StreamSynchronize(stream Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// StreamQuery reports that no stream's work can be submitted off Windows.
+func (l *Library) StreamQuery(Stream) (bool, error) {
+	return false, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }
@@ -115,6 +120,36 @@ func (l *Library) GraphDestroy(Graph) error            { return nil }
 func (l *Library) GraphExecDestroy(GraphExec) error    { return nil }
 
 func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// MemcpyHtoDAsync reports that a queued copy needs the Windows driver.
+func (l *Library) MemcpyHtoDAsync(DevicePtr, []byte, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// MemcpyDtoHAsync reports that a queued copy needs the Windows driver.
+func (l *Library) MemcpyDtoHAsync([]byte, DevicePtr, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// StreamWait reports that ordering streams needs the Windows driver.
+func (l *Library) StreamWait(Stream, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// RecordEvent reports that marking a stream needs the Windows driver.
+func (l *Library) RecordEvent(Stream) (Event, error) {
+	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// WaitEvent reports that ordering streams needs the Windows driver.
+func (l *Library) WaitEvent(Stream, Event) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// ReleaseEvent reports that releasing a mark needs the Windows driver.
+func (l *Library) ReleaseEvent(Event) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 

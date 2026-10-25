@@ -49,7 +49,7 @@ func TestWebUIBrowserLoopStatus(t *testing.T) {
 	settle(`document.querySelector('#panels .loop-status .loop-state').textContent === 'stopped'`)
 	check(`(() => {
   const loop = document.querySelector('#panels .loop-status');
-  return loop.querySelector('.loop-stop').textContent === 'Stopped (user-stop: stopped from the workbench). Resume from the checkout with plan -resume-stop.'
+  return loop.querySelector('.loop-stop').textContent === 'Stopped (requested: stopped from the workbench). Resume from the checkout with plan -resume-stop.'
     && !loop.querySelector('button') && loop.querySelector('.loop-row').textContent === 'Works gui-next/do: Build the next view';
 })()`)
 	loop.mu.Lock()

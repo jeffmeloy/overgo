@@ -100,11 +100,13 @@ type landing struct {
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
-	// landed steps removed. terms is the plan the change is judged by, and
-	// verifiers the landed steps' checks as it states them.
+	// landed steps removed. terms is the plan the change is judged by,
+	// counts the candidate's rows' counts, read before the landed steps leave
+	// it, and verifiers the landed steps' checks as it states them.
 	planned   []byte
 	advanced  plan.Plan
 	terms     plan.Plan
+	counts    map[string]plan.Budget
 	verifiers []string
 	// spent is where the run's time went, for the checkout's record.
 	spent spent
@@ -356,8 +358,9 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 // landed steps removed, and the terms the change is judged by: each landed
 // step's check and what its row may still add. The terms come from the plan
 // of the commit the landing builds on, so a change that edits its own row's
-// count or check is held to the ones it started with, and a step the change
-// itself adds has no terms to land by. Two changes have no earlier terms and
+// check is held to the one it started with, a count it raises counts only
+// with a reason of its own (charge), and a step the change itself adds has no
+// terms to land by. Two changes have no earlier terms and
 // are judged by the plan they hold: a change to the plan alone, which is how
 // a row is filed and a count raised, and a merge, whose row is named for the
 // head it joins.
@@ -385,6 +388,10 @@ func (l *landing) row(ctx context.Context) error {
 		return err
 	}
 	l.advanced, l.verifiers = document, nil
+	l.counts = make(map[string]plan.Budget, len(document.Items))
+	for _, item := range document.Items {
+		l.counts[item.ID] = item.Budget
+	}
 	for _, row := range named {
 		judged := false
 		for _, item := range l.terms.Items {
@@ -416,16 +423,22 @@ func (l *landing) row(ctx context.Context) error {
 // their counts and charged as one: the growth is taken from the first of them
 // the plan still holds and the others keep their own, so rows whose growth is
 // to be told apart land apart.
+//   - a landed row whose count the change's own plan raises, with a reason of its own, is admitted by the raised
+//     count, as a landing of the plan alone before it would admit it, with no gate run of its own
 func (l *landing) charge(growth int) (left int) {
 	named, _ := rows(l.Ref)
 	for _, item := range l.terms.Items {
 		if !slices.ContainsFunc(named, func(row ref) bool { return row.item == item.ID }) {
 			continue
 		}
-		left += item.Budget.Nodes
-		if at := slices.IndexFunc(l.advanced.Items, func(open plan.Item) bool { return open.ID == item.ID }); at >= 0 {
-			l.advanced.Items[at].Budget.Nodes, growth = item.Budget.Nodes-growth, 0
+		count := item.Budget.Nodes
+		if raised := l.counts[item.ID]; raised.Nodes > count && raised.Reason != "" && raised.Reason != item.Budget.Reason {
+			count = raised.Nodes
 		}
+		if at := slices.IndexFunc(l.advanced.Items, func(open plan.Item) bool { return open.ID == item.ID }); at >= 0 {
+			l.advanced.Items[at].Budget.Nodes, growth = count-growth, 0
+		}
+		left += count
 	}
 	return left
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -176,6 +177,64 @@ func RunFlashNextSparseAttention(t *testing.T, run func([]*tensor.Tensor, map[*t
 				}
 			}) {
 				return
+			}
+		}
+	}
+}
+
+// TestBlockSelectionDoesNotDependOnChunk: the indexer selects the same blocks for every query whether its queries are
+// scored one chunk at a time or all at once, on the host.
+func TestBlockSelectionDoesNotDependOnChunk(t *testing.T) {
+	RunBlockSelectionChunks(t, reference.Execute)
+}
+
+// RunBlockSelectionChunks shares the chunked block selection's cases between host and CUDA tests: queries at the end
+// of a concatenated cache and inside an appended page of spare capacity, scored in chunks that divide their count and
+// chunks that leave a tail, each selecting exactly the blocks one chunk of every query selects. The keys and queries
+// are small integers, so every score is exact and ties fall to the block index on either backend.
+func RunBlockSelectionChunks(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)) {
+	t.Helper()
+	const (
+		width, heads, tokens, ratio, stored, budget = 4, 2, 7, 2, 16, 4
+		seed, spread, centre                        = 31, 17, 8
+	)
+	values := func(count, offset int) []float32 {
+		data := make([]float32, count)
+		for index := range data {
+			data[index] = float32((index*seed+offset)%spread - centre)
+		}
+		return data
+	}
+	keyData, queryData := values(width*stored/ratio, 1), values(width*heads*tokens, 5)
+	for _, layout := range []struct {
+		name  string
+		start uint32
+	}{{"concatenated", stored - tokens}, {"appended", 4}} {
+		selected := func(chunk uint64) []float32 {
+			t.Helper()
+			builder := tensor.NewBuilder()
+			keys := builder.Input("keys", dtype.F32, tensor.MustShape(width, stored/ratio))
+			query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, tokens))
+			indices := selectBlocksByChunk(builder, keys, query, chunk, blockSelection{budget: budget, ratio: ratio, start: layout.start, stored: stored})
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			results, err := run([]*tensor.Tensor{indices}, map[*tensor.Tensor]reference.Value{
+				keys:  {Shape: keys.Shape, Data: keyData},
+				query: {Shape: query.Shape, Data: queryData},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return results[indices].Data
+		}
+		whole := selected(tokens)
+		if !slices.ContainsFunc(whole, func(index float32) bool { return index > 0 }) {
+			t.Fatalf("%s: one chunk selects no block (%v)", layout.name, whole)
+		}
+		for _, chunk := range []uint64{1, 2, 3} {
+			if got := selected(chunk); !slices.Equal(got, whole) {
+				t.Fatalf("%s: chunks of %d queries select %v, one chunk %v", layout.name, chunk, got, whole)
 			}
 		}
 	}

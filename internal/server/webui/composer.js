@@ -987,7 +987,7 @@
       try { result = JSON.parse(entry.result); } catch (_) { /* a plain-text result */ }
       target.toolCard({ name: entry.tool, arguments: entry.arguments, restored: true }).end(entry.error ? { error: entry.result } : result);
     }
-    return { history, steps: stored.steps || 0, bound: stored.bound };
+    return { history, steps: stored.steps || 0, bound: stored.bound, truncated: stored.truncated === true };
   }
 
 

@@ -6,12 +6,11 @@ import (
 	"testing"
 )
 
-// TestDeviceBufferPoolReusesClassesAndTrims: capacity requests of many
-// distinct sizes share a bounded set of size classes, and the pool's
-// free lists never exceed their share of device memory. A pass whose
-// every prompt had a new length used to leave one exact-size page set
-// per length in the lists until the device filled.
-func TestDeviceBufferPoolReusesClassesAndTrims(t *testing.T) {
+// TestDeviceBufferPoolReusesClasses: capacity requests of many distinct
+// sizes share a bounded set of size classes. A pass whose every prompt had
+// a new length used to leave one exact-size page set per length in the
+// lists until the device filled.
+func TestDeviceBufferPoolReusesClasses(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	ctx := t.Context()
 	// Two hundred sizes between 1.1 and 3 MiB, no two alike, each held
@@ -37,30 +36,13 @@ func TestDeviceBufferPoolReusesClassesAndTrims(t *testing.T) {
 			t.Fatalf("round %d: %d pooled allocations for 200 distinct sizes", round, allocations)
 		}
 	}
-	// Large buffers past the free share are trimmed rather than kept: hold
-	// and release buffers whose total exceeds the share and check the
-	// free lists stayed within it.
+	// The free share is derived from the device; TestDeviceBufferPoolReleaseBound
+	// holds the trim to it.
 	cuda.mu.RLock()
 	limit := cuda.resources.buffers.freeLimit
 	cuda.mu.RUnlock()
 	if limit == 0 {
 		t.Fatal("free limit was not derived from the device")
-	}
-	large := limit/4 + 1<<20
-	for index := range 8 {
-		buffer, err := cuda.AllocateDeviceBuffer(ctx, large+uint64(index)<<20)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := buffer.Release(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cuda.mu.RLock()
-	freeBytes := cuda.resources.buffers.freeBytes
-	cuda.mu.RUnlock()
-	if freeBytes > limit {
-		t.Fatalf("free lists hold %d bytes, limit %d", freeBytes, limit)
 	}
 }
 

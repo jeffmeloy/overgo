@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"overgo/internal/checked"
@@ -17,6 +18,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
+	"overgo/internal/hostexpert"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/planner"
@@ -34,17 +36,29 @@ type Executor struct {
 }
 
 type executorResources struct {
-	experts    ExpertBanks
-	modules    []driver.Module
-	functions  functionSet
-	blas       *blasState
-	q8Input    q8InputState
-	arena      driver.DevicePtr
-	arenaSize  uint64
-	scratch    executionScratch
-	buffers    deviceBufferPool
-	graphExecs graphExecCache
-	arenaUse   arenaMetrics
+	experts   ExpertBanks
+	modules   []driver.Module
+	functions functionSet
+	blas      *blasState
+	q8Input   q8InputState
+	arena     driver.DevicePtr
+	arenaSize uint64
+	// promptArena is a one-shot run's arena, a prompt's read's, which no captured graph names and a long read gives
+	// back (ReleasePromptMemory).
+	promptArena     driver.DevicePtr
+	promptArenaSize uint64
+	// promptArenaLent and stagingLent: the prompt arena and the matmul staging are lent to the experts between reads
+	// (ReleasePromptMemory), and taken back before their next use (reclaim).
+	promptArenaLent, stagingLent bool
+	scratch                      executionScratch
+	buffers                      deviceBufferPool
+	graphExecs                   graphExecCache
+	arenaUse                     arenaMetrics
+	// promptRouted: the last run through the expert banks was a prompt.
+	promptRouted bool
+	// routesApplied: an advance has applied the last expert run's routes, while a later run that reads no routed expert
+	// ran (a speculative window's draft), so the next expert run launches without one.
+	routesApplied bool
 }
 
 // ExecutionMetrics is a point-in-time, executor-owned evidence view. Counters
@@ -66,6 +80,8 @@ type ExecutionMetrics struct {
 	ArenaCommittedBytes    uint64 `json:"arenaCommittedBytes"`
 	ArenaUnusedBytes       uint64 `json:"arenaUnusedBytes"`
 	ArenaGrowths           uint64 `json:"arenaGrowths"`
+	// PromptArenaBytes is the one-shot runs' arena, a prompt's read's, which a long read gives back.
+	PromptArenaBytes uint64 `json:"promptArenaBytes"`
 	// Non-arena device-memory owners, so retained device bytes are fully
 	// attributed: cuBLAS matmul staging and attention-score staging, the
 	// Q8 activation staging, and the buffer pool's total driver residency
@@ -93,6 +109,8 @@ type executionScratch struct {
 	retainedStorage   []bool
 	retainedOffsets   []uint64
 	replayFrame       []driver.DevicePtr
+	// readBack is pinned host memory a retained run's read-back outputs come down into.
+	readBack []byte
 }
 
 // stagedHostBytes is one part of the bytes a run writes from the host: the feed of the input at order index node, or the attribute words at node -1, at offset in the run's lease.
@@ -103,8 +121,11 @@ type stagedHostBytes struct {
 }
 
 const (
-	gemmProductScale       = float32(1)
-	gemmAccumulatorScale   = float32(0)
+	gemmProductScale     = float32(1)
+	gemmAccumulatorScale = float32(0)
+	// graphExecCacheCapacity: the captured graphs an executor keeps unless its runner raises it (SetGraphExecCapacity), a
+	// decode step's; it trades a recapture against the card memory a kept graph holds. Provisional: the load-costs step
+	// derives it.
 	graphExecCacheCapacity = 4
 )
 const nativeWeightStagingLimitBytes = uint64(32 << 20)
@@ -248,6 +269,8 @@ type RetainedOutputs struct {
 	values   []DeviceValue
 	leases   []deviceBufferLease
 	released bool
+	// read is the run's read-back outputs' values by output index, which CopyToHost returns with no wait on the card.
+	read [][]float32
 }
 
 func (r *RetainedOutputs) Value(output *tensor.Tensor) (DeviceValue, bool) {
@@ -289,6 +312,9 @@ func (r *RetainedOutputs) CopyToHost(
 		return reference.Value{}, errors.New("CUDA retained output is unavailable")
 	}
 	value := r.values[index]
+	if index < len(r.read) && r.read[index] != nil {
+		return reference.Value{Shape: value.Shape, Data: slices.Clone(r.read[index])}, nil
+	}
 	elements, err := value.Shape.Elements()
 	if err != nil {
 		return reference.Value{}, err
@@ -435,6 +461,8 @@ type executionResult struct {
 	host   map[*tensor.Tensor]reference.Value
 	values []DeviceValue
 	leases []deviceBufferLease
+	// read holds the read-back outputs' values by output index (CompiledGraph.ReadBack), nil for the others.
+	read [][]float32
 }
 
 func hostResult(result *executionResult, err error) (map[*tensor.Tensor]reference.Value, error) {
@@ -476,21 +504,15 @@ func (c *CompiledGraph) InputSlot(input *tensor.Tensor) (InputSlot, bool) {
 // smaller buffer would be read past its end by the kernels that consume
 // the slot.
 func (c *CompiledGraph) InputBytes(slot InputSlot) (uint64, bool) {
-	if c == nil {
+	if c == nil || int(slot) >= len(c.inputs) {
 		return 0, false
 	}
-	for index, node := range c.order {
-		if node == nil || node.Op != tensor.OpInput || c.nodes[index].operandOffset >= 0 ||
-			InputSlot(-c.nodes[index].operandOffset-1) != slot {
-			continue
-		}
-		bytes, err := node.Shape.Bytes(node.Type)
-		if err != nil {
-			return 0, false
-		}
-		return bytes, true
+	node := c.inputs[slot]
+	bytes, err := node.Shape.Bytes(node.Type)
+	if err != nil {
+		return 0, false
 	}
-	return 0, false
+	return bytes, true
 }
 
 func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
@@ -751,14 +773,18 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
 	// serial is this compilation's unique number; see compiledSerials.
-	serial              uint64
-	outputs             []*tensor.Tensor
-	outputIndexes       map[*tensor.Tensor]int
-	outputViews         []retainedStorageView
-	outputAliases       []bool
-	order               []*tensor.Tensor
-	orderIndexes        map[*tensor.Tensor]int
-	inputCount          uint32
+	serial        uint64
+	outputs       []*tensor.Tensor
+	outputIndexes map[*tensor.Tensor]int
+	outputViews   []retainedStorageView
+	outputAliases []bool
+	order         []*tensor.Tensor
+	orderIndexes  map[*tensor.Tensor]int
+	inputCount    uint32
+	// inputs is each input slot's node, in slot order.
+	inputs []*tensor.Tensor
+	// expertUse is the last validateExpertUses answer and its source.
+	expertUse           atomic.Pointer[expertUse]
 	operandSlots        []int
 	nodes               []compiledNode
 	launches            []int
@@ -767,6 +793,10 @@ type CompiledGraph struct {
 	memory              planner.Plan
 	retainedMemory      planner.Plan
 	retainedAliasMemory planner.Plan
+	// memoryAt, retainedAt and aliasAt are each plan's arena offset of every node in order, absentOffset where it
+	// places none.
+	//   - a run reads them by index because a map lookup a node held each Flash-Next launch about 60 us
+	memoryAt, retainedAt, aliasAt []uint64
 	// fusions: rewrite-only descriptors; released after launch compilation.
 	fusions         map[*tensor.Tensor]*compiledFusion
 	elided          map[*tensor.Tensor]struct{}
@@ -783,6 +813,12 @@ type CompiledGraph struct {
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	// and the routed-expert scratch, each live only inside its own node.
 	attentionScoreBytes uint64
+	// doorbellSlots and doorbellWidth bound the routed slots and the token width a decode group of a routed node hands
+	// the CPU (moeDoorbell); doorbellRings are the routed nodes a captured run rings for, in launch order.
+	doorbellSlots, doorbellWidth uint64
+	doorbellRings                []*tensor.Tensor
+	// readBack marks the outputs a retained run copies to host memory before it ends (ReadBack).
+	readBack []bool
 }
 
 // IndexedGraph owns compiled topology and indexed device inputs.
@@ -798,6 +834,15 @@ type compiledNode struct {
 	aliases       bool
 	skipped       bool
 	launcher      nodeLauncher
+	// output is the node's output index plus one, zero for a node no output names: a run reads it for every node,
+	// where outputIndexes would take a map lookup each.
+	output int32
+}
+
+// outputIndex is the output index a node's frame names, as outputIndexes holds it: zero and false for a node no
+// output names.
+func (n compiledNode) outputIndex() (int, bool) {
+	return max(int(n.output)-1, 0), n.output > 0
 }
 
 type compiledFusionKind uint8
@@ -807,7 +852,6 @@ const (
 	compiledFusionActivatedGate
 	compiledFusionGELUTanh
 	compiledFusionLayerNormModulate
-	compiledFusionBroadcastGateAdd
 	compiledFusionWeightedRMSGate
 	compiledFusionBF16Append
 	compiledFusionBF16ArgmaxPartials
@@ -819,26 +863,35 @@ const (
 	compiledFusionBF16Linear
 	compiledFusionQ8ArgmaxPartials
 	compiledFusionQ8ArgmaxReduction
+	compiledFusionStreamSum
+	compiledFusionStreamCombine
+	compiledFusionScaledActivation
+	compiledFusionQ8Pair
+	compiledFusionQ8PairPeer
+	compiledFusionQ8GatedAdd
 )
 
 type compiledFusion struct {
-	kind          compiledFusionKind
-	operandOffset int
-	operandCount  int
-	operands      []*tensor.Tensor
-	emitQ8        bool
-	peer          *tensor.Tensor
-	weightedRMS   weightedRMSFusion
-	activatedGate activatedGateFusion
-	geluTanh      geluTanhFusion
-	layerNorm     layerNormModulateFusion
-	broadcastGate broadcastGateAddFusion
-	weightedGate  weightedRMSGateFusion
-	bf16Append    bf16AppendFusion
-	ropeAppend    ropeAppendFusion
-	bf16Gate      bf16GateFusion
-	bf16ProjAdd   bf16ProjAddFusion
-	bf16Attention bf16AttentionFusion
+	kind             compiledFusionKind
+	operandOffset    int
+	operandCount     int
+	operands         []*tensor.Tensor
+	emitQ8           bool
+	peer             *tensor.Tensor
+	weightedRMS      weightedRMSFusion
+	activatedGate    activatedGateFusion
+	geluTanh         geluTanhFusion
+	layerNorm        layerNormModulateFusion
+	weightedGate     weightedRMSGateFusion
+	bf16Append       bf16AppendFusion
+	ropeAppend       ropeAppendFusion
+	bf16Gate         bf16GateFusion
+	bf16ProjAdd      bf16ProjAddFusion
+	bf16Attention    bf16AttentionFusion
+	streamSum        streamSumFusion
+	streamCombine    streamCombineFusion
+	scaledActivation scaledActivationFusion
+	q8Pair           q8PairFusion
 }
 
 type dynamicAttributeSlot struct {
@@ -879,8 +932,10 @@ func prepareAttributePointers(scratch *[]driver.DevicePtr, count int) []driver.D
 
 // launchPointerFrame: precompiled output/input slots.
 type launchPointerFrame struct {
-	ctx       context.Context
-	experts   ExpertBanks
+	ctx     context.Context
+	experts ExpertBanks
+	// doorbell is a captured run's, whose decode groups ring for the CPU's experts (moeDoorbell); nil otherwise.
+	doorbell  *moeDoorbell
 	values    []driver.DevicePtr
 	slots     []int
 	attribute driver.DevicePtr
@@ -956,8 +1011,30 @@ func resolveRetainedStorageView(output *tensor.Tensor) (retainedStorageView, boo
 	if current == output || current.Op == tensor.OpInput {
 		return retainedStorageView{}, false, nil
 	}
+	// A view holding less than half a source of at least 1 MiB is copied into
+	// storage of its own, so the source dies with the run's other
+	// intermediates: a long prompt's recurrent state, a few MB at the tail of
+	// an output of every token's activations, kept each layer's whole output
+	// alive. A smaller source keeps the view an alias, a copy saving little.
+	viewBytes, viewErr := output.Shape.Bytes(output.Type)
+	sourceBytes, sourceErr := current.Shape.Bytes(current.Type)
+	if viewErr != nil || sourceErr != nil {
+		return retainedStorageView{}, false, errors.Join(viewErr, sourceErr)
+	}
+	if sourceBytes >= retainedViewCopyFloorBytes && viewBytes < sourceBytes/retainedViewCopyRatio {
+		return retainedStorageView{}, false, nil
+	}
 	return retainedStorageView{source: current, byteOffset: byteOffset}, true, nil
 }
+
+const (
+	// retainedViewCopyRatio: a retained view smaller than its source divided
+	// by this is copied out rather than keeping its source alive.
+	retainedViewCopyRatio = 2
+	// retainedViewCopyFloorBytes: the source size below which a retained view
+	// stays an alias.
+	retainedViewCopyFloorBytes = uint64(1 << 20)
+)
 
 type deviceAddressRange struct {
 	first uint64
@@ -978,6 +1055,7 @@ func deviceRangesOverlap(left, right deviceAddressRange) bool {
 
 func validateRetainedTargetAlias(
 	node *tensor.Tensor,
+	fusion *compiledFusion,
 	target DeviceValue,
 	contract tensor.OutputTargetContract,
 	pointers graphPointerTable,
@@ -986,7 +1064,16 @@ func validateRetainedTargetAlias(
 	if err != nil {
 		return err
 	}
-	for index, input := range node.Inputs {
+	// A fused node reads its fusion's operands; the inputs it skipped hold no memory.
+	inputs := node.Inputs
+	if fusion != nil {
+		inputs = fusion.operands
+	}
+	for position, input := range inputs {
+		index := position
+		if fusion != nil {
+			index = slices.Index(node.Inputs, input)
+		}
 		inputBytes, sizeErr := input.Shape.Bytes(input.Type)
 		if sizeErr != nil {
 			return sizeErr
@@ -1272,8 +1359,16 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			if scratchErr != nil {
 				return nil, scratchErr
 			}
+			if tokens := node.Shape.Dims[1]; tokens <= q8InputSpanColumns {
+				compiled.doorbellSlots = max(compiled.doorbellSlots, tokens*uint64(node.Attrs.(tensor.MoEAttributes).TopK))
+				compiled.doorbellWidth = max(compiled.doorbellWidth, node.Shape.Dims[0])
+			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, uint64(group)*tokenBytes)
+			// A decode group of q8 products stages its q8 activations with the q8 inputs.
+			if q8Bytes := moeQ8StagingBytes(node, group); q8Bytes > 0 {
+				compiled.q8InputBytes = max(compiled.q8InputBytes, q8Bytes)
+			}
 			if geometry, ok := nativeMoEMatrix(node); ok {
 				compiled.readsRoutes = true
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.stagingBytes(group, node.Attrs.(tensor.MoEAttributes).TopK))
@@ -1318,11 +1413,23 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 			continue
 		}
+		// The tensor-core kernel keeps a prompt's scores in registers, so its attention reserves no score staging.
+		if attributes, ok := node.Attrs.(tensor.AttentionAttributes); ok && flashAttention(node, attributes) {
+			continue
+		}
 		if bytes, ok := blasAttentionScoreBytes(node); ok {
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
 		if bytes, ok := decodePartialBytes(node); ok {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		}
+	}
+	// A prompt's selected attention gathers FP16 keys and values from the score staging, and one too narrow for
+	// tensor cores folds its spans' partials through it.
+	for _, node := range order {
+		if bytes, ok := sparseStagingBytes(node); ok {
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
@@ -1335,7 +1442,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	for _, output := range outputs {
 		plannerExcluded[output] = struct{}{}
 	}
-	memory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
+	// A retained view the run copies out holds its source only to the copy.
+	copiedViews := make(map[*tensor.Tensor]struct{})
+	for index, output := range outputs {
+		if _, aliases, viewErr := tensor.ResolveStorageView(output); viewErr == nil && aliases && !compiled.outputAliases[index] {
+			copiedViews[output] = struct{}{}
+		}
+	}
+	memory, err := planner.BuildReleasing(outputs, deviceAllocationAlignment, dependencies, plannerExcluded, copiedViews)
 	if err != nil {
 		return nil, err
 	}
@@ -1365,7 +1479,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 		}
 		if retainedSlices {
-			aliasMemory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
+			aliasMemory, err := planner.BuildReleasing(outputs, deviceAllocationAlignment, dependencies, plannerExcluded, copiedViews)
 			if err != nil {
 				return nil, err
 			}
@@ -1373,6 +1487,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 	}
 	compiled.memory = memory
+	compiled.memoryAt, compiled.retainedAt, compiled.aliasAt = arenaOffsets(order, compiled.memory), arenaOffsets(order, compiled.retainedMemory), arenaOffsets(order, compiled.retainedAliasMemory)
 	compiled.nodes = make([]compiledNode, len(order))
 	for index, node := range order {
 		view, aliases, viewErr := tensor.ResolveStorageView(node)
@@ -1389,6 +1504,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 		} else {
 			compiled.inputCount++
+			compiled.inputs = append(compiled.inputs, node)
 		}
 		fusion, fusionErr := compileFusion(compiled, node)
 		if fusionErr != nil {
@@ -1397,6 +1513,9 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		frame := compiledNode{
 			operandOffset: offset, fusion: fusion,
 			view: view, aliases: aliases, skipped: skipped,
+		}
+		if outputIndex, output := compiled.outputIndexes[node]; output {
+			frame.output = int32(outputIndex) + 1
 		}
 		if node.Op != tensor.OpInput {
 			descriptor, ok := tensor.DescribeOperation(node.Op)
@@ -1517,6 +1636,9 @@ func (r *executorResources) releaseWeightStaging(state *device.State) error {
 	if r.blas == nil || r.blas.staging == 0 {
 		return nil
 	}
+	if err := r.reclaim(state, r.blas.staging, r.blas.stagingBytes, r.blas.stagingBytes, &r.stagingLent); err != nil {
+		return err
+	}
 	if err := state.Driver.MemFree(r.blas.staging); err != nil {
 		return err
 	}
@@ -1556,11 +1678,12 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 			GraphUpdateFallbacks:   cache.updateFallbacks,
 			GraphDrops:             cache.drops,
 			GraphCacheEntries:      uint64(len(cache.entries)),
-			GraphCacheCapacity:     uint64(graphExecCacheCapacity),
+			GraphCacheCapacity:     uint64(max(cache.capacity, graphExecCacheCapacity)),
 			ArenaRequiredBytes:     arena.requiredBytes,
 			ArenaPeakRequiredBytes: arena.peakRequiredBytes,
 			ArenaCommittedBytes:    e.resources.arenaSize,
 			ArenaGrowths:           arena.growths,
+			PromptArenaBytes:       e.resources.promptArenaSize,
 			Q8StagingBytes:         e.resources.q8Input.stagingBytes,
 			PoolTotalBytes:         poolTotal,
 			PoolRetainedBytes:      pool.freeBytes,
@@ -1628,7 +1751,7 @@ func (e *Executor) ExecuteRetainedCompiled(
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases, read: execution.read,
 	}, nil
 }
 
@@ -1646,7 +1769,7 @@ func (e *Executor) ExecuteRetainedCompiledOnce(
 		return nil, err
 	}
 	return &RetainedOutputs{
-		executor: e, compiled: compiled, values: execution.values, leases: execution.leases,
+		executor: e, compiled: compiled, values: execution.values, leases: execution.leases, read: execution.read,
 	}, nil
 }
 
@@ -1688,27 +1811,60 @@ func boundRetainedPlan(candidate, bound planner.Plan) planner.Plan {
 }
 
 func (c *CompiledGraph) executionMemory(retain bool, targets *RetainedTargets) planner.Plan {
+	plan, _ := c.executionPlan(retain, targets)
+	return plan
+}
+
+// executionPlan returns the plan a run's arena follows and that plan's offset of every node in order.
+func (c *CompiledGraph) executionPlan(retain bool, targets *RetainedTargets) (planner.Plan, []uint64) {
 	if !retain {
-		return c.memory
+		return c.memory, c.memoryAt
 	}
 	if targets != nil && len(targets.values) != len(c.outputs) {
-		return c.retainedMemory
+		return c.retainedMemory, c.retainedAt
 	}
-	return c.retainedExecutionMemory(func(index int) bool { return targets != nil && targets.values[index].Pointer != 0 })
+	if c.retainedAliased(func(index int) bool { return targets != nil && targets.values[index].Pointer != 0 }) {
+		return c.retainedAliasMemory, c.aliasAt
+	}
+	return c.retainedMemory, c.retainedAt
 }
 
 func (c *CompiledGraph) retainedExecutionMemory(targeted func(int) bool) planner.Plan {
+	if c.retainedAliased(targeted) {
+		return c.retainedAliasMemory
+	}
+	return c.retainedMemory
+}
+
+// retainedAliased reports whether a retained run's targeted outputs let it follow the aliasing plan: every targeted
+// alias whose root the plain retained plan holds is held by the aliasing plan too.
+func (c *CompiledGraph) retainedAliased(targeted func(int) bool) bool {
 	for index, aliases := range c.outputAliases {
 		if aliases && targeted(index) {
 			root := c.outputViews[index].source
 			_, reserved := c.retainedAliasMemory.Allocations[root]
 			_, required := c.retainedMemory.Allocations[root]
 			if required && !reserved {
-				return c.retainedMemory
+				return false
 			}
 		}
 	}
-	return c.retainedAliasMemory
+	return true
+}
+
+// absentOffset marks a node a plan places no arena allocation for.
+const absentOffset = ^uint64(0)
+
+// arenaOffsets returns plan's arena offset of every node in order, absentOffset where it places none.
+func arenaOffsets(order []*tensor.Tensor, plan planner.Plan) []uint64 {
+	offsets := make([]uint64, len(order))
+	for index, node := range order {
+		offsets[index] = absentOffset
+		if allocation, ok := plan.Allocations[node]; ok {
+			offsets[index] = allocation.Offset
+		}
+	}
+	return offsets
 }
 
 func (e *Executor) runCompiled(
@@ -1734,7 +1890,7 @@ func (e *Executor) runCompiled(
 	if e.closed || e.worker == nil {
 		return nil, errors.New("CUDA executor is closed")
 	}
-	usesExperts, err := validateExpertUses(compiled, e.resources.experts)
+	usesExperts, routedTokens, err := validateExpertUses(compiled, e.resources.experts)
 	if err != nil {
 		return nil, err
 	}
@@ -1750,13 +1906,40 @@ func (e *Executor) runCompiled(
 			return resourceErr
 		}
 		arenaSize := compiled.executionMemory(retain, targets).ArenaSize
-		arena, arenaErr := resources.ensureArena(state, arenaSize)
+		// A captured run's arena is the one its kept frames name; a one-shot run, a prompt's read, takes its own where
+		// experts can take it back after the read, and shares the captured runs' otherwise, so a model without experts
+		// holds one arena, the larger, not both (every dense model's peak rose by a prompt arena, 2026-10-24).
+		ensure := resources.ensureArena
+		if !cacheGraph && resources.experts != nil {
+			ensure = resources.ensurePromptArena
+		}
+		arena, arenaErr := ensure(state, arenaSize)
 		if arenaErr != nil {
 			return arenaErr
 		}
-		// Between runs, so no expert moves while a kernel reads its table.
+		// Between runs, so no expert moves while a kernel reads its table: before an expert run's launch, or while a run
+		// that reads none runs, which hides the advance's bookkeeping behind its graph (a draft's 0.74 ms on Flash-Next
+		// against the advance's 0.16).
+		var whileRunning func() error
 		if usesExperts {
-			if err := resources.experts.AdvanceExperts(ctx, state); err != nil {
+			if !resources.routesApplied {
+				if err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted); err != nil {
+					return err
+				}
+			}
+			resources.routesApplied = false
+			// A run of more tokens than a verify span is a prompt, whose routes the next advance applies without moves.
+			resources.promptRouted = routedTokens > q8InputSpanColumns
+			// A captured run's decode groups ring for the CPU's experts; its doorbell is sized before the capture.
+			if retain && cacheGraph && compiled.doorbellSlots > 0 && resources.blas != nil {
+				if err := resources.blas.doorbell.ensure(state, compiled.doorbellSlots, compiled.doorbellWidth); err != nil {
+					return err
+				}
+			}
+		} else if resources.experts != nil && !resources.routesApplied {
+			whileRunning = func() error {
+				err := resources.experts.AdvanceExperts(ctx, state, resources.promptRouted)
+				resources.routesApplied = err == nil
 				return err
 			}
 		}
@@ -1779,10 +1962,15 @@ func (e *Executor) runCompiled(
 			&resources.scratch,
 			&resources.buffers,
 			graphExecs,
+			whileRunning,
 			retain,
 		)
+		// A cache keeping its frames (a speculating runner's) keeps the
+		// reservation through one-shot runs too: a release moves the
+		// staging every kept frame names, and a regrowth for a longer
+		// verify span drops every exec.
 		if executeErr == nil && !cacheGraph && compiled.matmulStagingBytes > 0 &&
-			resources.blas != nil && resources.blas.staging != 0 {
+			resources.blas != nil && resources.blas.staging != 0 && !resources.graphExecs.keepsFrames() {
 			// A one-shot staged run (no replay-cache ownership -- prefill,
 			// not steady-state decode) releases the multi-token weight
 			// staging reservation at completion instead of riding the
@@ -1823,8 +2011,6 @@ func launchCompiledFusion(
 		return "gelu_tanh", launchGELUTanh(state, functions, node, fusion.geluTanh, pointers)
 	case compiledFusionLayerNormModulate:
 		return "layer_norm_modulate", launchLayerNormModulate(state, functions, node, fusion.layerNorm, pointers)
-	case compiledFusionBroadcastGateAdd:
-		return "broadcast_gate_add", launchBroadcastGateAdd(state, functions, node, fusion.broadcastGate, pointers)
 	case compiledFusionWeightedRMSGate:
 		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion.weightedGate, fusion.emitQ8, pointers)
 	case compiledFusionBF16Append:
@@ -1852,6 +2038,19 @@ func launchCompiledFusion(
 		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
 	case compiledFusionQ8ArgmaxReduction:
 		return "q8_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
+	case compiledFusionStreamSum:
+		return "stream_sum", launchStreamSum(state, functions, q8Input, node, fusion.streamSum, fusion.emitQ8, pointers)
+	case compiledFusionStreamCombine:
+		return "stream_combine", launchStreamCombine(state, functions, node, fusion.streamCombine, pointers)
+	case compiledFusionScaledActivation:
+		return "scaled_activation", launchScaledActivation(state, functions, q8Input, node, fusion.scaledActivation, fusion.emitQ8, pointers)
+	case compiledFusionQ8Pair:
+		return "q8_pair", launchQ8Pair(state, functions, q8Input, node, fusion.q8Pair, pointers)
+	case compiledFusionQ8PairPeer:
+		// The pair's later product writes this one's output.
+		return "q8_pair", nil
+	case compiledFusionQ8GatedAdd:
+		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}
@@ -1873,11 +2072,13 @@ func execute(
 	scratch *executionScratch,
 	buffers *deviceBufferPool,
 	execCache *graphExecCache,
+	// whileRunning runs between the launch and the run's one synchronization, nil for none.
+	whileRunning func() error,
 	retainOutputs bool,
 ) (_ *executionResult, err error) {
 	outputs := compiled.outputs
 	order := compiled.order
-	plan := compiled.executionMemory(retainOutputs, retainedTargets)
+	plan, arenaAt := compiled.executionPlan(retainOutputs, retainedTargets)
 	if runtimeAttributes != nil &&
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")
@@ -2016,7 +2217,7 @@ func execute(
 			continue
 		}
 		pointer, deviceFed := driver.DevicePtr(0), false
-		outputIndex, retainedInput := compiled.outputIndexes[node]
+		outputIndex, retainedInput := frame.outputIndex()
 		retainedInput = retainedInput && retainOutputs
 		var inputTarget driver.DevicePtr
 		if retainedInput {
@@ -2131,11 +2332,23 @@ func execute(
 			}
 			total = next
 		}
-		lease, allocateErr := buffers.acquire(state, total)
-		if allocateErr != nil {
-			return nil, allocateErr
+		// A cache keeping its frames stages a captured run through its one
+		// buffer: a pooled lease's address follows the pool's reuse order,
+		// which other holders of its size class reorder, and a replay keys
+		// on it.
+		var lease deviceBufferLease
+		if retainOutputs && execCache.keepsFrames() {
+			lease, err = execCache.stagedLease(state, buffers, total)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			lease, err = buffers.acquire(state, total)
+			if err != nil {
+				return nil, err
+			}
+			auxiliaryLeases = append(auxiliaryLeases, lease)
 		}
-		auxiliaryLeases = append(auxiliaryLeases, lease)
 		host := make([]byte, total)
 		for _, part := range staged {
 			copy(host[part.offset:], part.data)
@@ -2161,7 +2374,7 @@ func execute(
 		if frame.skipped {
 			continue
 		}
-		outputIndex, retainedOutput := compiled.outputIndexes[node]
+		outputIndex, retainedOutput := frame.outputIndex()
 		retainStorage := retainedStorage[nodeIndex]
 		if frame.aliases {
 			offset, offsetErr := frame.view.ByteOffset(node.Type)
@@ -2174,7 +2387,7 @@ func execute(
 			if retainedAlias ||
 				!(retainOutputs && retainedOutput) {
 				pointer := input + driver.DevicePtr(offset)
-				pointers.set(node, pointer)
+				pointers.values[nodeIndex] = pointer
 				if retainedAlias {
 					if retainedView.source == nil {
 						return nil, errors.New("CUDA retained storage view is invalid")
@@ -2194,12 +2407,12 @@ func execute(
 			if retainedOutput && len(targetValues) != 0 && targetValues[outputIndex].Pointer != 0 {
 				target := targetValues[outputIndex]
 				if err := validateRetainedTargetAlias(
-					node, target, compiled.targetContracts[outputIndex], pointers,
+					node, frame.fusion, target, compiled.targetContracts[outputIndex], pointers,
 				); err != nil {
 					return nil, err
 				}
 				retainedValues[outputIndex] = target
-				pointers.set(node, target.Pointer)
+				pointers.values[nodeIndex] = target.Pointer
 				continue
 			}
 			offset := retainedOffsets[nodeIndex]
@@ -2216,20 +2429,32 @@ func execute(
 					Pointer: pointer, Shape: node.Shape, CapacityBytes: bytes,
 				}
 			}
-			pointers.set(node, pointer)
+			pointers.values[nodeIndex] = pointer
 			continue
 		}
-		allocation, ok := plan.Allocations[node]
-		if !ok {
+		offset := arenaAt[nodeIndex]
+		if offset == absentOffset {
 			return nil, fmt.Errorf("tensor %d has no arena allocation", node.ID)
 		}
-		if uint64(arena) > math.MaxUint64-allocation.Offset {
+		if uint64(arena) > math.MaxUint64-offset {
 			return nil, errors.New("device pointer offset overflows uint64")
 		}
-		pointers.set(node, arena+driver.DevicePtr(allocation.Offset))
+		pointers.values[nodeIndex] = arena + driver.DevicePtr(offset)
 	}
 
+	// A retained run's read-back outputs take their pinned places before the run is launched.
+	var readBack []readBackCopy
+	if retainOutputs && len(compiled.readBack) != 0 {
+		if readBack, err = compiled.planReadBack(state, retainedValues, &scratch.readBack); err != nil {
+			return nil, err
+		}
+	}
 	capturing := retainOutputs && execCache != nil
+	// A captured run's decode groups ring for the CPU's experts on host, which this worker computes once it launches the run.
+	var doorbell *moeDoorbell
+	if capturing && experts != nil && blas != nil && blas.doorbell.host != nil && compiled.doorbellSlots > 0 {
+		doorbell = &blas.doorbell
+	}
 	resetStaged := func() {
 		if blas != nil {
 			blas.stagedNode = nil
@@ -2244,13 +2469,13 @@ func execute(
 			frame := compiled.nodes[nodeIndex]
 			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
-				ctx: ctx, experts: experts,
+				ctx: ctx, experts: experts, doorbell: doorbell,
 				values:    pointers.values,
 				slots:     compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
 				attribute: attributePointers[nodeIndex],
 			}
 			if frame.aliases {
-				outputIndex, retainedOutput := compiled.outputIndexes[node]
+				outputIndex, retainedOutput := frame.outputIndex()
 				retainedAlias := retainedOutput && ownsOutput(outputIndex) && compiled.outputAliases[outputIndex]
 				if retainedAlias || !(retainOutputs && retainedOutput) {
 					continue
@@ -2304,10 +2529,20 @@ func execute(
 	)
 	scratch.replayFrame = append(scratch.replayFrame, pointers.values...)
 	scratch.replayFrame = append(scratch.replayFrame, attributePointers...)
+	// A graph rings for the doorbell it was captured with, and for none where it was captured without one.
+	var doorbellDescriptor driver.DevicePtr
+	if doorbell != nil {
+		doorbellDescriptor = doorbell.descriptor
+	}
+	scratch.replayFrame = append(scratch.replayFrame, doorbellDescriptor)
 	frame := scratch.replayFrame
 	replayed := false
+	var ringBase uint32
 	if capturing {
 		if exec, ok := execCache.match(compiled, frame); ok {
+			if doorbell != nil {
+				ringBase = doorbell.prepare()
+			}
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
@@ -2320,6 +2555,9 @@ func execute(
 			if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
 				return nil, captureErr
 			}
+		}
+		if doorbell != nil {
+			doorbell.capture = doorbell.capture[:0]
 		}
 		launchErr := runLaunches()
 		if launchErr != nil {
@@ -2339,13 +2577,48 @@ func execute(
 			if storeErr != nil {
 				return nil, storeErr
 			}
+			// Every capture with a doorbell rings for the same nodes, so a replay serves the last capture's.
+			if doorbell != nil {
+				compiled.doorbellRings = slices.Clone(doorbell.capture)
+				ringBase = doorbell.prepare()
+			}
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
 			}
 		}
 	}
+	rings := doorbell != nil && len(compiled.doorbellRings) > 0
+	// The residency's copies start behind the run's own, which they would otherwise delay on the copy engine.
+	if experts != nil {
+		// A failure returns once the run is done (the deferred wait), which waits for no ring.
+		if err := experts.StartExpertCopies(ctx, state); err != nil {
+			if rings {
+				doorbell.abandon()
+			}
+			return nil, err
+		}
+	}
+	var serveErr error
+	if rings {
+		serveErr = doorbell.serve(ctx, state, experts, compiled.doorbellRings, ringBase)
+	}
+	// A retained run's read-back outputs come down behind its graph, before the one wait the run ends with, queued
+	// once the doorbell is answered: a profiler's tracing made the queueing wait for the run, whose ring then went
+	// unanswered.
+	if serveErr == nil {
+		serveErr = queueReadBack(state, readBack, retainedValues, scratch.readBack)
+	}
+	if serveErr == nil && whileRunning != nil {
+		serveErr = whileRunning()
+	}
 	if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
-		return nil, err
+		return nil, errors.Join(serveErr, err)
+	}
+	if rings {
+		serveErr = errors.Join(serveErr, doorbell.failure())
+	}
+	if serveErr != nil {
+		return nil, serveErr
 	}
 	submitted = false
 	if retainOutputs {
@@ -2353,6 +2626,7 @@ func execute(
 		return &executionResult{
 			values: retainedValues,
 			leases: retainedLeases,
+			read:   takeReadBack(readBack, scratch.readBack, len(outputs)),
 		}, nil
 	}
 
@@ -2419,17 +2693,35 @@ func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
 }
 
 type blasState struct {
-	moeRoutes    []uint32
-	moeExperts   []uint32
-	moeCounts    []uint32
-	moeOffsets   []uint32
-	moeSlots     []uint32
-	moeTable     []uint32
-	library      *cublas.Library
-	handle       cublas.Handle
-	staging      driver.DevicePtr
-	stagingBytes uint64
-	stagedNode   *tensor.Tensor
+	moeRoutes  []uint32
+	moeCounts  []uint32
+	moeOffsets []uint32
+	moeTable   []uint32
+	// moeSources and moeHosted hold a group's expert addresses and host bytes a bank, and moeCopyTable its copied addresses.
+	moeSources   []driver.DevicePtr
+	moeHosted    [][]byte
+	moeCopyTable []driver.DevicePtr
+	moeBatches   []moeBatch
+	moeCopied    []uint32
+	// hostPool computes experts in host memory on the CPU; hostInput and hostRows are its pinned input rows
+	// and output slots, hostQuantized its tokens' Q8_K activations, hostTokens and hostQuantizedAt which.
+	hostPool        *hostexpert.Pool
+	hostInput       []byte
+	hostRows        []byte
+	hostQuantized   []byte
+	hostTokens      []uint32
+	hostQuantizedAt []int
+	// doorbell hands a captured decode step's experts on host to the CPU.
+	doorbell moeDoorbell
+	// moeCopyStream copies host experts beside the compute stream, and moeReadStream brings the CPU's input rows
+	// back beside both.
+	moeCopyStream driver.Stream
+	moeReadStream driver.Stream
+	library       *cublas.Library
+	handle        cublas.Handle
+	staging       driver.DevicePtr
+	stagingBytes  uint64
+	stagedNode    *tensor.Tensor
 	// stagedType is the dtype the staged activation was packed to; a
 	// node feeding both F16 and BF16 weights repacks when it switches.
 	stagedType dtype.Type
@@ -2448,6 +2740,7 @@ var (
 	q8InputTraits, _   = dtype.Q8_1.Traits()
 	f32ScalarBytes, _  = dtype.F32.ScalarBytes()
 	bf16ScalarBytes, _ = dtype.BF16.ScalarBytes()
+	f16ScalarBytes, _  = dtype.F16.ScalarBytes()
 )
 
 type q8InputState struct {
@@ -2534,6 +2827,13 @@ func (e *Executor) ensureResources(
 		}
 		matmulStagingBytes = max(matmulStagingBytes, bytes)
 	}
+	// A run takes back the whole staging: its launches size their rows to all of it and place their activations at its
+	// end, where the experts' slots are carved first (launch_linear_layout.go).
+	if matmulStagingBytes > 0 && e.resources.blas != nil {
+		if err := e.resources.reclaim(state, e.resources.blas.staging, e.resources.blas.stagingBytes, e.resources.blas.stagingBytes, &e.resources.stagingLent); err != nil {
+			return nil, err
+		}
+	}
 	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
 		staging, err := e.resources.allocate(state, matmulStagingBytes)
 		if err != nil {
@@ -2600,24 +2900,157 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	if r.arena != 0 && r.arenaSize >= size {
 		return r.arena, nil
 	}
-	if r.arena != 0 {
-		// Captured graphs address the arena directly; none may replay
-		// over the range being freed.
-		if err := r.graphExecs.drop(state); err != nil {
-			return 0, err
-		}
-		if err := state.Driver.MemFree(r.arena); err != nil {
-			return 0, err
-		}
-		r.arena, r.arenaSize = 0, 0
-	}
-	next, err := r.allocate(state, size)
-	if err != nil {
+	// A first arena takes its need exactly, since the rounding below paid nothing on the one arena most models hold yet
+	// held 64 MiB idle on each (17 peak rows of the run of 2026-10-24); a growing arena rounds its need up (arenaGranule),
+	// and takes its need alone where the card has no room for the rest.
+	growing := r.arena != 0
+	if err := r.releaseArena(state); err != nil {
 		return 0, err
 	}
-	r.arena, r.arenaSize = next, size
+	grown := size
+	if growing {
+		grown = arenaBytes(size)
+	}
+	next, err := r.allocate(state, grown)
+	if err != nil {
+		grown = size
+		if next, err = r.allocate(state, size); err != nil {
+			return 0, err
+		}
+	}
+	r.arena, r.arenaSize = next, grown
 	r.arenaUse.growths++
 	return r.arena, nil
+}
+
+// arenaGranule rounds a growing arena's need up: a prompt a token longer than the last needs a few bytes more, and
+// each growth frees the arena, drops the graphs that name it and waits while Windows clears the new allocation (a
+// Flash-Next 16K prompt's read waited about 100 ms for its 2.8 GB). A share of the need to spare (a quarter) also kept
+// a long prompt's second chunk from growing it again, but held card memory the experts lost: agent turns decoded 2.8%
+// slower over three alternating rounds. It trades the growths a rounding saves against the card memory it holds
+// idle. Provisional: the load-costs step derives it from a growth's measured cost.
+const arenaGranule = uint64(64 << 20)
+
+// arenaBytes is the arena a run needing need bytes grows to.
+func arenaBytes(need uint64) uint64 {
+	if need > math.MaxUint64-arenaGranule {
+		return need
+	}
+	return (need + arenaGranule - 1) / arenaGranule * arenaGranule
+}
+
+// releaseArena frees the arena; captured graphs address it directly, so none may replay over the range freed.
+func (r *executorResources) releaseArena(state *device.State) error {
+	if r.arena == 0 {
+		return nil
+	}
+	if err := r.graphExecs.drop(state); err != nil {
+		return err
+	}
+	if err := state.Driver.MemFree(r.arena); err != nil {
+		return err
+	}
+	r.arena, r.arenaSize = 0, 0
+	return nil
+}
+
+// ensurePromptArena is ensureArena for a one-shot run: no captured graph names its arena, so it grows without dropping
+// a kept graph.
+func (r *executorResources) ensurePromptArena(state *device.State, size uint64) (driver.DevicePtr, error) {
+	r.arenaUse.requiredBytes = size
+	r.arenaUse.peakRequiredBytes = max(r.arenaUse.peakRequiredBytes, size)
+	if size == 0 {
+		return 0, nil
+	}
+	if err := r.reclaim(state, r.promptArena, size, r.promptArenaSize, &r.promptArenaLent); err != nil {
+		return 0, err
+	}
+	if r.promptArena != 0 && r.promptArenaSize >= size {
+		return r.promptArena, nil
+	}
+	if err := r.releasePromptArena(state); err != nil {
+		return 0, err
+	}
+	grown := arenaBytes(size)
+	next, err := r.allocate(state, grown)
+	if err != nil {
+		grown = size
+		if next, err = r.allocate(state, size); err != nil {
+			return 0, err
+		}
+	}
+	r.promptArena, r.promptArenaSize = next, grown
+	r.arenaUse.growths++
+	return next, nil
+}
+
+// releasePromptArena frees the one-shot runs' arena; each of those runs ended with its stream's wait.
+func (r *executorResources) releasePromptArena(state *device.State) error {
+	if r.promptArena == 0 {
+		return nil
+	}
+	if err := r.reclaim(state, r.promptArena, r.promptArenaSize, r.promptArenaSize, &r.promptArenaLent); err != nil {
+		return err
+	}
+	if err := state.Driver.MemFree(r.promptArena); err != nil {
+		return err
+	}
+	r.promptArena, r.promptArenaSize = 0, 0
+	return nil
+}
+
+// reclaim takes back the first need bytes of the size bytes at pointer from the experts where they are lent, before
+// the executor uses them, and all of them before it frees them.
+func (r *executorResources) reclaim(state *device.State, pointer driver.DevicePtr, need, size uint64, lent *bool) error {
+	if !*lent {
+		return nil
+	}
+	if r.experts != nil {
+		if err := r.experts.ReclaimExpertMemory(context.Background(), state, pointer, min(need, size)); err != nil {
+			return err
+		}
+	}
+	*lent = need < size
+	return nil
+}
+
+// ReleasePromptMemory lends the expert residency the card memory a prompt's read borrowed, its one-shot arena and the
+// matmul staging, which the decode's promotions fill while the request decodes and the next read takes back, as
+// Strata's prompt borrows its cache's slots and gives them back: a 16K-token read had left Flash-Next's card 5.6 GB of
+// experts short through every decode after it. Lent, not freed: freed, each next read cleared its arena again and
+// moved experts out of the card's allocations to allocate it (about 220 ms of a 16K read's first token). Without a
+// residency the memory stays the executor's.
+func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil || e.resources.experts == nil {
+		return nil
+	}
+	resources := &e.resources
+	return e.worker.Do(ctx, func(state *device.State) error {
+		// The read's runs end before the experts' copies, on a stream of their own, may write where they ran.
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		// Memory already lent is lent again whole, the read done with the part it took back.
+		lend := func(pointer driver.DevicePtr, bytes uint64, lent *bool) error {
+			if pointer == 0 {
+				return nil
+			}
+			if err := resources.experts.LendExpertMemory(ctx, state, pointer, bytes); err != nil {
+				return err
+			}
+			*lent = true
+			return nil
+		}
+		if err := lend(resources.promptArena, resources.promptArenaSize, &resources.promptArenaLent); err != nil || resources.blas == nil {
+			return err
+		}
+		return lend(resources.blas.staging, resources.blas.stagingBytes, &resources.stagingLent)
+	})
 }
 
 func (e *Executor) closeResources(state *device.State) error {
@@ -2632,11 +3065,36 @@ func (e *Executor) closeResources(state *device.State) error {
 		e.resources.arena = 0
 		e.resources.arenaSize = 0
 	}
+	if err := e.resources.releasePromptArena(state); err != nil {
+		errs = append(errs, err)
+	}
+	if len(e.resources.scratch.readBack) > 0 {
+		errs = append(errs, state.Driver.MemFreeHost(e.resources.scratch.readBack))
+		e.resources.scratch.readBack = nil
+	}
 	if err := e.resources.graphExecs.close(state); err != nil {
 		errs = append(errs, err)
 	}
 	if e.resources.blas != nil {
+		// The copy and read streams are idle once a run ends: its compute stream waited for each copy, and its
+		// host for each read.
+		for _, stream := range []driver.Stream{e.resources.blas.moeCopyStream, e.resources.blas.moeReadStream} {
+			if stream != 0 {
+				errs = append(errs, state.Driver.StreamDestroy(stream))
+			}
+		}
+		// The host experts' buffers are idle once a run ends, whose stream finished each upload from them.
+		for _, buffer := range [][]byte{e.resources.blas.hostInput, e.resources.blas.hostRows} {
+			if len(buffer) > 0 {
+				errs = append(errs, state.Driver.MemFreeHost(buffer))
+			}
+		}
+		if e.resources.blas.hostPool != nil {
+			e.resources.blas.hostPool.Close()
+		}
+		errs = append(errs, e.resources.blas.doorbell.close(state))
 		if e.resources.blas.staging != 0 {
+			errs = append(errs, e.resources.reclaim(state, e.resources.blas.staging, e.resources.blas.stagingBytes, e.resources.blas.stagingBytes, &e.resources.stagingLent))
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.staging))
 			e.resources.blas.staging = 0
 			e.resources.blas.stagingBytes = 0

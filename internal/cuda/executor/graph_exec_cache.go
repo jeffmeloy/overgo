@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sync/atomic"
@@ -30,7 +31,13 @@ func nextCompiledSerial() uint64 { return compiledSerials.Add(1) }
 // decode cycles through a handful of byte-identical traces; a match replays
 // the instantiated exec with zero per-token kernel re-issue.
 type graphExecCache struct {
-	entries         []graphExecEntry
+	entries []graphExecEntry
+	// capacity raises the entries kept past graphExecCacheCapacity.
+	capacity int
+	// staged is the buffer every captured run stages its host feeds and
+	// attribute words through, so a replay's frame never follows the
+	// buffer pool's reuse order.
+	staged          deviceBufferLease
 	tick            uint64
 	hits            uint64
 	misses          uint64
@@ -70,7 +77,7 @@ func (c *graphExecCache) store(
 ) (driver.GraphExec, error) {
 	c.captures++
 	var entry *graphExecEntry
-	if len(c.entries) < graphExecCacheCapacity {
+	if len(c.entries) < max(c.capacity, graphExecCacheCapacity) {
 		c.entries = append(c.entries, graphExecEntry{})
 		entry = &c.entries[len(c.entries)-1]
 	} else {
@@ -119,6 +126,52 @@ func (c *graphExecCache) close(state *device.State) error {
 	}
 	c.entries = nil
 	return errors.Join(errs...)
+}
+
+// keepsFrames reports whether the cache keeps more graphs than the default, so the buffers its frames name stay fixed (a speculating runner's).
+func (c *graphExecCache) keepsFrames() bool {
+	return c != nil && c.capacity > graphExecCacheCapacity
+}
+
+// stagedLease returns the staging buffer of captured runs, grown to size.
+//   - growing frees the old buffer, which captured frames name, so it drops every exec first
+func (c *graphExecCache) stagedLease(state *device.State, buffers *deviceBufferPool, size uint64) (deviceBufferLease, error) {
+	if c.staged.pointer != 0 && c.staged.size >= size {
+		return c.staged, nil
+	}
+	if c.staged.pointer != 0 {
+		if err := c.drop(state); err != nil {
+			return deviceBufferLease{}, err
+		}
+		if err := buffers.release(state, c.staged); err != nil {
+			return deviceBufferLease{}, err
+		}
+		c.staged = deviceBufferLease{}
+	}
+	lease, err := buffers.acquire(state, size)
+	if err != nil {
+		return deviceBufferLease{}, err
+	}
+	c.staged = lease
+	return lease, nil
+}
+
+// SetGraphExecCapacity raises the captured graphs the executor keeps instantiated, for a runner whose runs alternate among more graphs than decode steps do (verify spans of several lengths beside its decode and draft steps).
+//   - each kept Flash-Next exec holds about 30 MB of device memory outside the driver ledger
+//   - such an executor also keeps its matmul staging through one-shot runs, since a release moves the staging every kept frame names.
+func (e *Executor) SetGraphExecCapacity(capacity int) error {
+	if e == nil {
+		return errors.New("CUDA executor is unavailable")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
+		return errors.New("CUDA executor is closed")
+	}
+	return e.worker.Do(context.Background(), func(*device.State) error {
+		e.resources.graphExecs.capacity = capacity
+		return nil
+	})
 }
 
 // drop destroys every instantiated exec because device memory a captured

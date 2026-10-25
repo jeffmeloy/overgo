@@ -14,7 +14,7 @@ func TestCompiledRetainedMemory(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Add(input, input)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	compiled, err := Compile(view)
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestCompiledRetainedMemory(t *testing.T) {
 			t.Fatalf("allocation bytes = %d/%d/%d, want %d/%d/%d: %v", a, p, c, arena, pooled, owned, err)
 		}
 	}
-	// The 24-value view retains its 1024-value producer exactly once.
+	// The 1000-value view retains its 1024-value producer exactly once.
 	check(nil, nil, 0, 8192, 0)
 	if err := inputs.Set(input, driver.DevicePtr(deviceAllocationAlignment)); err != nil {
 		t.Fatal(err)
@@ -276,11 +276,70 @@ func TestRetainedPlanDoesNotIncreaseArena(t *testing.T) {
 	}
 }
 
+// TestRetainedSmallViewCopiesOutOfItsSource holds a retained view smaller
+// than half its source to storage of its own: the 24 values at the tail of
+// a 4 MiB producer pool only their own buffer, and the producer joins
+// the arena with the run's other intermediates, as a long prompt's recurrent
+// state at the tail of a layer's packed output does.
+func TestRetainedSmallViewCopiesOutOfItsSource(t *testing.T) {
+	const (
+		producerValues, viewValues = 1 << 20, 24
+		producerBytes              = producerValues * 4
+		viewBucket                 = 256
+	)
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(producerValues))
+	producer := builder.Add(input, input)
+	view := builder.FlatSlice(producer, producerValues-viewValues, viewValues)
+	compiled, err := Compile(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.outputAliases[0] {
+		t.Fatal("small retained view still aliases its source")
+	}
+	inputs := compiled.NewDeviceInputs()
+	check := func(arena, pooled uint64) {
+		t.Helper()
+		a, p, c, err := compiled.retainedAllocations(inputs, nil, nil)
+		if err != nil || a != arena || p != pooled || c != 0 {
+			t.Fatalf("allocation bytes = %d/%d/%d, want %d/%d/0: %v", a, p, c, arena, pooled, err)
+		}
+	}
+	check(producerBytes, viewBucket+producerBytes)
+	if err := inputs.Set(input, driver.DevicePtr(deviceAllocationAlignment)); err != nil {
+		t.Fatal(err)
+	}
+	check(producerBytes, viewBucket)
+	// Layers whose small states are copied out reuse one another's storage:
+	// three chained producers with a retained tail each hold at most two at
+	// once, where holding each source to the end held all three.
+	const layers = 3
+	value := producer
+	var views []*tensor.Tensor
+	for range layers {
+		views = append(views, builder.FlatSlice(value, producerValues-viewValues, viewValues))
+		value = builder.Scale(value, 2)
+	}
+	chained, err := Compile(views...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if arena := chained.retainedMemory.ArenaSize; arena != 2*producerBytes {
+		t.Fatalf("chained retained arena = %d, want %d", arena, 2*producerBytes)
+	}
+	// A view holding at least half its source keeps aliasing it.
+	half := builder.FlatSlice(producer, producerValues/2, producerValues/2)
+	if compiled, err = Compile(half); err != nil || !compiled.outputAliases[0] {
+		t.Fatalf("half view does not alias its source: %v", err)
+	}
+}
+
 func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Scale(input, 2)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	compiled, err := Compile(view)
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +351,7 @@ func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
 		t.Fatal("host output lost its producer storage")
 	}
 	targets := compiled.NewRetainedTargets()
-	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 24 * 4}); err != nil {
+	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 1000 * 4}); err != nil {
 		t.Fatal(err)
 	}
 	if compiled.executionMemory(true, targets).ArenaSize == 0 {
@@ -304,7 +363,7 @@ func TestRetainedAliasPlanPreservesBoundWholeViews(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
 	producer := builder.Scale(input, 2)
-	view := builder.FlatSlice(producer, 1000, 24)
+	view := builder.FlatSlice(producer, 24, 1000)
 	other := builder.Scale(input, 3)
 	whole := builder.Reshape(other, 32, 32)
 	compiled, err := Compile(view, whole)
@@ -555,6 +614,167 @@ func TestCompileKeepsBroadcastAddOutOfWeightedRMSNorm(t *testing.T) {
 	}
 	if compiled.nodes[compiled.orderIndexes[biased]].skipped {
 		t.Fatal("broadcast bias add launch was skipped")
+	}
+}
+
+// streamMix builds a gated hyper-connection mix's reduction over streams
+// slices of width values of x: Scale(((p0 + p1) + p2) + p3, 1/streams), each
+// p_s a reshaped GroupSlice. It returns the scaled sum and the first add.
+func streamMix(builder *tensor.Builder, x *tensor.Tensor, width, streams uint64) (*tensor.Tensor, *tensor.Tensor) {
+	tokens := x.Shape.Dims[1]
+	var sum, first *tensor.Tensor
+	for stream := range streams {
+		part := builder.Reshape(builder.GroupSlice(x, stream*width, width, 1, width), width, tokens)
+		if sum == nil {
+			sum = part
+			continue
+		}
+		sum = builder.Add(sum, part)
+		if first == nil {
+			first = sum
+		}
+	}
+	return builder.Scale(sum, 1/float32(streams)), first
+}
+
+// TestCompileFusesStreamSum holds a mix's reduction to one stream-sum
+// fusion: of a gated x, the gate folded in and x skipped; of a plain x, x
+// read; and none where an add is itself an output.
+func TestCompileFusesStreamSum(t *testing.T) {
+	const width, streams, tokens = 8, 4, 2
+	builder := tensor.NewBuilder()
+	gate := builder.Input("gate", dtype.F32, tensor.MustShape(width*streams, tokens))
+	up := builder.Input("up", dtype.F32, gate.Shape)
+	gated := builder.Multiply(builder.Sigmoid(gate), up)
+	output, first := streamMix(builder, gated, width, streams)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionStreamSum {
+		t.Fatalf("stream-sum fusion = %+v", descriptor)
+	}
+	fusion := descriptor.streamSum
+	if fusion.gate != gate || fusion.values != up || fusion.kind != activatedGateSigmoid ||
+		fusion.width != width || fusion.streams != streams || fusion.scale != 1/float32(streams) {
+		t.Fatalf("stream-sum fusion = %+v", fusion)
+	}
+	for _, skipped := range []*tensor.Tensor{gated, first} {
+		if !compiled.nodes[compiled.orderIndexes[skipped]].skipped {
+			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
+		}
+	}
+	plain := builder.Input("plain", dtype.F32, gate.Shape)
+	plainOutput, _ := streamMix(builder, plain, width, streams)
+	if compiled, err = Compile(plainOutput); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[plainOutput]].fusion; descriptor == nil ||
+		descriptor.kind != compiledFusionStreamSum || descriptor.streamSum.gate != nil || descriptor.streamSum.values != plain {
+		t.Fatalf("plain stream-sum fusion = %+v", descriptor)
+	}
+	if compiled, err = Compile(output, first); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor != nil {
+		t.Fatalf("a reduction whose add is an output fused: %+v", descriptor)
+	}
+}
+
+// streamCombine builds a hyper-connection combine: residual
+// [width, streams, tokens] plus current [width, tokens] repeated over the
+// streams times the gate Scale(Sigmoid(Scale(x, 1/streams)), 2) of x
+// [streams, tokens]. It returns the combine, its product and the gate.
+func streamCombine(builder *tensor.Builder, residual, current, x *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor, *tensor.Tensor) {
+	width, streams, tokens := residual.Shape.Dims[0], residual.Shape.Dims[1], residual.Shape.Dims[2]
+	gate := builder.Scale(builder.Sigmoid(builder.Scale(x, 1/float32(streams))), 2)
+	repeated := builder.RepeatHeads(builder.Reshape(current, width, 1, tokens), uint32(streams))
+	product := builder.Multiply(repeated, builder.Reshape(gate, 1, streams, tokens))
+	return builder.Add(residual, product), product, gate
+}
+
+// TestCompileFusesStreamCombine holds a combine to one stream-combine
+// fusion with its scaled-sigmoid gate folded in; a gate that is itself an
+// output stays a tensor the fusion reads, and a product that is an output
+// leaves the combine unfused.
+func TestCompileFusesStreamCombine(t *testing.T) {
+	const width, streams, tokens = 8, 4, 2
+	builder := tensor.NewBuilder()
+	residual := builder.Input("residual", dtype.F32, tensor.MustShape(width, streams, tokens))
+	current := builder.Input("current", dtype.F32, tensor.MustShape(width, tokens))
+	x := builder.Input("x", dtype.F32, tensor.MustShape(streams, tokens))
+	output, product, gate := streamCombine(builder, residual, current, x)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionStreamCombine {
+		t.Fatalf("stream-combine fusion = %+v", descriptor)
+	}
+	fusion := descriptor.streamCombine
+	if fusion.residual != residual || fusion.current != current || fusion.gate != x || !fusion.scaled ||
+		fusion.inner != 1/float32(streams) || fusion.outer != 2 {
+		t.Fatalf("stream-combine fusion = %+v", fusion)
+	}
+	for _, skipped := range []*tensor.Tensor{product, gate} {
+		if !compiled.nodes[compiled.orderIndexes[skipped]].skipped {
+			t.Fatalf("fused tensor %d was not skipped", skipped.ID)
+		}
+	}
+	if compiled, err = Compile(output, gate); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor == nil || descriptor.streamCombine.scaled {
+		t.Fatalf("a combine whose gate is an output = %+v", descriptor)
+	}
+	if compiled, err = Compile(output, product); err != nil {
+		t.Fatal(err)
+	}
+	if descriptor := compiled.nodes[compiled.orderIndexes[output]].fusion; descriptor != nil {
+		t.Fatalf("a combine whose product is an output fused: %+v", descriptor)
+	}
+}
+
+// hyperNorms builds a gated hyper-connection mix's normalization of input
+// [width, streams, tokens] by a [width, streams] weight, its low-rank down
+// product and gate SiLU(Scale(down·normalized, 1/streams)), and the up
+// product reading the gate. It returns the normalization, the gate and the
+// two products.
+func hyperNorms(builder *tensor.Builder, input, weight, down, up *tensor.Tensor) (normalized, gate, low, high *tensor.Tensor) {
+	width, streams, tokens := input.Shape.Dims[0], input.Shape.Dims[1], input.Shape.Dims[2]
+	normalized = builder.Multiply(builder.RMSNorm(input, 1e-6), weight)
+	low = builder.MulMat(down, builder.Reshape(normalized, width*streams, tokens))
+	gate = builder.SiLU(builder.Scale(low, 1/float32(streams)))
+	return normalized, gate, low, builder.MulMat(up, gate)
+}
+
+// TestCompileFusesHyperNorms holds a hyper-connection mix's normalization to
+// a weighted-RMS fusion of one weight row a stream, writing the Q8_0 blocks
+// its product reads through a reshape, and its gate to a scaled-activation
+// fusion writing the up product's blocks.
+func TestCompileFusesHyperNorms(t *testing.T) {
+	const width, streams, rank = 64, 4, 32
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(width, streams, 1))
+	weight := builder.Input("weight", dtype.F32, tensor.MustShape(width, streams))
+	down := builder.Input("down", dtype.Q8_0, tensor.MustShape(width*streams, rank))
+	up := builder.Input("up", dtype.Q8_0, tensor.MustShape(rank, width))
+	normalized, gate, low, output := hyperNorms(builder, input, weight, down, up)
+	compiled, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := compiled.nodes[compiled.orderIndexes[normalized]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionWeightedRMS || descriptor.weightedRMS.weightRows != streams || !descriptor.emitQ8 {
+		t.Fatalf("hyper-connection normalization fusion = %+v", descriptor)
+	}
+	descriptor = compiled.nodes[compiled.orderIndexes[gate]].fusion
+	if descriptor == nil || descriptor.kind != compiledFusionScaledActivation || !descriptor.emitQ8 ||
+		descriptor.scaledActivation.input != low || descriptor.scaledActivation.kind != activatedGateSiLU ||
+		descriptor.scaledActivation.scale != 1/float32(streams) {
+		t.Fatalf("scaled activation fusion = %+v", descriptor)
 	}
 }
 

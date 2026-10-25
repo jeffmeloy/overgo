@@ -81,6 +81,7 @@ func trainE4B(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, trainer.Close()) }()
 	fmt.Printf("full-parameter e4b: parameters=%d tensors=%d window=%d derived_lr=%.6g derived_momentum=%.6g load_wall=%s\n",
 		model.ParameterCount(), model.OptimizerPlan().GroupCount(), len(window), config.BaseLearningRate, config.Momentum,
 		time.Since(loadStarted).Round(time.Millisecond))

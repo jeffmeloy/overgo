@@ -48,6 +48,17 @@ func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 	if quality := row.Cells[metric.Quality]; quality.NotApplicable {
 		t.Errorf("projection held-out quality = %+v, want it left to its own evaluation", quality)
 	}
+	// A speculation row's cells, quality among them, are its model's inference row's.
+	draft := Row{Task: recipe.TaskSpeculation, Cells: map[metric.Name]Cell{
+		metric.FirstOutput: gap("no serving prefill sample"), metric.Throughput: gap("no decode phase"), metric.Quality: gap("no held-out evaluation"),
+		metric.Failures: gap("no attempts"), metric.Load: gap("no recorded load phase"), metric.PeakMemory: gap("no peak"),
+	}}
+	stateNotApplicable(&draft)
+	for column, cell := range draft.Cells {
+		if !cell.NotApplicable || cell.Reason != draftInRequest {
+			t.Errorf("speculation %s = %+v, want it stated as in its model's inference request", column, cell)
+		}
+	}
 	// A vqa row has no load phase of its own, and says so only where no attempt timed one; its other cells stay gaps.
 	vqa := Row{Task: recipe.TaskVQA, Cells: map[metric.Name]Cell{metric.Load: gap("no recorded load phase"), metric.FirstOutput: gap("no prefill sample")}}
 	stateNotApplicable(&vqa)

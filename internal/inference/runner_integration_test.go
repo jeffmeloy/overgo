@@ -265,6 +265,58 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	}
 }
 
+// TestProjectedPromptDecodesOnTheDeviceCache holds a projected prompt to the path a text prompt takes: with a
+// token's row put in place of another's, in the middle of the prompt or at its last token, the prompt generates
+// greedily what the prompt naming that token does, read and decoded on the device, each token the device's selection
+// with no logits sent to the host.
+func TestProjectedPromptDecodesOnTheDeviceCache(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen2"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runner.Close()
+	if !runner.persistentDeviceCache() {
+		t.Fatal("the fixture keeps no device cache, so nothing here decodes on the device")
+	}
+	ctx := t.Context()
+	replacement, err := runner.gatherTensor(ctx, runner.weights.TokenEmbedding, []uint32{27})
+	if err != nil {
+		t.Fatal(err)
+	}
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generate := func(prompt []tokenizer.TokenID, inputs *ProjectedInputs) (generated []tokenizer.TokenID, logits bool) {
+		t.Helper()
+		_, _, err := runner.Generate(ctx, "", GenerateOptions{
+			MaxNewTokens: 8, Sampler: greedy, PromptTokenIDs: prompt, ProjectedInputs: inputs, DeviceGreedy: true,
+			OnToken: func(event TokenEvent) error {
+				generated, logits = append(generated, event.ID), logits || len(event.Logits) > 0
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return generated, logits
+	}
+	row := func(index uint32) *ProjectedInputs {
+		return &ProjectedInputs{EmbeddingOverrides: []EmbeddingOverride{{TokenIndex: index, Embedding: slices.Clone(replacement.Data)}}}
+	}
+	named, _ := generate([]tokenizer.TokenID{9707, 27, 18, 13}, nil)
+	projected, logits := generate([]tokenizer.TokenID{9707, 9707, 18, 13}, row(1))
+	if !slices.Equal(projected, named) || logits {
+		t.Fatalf("a projected row generates %v, sending logits to the host %t; want %v, the device selecting each", projected, logits, named)
+	}
+	last, logits := generate([]tokenizer.TokenID{9707, 18, 13, 9707}, row(3))
+	if want, _ := generate([]tokenizer.TokenID{9707, 18, 13, 27}, nil); len(last) == 0 || logits || !slices.Equal(last, want) {
+		t.Fatalf("a projected last token generates %v, sending logits to the host %t; want %v, the device selecting each", last, logits, want)
+	}
+}
+
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)

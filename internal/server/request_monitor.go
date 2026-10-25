@@ -7,6 +7,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"overgo/internal/processmeasure"
 )
 
 // requestMonitorCapacity bounds the finished requests the monitor holds, the newest. A request
@@ -30,9 +32,11 @@ func recordedMethod(method string) string {
 
 // monitoredRequest is one API request from the route that took it to the status it answered.
 type monitoredRequest struct {
-	id               uint64
-	method, route    string
-	started          time.Time
+	id            uint64
+	method, route string
+	started       time.Time
+	// clock times the request on the counter its prefill, decode and waits are timed on (sinceCounter).
+	clock            processmeasure.Stopwatch
 	duration         time.Duration
 	status           int
 	promptTokens     uint64
@@ -45,6 +49,14 @@ type monitoredRequest struct {
 	admission, preparation time.Duration
 	// prefill is how long its prompts took to evaluate, and decode how long its generations ran after that.
 	prefill, decode time.Duration
+}
+
+// sinceCounter is the time since clock started, on the performance counter a generation's prefill and decode are
+// timed on: Go's clock advances in steps of about half a millisecond on Windows, so a request timed on it could read
+// shorter than its parts. A counter that cannot be read reads zero.
+func sinceCounter(clock processmeasure.Stopwatch) time.Duration {
+	var walls processmeasure.Walls
+	return time.Duration(walls.Elapsed(clock))
 }
 
 // requestMonitor keeps what the server answered, for the Requests tab: the requests in flight and
@@ -64,7 +76,7 @@ type monitoredKey struct{}
 func (m *requestMonitor) begin(request *http.Request, route string) (*http.Request, func(*statusRecorder)) {
 	m.mu.Lock()
 	m.total++
-	record := &monitoredRequest{id: m.total, method: recordedMethod(request.Method), route: route, started: time.Now()}
+	record := &monitoredRequest{id: m.total, method: recordedMethod(request.Method), route: route, started: time.Now(), clock: processmeasure.NewStopwatch()}
 	if m.active == nil {
 		m.active = map[uint64]*monitoredRequest{}
 	}
@@ -73,7 +85,7 @@ func (m *requestMonitor) begin(request *http.Request, route string) (*http.Reque
 	return request.WithContext(context.WithValue(request.Context(), monitoredKey{}, record)), func(recorder *statusRecorder) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		record.duration = time.Since(record.started)
+		record.duration = sinceCounter(record.clock)
 		record.status = recorder.status
 		delete(m.active, record.id)
 		m.finished = append(m.finished, record)
@@ -162,7 +174,7 @@ func entryOf(record *monitoredRequest, inFlight bool) requestEntry {
 	}
 	if inFlight {
 		entry.InFlight = true
-		entry.DurationMS = ms(time.Since(record.started))
+		entry.DurationMS = ms(sinceCounter(record.clock))
 	} else {
 		entry.Status = record.status
 	}

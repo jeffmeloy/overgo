@@ -46,6 +46,7 @@ type generationTextReporter struct {
 func (r *generationTextReporter) Text(text string) { r.texts = append(r.texts, text) }
 
 func TestMOSSGenerationProgress(t *testing.T) {
+	t.Parallel()
 	fixture := newMOSSGenerationFixture(t, func(ctx context.Context, store artifact.Repository, execution modelrecipe.CapabilityEvidenceSelection, _ latentimage.Request) error {
 		return publishMOSSProgressFixture(t, ctx, store, execution, nil)
 	})

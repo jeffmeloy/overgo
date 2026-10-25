@@ -57,10 +57,10 @@ type besideContextKey struct{}
 // identity moving, and the answer it shaped would be given again. What beside
 // cannot name authorizes no reuse: the request is executed, and its answer
 // answers no other (FreshRun).
-func Reading(execute Executor, beside func(path string) (string, error)) Executor {
+func Reading(execute Executor, beside func(ctx context.Context, store artifact.Repository, path string) (string, error)) Executor {
 	return func(ctx context.Context, store artifact.Repository, path string, execution modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 		naming := processmeasure.Stage(ctx, "files beside the model named")
-		named, err := beside(path)
+		named, err := beside(ctx, store, path)
 		naming()
 		if err != nil {
 			return execute(FreshRun(ctx), store, path, execution, raw)
@@ -73,8 +73,8 @@ func Reading(execute Executor, beside func(path string) (string, error)) Executo
 // files a model reads beside its inventory that are small enough to read for
 // every request. One that is absent is named so; one that cannot be read is
 // not named.
-func Contents(files func(path string) []string) func(path string) (string, error) {
-	return func(path string) (string, error) {
+func Contents(files func(path string) []string) func(context.Context, artifact.Repository, string) (string, error) {
+	return func(_ context.Context, _ artifact.Repository, path string) (string, error) {
 		named := sha256.New()
 		for _, file := range files(path) {
 			id, err := artifact.IdentifyFile(artifact.KindFile, file)

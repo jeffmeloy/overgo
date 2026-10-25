@@ -51,6 +51,8 @@ func (r *Runner) Generate(
 		return nil, "", err
 	}
 	defer r.mu.Unlock()
+	// A draft the runner was opened with speculates its greedy decoding unless the request decodes plainly.
+	options.SpeculativeDecode = !options.PlainDecode && (options.SpeculativeDecode || r.hyperDraft != nil)
 	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", err
@@ -85,16 +87,33 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
+	// boundary is the cache before the prompt's last turn, which its entry keeps (nil where it keeps none).
+	var boundary *deviceKVCache
 	var projectionSignature [32]byte
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
-	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 && r.persistentDeviceCache()
+	// A projected prompt the device reads as the host does is read on the device, and its answer decoded there, as a
+	// text prompt's is. No entry keeps its cache, since an entry is found by tokens an image's placeholders do not
+	// tell apart.
+	projectedOnDevice := options.ProjectedInputs != nil && r.deviceProjectable(*options.ProjectedInputs)
+	if projectedOnDevice {
+		if _, err := r.compileProjectedRequestPlan(len(ids), false, *options.ProjectedInputs); err != nil {
+			return nil, "", err
+		}
+	}
+	useDeviceCache := (options.ProjectedInputs == nil || projectedOnDevice) && aloraID < 0 && r.persistentDeviceCache()
+	options.CachePrompt = options.CachePrompt && !(useDeviceCache && projectedOnDevice)
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
-	deviceGreedy := useDeviceCache && !options.CachePrompt &&
-		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
+	// It keeps the prompt cache: it starts from a cached prefix and keeps its last state.
+	// A lazy grammar awaiting its trigger masks no token, so its request selects on the device until a token triggers
+	// it (a tool request's tool call), and samples under it after: on device every token, Flash-Next's agent turns
+	// decoded a token a forward at about a third of the chat's rate.
+	awaitsTrigger := options.Sampler.GreedyUntilTrigger()
+	deviceGreedy := useDeviceCache &&
+		options.PostSamplingProbabilities == 0 && (options.Sampler.IsRawGreedy() || awaitsTrigger) &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {
 		if deviceCache != nil &&
@@ -127,9 +146,18 @@ func (r *Runner) Generate(
 					selectedPromptCache = nil
 					cached = 0
 				}
+				// A recurrent state cannot step back a token: the prompt reads on from the entry's longest boundary
+				// within it, or from its start.
 				if cached > 0 &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.hasRecurrentCache() {
+					if cached, err = r.readFromPromptBoundary(ctx, selectedPromptCache, cached); err != nil {
+						return nil, "", err
+					}
+				}
+				// Device greedy selects from the prompt's last token, which an entry holding the whole prompt
+				// does not keep, and a recurrent state cannot step back a token: the prompt is read again.
+				if deviceGreedy && cached == len(ids) {
 					cached = 0
 				}
 				if cached > 0 {
@@ -180,17 +208,32 @@ func (r *Runner) Generate(
 			} else {
 				deviceCache = retainedPrefix
 				var nextDevice *deviceKVCache
-				if deviceGreedy {
-					nextDevice, err = r.forwardDeviceCachedGreedyStepLocked(
-						ctx, ids[cached:], retainedPrefix,
-					)
-				} else {
-					hidden, nextDevice, err = r.forwardDeviceCachedLocked(
-						ctx,
-						ids[cached:],
-						retainedPrefix,
-					)
+				var projected *ProjectedInputs
+				if projectedOnDevice {
+					projected = options.ProjectedInputs
 				}
+				mode := deviceOutputLogits
+				if deviceGreedy {
+					mode = deviceOutputGreedy
+				}
+				if retainedPrefix == nil && options.CachePrompt {
+					if err := r.releaseEvictedPromptCaches(ctx); err != nil {
+						return nil, "", err
+					}
+				}
+				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does.
+				if deviceGreedy && r.hyperDraft != nil && r.deviceSpeculationReady(options) {
+					if err := r.beginHyperDraftPromptLocked(ctx, len(ids), cached, options.MaxNewTokens); err != nil {
+						return nil, "", err
+					}
+					defer func() { r.hyperDraft.prompt = nil }()
+				}
+				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, mode, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
+				if r.hyperDraft != nil {
+					err = errors.Join(err, r.hyperDraft.prompt.releaseStreams(context.WithoutCancel(ctx)))
+				}
+				// The read lends the card memory it borrowed to the experts, which fill it while the request decodes.
+				err = errors.Join(err, r.cuda.ReleasePromptMemory(context.WithoutCancel(ctx)))
 				if err == nil {
 					deviceCache = nextDevice
 				}
@@ -276,6 +319,9 @@ func (r *Runner) Generate(
 				ProjectionSignature: projectionSignature,
 				HasProjection:       options.ProjectedInputs != nil,
 			}
+			if boundary != nil {
+				nextPromptCache.Boundaries = []*deviceKVCache{boundary}
+			}
 			if storeErr := r.storePromptCache(
 				ctx,
 				nextPromptCache,
@@ -310,22 +356,47 @@ func (r *Runner) Generate(
 		return ids, text, decodeErr
 	}
 
+	// start is the tokens decoded before the loop below: those a speculation decoded until a grammar triggered.
+	start, promptTokens := 0, len(ids)
 	if deviceGreedy && deviceCache != nil && r.deviceSpeculationReady(options) {
+		if err := r.startSpeculatingLocked(); err != nil {
+			return nil, "", err
+		}
 		var speculatedText string
-		ids, deviceCache, speculatedText, err = r.generateDeviceSpeculativeGreedy(
+		var sampled bool
+		ids, deviceCache, sampled, speculatedText, err = r.generateDeviceSpeculativeGreedy(
 			ctx, ids, deviceCache, options,
 		)
 		if err != nil {
-			return nil, "", err
+			// A failed span ends the request with the ids decoded so far, as a failed step does.
+			return ids, "", err
 		}
-		return ids, speculatedText, nil
+		if !sampled {
+			// The last boundary holds every id before its pending ones, which a continuation forwards again.
+			if options.CachePrompt && deviceCache != nil && int(deviceCache.Tokens) < len(ids) {
+				err = r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids[:deviceCache.Tokens+1], reference.Value{}, nil, deviceCache)
+			}
+			return ids, speculatedText, err
+		}
+		// The grammar a token triggered chooses the rest: the ids the boundary does not hold are read for its logits.
+		next, err := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, ids[deviceCache.Tokens:], deviceCache, nil)
+		if err != nil {
+			return ids, "", err
+		}
+		previous := deviceCache
+		deviceCache, deviceGreedy, start = next, false, len(ids)-promptTokens
+		if !r.ownsDevicePromptCache(previous) {
+			if err := previous.Release(ctx); err != nil {
+				return ids, "", err
+			}
+		}
 	}
 
 	var generatedText strings.Builder
 	// loopErr: a failed step ends the loop with the ids decoded so far.
 	var loopErr error
-	for generatedIndex := range options.MaxNewTokens {
-		if generatedIndex > 0 {
+	for generatedIndex := start; generatedIndex < options.MaxNewTokens; generatedIndex++ {
+		if generatedIndex > start {
 			if options.ContextShift {
 				var shiftedDeviceCache *deviceKVCache
 				shiftedDeviceCache, err = r.compactDeviceCacheForAppend(
@@ -359,10 +430,8 @@ func (r *Runner) Generate(
 					deviceCache,
 				)
 			} else {
-				_, nextDeviceCache, err = r.forwardDeviceCachedLocked(
-					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
-					deviceCache,
+				nextDeviceCache, err = r.forwardDeviceCachedModeLocked(
+					ctx, deviceOutputLogits, []tokenizer.TokenID{ids[len(ids)-1]}, deviceCache, nil,
 				)
 			}
 			if err == nil {
@@ -382,6 +451,13 @@ func (r *Runner) Generate(
 		var event TokenEvent
 		if deviceGreedy {
 			event = TokenEvent{ID: deviceCache.Selected}
+			if awaitsTrigger {
+				if loopErr = options.Sampler.AcceptToken(int(event.ID)); loopErr != nil {
+					break
+				}
+				// The next step reads logits, which the grammar a token triggered masks.
+				deviceGreedy = options.Sampler.GreedyUntilTrigger()
+			}
 		} else {
 			var sampleErr error
 			event, sampleErr = sampleGenerationToken(deviceCache.Logits, ids, options)

@@ -12,14 +12,27 @@ import (
 
 // ExpertBanks owns encoded expert residency on the executor's CUDA worker.
 // An expert bank's input is its table of expert pointers, each always readable by the card.
-// ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy.
-// AdvanceExperts applies the last run's routes to residency before the next run.
+// ExpertRoutes names the flags a routed node's routes mark, in host memory the card maps, so a run's routes reach the host with no copy,
+// and the host's view of them, which a group whose routes come to the host marks there.
+// AdvanceExperts applies the last run's routes to residency before the next run, and moves no expert after a prompt.
+// StartExpertCopies starts the copies the last advance recorded, once the run is launched, so the run's own copies to
+// the card do not wait behind them.
 // ReserveExpertMemory releases only completed expert reads before another owner allocates.
+// LendExpertMemory lends the experts card memory the executor holds between its uses, and ReclaimExpertMemory takes back
+// the part the executor uses next, its experts moved out, before it does.
+// ExpertSources writes each expert's table address in a routed node's bank, and the pinned bytes of each expert in host memory.
+// ExpertsOnHost names a routed node's card flags of the experts every bank of it holds in host memory, which a run reads
+// as the advance before it left them, and which ExpertSources' bytes then agree with.
 type ExpertBanks interface {
 	IsExpertBank(string) bool
-	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
-	AdvanceExperts(context.Context, *device.State) error
+	ExpertRoutes(*device.State, []*tensor.Tensor) (driver.DevicePtr, []byte, error)
+	ExpertsOnHost(*device.State, []*tensor.Tensor) (driver.DevicePtr, error)
+	ExpertSources(*device.State, *tensor.Tensor, []driver.DevicePtr, [][]byte) error
+	AdvanceExperts(context.Context, *device.State, bool) error
+	StartExpertCopies(context.Context, *device.State) error
 	ReserveExpertMemory(*device.State, uint64) error
+	LendExpertMemory(context.Context, *device.State, driver.DevicePtr, uint64) error
+	ReclaimExpertMemory(context.Context, *device.State, driver.DevicePtr, uint64) error
 	ExpertMemory(*device.State) (reclaimable uint64, err error)
 }
 
@@ -34,7 +47,16 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	if e.closed {
 		return errors.New("expert bank executor is closed")
 	}
-	if err := e.worker.Do(context.Background(), func(state *device.State) error { return e.resources.graphExecs.drop(state) }); err != nil {
+	// Memory lent to the previous owner comes back first.
+	if err := e.worker.Do(context.Background(), func(state *device.State) error {
+		var staging driver.DevicePtr
+		var stagingBytes uint64
+		if e.resources.blas != nil {
+			staging, stagingBytes = e.resources.blas.staging, e.resources.blas.stagingBytes
+		}
+		return errors.Join(e.resources.reclaim(state, e.resources.promptArena, e.resources.promptArenaSize, e.resources.promptArenaSize, &e.resources.promptArenaLent),
+			e.resources.reclaim(state, staging, stagingBytes, stagingBytes, &e.resources.stagingLent), e.resources.graphExecs.drop(state))
+	}); err != nil {
 		return err
 	}
 	e.resources.experts = source
@@ -45,43 +67,112 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	return nil
 }
 
-func validateExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, error) {
-	used := false
-	if source == nil {
-		return false, nil
+// SetMemoryReserve binds the reservation another owner of the card answers before this executor allocates: an
+// executor beside a model, a projector's, asks the model's experts for room as the model's own allocations do.
+func (e *Executor) SetMemoryReserve(reserve func(bytes uint64) error) error {
+	if e == nil {
+		return errors.New("memory reserve executor is unavailable")
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed || e.resources.experts != nil {
+		return errors.New("memory reserve executor is closed or reserves through its own experts")
+	}
+	e.resources.buffers.reserve = nil
+	if reserve != nil {
+		e.resources.buffers.reserve = func(_ *device.State, bytes uint64) error { return reserve(bytes) }
+	}
+	return nil
+}
+
+// ReserveMemory makes room on the card for another owner's allocation of bytes: an arena a run grew past the last
+// run's needs gives its room first, as the next run allocates its own (a 258,753-token prompt left 19.2 GB idle beside
+// a decode step's), and then this executor's experts move to host memory as its own allocations move them; nothing
+// without experts.
+func (e *Executor) ReserveMemory(ctx context.Context, bytes uint64) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.resources.experts == nil {
+		return nil
+	}
+	resources := &e.resources
+	return e.worker.Do(ctx, func(state *device.State) error {
+		if free, _, err := state.Driver.MemInfo(); err == nil && free < bytes && resources.arenaSize > arenaBytes(resources.arenaUse.requiredBytes) {
+			if err := resources.releaseArena(state); err != nil {
+				return err
+			}
+		}
+		return resources.experts.ReserveExpertMemory(state, bytes)
+	})
+}
+
+// expertUse is what validateExpertUses found of a compiled graph for one source.
+type expertUse struct {
+	source ExpertBanks
+	used   bool
+	tokens uint64
+	err    error
+}
+
+// validateExpertUses reports whether a graph routes through file-backed expert banks and the most tokens one of its routed nodes takes.
+//   - a graph keeps the answer for its source: a decode step that scanned its every node's inputs each run spent
+//     about 0.15 ms of Flash-Next's
+func validateExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, uint64, error) {
+	if source == nil {
+		return false, 0, nil
+	}
+	if found := compiled.expertUse.Load(); found != nil && found.source == source {
+		return found.used, found.tokens, found.err
+	}
+	used, tokens, err := scanExpertUses(compiled, source)
+	compiled.expertUse.Store(&expertUse{source: source, used: used, tokens: tokens, err: err})
+	return used, tokens, err
+}
+
+// scanExpertUses is validateExpertUses over the graph's nodes.
+func scanExpertUses(compiled *CompiledGraph, source ExpertBanks) (bool, uint64, error) {
+	used, tokens := false, uint64(0)
 	for _, node := range compiled.order {
 		for index, input := range node.Inputs {
 			if input.Op != tensor.OpInput || !source.IsExpertBank(input.Name) {
 				continue
 			}
-			used = true
+			used, tokens = true, max(tokens, node.Shape.Dims[1])
 			attributes, ok := node.Attrs.(tensor.MoEAttributes)
 			end := moeFirstBankInput + tensor.PairedExtent
 			if attributes.Gated && !attributes.FusedGateUp {
 				end++
 			}
 			if node.Op != tensor.OpMoE || !ok || index < moeFirstBankInput || index >= end {
-				return false, fmt.Errorf("file-backed expert bank %q has a non-MoE consumer", input.Name)
+				return false, 0, fmt.Errorf("file-backed expert bank %q has a non-MoE consumer", input.Name)
 			}
 			for _, bank := range node.Inputs[moeFirstBankInput:end] {
 				if !source.IsExpertBank(bank.Name) {
-					return false, errors.New("a routed layer mixes indexed and contiguous expert banks")
+					return false, 0, errors.New("a routed layer mixes indexed and contiguous expert banks")
 				}
 			}
 		}
 	}
 	for _, output := range compiled.outputs {
 		if output.Op == tensor.OpInput && source.IsExpertBank(output.Name) {
-			return false, errors.New("a file-backed expert bank cannot be returned as a contiguous output")
+			return false, 0, errors.New("a file-backed expert bank cannot be returned as a contiguous output")
 		}
 	}
-	return used, nil
+	return used, tokens, nil
 }
 
 func (r *executorResources) allocate(state *device.State, bytes uint64) (driver.DevicePtr, error) {
-	if r.experts != nil {
-		if err := r.experts.ReserveExpertMemory(state, bytes); err != nil {
+	if r.buffers.reserve != nil {
+		if err := r.buffers.reserve(state, bytes); err != nil {
+			// Room the experts cannot free is a capacity refusal, which a prompt's read answers by releasing the prompt
+			// caches it does not extend, then with a smaller chunk (a new 240,000-token prompt asked 15 GB beside the
+			// cache of the last).
+			if free, _, infoErr := state.Driver.MemInfo(); infoErr == nil && free < bytes {
+				return 0, errors.Join(err, &MemoryCapacityError{Required: bytes, Available: free})
+			}
 			return 0, err
 		}
 	}

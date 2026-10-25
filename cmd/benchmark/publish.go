@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
@@ -24,14 +25,9 @@ func publishBenchmarkEvidence(ctx context.Context, options options, result bench
 	if err != nil {
 		return err
 	}
-	weights, err := os.Open(result.ModelPath)
+	model, err := publishedModel(result.ModelPath)
 	if err != nil {
 		return err
-	}
-	model, _, err := artifact.Identify(artifact.KindModel, weights)
-	closeErr := weights.Close()
-	if err != nil || closeErr != nil {
-		return errors.Join(err, closeErr)
 	}
 	claim, evidenceData, evidence, err := benchmarkClaim(result, commit, model)
 	if err != nil {
@@ -52,6 +48,13 @@ func publishBenchmarkEvidence(ctx context.Context, options options, result bench
 	fmt.Fprintf(os.Stderr, "benchmark evidence committed: record=%s model=%s evidence=%s commit=%.12s\n",
 		record.ID, model, evidence, commit)
 	return nil
+}
+
+// publishedModel is the identity of the model a benchmark measured at path: every shard its file declares, as the
+// runner's loaded program identifies it. A file's own bytes identify no model, not even a model of one file.
+func publishedModel(path string) (artifact.ID, error) {
+	inventory, err := modelartifact.FromGGUFPath(path)
+	return inventory.Manifest.ID, err
 }
 
 // benchmarkClaim shapes the result into one capability claim over its

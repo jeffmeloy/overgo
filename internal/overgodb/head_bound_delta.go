@@ -103,8 +103,9 @@ func (s *Store) DeltasSince(
 		if err != nil {
 			return HeadBoundDelta{}, false, err
 		}
-		if !found || commit.Previous != delta.Head {
-			// The journal moved underneath the walk: hand the consumer a
+		if !found || commit.Previous != delta.Head || len(commit.Delta.Releases) != 0 {
+			// The journal moved underneath the walk, or a commit released
+			// content bytes, which no delta names: hand the consumer a
 			// resync rather than a delta with a hole in it.
 			return HeadBoundDelta{}, true, nil
 		}

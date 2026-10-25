@@ -67,6 +67,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
+	draftOf := flags.String("draft", "", "a model GGUF the library has activated: register the draft layer GGUF beside it, replay the library's validation prompts speculatively through it, and activate it when the trunk keeps its share of the drafts; records nothing of the model's own")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, compared with the measurements published before it; the verifier of the row the loop proposed for it")
@@ -138,6 +139,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		return steps.onboard(ctx, output, *onboardPath)
+	}
+	if *draftOf != "" {
+		return validateDraft(ctx, output, *repository, *draftOf)
 	}
 	if *scorecardView {
 		storeRoot, err := dataroot.StoreRoot(*repository)

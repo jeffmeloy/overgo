@@ -84,7 +84,29 @@ const (
 	OpPixelShuffle2D
 	// OpSignedSqrt preserves sign while taking the square root of a floored magnitude.
 	OpSignedSqrt
+	// OpGatedDeltaConv convolves a gated-delta layer's qkv rows over its history, with the SiLU and the query and key
+	// heads' L2 norms, and keeps the window after each token (Builder.GatedDeltaConv) or after the last
+	// (Builder.GatedDeltaPromptConv).
+	OpGatedDeltaConv
+	// OpGatedDeltaGates projects a gated-delta layer's decay gate and beta from its input (Builder.GatedDeltaGates).
+	OpGatedDeltaGates
 )
+
+// GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its
+// query and key heads' L2 norms, and whether it keeps only the window after its last token (a prompt's).
+type GatedDeltaConvAttributes struct {
+	StateWidth, KeyHeads, ValueHeads uint32
+	Epsilon                          float32
+	LastWindow                       bool
+}
+
+// Layout is the output's layout for qkv's tokens and weights' kernel.
+func (a GatedDeltaConvAttributes) Layout(kernel, tokens uint64) GatedDeltaConvLayout {
+	return GatedDeltaConvLayout{
+		StateWidth: uint64(a.StateWidth), KeyHeads: uint64(a.KeyHeads), ValueHeads: uint64(a.ValueHeads),
+		Kernel: kernel, Tokens: tokens, LastWindow: a.LastWindow,
+	}
+}
 
 // SignedSqrtAttributes declares the positive magnitude floor and preserves exact zero.
 type SignedSqrtAttributes struct{ Minimum float32 }
@@ -221,6 +243,10 @@ type AttentionAttributes struct {
 	NaiveF32 bool
 	// MemoryEfficientF32 uses native TF32x3 products and 128-key panel accumulation.
 	MemoryEfficientF32 bool
+	// TensorCores admits a prompt's causal attention to the executor's half-precision tensor-core kernel. Off, the
+	// attention keeps its f32 paths: the kernel's products moved dense models' held-out quality (gemma-4-12B-it-fp8's
+	// BBH 0.657 to 0.643, restored to 0.657 by the f32 path at the same commit, 2026-10-24), which a speed path may not.
+	TensorCores bool
 }
 
 type Conv1DAttributes struct {
@@ -251,6 +277,8 @@ type SAMAttentionAttributes struct {
 type GroupNormAttributes struct {
 	Groups  uint32
 	Epsilon float32
+	// Native selects the source Welford reduction over planar channel groups.
+	Native bool
 }
 
 type MoEAttributes struct {
@@ -270,6 +298,8 @@ type MoEAttributes struct {
 	HasExpertBiases    bool
 	HasSelectedExperts bool
 	SwiGLUClamp        float32
+	// Prompt marks a prompt read's node (Builder.SetPromptExperts), whose groups take the grouped products at any size.
+	Prompt bool
 }
 
 type HyperConnectionAttributes struct {
@@ -439,6 +469,15 @@ type Builder struct {
 	loraInputs    map[string]*Tensor
 	cacheAppend   *CacheAppendPlan
 	mulMatCompute MulMatCompute
+	promptExperts bool
+}
+
+// SetPromptExperts marks the routed-expert nodes built from now on as a prompt read's (MoEAttributes.Prompt): a read
+// of a few tokens after a long one, whose experts the long read moved to host memory, which the q8 decode products read
+// over the link inside their kernels and the grouped products hand to the CPU (a 16K Flash-Next prompt's last-turn
+// header of 7 tokens, 183 ms against 68).
+func (b *Builder) SetPromptExperts(prompt bool) {
+	b.promptExperts = prompt
 }
 
 // CacheAppendPlan: logical range inside fixed-capacity cache storage.

@@ -5,6 +5,7 @@ package executor
 import (
 	"bytes"
 	"cmp"
+	"encoding/binary"
 	"errors"
 	"maps"
 	"math"
@@ -102,13 +103,20 @@ func buildDecodeStepGraph(t *testing.T, row, position uint32) decodeStepGraph {
 // on the card. The replayed step compiles the first token's graph once and
 // passes each later token's values as runtime attributes, with only expert
 // 0 of each bank on the card, so each token's routed experts are first read
-// from mapped host memory and the residency moves experts between tokens.
+// from mapped host memory and the residency moves experts between tokens:
+// three tokens route the same experts, whose first miss is counted and second
+// moves one into the slot of a card expert, which reads its host copy, beside the next token.
 // Every token after the first replays the captured graph with one graph
-// launch, no kernel launch and one stream synchronization, and each token's
-// logits and the final caches keep the launched step's bits.
+// launch, no kernel launch and one stream synchronization. The first token's
+// logits keep the launched step's bits, each later token's, whose experts on
+// host the CPU computes (moeDoorbell), stay within cpuLogitsShare of them,
+// and the final caches keep their bits.
 func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	// The first query is 9 and six tokens follow, so the selection crosses blocks at 11 and 15.
 	const past, steps, vocabulary = 9, 6, 16
+	// cpuLogitsShare bounds a token's logits, whose experts on host the CPU computed, as a relative RMS difference
+	// from the launched step's: about twice the largest seen.
+	const cpuLogitsShare = 0.01
 	replayedGraph := buildDecodeStepGraph(t, 0, past)
 	g := replayedGraph
 
@@ -224,7 +232,9 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	for _, bank := range encoded {
 		limit += (uint64(len(bank))/g.experts + slotAlignment - 1) / slotAlignment * slotAlignment
 	}
-	if err := weights.EnableExpertResidency(t.Context(), parsed, parsed.Tensors, limit); err != nil {
+	loader := modeldevice.NewLoader(parsed)
+	loader.Experts(weights, parsed.Tensors, limit)
+	if err := loader.Load(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := replayed.SetExpertBanks(weights); err != nil {
@@ -268,6 +278,9 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 	set(g.sparse, &sparse)
 
 	var previous []byte
+	// moved sums the bytes the tokens since a group's first moved to the card: a group's experts move beside its
+	// third token, or beside the next group's first where the usage counts decayed between its tokens.
+	var moved uint64
 	for token := range uint32(steps) {
 		position, row := past+token, (5*token+3)%vocabulary
 		rows.Rows[0] = row
@@ -279,11 +292,13 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		}
 		attention.QueryStart, attention.KeyValueTokens = position, position+1
 		selection.QueryStart, sparse.QueryStart = position, position
-		// Token t routes to experts t%7+1 and (t+3)%7+1: never expert 0, and never an expert the last token routed.
+		// Tokens 3g to 3g+2 route to experts g%7+1 and (g+3)%7+1: never expert 0, and never an expert the three before
+		// routed.
+		group := token / 3
 		feed := func(graph decodeStepGraph) map[*tensor.Tensor]reference.Value {
 			return map[*tensor.Tensor]reference.Value{
 				graph.scores:   {Shape: graph.scores.Shape, Data: moePinnedValues("decode-graph/scores", uint64(token), graph.capacity/graph.blockSize, 1)},
-				graph.selected: {Shape: graph.selected.Shape, Data: []float32{float32(token%7 + 1), float32((token+3)%7 + 1)}},
+				graph.selected: {Shape: graph.selected.Shape, Data: []float32{float32(group%7 + 1), float32((group+3)%7 + 1)}},
 			}
 		}
 		fresh := buildDecodeStepGraph(t, row, position)
@@ -294,8 +309,13 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		retained, err = replayed.ExecuteRetainedCompiled(t.Context(), g.compiled, feed(g), inputs, targets, attributes)
 		got := logits(retained, err, g.logits)
 		after := stats(replayed)
-		if !bytes.Equal(got, want) {
+		// The first token's capture reads every expert where it is; later tokens hand those on host to the CPU, whose
+		// Q8_K activations moved the logits 0.2% to 0.5% (relative RMS) here.
+		if token == 0 && !bytes.Equal(got, want) {
 			t.Fatalf("token %d: the replayed step's logits differ from the launched step's", token)
+		}
+		if difference := relativeRMS(got, want); token > 0 && !(difference <= cpuLogitsShare) {
+			t.Fatalf("token %d: the replayed step's logits differ from the launched step's by %g (relative RMS)", token, difference)
 		}
 		if bytes.Equal(got, previous) {
 			t.Fatalf("token %d: the logits repeat the last token's, so the step ignored its inputs", token)
@@ -310,11 +330,26 @@ func TestDecodeStepReplaysAsOneGraph(t *testing.T) {
 		if kernels, waits := after.KernelLaunches-before.KernelLaunches, after.StreamSynchronizations-before.StreamSynchronizations; kernels != 0 || waits != 1 {
 			t.Fatalf("token %d launched %d kernels and waited for the stream %d times, want a replay with one wait", token, kernels, waits)
 		}
-		if moved := after.HostToDeviceBytes - before.HostToDeviceBytes; moved < smallest {
-			t.Fatalf("token %d moved %d bytes to the card, less than one routed expert of the last token", token, moved)
+		moved += after.HostToDeviceBytes - before.HostToDeviceBytes
+		if token%3 == 0 {
+			if moved < smallest {
+				t.Fatalf("tokens %d to %d moved %d bytes to the card, less than one routed expert of their group", token-2, token, moved)
+			}
+			moved = 0
 		}
 	}
 	if !bytes.Equal(readCaches(replayed, replayedData), readCaches(launched, launchedData)) {
 		t.Fatal("the replayed steps' caches differ from the launched steps'")
 	}
+}
+
+// relativeRMS is the relative root-mean-square difference of two outputs' F32 bits.
+func relativeRMS(got, want []byte) float64 {
+	var difference, norm float64
+	for at := 0; at+4 <= len(want); at += 4 {
+		have, expected := math.Float32frombits(binary.LittleEndian.Uint32(got[at:])), math.Float32frombits(binary.LittleEndian.Uint32(want[at:]))
+		difference += float64(have-expected) * float64(have-expected)
+		norm += float64(expected) * float64(expected)
+	}
+	return math.Sqrt(difference / norm)
 }

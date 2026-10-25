@@ -190,10 +190,11 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 			}
 		}
 	}
+	// One token past a group's scratch runs as two groups of one size.
 	group := moeScratchLimitBytes / ocrTokenBytes
 	compiled := compile(group+1, 896, 6, dtype.BF16, false)
-	if got := compiled.attentionScoreBytes; got != group*ocrTokenBytes {
-		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, group, ocrTokenBytes)
+	if got, half := compiled.attentionScoreBytes, group/2+1; got != half*ocrTokenBytes {
+		t.Fatalf("prefill scratch = %d, want %d tokens of %d", got, half, ocrTokenBytes)
 	}
 	// Sixteen slots of limit/4 rows: one token alone exceeds the limit.
 	const wideRows = moeScratchLimitBytes / 4
@@ -204,11 +205,11 @@ func TestCompileReservesMoEScratch(t *testing.T) {
 	for _, fused := range []bool{false, true} {
 		native := compile(64, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
 		const slotBytes = 64 * ocrTokenBytes
-		if native.attentionScoreBytes != slotBytes || native.matmulStagingBytes == 0 || native.matmulStagingBytes > quantStagedChunkBytes {
+		if native.attentionScoreBytes != slotBytes || native.matmulStagingBytes == 0 || native.matmulStagingBytes > moeMatrixStagingBytes {
 			t.Fatalf("native scratch: scores=%d staging=%d", native.attentionScoreBytes, native.matmulStagingBytes)
 		}
 		bounded := compile(1<<20, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)
-		if bounded.attentionScoreBytes > quantStagedChunkBytes || bounded.matmulStagingBytes > quantStagedChunkBytes {
+		if bounded.attentionScoreBytes > moeMatrixStagingBytes || bounded.matmulStagingBytes > moeMatrixStagingBytes {
 			t.Fatal("long prompt scratch is unbounded")
 		}
 		lowReuse := compile(1, 896, 6, dtype.BF16, fused, tensor.MulMatComputeNativeTensorCore)

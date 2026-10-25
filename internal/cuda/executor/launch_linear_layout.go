@@ -111,7 +111,10 @@ func launchLinearLayout(
 		left := pointers.input(0)
 		right := pointers.input(1)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
-			if tensorCoreMulMatAttributes(leftNode.Type, runtimeAttributes) && rightRows > 1 {
+			// A span the decode kernel serves keeps it: cuBLAS's smallest GEMM took 14.3 us for a 2,560 x 128 BF16 weight
+			// and two columns, about once a layer of a verify window, where the decode kernel reads the weight per column.
+			halfBytes, _ := leftNode.Type.ScalarBytes()
+			if tensorCoreMulMatAttributes(leftNode.Type, runtimeAttributes) && rightRows > 1 && !nativeDecodeSpanFits(halfBytes, rightRows) {
 				// Tensor-core prefill: the resident half-precision weight is
 				// multiplied as stored; the F32 activation is rounded to the
 				// same dtype in the staging workspace (one pack per node,
@@ -298,7 +301,7 @@ func launchLinearLayout(
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
-				if q8Input.stagedNode != rightNode {
+				if q8Input.stagedNode != rightNode && q8Input.stagedNode != q8Source(rightNode) {
 					blocks := uint64(inner) * uint64(rightRows) / q8InputTraits.BlockSize
 					if blocks > math.MaxUint32 {
 						return fmt.Errorf("%s mul_mat input block count exceeds uint32", leftNode.Type)
@@ -503,15 +506,17 @@ func tensorCoreMulMat(node *tensor.Tensor) bool {
 }
 
 // quantStagedKernels: the quantized weight types with a dequantize-rows
-// kernel to f16, the types the served models carry (Q8_0, the K-quants of
-// the UD mixes, and the Q1_0 of the ternary 27B); other quantized types
-// keep the span kernels.
+// kernel to f16, the types the served models carry (Q8_0, the K-quants and
+// the IQ4_NL and IQ4_XS of the UD mixes, and the Q1_0 of the ternary 27B);
+// other quantized types keep the span kernels.
 var quantStagedKernels = map[dtype.Type]kernelFunctionID{
-	dtype.Q8_0: kernelDequantRowsQ80F16,
-	dtype.Q1_0: kernelDequantRowsQ10F16,
-	dtype.Q4K:  kernelDequantRowsQ4KF16,
-	dtype.Q5K:  kernelDequantRowsQ5KF16,
-	dtype.Q6K:  kernelDequantRowsQ6KF16,
+	dtype.Q8_0:  kernelDequantRowsQ80F16,
+	dtype.Q1_0:  kernelDequantRowsQ10F16,
+	dtype.Q4K:   kernelDequantRowsQ4KF16,
+	dtype.Q5K:   kernelDequantRowsQ5KF16,
+	dtype.Q6K:   kernelDequantRowsQ6KF16,
+	dtype.IQ4NL: kernelDequantRowsIq4NlF16,
+	dtype.IQ4XS: kernelDequantRowsIq4XsF16,
 }
 
 // quantStagedColumnFloor: prompt columns from which the staged
@@ -525,7 +530,8 @@ const quantStagedColumnFloor = uint32(32)
 // dequantizes per GEMM. Wider than the F32 exact path's 32 MiB so the
 // 27B's 22 GB of weights take about a hundred GEMMs per forward rather
 // than seven hundred, each large enough to run the tensor cores near
-// their rate.
+// their rate: it trades the GEMMs a forward takes against the staging it
+// holds. Provisional: the load-costs step derives it.
 const quantStagedChunkBytes = uint64(256 << 20)
 
 // quantStagedStagingBytes: one f16 weight chunk plus the f16-packed
@@ -877,7 +883,8 @@ const (
 	// least that many blocks, share each row. A warp a row gave Flash-Next's
 	// 320 hyper-connection rows of 320 blocks 40 blocks of the card's 114
 	// multiprocessors (7.75 us, 450 GB/s); its 512- and 640-row products of
-	// 80 blocks take about 3.5 us either way, bound by the launch.
+	// 80 blocks take about 3.5 us either way, bound by the launch. They trade a row's share of the card's
+	// multiprocessors against the launch a product is bound by. Provisional: the load-costs step derives them.
 	q8_0SplitRowLimit   = uint32(2048)
 	q8_0SplitBlockFloor = uint32(256)
 )
@@ -927,6 +934,8 @@ func launchWeightedRMSNorm(
 	weight := pointers.input(1)
 	result := pointers.output()
 	epsilon := attributes.Epsilon
+	// A weight of several rows gives row r its row r mod weightRows.
+	weightRows := uint32(max(fusion.weightRows, 1))
 	if fusion.addLeft != nil {
 		left, right := pointers.input(2), pointers.input(3)
 		if emitQ8 {
@@ -953,7 +962,7 @@ func launchWeightedRMSNorm(
 		}
 		if err := launchNormalizationABI(
 			state, functions[kernelWeightedRmsNormQ80F32], rows,
-			&input, &weight, &result, &q8Input.staging, &width, &rows, &epsilon,
+			&input, &weight, &result, &q8Input.staging, &width, &rows, &weightRows, &epsilon,
 		); err != nil {
 			return err
 		}
@@ -962,7 +971,7 @@ func launchWeightedRMSNorm(
 	}
 	return launchNormalizationABI(
 		state, functions[kernelWeightedRmsNormF32], rows,
-		&input, &weight, &result, &width, &rows, &epsilon,
+		&input, &weight, &result, &width, &rows, &weightRows, &epsilon,
 	)
 }
 
@@ -1030,32 +1039,6 @@ func launchLayerNormModulate(
 	)
 }
 
-// launchBroadcastGateAdd: residual + value*gate joined in one pass.
-func launchBroadcastGateAdd(
-	state *device.State,
-	functions functionSet,
-	output *tensor.Tensor,
-	fusion broadcastGateAddFusion,
-	pointers launchPointerFrame,
-) error {
-	count, err := elementCount32(output.Shape)
-	if err != nil {
-		return err
-	}
-	width, err := uint32Checked(fusion.gate.Shape.Dims[0], "broadcast gate width")
-	if err != nil {
-		return err
-	}
-	value := pointers.input(0)
-	gate := pointers.input(1)
-	residual := pointers.input(2)
-	result := pointers.output()
-	return launch1DABI(
-		state, functions[kernelBroadcastGateAddF32], count,
-		&value, &gate, &residual, &result, &width, &count,
-	)
-}
-
 func launchActivatedGate(
 	state *device.State,
 	functions functionSet,
@@ -1086,6 +1069,114 @@ func launchActivatedGate(
 		state, functions[kernelActivatedGateQ80F32],
 		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
 		&gate, &up, &result, &q8Input.staging, &kind, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
+}
+
+// launchStreamSum writes each token's scaled sum of its streams, with the
+// activated gate folded in where the fusion has one, and its Q8_0 blocks
+// where a product reads them.
+func launchStreamSum(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion streamSumFusion,
+	emitQ8 bool,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	width, streams := uint32(fusion.width), uint32(fusion.streams)
+	if uint64(width) != fusion.width || uint64(streams) != fusion.streams || uint64(count)*fusion.streams > math.MaxUint32 {
+		return errors.New("stream sum exceeds uint32 indexing")
+	}
+	var gate driver.DevicePtr
+	values, result := pointers.input(0), pointers.output()
+	if fusion.gate != nil {
+		gate, values = pointers.input(0), pointers.input(1)
+	}
+	kind, scale := uint32(fusion.kind), fusion.scale
+	if !emitQ8 {
+		return launch1DABI(state, functions[kernelStreamSumF32], count, &gate, &values, &result, &kind, &width, &streams, &scale, &count)
+	}
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputTraits.BlockSize != 0 {
+		return errors.New("stream-sum Q8 workspace is unavailable")
+	}
+	blocks, threads := count/uint32(q8InputTraits.BlockSize), uint32(q8InputTraits.BlockSize)
+	if err := launchGridABI(
+		state, functions[kernelStreamSumQ80F32],
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
+		&gate, &values, &result, &q8Input.staging, &kind, &width, &streams, &scale, &count,
+	); err != nil {
+		return err
+	}
+	q8Input.stagedNode = output
+	return nil
+}
+
+// The operands of a stream-combine fusion, in order.
+const (
+	streamCombineResidual = iota
+	streamCombineCurrent
+	streamCombineGate
+)
+
+// launchStreamCombine writes residual + current*gate over every stream of
+// every token, the gate's scaled sigmoid folded in where the fusion has one.
+func launchStreamCombine(
+	state *device.State,
+	functions functionSet,
+	output *tensor.Tensor,
+	fusion streamCombineFusion,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	width, streams := uint32(output.Shape.Dims[0]), uint32(output.Shape.Dims[1])
+	residual, current, gate, result := pointers.input(streamCombineResidual), pointers.input(streamCombineCurrent),
+		pointers.input(streamCombineGate), pointers.output()
+	scaled := kernelBool(fusion.scaled)
+	inner, outer := fusion.inner, fusion.outer
+	return launch1DABI(state, functions[kernelStreamCombineF32], count,
+		&residual, &current, &gate, &result, &width, &streams, &scaled, &inner, &outer, &count)
+}
+
+// launchScaledActivation writes the activation of the scaled input, and its
+// Q8_0 blocks where a product reads them.
+func launchScaledActivation(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	output *tensor.Tensor,
+	fusion scaledActivationFusion,
+	emitQ8 bool,
+	pointers launchPointerFrame,
+) error {
+	count, err := elementCount32(output.Shape)
+	if err != nil {
+		return err
+	}
+	input, result := pointers.input(0), pointers.output()
+	kind, scale := uint32(fusion.kind), fusion.scale
+	if !emitQ8 {
+		return launch1DABI(state, functions[kernelScaledActivationF32], count, &input, &result, &kind, &scale, &count)
+	}
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputTraits.BlockSize != 0 {
+		return errors.New("scaled-activation Q8 workspace is unavailable")
+	}
+	blocks, threads := count/uint32(q8InputTraits.BlockSize), uint32(q8InputTraits.BlockSize)
+	if err := launchGridABI(
+		state, functions[kernelScaledActivationQ80F32],
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
+		&input, &result, &q8Input.staging, &kind, &scale, &count,
 	); err != nil {
 		return err
 	}

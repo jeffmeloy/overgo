@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"overgo/internal/tensor"
@@ -14,8 +15,26 @@ import (
 // Audited on the 27B across draft depths two, three, and four: three wins
 // on both a predictable-text regime (28.5 tokens per second, 74-78 percent
 // chain acceptance) and open-ended prose (17.2, about 40 percent); two
-// under-drafts and four over-pays for decayed tail acceptance.
+// under-drafts and four over-pays for decayed tail acceptance: it trades a
+// deeper chain's accepted drafts against its decayed tail's verify. Provisional:
+// the load-costs step derives it from the acceptance measured by depth.
 const deviceSpeculationDraftTokens = 3
+
+// hyperDraftTokens: a hyper-connection draft layer's depth per verify span.
+// On Flash-Next's short chat a draft from a fresh session holds 63 percent
+// at depth one and 43 and 27 percent at depths two and three, so deeper
+// spans pay more in verify and draft time than their accepted tokens return:
+// it trades a span's accepted drafts against its verify and draft time. The
+// window step's chained drafts replace it.
+const hyperDraftTokens = 1
+
+// speculationDraftTokens is the depth the runner's draft program drafts per verify span.
+func (r *Runner) speculationDraftTokens() int {
+	if r.hyperDraft != nil {
+		return hyperDraftTokens
+	}
+	return deviceSpeculationDraftTokens
+}
 
 // q8InputSpanColumnsWindow mirrors the executor's q8-input span-column
 // window: a verify span longer than this falls off the single-weight-read
@@ -24,14 +43,14 @@ const q8InputSpanColumnsWindow = 8
 
 // deviceSpeculationReady reports whether raw-greedy device generation can
 // ride NextN speculation: a complete single-head draft catalog in the same
-// model, device-resident weights, and no context shifting (spans append
-// monotonically).
+// model or an attached hyper-connection draft layer, device-resident
+// weights, and no context shifting (spans append monotonically).
 func (r *Runner) deviceSpeculationReady(options GenerateOptions) bool {
 	if r == nil || !options.SpeculativeDecode || options.ContextShift ||
 		!r.hasPreloadedWeights() {
 		return false
 	}
-	if r.validateNextNMTP() == nil {
+	if r.hyperDraft != nil || r.validateNextNMTP() == nil {
 		return true
 	}
 	_, catalog, ok := r.lookupSingleHeadMTP()
@@ -45,7 +64,13 @@ func (r *Runner) SpeculativeDraftTokens() int {
 	if !r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true}) {
 		return 0
 	}
-	return deviceSpeculationDraftTokens
+	return r.speculationDraftTokens()
+}
+
+// SpeculatesByDefault reports whether the runner's raw-greedy device decoding speculates unless a request decodes
+// plainly: a draft the runner was opened with, which a model's own draft head is not.
+func (r *Runner) SpeculatesByDefault() bool {
+	return r.hyperDraft != nil && r.SpeculativeDraftTokens() > 0
 }
 
 func greedyTokenID(logits []float32) tokenizer.TokenID {
@@ -73,9 +98,16 @@ func (r *Runner) newDeviceMTPSessionLocked(
 		PendingHidden: hidden, MTPStart: position, Position: position,
 		targetModel: targetModel, deviceTrunk: true,
 	}
-	if r.validateNextNMTP() == nil {
+	switch {
+	case r.hyperDraft != nil:
+		// A hyper draft's cell sits at its streams' position, one before the token they selected; the draft step checks the streams.
+		if position == 0 {
+			return nil, errors.New("inference: hyper-connection draft seed has no position")
+		}
+		session.MTPStart, session.Position = position-1, position-1
+	case r.validateNextNMTP() == nil:
 		err = r.validateNextNMTPSession(session)
-	} else {
+	default:
 		err = r.validateMTPSession(session)
 	}
 	if err != nil {
@@ -84,17 +116,25 @@ func (r *Runner) newDeviceMTPSessionLocked(
 	return session, nil
 }
 
-// advanceDeviceDraftLocked runs one draft step through whichever single-head
-// program the model declares.
-func (r *Runner) advanceDeviceDraftLocked(
+// draftDeviceTokenLocked runs one draft step through whichever draft program
+// the runner holds and returns its greedy token.
+func (r *Runner) draftDeviceTokenLocked(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
 	session *MTPSession,
-) (reference.Value, *MTPSession, error) {
-	if r.validateNextNMTP() == nil {
-		return r.advanceNextNMTPLocked(ctx, tokenID, session)
+) (tokenizer.TokenID, *MTPSession, error) {
+	if r.hyperDraft != nil {
+		return r.advanceHyperDraftLocked(ctx, tokenID, session)
 	}
-	return r.advanceMTPLocked(ctx, tokenID, session)
+	advance := r.advanceMTPLocked
+	if r.validateNextNMTP() == nil {
+		advance = r.advanceNextNMTPLocked
+	}
+	logits, next, err := advance(ctx, tokenID, session)
+	if err != nil {
+		return 0, nil, err
+	}
+	return greedyTokenID(logits.Data), next, nil
 }
 
 // spanHiddenRow extracts one pre-output-norm hidden column from a span
@@ -110,22 +150,32 @@ func spanHiddenRow(hidden reference.Value, width uint64, row int) (reference.Val
 }
 
 // generateDeviceSpeculativeGreedy: the NextN MTP generation loop. Each round
-// drafts up to deviceSpeculationDraftTokens successors with the NextN head,
+// drafts up to speculationDraftTokens successors with the draft head,
 // then verifies the pending emitted tokens plus the draft in ONE device span
 // forward — one trunk weight read that commits acceptedTokens+1 emissions.
 // The boundary cache is the recurrent-state checkpoint: a fully accepted
 // span becomes the next boundary, a rejected suffix is rolled back by
 // releasing the span cache and re-spanning from the boundary.
+//   - a lazy grammar awaiting its trigger takes each token, and the loop ends at the token that triggers it, the
+//     cache it answers then holding every id before the ones still pending; sampled reports that ending, after which
+//     the grammar chooses the tokens
 func (r *Runner) generateDeviceSpeculativeGreedy(
 	ctx context.Context,
 	ids []tokenizer.TokenID,
 	prefill *deviceKVCache,
 	options GenerateOptions,
-) ([]tokenizer.TokenID, *deviceKVCache, string, error) {
+) (_ []tokenizer.TokenID, _ *deviceKVCache, sampled bool, _ string, _ error) {
 	var generatedText strings.Builder
 	emitted := 0
-	stopped := false
+	stopped, ended, triggered := false, false, false
+	lazy := options.Sampler.GreedyUntilTrigger()
 	emit := func(id tokenizer.TokenID) error {
+		if lazy {
+			if err := options.Sampler.AcceptToken(int(id)); err != nil {
+				return err
+			}
+			triggered = !options.Sampler.GreedyUntilTrigger()
+		}
 		event := TokenEvent{ID: id, Index: emitted}
 		ids = append(ids, id)
 		emitted++
@@ -133,49 +183,88 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if err != nil {
 			return err
 		}
-		stopped = stop || emitted >= options.MaxNewTokens
+		ended = stop || emitted >= options.MaxNewTokens
+		stopped = ended || triggered
 		return nil
 	}
 	boundary := prefill
 	if err := emit(boundary.Selected); err != nil {
-		return nil, boundary, "", err
+		return ids, boundary, false, "", err
 	}
 	pending := []tokenizer.TokenID{boundary.Selected}
+	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
+	if r.hyperDraft != nil {
+		width = r.hyperDraftWidth()
+	}
 	var seedHidden reference.Value
 	var seedPosition uint32
 	haveSeed := false
+	// A hyper draft's round reads the last span's kept rows, each with the token after it, into its history (seedRows
+	// from the row at seedStart, seedTokens their next tokens), and drafts from the last.
+	var seedRows reference.Value
+	var seedTokens []tokenizer.TokenID
+	var seedStart uint32
+	if prompt := r.hyperDraft.promptRead(); prompt != nil && prompt.position+1 == boundary.Tokens {
+		// The prompt's cells are in the history: the first round writes its last row's, with the token it selected, and
+		// drafts from it.
+		seedRows, seedTokens, seedStart, haveSeed = prompt.last, []tokenizer.TokenID{boundary.Selected}, prompt.position, true
+	} else if r.hyperDraft != nil {
+		cells := min(options.MaxNewTokens, int(r.spec.ContextLength)) + int(q8InputSpanColumnsWindow) + 1
+		if err := r.ensureHyperDraftHistory(ctx, uint32(cells)); err != nil {
+			return ids, boundary, false, "", err
+		}
+	}
 	for !stopped {
 		var drafts []tokenizer.TokenID
-		// A long pending run means the last drafts were rejected twice
-		// over; run a draft-less span to collapse it into a new boundary.
-		if haveSeed && len(pending)+deviceSpeculationDraftTokens <= int(q8InputSpanColumnsWindow) {
+		// A long pending run means the last drafts were rejected past the
+		// first; run a draft-less span to collapse it into a new boundary.
+		// A one-draft round commits its checkpoint after every rejection,
+		// so each span it verifies is two tokens long and replays one of
+		// two frames a cache capacity.
+		// A round drafts no more than the output and the context have left: its span emits the accepted drafts and
+		// one token more and appends its pending tokens and drafts to the boundary, so the request ends where plain
+		// decoding ends.
+		room := min(depth, options.MaxNewTokens-emitted-1, int(r.spec.ContextLength)-int(boundary.Tokens)-len(pending))
+		if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) && r.hyperDraft != nil {
+			drafted, draftErr := r.draftHyperFromHistoryLocked(ctx, seedRows, seedTokens, seedStart)
+			if draftErr != nil {
+				return ids, boundary, false, "", draftErr
+			}
+			drafts = append(drafts, drafted)
+		} else if haveSeed && room > 0 && len(pending)+depth <= int(q8InputSpanColumnsWindow) && (depth > 1 || len(pending) == 1) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
-				return nil, boundary, "", sessionErr
+				return ids, boundary, false, "", sessionErr
 			}
 			token := pending[len(pending)-1]
-			for len(drafts) < deviceSpeculationDraftTokens {
-				logits, next, draftErr := r.advanceDeviceDraftLocked(ctx, token, session)
+			for len(drafts) < room {
+				drafted, next, draftErr := r.draftDeviceTokenLocked(ctx, token, session)
 				if draftErr != nil {
-					return nil, boundary, "", draftErr
+					return ids, boundary, false, "", draftErr
 				}
 				session = next
-				token = greedyTokenID(logits.Data)
+				token = drafted
 				drafts = append(drafts, token)
 			}
 		}
 		spanTokens := append(append([]tokenizer.TokenID(nil), pending...), drafts...)
+		// A window with drafts keeps its layers' state after its pending tokens and after each prefix of its drafts
+		// but the whole, so a window that keeps part of them commits to it without reading them again.
+		checkpoints := make([]uint32, len(drafts))
+		for index := range checkpoints {
+			checkpoints[index] = uint32(len(pending) + index)
+		}
 		span, err := r.forwardDeviceCachedModeLocked(
-			ctx, deviceOutputGreedySpan, spanTokens, boundary,
+			ctx, deviceOutputGreedySpan, spanTokens, boundary, nil, checkpoints...,
 		)
 		if err != nil {
-			return nil, boundary, "", err
+			return ids, boundary, false, "", err
 		}
 		selections := span.SpanSelected
 		if len(selections) != len(spanTokens) {
 			releaseErr := span.Release(context.Background())
-			return nil, boundary, "", errors.Join(
+			return ids, boundary, false, "", errors.Join(
 				errors.New("inference: span selections are incomplete"), releaseErr,
 			)
 		}
@@ -187,41 +276,66 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		if options.OnDraftSpan != nil && len(drafts) > 0 {
 			options.OnDraftSpan(len(drafts), accepted)
 		}
+		correction := selections[base+accepted]
 		for index := 0; index < accepted && !stopped; index++ {
 			if err := emit(drafts[index]); err != nil {
-				return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+			}
+			if triggered && !ended {
+				// The span keeps its state before the draft that triggered the grammar, which is all that is pending.
+				accepted, correction = index, drafts[index]
 			}
 		}
-		correction := selections[base+accepted]
 		if !stopped {
 			if err := emit(correction); err != nil {
-				return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
 			}
 		}
 		spanStart := span.Position - uint32(len(spanTokens))
 		seedHidden, err = spanHiddenRow(span.SpanHidden, width, base+accepted)
 		if err != nil {
-			return nil, boundary, "", errors.Join(err, span.Release(context.Background()))
+			return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
 		}
 		seedPosition = spanStart + uint32(base+accepted) + 1
 		haveSeed = true
-		if accepted == len(drafts) {
+		if r.hyperDraft != nil {
+			// The kept rows are the span's up to the correction's, each followed by the span's next token, the last by the
+			// correction.
+			kept := base + accepted + 1
+			seedRows = reference.Value{Shape: tensor.MustShape(width, uint64(kept)), Data: slices.Clone(span.SpanHidden.Data[:uint64(kept)*width])}
+			seedTokens = append(slices.Clone(spanTokens[1:kept]), correction)
+			seedStart = spanStart
+		}
+		// A window whose drafts were all accepted is the next boundary; one that rejected a draft keeps the span at its
+		// checkpoint after the pending tokens and the drafts accepted, so the correction is all that is pending.
+		committed := accepted == len(drafts)
+		if !committed && len(span.checkpoints) != 0 {
+			kept := append(slices.Clone(pending), drafts[:accepted]...)
+			if err := r.commitSpanCheckpoint(ctx, span, boundary, kept); err != nil {
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+			}
+			committed = true
+		}
+		if committed {
 			previous := boundary
 			boundary = span
-			if err := previous.Release(ctx); err != nil {
-				return nil, boundary, "", err
+			// A boundary the prompt cache holds stays its entry.
+			if !r.ownsDevicePromptCache(previous) {
+				if err := previous.Release(ctx); err != nil {
+					return ids, boundary, false, "", err
+				}
 			}
 			pending = []tokenizer.TokenID{correction}
 		} else {
 			if err := span.Release(ctx); err != nil {
-				return nil, boundary, "", err
+				return ids, boundary, false, "", err
 			}
 			pending = append(append(pending, drafts[:accepted]...), correction)
 		}
 	}
 	text, err := r.vocab.Decode(ids, false)
 	if err != nil {
-		return nil, boundary, "", err
+		return ids, boundary, false, "", err
 	}
-	return ids, boundary, text, nil
+	return ids, boundary, triggered && !ended, text, nil
 }

@@ -72,10 +72,10 @@ func (o *layerOps) scratch(n int) (driver.DevicePtr, error) {
 }
 
 func (o *layerOps) rms(in, weight, out driver.DevicePtr) error {
-	widthU, rowsU, epsF := uint32(o.d.hidden), uint32(o.d.seq), float32(o.d.rmsEps)
+	widthU, rowsU, weightRows, epsF := uint32(o.d.hidden), uint32(o.d.seq), uint32(1), float32(o.d.rmsEps)
 	return o.s.launch1D(o.fns["weighted_rms_norm_f32"], uint32(o.d.seq)*deviceBlockThreads,
 		unsafe.Pointer(&in), unsafe.Pointer(&weight), unsafe.Pointer(&out),
-		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsF))
+		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&weightRows), unsafe.Pointer(&epsF))
 }
 
 type ropeDirection string

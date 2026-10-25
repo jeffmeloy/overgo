@@ -1,5 +1,5 @@
-// Command longform runs the long-form verification (owner rule
-// 2026-09-04) on servable text models: the SHORT fingerprint shape, the
+// Command longform runs the long-form verification on servable text
+// models: the SHORT fingerprint shape, the
 // LONG ladder of prompt lengths with a greedy generation and a
 // teacher-forced context score per rung, the rates each rung measured,
 // and a verdict against the declared floors, committed as evidence.
@@ -199,7 +199,7 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 	if len(wanted) > 0 {
 		return nil, fmt.Errorf("longform: not servable model locations: %s", strings.Join(slices.Sorted(maps.Keys(wanted)), ", "))
 	}
-	// Smallest first (owner rule 2026-09-01): the cheap models surface a
+	// Smallest first: the cheap models surface a
 	// broken run in seconds; the model whose run costs minutes goes last.
 	slices.SortFunc(targets, func(a, b target) int {
 		if a.bytes != b.bytes {

@@ -96,15 +96,15 @@ func (training *residentTraining) Step(step int) error {
 
 type hostMasterTraining struct {
 	hostBackwardPass
-	worker   *device.Worker
+	muon     *optimizer.StreamedMuon
 	config   optimizer.Config
 	momentum []float32
 	vecOpt   *optimizer.Optimizer
 }
 
 func (training *hostMasterTraining) Step(step int) error {
-	if err := optimizer.DeviceMuonStepPlanStreamed(
-		training.worker, training.model.matW, training.matGrad, training.momentum,
+	if err := training.muon.Step(
+		training.model.matW, training.matGrad, training.momentum,
 		training.model.matPlan, step, training.config,
 	); err != nil {
 		return err
@@ -132,9 +132,13 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 	if err := restoreOptimizer(vecOpt, vec); err != nil {
 		return nil, err
 	}
+	muon, err := optimizer.NewStreamedMuon(worker)
+	if err != nil {
+		return nil, err
+	}
 	training := &hostMasterTraining{
 		hostBackwardPass: pass,
-		worker:           worker, config: cfg,
+		muon:             muon, config: cfg,
 		momentum: make([]float32, len(m.matW)), vecOpt: vecOpt,
 	}
 	for index, value := range mat.Momentum {
@@ -144,7 +148,7 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 	if trajectory != nil && options.Checkpoint != nil {
 		err = errors.Join(err, m.checkpointF32(options, training.momentum, mat.Step+len(trajectory), cfg, vecOpt))
 	}
-	return trajectory, err
+	return trajectory, errors.Join(err, muon.Close())
 }
 
 // hostMasterLayerStreamedTraining: forward on host f32 masters; the backward
@@ -156,7 +160,7 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 // masters+gradients+momentum triplication exceeds host memory.
 type hostMasterLayerStreamedTraining struct {
 	hostForwardPass
-	worker     *device.Worker
+	muon       *optimizer.StreamedMuon
 	config     optimizer.Config
 	layers     []layerStreamPlan
 	matScratch []float32 // one-layer gradient window, reused across layers and steps
@@ -182,8 +186,7 @@ func (training *hostMasterLayerStreamedTraining) Backward(dTop []float32) error 
 			if mi, vi := packLayerGradients(g, mat, vec); mi != lp.matSize || vi != lp.vecSize {
 				return fmt.Errorf("layer %d packed %d+%d gradient values, window is %d+%d", layer, mi, vi, lp.matSize, lp.vecSize)
 			}
-			return optimizer.DeviceMuonStepPlanStreamed(
-				training.worker,
+			return training.muon.Step(
 				model.matW[lp.matOff:lp.matOff+lp.matSize], mat,
 				training.momentum[lp.matOff:lp.matOff+lp.matSize],
 				lp.plan, training.stepped+1, training.config,
@@ -232,9 +235,13 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 	if err := restoreOptimizer(vecOpt, vec); err != nil {
 		return nil, err
 	}
+	muon, err := optimizer.NewStreamedMuon(worker)
+	if err != nil {
+		return nil, err
+	}
 	training := &hostMasterLayerStreamedTraining{
 		hostForwardPass: hostForwardPass{model: m},
-		worker:          worker, config: cfg,
+		muon:            muon, config: cfg,
 		layers:     plans,
 		matScratch: make([]float32, maxLayer),
 		momentum:   make([]float32, len(m.matW)),
@@ -248,7 +255,7 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 	if trajectory != nil && options.Checkpoint != nil {
 		err = errors.Join(err, m.checkpointF32(options, training.momentum, training.stepped, cfg, vecOpt))
 	}
-	return trajectory, err
+	return trajectory, errors.Join(err, muon.Close())
 }
 
 // TrainDeviceResident keeps matrix state resident through the compiled loop.

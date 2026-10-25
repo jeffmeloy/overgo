@@ -23,7 +23,8 @@ type DeviceTensor struct {
 // DeviceWeights owns persistent raw GGUF tensors in one CUDA context.
 type DeviceWeights struct {
 	*deviceTensorStore
-	experts *expertResidency
+	experts  *expertResidency
+	onDevice expertDevice
 }
 
 // NewDeviceWeights opens a raw tensor store on the worker.
@@ -33,6 +34,9 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	}
 	return &DeviceWeights{
 		deviceTensorStore: newDeviceTensorStore(worker, "device"),
+		onDevice: func(ctx context.Context, work func(*device.State, expertMemory) error) error {
+			return worker.Do(ctx, func(state *device.State) error { return work(state, stateMemory{state}) })
+		},
 	}, nil
 }
 
@@ -83,6 +87,12 @@ func (w *DeviceWeights) Input(
 	return node, value.Pointer, nil
 }
 
+// DeviceTensorBinder binds tensor metadata to a device graph input.
+type DeviceTensorBinder func(
+	*tensor.Builder,
+	gguf.TensorInfo,
+) (*tensor.Tensor, driver.DevicePtr, error)
+
 // BindDeviceLayerGraphInputs binds a compiled layer catalog.
 func BindDeviceLayerGraphInputs(
 	builder *tensor.Builder,
@@ -97,7 +107,14 @@ func BindDeviceLayerGraphInputs(
 	}
 	var feeds tensor.InputBindings[driver.DevicePtr]
 	result := model.LayerGraphWeights{}
-	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, &feeds); err != nil {
+	if err := model.BindLayerGraphInventory(&info, &result, func(_ model.LayerBindingSlot, tensorInfo *gguf.TensorInfo) (*tensor.Tensor, error) {
+		node, pointer, err := bind(builder, *tensorInfo)
+		if err != nil {
+			return nil, err
+		}
+		feeds.Add(node, pointer)
+		return node, nil
+	}); err != nil {
 		return model.LayerGraphWeights{}, nil, err
 	}
 	if err := builder.Err(); err != nil {

@@ -129,47 +129,62 @@ func Reference(records []Record) *Record {
 	earlier := records[:len(records)-1]
 	for _, row := range reference.Rows {
 		for _, column := range repeated {
-			cell := row.Cells[column]
-			if !cell.Measured() {
-				continue
+			if cell := row.Cells[column]; cell.Measured() {
+				row.Cells[column] = judged(earlier, row, column, cell, func(one Row) Cell { return one.Cells[column] })
 			}
-			var readings []float64
-			seen := make(map[artifact.ID][]float64)
-			for _, record := range earlier {
-				at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+		}
+		// A longer prompt's first output is judged on its own readings, as the row's own is.
+		for index, cell := range row.Lengths {
+			row.Lengths[index] = judged(earlier, row, metric.FirstOutput, cell, func(one Row) Cell {
+				at := slices.IndexFunc(one.Lengths, func(other Cell) bool { return other.Contract == cell.Contract })
 				if at < 0 {
-					continue
+					return Cell{}
 				}
-				one := record.Rows[at].Cells[column]
-				if one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
-					readings = append(readings, one.Value)
-					if one.Source.Valid() {
-						seen[one.Source] = append(seen[one.Source], one.Value)
-					}
-				}
-			}
-			readings = readings[max(0, len(readings)-referenceWindow):]
-			if len(readings) < fewestReadings {
-				cell.unjudged = fmt.Sprintf("%d earlier readings on its contract, fewer than the %d that say what it holds and how far it moves", len(readings), fewestReadings)
-				row.Cells[column] = cell
-				continue
-			}
-			direction := cmp.Or(cell.Direction, columnDirections[column])
-			moves := make([]float64, len(readings)-1)
-			for index := range moves {
-				moves[index] = math.Abs(readings[index+1] - readings[index])
-			}
-			cell.Value, cell.allowed = median(slices.Clone(readings[:levelReadings])), noiseMultiple*median(moves)
-			for from := 1; from+levelReadings <= len(readings); from++ {
-				held := median(slices.Clone(readings[from : from+levelReadings]))
-				if advantage, _ := direction.Advantage(held, cell.Value); advantage > 0 {
-					cell.Value = held
-				}
-			}
-			row.Cells[column] = cell
+				return one.Lengths[at]
+			})
 		}
 	}
 	return reference
+}
+
+// judged is a reference's measured cell of a repeated column with what it
+// holds and how far a later reading may move from it (Reference), from the
+// readings the earlier records' rows of its model and task hold of it, each
+// read by read.
+func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(Row) Cell) Cell {
+	var readings []float64
+	seen := make(map[artifact.ID][]float64)
+	for _, record := range earlier {
+		at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+		if at < 0 {
+			continue
+		}
+		one := read(record.Rows[at])
+		if one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+			readings = append(readings, one.Value)
+			if one.Source.Valid() {
+				seen[one.Source] = append(seen[one.Source], one.Value)
+			}
+		}
+	}
+	readings = readings[max(0, len(readings)-referenceWindow):]
+	if len(readings) < fewestReadings {
+		cell.unjudged = fmt.Sprintf("%d earlier readings on its contract, fewer than the %d that say what it holds and how far it moves", len(readings), fewestReadings)
+		return cell
+	}
+	direction := cmp.Or(cell.Direction, columnDirections[column])
+	moves := make([]float64, len(readings)-1)
+	for index := range moves {
+		moves[index] = math.Abs(readings[index+1] - readings[index])
+	}
+	cell.Value, cell.allowed = median(slices.Clone(readings[:levelReadings])), noiseMultiple*median(moves)
+	for from := 1; from+levelReadings <= len(readings); from++ {
+		held := median(slices.Clone(readings[from : from+levelReadings]))
+		if advantage, _ := direction.Advantage(held, cell.Value); advantage > 0 {
+			cell.Value = held
+		}
+	}
+	return cell
 }
 
 // repeated are the columns a repeat of the same work reads differently: the three
@@ -207,9 +222,9 @@ const (
 
 // Earlier selects each cell's newest earlier measurement compatible with a current
 // value, retaining the newest measured fallback when none is compatible. It keeps
-// historical rows and held-out contracts absent from the previous record so lost
-// current measurements remain Unknown. It never fills a current value. Nil when no
-// record is earlier.
+// historical rows, held-out contracts and longer prompts' first outputs absent from
+// the previous record so lost current measurements remain Unknown. It never fills a
+// current value. Nil when no record is earlier.
 func Earlier(records []Record) *Record {
 	if len(records) <= 1 {
 		return nil
@@ -229,7 +244,7 @@ func Earlier(records []Record) *Record {
 			if at < 0 {
 				at = len(reference.Rows)
 				copy := row
-				copy.Cells, copy.Heldout = make(map[metric.Name]Cell), nil
+				copy.Cells, copy.Heldout, copy.Lengths = make(map[metric.Name]Cell), nil, nil
 				reference.Rows = append(reference.Rows, copy)
 			}
 			kept := &reference.Rows[at]
@@ -248,6 +263,14 @@ func Earlier(records []Record) *Record {
 					kept.Heldout = append(kept.Heldout, cell)
 				} else if prefer(kept.Heldout[qualityAt], cell, now.Measured(metric.Quality)) {
 					kept.Heldout[qualityAt] = cell
+				}
+			}
+			for _, cell := range row.Lengths {
+				lengthAt := slices.IndexFunc(kept.Lengths, func(prior Cell) bool { return prior.Contract == cell.Contract })
+				if lengthAt < 0 {
+					kept.Lengths = append(kept.Lengths, cell)
+				} else if prefer(kept.Lengths[lengthAt], cell, now.Lengths) {
+					kept.Lengths[lengthAt] = cell
 				}
 			}
 		}

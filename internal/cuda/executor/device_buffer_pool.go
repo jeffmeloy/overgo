@@ -40,8 +40,13 @@ const (
 	// eighth of its octave, so a class wastes at most an eighth.
 	deviceBufferClassSteps = uint64(8)
 	// deviceBufferFreeShare: the free lists hold at most this fraction of
-	// the device's memory; a fresh allocation trims them past it.
-	deviceBufferFreeShare = uint64(8)
+	// the device's memory; a fresh allocation trims them past it. Memory
+	// they hold is lost to a file-backed expert residency, which fills only
+	// what the card reports free: at an eighth, two 16K-token prompts left
+	// Flash-Next's pool 5.1 GB of idle buffers and the card 27% fewer experts.
+	// It trades the allocations a reuse saves (each cleared by Windows, about 18 ms a GB) against the experts idle
+	// buffers hold off the card. Provisional: the load-costs step derives it.
+	deviceBufferFreeShare = uint64(64)
 )
 
 func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBufferLease, error) {
@@ -80,9 +85,18 @@ func (p *deviceBufferPool) acquireBucket(
 	state *device.State,
 	bucket uint64,
 ) (deviceBufferLease, error) {
+	// The lowest free address, not the last released: a request then
+	// takes the same buffers whatever order the last one released them
+	// in, so the graphs it captured name them again.
 	if available := p.free[bucket]; len(available) > 0 {
-		pointer := available[len(available)-1]
-		p.free[bucket] = available[:len(available)-1]
+		lowest := 0
+		for index, pointer := range available {
+			if pointer < available[lowest] {
+				lowest = index
+			}
+		}
+		pointer := available[lowest]
+		p.free[bucket] = slices.Delete(available, lowest, lowest+1)
 		p.freeBytes -= bucket
 		return deviceBufferLease{pointer: pointer, size: bucket}, nil
 	}

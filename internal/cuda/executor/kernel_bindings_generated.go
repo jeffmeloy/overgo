@@ -235,6 +235,33 @@ var kernelFunctionModules = [...]int{
 	0,
 	0,
 	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	1,
 	1,
 	1,
@@ -255,6 +282,10 @@ const (
 	kernelAttentionDecodeCombineF32
 	kernelAttentionDecodeF32
 	kernelAttentionF32
+	kernelAttentionFlash128F32
+	kernelAttentionFlash256F32
+	kernelAttentionFlash64F32
+	kernelAttentionNativeBf16F32
 	kernelAttentionOnlineF32
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
@@ -266,7 +297,6 @@ const (
 	kernelBf16ToF32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
-	kernelBroadcastGateAddF32
 	kernelBroadcastMultiplyF32
 	kernelCausalSoftmaxBatchedF32
 	kernelCausalSoftmaxF32
@@ -280,6 +310,8 @@ const (
 	kernelConv2dWeightBackwardF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
+	kernelDequantRowsIq4NlF16
+	kernelDequantRowsIq4XsF16
 	kernelDequantRowsQ10F16
 	kernelDequantRowsQ4KF16
 	kernelDequantRowsQ5KF16
@@ -296,8 +328,16 @@ const (
 	kernelFp8ToF32
 	kernelFwhtF32
 	kernelGatedDeltaChunkF32
+	kernelGatedDeltaConvF32
+	kernelGatedDeltaConvPromptF32
+	kernelGatedDeltaGatesF32
 	kernelGatedDeltaNetBackwardF32
 	kernelGatedDeltaNetF32
+	kernelGatedDeltaNetKeyhead1F32
+	kernelGatedDeltaNetKeyhead2F32
+	kernelGatedDeltaNetKeyhead3F32
+	kernelGatedDeltaNetKeyhead4F32
+	kernelGatedDeltaNetRowsF32
 	kernelGatedLinearAttentionF32
 	kernelGatherLastF32
 	kernelGatherLastQ80F32
@@ -334,7 +374,9 @@ const (
 	kernelGetRowsTq10F32
 	kernelGetRowsTq20F32
 	kernelGroupNormF32
+	kernelGroupNormGroupedF32
 	kernelGroupNormInputBackwardF32
+	kernelGroupNormNativeF32
 	kernelGroupNormParameterBackwardF32
 	kernelGroupSliceF32
 	kernelHeadMajorF32
@@ -348,19 +390,20 @@ const (
 	kernelLoraMergeF32
 	kernelMadNormBackwardF32
 	kernelMadNormF32
-	kernelMoeActivateF32
 	kernelMoeCombineF32
 	kernelMoeDownDotF32
 	kernelMoeDownF32
-	kernelMoeGatherF32
+	kernelMoeDownQ8F32
+	kernelMoeGroupedDownF32
+	kernelMoeGroupedHiddenF32
 	kernelMoeHiddenDotF32
 	kernelMoeHiddenF32
+	kernelMoeHiddenQ8F32
+	kernelMoeHiddenSpanQ8F32
+	kernelMoeHostSlotsF32
 	kernelMoeRouteF32
 	kernelMoeRouterDotF32
 	kernelMoeRouterLogitsF32
-	kernelMoeScatterF32
-	kernelMoeStageDownF32
-	kernelMoeStageF32
 	kernelMulMatBf16AddF32
 	kernelMulMatBf16AppendF32
 	kernelMulMatBf16ArgmaxPartialsF32
@@ -397,6 +440,8 @@ const (
 	kernelMulMatQ80F32
 	kernelMulMatQ80InputArgmaxPartialsF32
 	kernelMulMatQ80InputF32
+	kernelMulMatQ80InputGatedAddF32
+	kernelMulMatQ80InputPairF32
 	kernelMulMatQ81F32
 	kernelMulMatQ8KF32
 	kernelMulMatTq10F32
@@ -412,6 +457,7 @@ const (
 	kernelRepeatHeadsF32
 	kernelRmsNormBackwardF32
 	kernelRmsNormF32
+	kernelRmsNormMeanF32
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
 	kernelRopeHalfBackwardF32
@@ -422,24 +468,35 @@ const (
 	kernelRwkv6F32
 	kernelRwkv7F32
 	kernelSamAttentionF32
+	kernelSamAttentionGroupedF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
+	kernelScaledActivationF32
+	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
 	kernelSigmoidF32
 	kernelSignedSqrtF32
 	kernelSiluBackwardF32
 	kernelSiluF32
+	kernelSiluNativeF32
 	kernelSoftmaxBackwardF32
 	kernelSoftmaxCeGradRowsF32
 	kernelSoftmaxCeGradScaledRowsF32
 	kernelSoftmaxF32
 	kernelSoftplusF32
 	kernelSparseAttentionF32
+	kernelSparseAttentionGroupedF32
+	kernelSparseAttentionMmaF32
+	kernelSparseAttentionSplitF32
 	kernelSsmConvF32
 	kernelSsmScanF32
+	kernelStreamCombineF32
+	kernelStreamSumF32
+	kernelStreamSumQ80F32
 	kernelStridedRowCopyF32
 	kernelSumRowsF32
 	kernelTanhF32
+	kernelTopKBlockF32
 	kernelTopKF32
 	kernelTopKPairsF32
 	kernelTopKPartialsF32
@@ -465,9 +522,6 @@ const (
 	kernelWindowPartition2dF32
 	kernelWindowUnpartition2dF32
 	kernelXieluF32
-	kernelAttentionNativeBf16F32
-	kernelSiluNativeF32
-	kernelRmsNormMeanF32
 	kernelAttentionNativePackF32
 	kernelAttentionNativeSoftmaxF32
 	kernelExpNativeF32
@@ -487,6 +541,10 @@ var kernelFunctionNames = [...]string{
 	"attention_decode_combine_f32",
 	"attention_decode_f32",
 	"attention_f32",
+	"attention_flash_128_f32",
+	"attention_flash_256_f32",
+	"attention_flash_64_f32",
+	"attention_native_bf16_f32",
 	"attention_online_f32",
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
@@ -498,7 +556,6 @@ var kernelFunctionNames = [...]string{
 	"bf16_to_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
-	"broadcast_gate_add_f32",
 	"broadcast_multiply_f32",
 	"causal_softmax_batched_f32",
 	"causal_softmax_f32",
@@ -512,6 +569,8 @@ var kernelFunctionNames = [...]string{
 	"conv_2d_weight_backward_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
+	"dequant_rows_iq4_nl_f16",
+	"dequant_rows_iq4_xs_f16",
 	"dequant_rows_q1_0_f16",
 	"dequant_rows_q4_K_f16",
 	"dequant_rows_q5_K_f16",
@@ -528,8 +587,16 @@ var kernelFunctionNames = [...]string{
 	"fp8_to_f32",
 	"fwht_f32",
 	"gated_delta_chunk_f32",
+	"gated_delta_conv_f32",
+	"gated_delta_conv_prompt_f32",
+	"gated_delta_gates_f32",
 	"gated_delta_net_backward_f32",
 	"gated_delta_net_f32",
+	"gated_delta_net_keyhead1_f32",
+	"gated_delta_net_keyhead2_f32",
+	"gated_delta_net_keyhead3_f32",
+	"gated_delta_net_keyhead4_f32",
+	"gated_delta_net_rows_f32",
 	"gated_linear_attention_f32",
 	"gather_last_f32",
 	"gather_last_q8_0_f32",
@@ -566,7 +633,9 @@ var kernelFunctionNames = [...]string{
 	"get_rows_tq1_0_f32",
 	"get_rows_tq2_0_f32",
 	"group_norm_f32",
+	"group_norm_grouped_f32",
 	"group_norm_input_backward_f32",
+	"group_norm_native_f32",
 	"group_norm_parameter_backward_f32",
 	"group_slice_f32",
 	"head_major_f32",
@@ -580,19 +649,20 @@ var kernelFunctionNames = [...]string{
 	"lora_merge_f32",
 	"mad_norm_backward_f32",
 	"mad_norm_f32",
-	"moe_activate_f32",
 	"moe_combine_f32",
 	"moe_down_dot_f32",
 	"moe_down_f32",
-	"moe_gather_f32",
+	"moe_down_q8_f32",
+	"moe_grouped_down_f32",
+	"moe_grouped_hidden_f32",
 	"moe_hidden_dot_f32",
 	"moe_hidden_f32",
+	"moe_hidden_q8_f32",
+	"moe_hidden_span_q8_f32",
+	"moe_host_slots_f32",
 	"moe_route_f32",
 	"moe_router_dot_f32",
 	"moe_router_logits_f32",
-	"moe_scatter_f32",
-	"moe_stage_down_f32",
-	"moe_stage_f32",
 	"mul_mat_bf16_add_f32",
 	"mul_mat_bf16_append_f32",
 	"mul_mat_bf16_argmax_partials_f32",
@@ -629,6 +699,8 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_q8_0_f32",
 	"mul_mat_q8_0_input_argmax_partials_f32",
 	"mul_mat_q8_0_input_f32",
+	"mul_mat_q8_0_input_gated_add_f32",
+	"mul_mat_q8_0_input_pair_f32",
 	"mul_mat_q8_1_f32",
 	"mul_mat_q8_K_f32",
 	"mul_mat_tq1_0_f32",
@@ -644,6 +716,7 @@ var kernelFunctionNames = [...]string{
 	"repeat_heads_f32",
 	"rms_norm_backward_f32",
 	"rms_norm_f32",
+	"rms_norm_mean_f32",
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
 	"rope_half_backward_f32",
@@ -654,24 +727,35 @@ var kernelFunctionNames = [...]string{
 	"rwkv6_f32",
 	"rwkv7_f32",
 	"sam_attention_f32",
+	"sam_attention_grouped_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
+	"scaled_activation_f32",
+	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
 	"sigmoid_f32",
 	"signed_sqrt_f32",
 	"silu_backward_f32",
 	"silu_f32",
+	"silu_native_f32",
 	"softmax_backward_f32",
 	"softmax_ce_grad_rows_f32",
 	"softmax_ce_grad_scaled_rows_f32",
 	"softmax_f32",
 	"softplus_f32",
 	"sparse_attention_f32",
+	"sparse_attention_grouped_f32",
+	"sparse_attention_mma_f32",
+	"sparse_attention_split_f32",
 	"ssm_conv_f32",
 	"ssm_scan_f32",
+	"stream_combine_f32",
+	"stream_sum_f32",
+	"stream_sum_q8_0_f32",
 	"strided_row_copy_f32",
 	"sum_rows_f32",
 	"tanh_f32",
+	"top_k_block_f32",
 	"top_k_f32",
 	"top_k_pairs_f32",
 	"top_k_partials_f32",
@@ -697,9 +781,6 @@ var kernelFunctionNames = [...]string{
 	"window_partition_2d_f32",
 	"window_unpartition_2d_f32",
 	"xielu_f32",
-	"attention_native_bf16_f32",
-	"silu_native_f32",
-	"rms_norm_mean_f32",
 	"attention_native_pack_f32",
 	"attention_native_softmax_f32",
 	"exp_native_f32",
@@ -716,8 +797,12 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	5,
-	17,
+	18,
 	25,
+	15,
+	15,
+	15,
+	12,
 	24,
 	6,
 	5,
@@ -729,7 +814,6 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	15,
 	15,
-	6,
 	15,
 	4,
 	3,
@@ -742,6 +826,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	17,
 	3,
+	5,
+	5,
 	5,
 	5,
 	5,
@@ -759,7 +845,15 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	4,
 	19,
+	11,
+	11,
+	9,
 	23,
+	15,
+	12,
+	12,
+	12,
+	12,
 	15,
 	12,
 	7,
@@ -797,7 +891,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	9,
+	8,
 	10,
+	9,
 	10,
 	8,
 	5,
@@ -812,18 +908,19 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	10,
+	15,
+	15,
+	17,
 	10,
-	15,
-	15,
-	8,
+	18,
 	20,
 	20,
+	23,
+	23,
+	5,
 	10,
 	7,
 	7,
-	8,
-	8,
-	11,
 	6,
 	7,
 	5,
@@ -860,6 +957,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	5,
 	7,
+	9,
+	9,
 	6,
 	6,
 	6,
@@ -874,6 +973,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	6,
 	8,
+	5,
 	5,
 	18,
 	18,
@@ -885,12 +985,16 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	12,
 	18,
+	17,
 	4,
 	5,
+	5,
+	6,
 	12,
 	3,
 	4,
 	4,
+	3,
 	3,
 	5,
 	6,
@@ -898,11 +1002,18 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	16,
+	17,
+	13,
+	18,
 	7,
 	14,
+	10,
+	8,
+	9,
 	8,
 	4,
 	3,
+	9,
 	8,
 	5,
 	7,
@@ -923,14 +1034,11 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	7,
 	8,
-	6,
+	7,
+	8,
 	7,
 	7,
 	7,
-	7,
-	12,
-	3,
-	5,
 	18,
 	5,
 	3,

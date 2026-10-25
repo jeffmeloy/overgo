@@ -84,7 +84,7 @@ func executeGatedHyperMix(options blockDispatchOptions, operator layerOperator, 
 	var err error
 	execution.current, execution.injection, err = buildGatedHyperMix(builder, execution.current, norm, down, up, inject, spec)
 	if operator == layerOperatorGatedHyperHead {
-		execution.result.Output = execution.current
+		execution.result.Output, execution.result.Streams = execution.current, execution.residual
 	}
 	return err
 }

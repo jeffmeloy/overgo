@@ -95,7 +95,11 @@ func (fixture *protocolFixture) Generate(ctx context.Context, prompt string, opt
 			break
 		}
 	}
-	var ids []tokenizer.TokenID
+	// The prompt's ids lead the answer's, a word a token, as a runner returns them.
+	ids := make([]tokenizer.TokenID, len(strings.Fields(prompt)))
+	if options.OnPromptEvaluated != nil {
+		options.OnPromptEvaluated(inference.PromptEvaluation{Tokens: len(ids)})
+	}
 	for index, piece := range strings.SplitAfter(answer, " ") {
 		if options.OnToken != nil {
 			if err := options.OnToken(inference.TokenEvent{ID: tokenizer.TokenID(index), Piece: piece, Index: index}); err != nil {
@@ -141,7 +145,7 @@ func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 			}
 			head, sequence := store.Head()
 			model := &protocolFixture{wrong: wrong}
-			verification, err := acceptProtocol(ctx, store, candidate.Definition, strings.Repeat("a", 40), string(document),
+			verification, err := acceptProtocol(ctx, store, candidate.Definition, candidate.Resolved.Document.ID, strings.Repeat("a", 40), string(document),
 				func(context.Context) (exactRuntime, error) { return model, nil })
 			if !model.closed {
 				t.Fatal("the served model was not closed")
@@ -182,6 +186,12 @@ func TestVerifyPublishesProtocolAcceptance(t *testing.T) {
 			}
 			if active, found, err := modelrecipe.ActiveRecord(ctx, store, candidate.Definition.Model, recipe.TaskInference); err != nil || !found || active.Definition.ID != candidate.Definition.ID {
 				t.Fatalf("active recipe %+v found %t, %v; want the protocol-accepted candidate", active.Definition.ID, found, err)
+			}
+			// The gate names the exact plan its first chat case recorded, the request recipe measure replays.
+			active, requests, err := verifiedCase(ctx, store, candidate.Definition.Model)
+			if err != nil || active != candidate.Definition.ID || len(requests) != 1 || requests[0].Name != "chat-arithmetic" ||
+				!strings.Contains(requests[0].Prompt, "17 plus 25") || requests[0].MaxTokens != 16 || requests[0].Text != "42" {
+				t.Fatalf("recipe measure replays %+v of %s (%v); want the arithmetic chat case as the candidate answered it", requests, active, err)
 			}
 		})
 	}

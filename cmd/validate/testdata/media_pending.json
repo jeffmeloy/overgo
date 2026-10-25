@@ -1,0 +1,26 @@
+{
+  "finding": "8385bce1",
+  "owner": "moss",
+  "reason": "The MOSS lane activated MOSS-Image-SFT for image-gen in the shared store on 2026-10-19 and left three inactive image-gen recipes before the image-video inventory, its merged evidence and the media protocol recorded them; freezing its cell, its protocol case and its candidates is that lane's.",
+  "cells": [
+    {
+      "model": "model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6",
+      "task": "image-gen",
+      "recipe": "recipe:sha256:9055169ad71c193557d96c7ddcabe16309adf194c905f21af2be9fa19d127b07"
+    }
+  ],
+  "inactive": [
+    {
+      "recipe": "recipe:sha256:9e72b2ef971d760a5ca593e23765cc45ec7e1aa127dd174b1f21b05bae4239f8",
+      "status": "candidate"
+    },
+    {
+      "recipe": "recipe:sha256:404afc8b12a845f40474999a2167c9ba7d133b0a6ca8c8e79c4d57a8bd167a49",
+      "status": "superseded"
+    },
+    {
+      "recipe": "recipe:sha256:b935833ba39704b1086369c69bc453b453a0183411d36dcd144a08dd1b6969ee",
+      "status": "candidate"
+    }
+  ]
+}

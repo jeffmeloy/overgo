@@ -380,6 +380,14 @@ func TestQwen3VLOriginalFixture(t *testing.T) {
 						t.Fatalf("original vision output shape/streams = %v/%d", output.Embeddings.Shape, len(output.DeepstackEmbeddings))
 					}
 					compareFloat32Tolerance(t, test.Name, output.Embeddings.Data, test.Output, fixture.Tolerance)
+					if input.GridT > 1 {
+						// A video encoded a temporal group at a time gives the original's rows.
+						chunked, err := runner.encodeTemporal(t.Context(), input, input.GridH*input.GridW)
+						if err != nil || chunked.Embeddings.Shape != output.Embeddings.Shape || chunked.GridT != input.GridT {
+							t.Fatalf("chunked vision output shape %v, groups %d: %v", chunked.Embeddings.Shape, chunked.GridT, err)
+						}
+						compareFloat32Tolerance(t, test.Name+" by group", chunked.Embeddings.Data, test.Output, fixture.Tolerance)
+					}
 				})
 			}
 		})

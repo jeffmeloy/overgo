@@ -248,6 +248,13 @@ func WeightsIdentity(path string, memo *Memo) (artifact.ID, error) {
 	return artifact.ParseID(artifact.KindModel.String() + ":" + digest)
 }
 
+// FileIdentity names a file's bytes as kind through the memo, hashing them only when the memo holds no identity for
+// the file's present size and modification time; false where path names no readable file.
+func FileIdentity(path string, kind artifact.Kind, memo *Memo) (artifact.ID, bool) {
+	identity := identifyLocation(path, kind, map[string]fileIdentity{}, memo)
+	return identity.id, identity.present
+}
+
 func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity, memo *Memo) fileIdentity {
 	key := path + "\x00" + kind.String()
 	if identity, ok := identities[key]; ok {

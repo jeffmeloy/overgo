@@ -101,6 +101,8 @@ var Declared = map[string]Descriptor{
 	"tokenize":  operator("tokenize", "tokenize text with a GGUF model's tokenizer", "an operator inspecting tokenization"),
 	"perplexity": operator("perplexity", "measure a GGUF model's perplexity over UTF-8 text",
 		"an operator comparing model quality on a text"),
+	"expert-profile": operator("expert-profile", "rank a mixture-of-experts model's experts by the decode runs that route them, the profile its loads fill the card from",
+		"an operator serving a model whose experts outgrow the card"),
 	"model-info":  operator("model-info", "print a GGUF model's metadata and architecture", "an operator inspecting a model file"),
 	"block-check": operator("block-check", "check a GGUF model's blocks against their declared shapes and types", "an operator validating a model file"),
 	"gguf": operator("gguf", "convert a Hugging Face checkpoint to GGUF, inspect its safetensors, hash, inspect, merge, split or quantize a GGUF file, or admit a speech dataset's audio, one subcommand each",

@@ -13,7 +13,6 @@ import (
 // grammar is a pattern language by nature, not structured data a typed
 // decoder owns. Removing the last regexp from a file removes it here.
 var regexOwners = map[string]string{
-	"cmd/build-kernels/main.go":                       "rewrites a generated digest constant in Go source text; follow-up: go/ast edit",
 	"cmd/device-lane/admission.go":                    "compiles a go test -run selector, which is a regular expression",
 	"cmd/device-lane/main.go":                         "compiles a go test -run selector, which is a regular expression",
 	"cmd/gen-iq-tables/main.go":                       "generator reading C table source",

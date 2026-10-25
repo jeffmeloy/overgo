@@ -115,7 +115,7 @@ func TestMOSSDecoderGroupNormalization(t *testing.T) {
 			input := b.Input("input", dtype.F32, tensor.MustShape(uint64(c), uint64(n)))
 			weight := b.Input("weight", dtype.F32, tensor.MustShape(uint64(c)))
 			bias := b.Input("bias", dtype.F32, weight.Shape)
-			out := b.GroupNorm(input, weight, bias, uint32(g), 1e-6)
+			out := b.GroupNormNative(input, weight, bias, uint32(g), 1e-6)
 			planar := refinementValues(t, source, name+".input")
 			hwc := make([]float32, len(planar))
 			for p := range n {

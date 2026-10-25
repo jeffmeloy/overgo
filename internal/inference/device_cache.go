@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -44,8 +45,13 @@ type deviceKVCache struct {
 	// append, one column per consumed position — the trunk states the
 	// NextN draft head seeds from.
 	SpanHidden reference.Value
+	// spanSlot holds the outputs a speculating runner's span wrote outside the token caches; nil => the pool holds them.
+	spanSlot *spanSlot
 	// ngramHistory is the lexical history the step that made the cache fed, which its state holds on the card; nil => only the card holds it.
 	ngramHistory []float32
+	// checkpoints are a verify span's cache after its pending tokens and after each prefix of its drafts, one of which a
+	// window that keeps fewer tokens than it read keeps; none without them.
+	checkpoints []*deviceCacheCheckpoint
 }
 
 type deviceCacheStorage struct {
@@ -71,13 +77,17 @@ func (s *deviceCacheStorage) retain() bool {
 	return true
 }
 
-func (s *deviceCacheStorage) exclusive() bool {
+// holders is the caches that hold the storage, none while it is released.
+func (s *deviceCacheStorage) holders() int {
 	if s == nil {
-		return false
+		return 0
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.refs == 1 && !s.releasing
+	if s.releasing {
+		return 0
+	}
+	return s.refs
 }
 
 // aliases admits append only from the start of each owned token allocation.
@@ -220,6 +230,10 @@ func (c *deviceKVCache) Release(ctx context.Context) error {
 	}
 	c.storage = nil
 	c.session = nil
+	if c.spanSlot != nil {
+		c.spanSlot.refs--
+		c.spanSlot = nil
+	}
 	return nil
 }
 
@@ -410,25 +424,6 @@ func (r *Runner) compactDeviceCacheForAppend(
 	return next, nil
 }
 
-func (r *Runner) forwardDeviceCachedLocked(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	past *deviceKVCache,
-) (reference.Value, *deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
-	}}, plan)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	return reference.Value{}, next[0], nil
-}
-
 // forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
 // argmax token stays resident and only its id is copied back.
 func (r *Runner) forwardDeviceCachedGreedyStepLocked(
@@ -436,26 +431,32 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past)
+	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, nil, 0)
 }
 
 // forwardDeviceCachedModeLocked: single-branch forward under a chosen output
 // plan. With deviceOutputGreedySpan every appended position stays in the
 // output head and selects greedily — the MTP verify batch; the result cache
 // carries SpanSelected, one token per consumed position.
+// A span with checkpoints also keeps its layers' fixed state after each of those token counts.
+// A prompt's projected inputs, nil for text, are its media rows, multi-axis positions and deepstack streams.
 func (r *Runner) forwardDeviceCachedModeLocked(
 	ctx context.Context,
 	mode deviceOutputMode,
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
+	projected *ProjectedInputs,
+	checkpoints ...uint32,
 ) (*deviceKVCache, error) {
 	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
 	if err != nil {
 		return nil, err
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens: tokenIDs,
-		Past:   past,
+		Tokens:      tokenIDs,
+		Past:        past,
+		Checkpoints: checkpoints,
+		Projected:   projected,
 	}}, plan)
 	if err != nil {
 		return nil, err
@@ -466,6 +467,37 @@ func (r *Runner) forwardDeviceCachedModeLocked(
 type deviceBatchAppend struct {
 	Tokens []tokenizer.TokenID
 	Past   *deviceKVCache
+	// Checkpoints are the token counts of a verify span, ascending, after which its layers also keep their fixed state,
+	// so a window that keeps its pending tokens and some of its drafts keeps them without reading them again.
+	Checkpoints []uint32
+	// Reserve is the tokens the cache holds once its prompt is read, so a prompt read in chunks sizes its storage once,
+	// at its first chunk, rather than in each chunk that outgrows a page beside the storage it replaces.
+	Reserve uint32
+	// Projected is the media rows, multi-axis positions and deepstack streams of the append's own tokens; nil for text.
+	Projected *ProjectedInputs
+}
+
+// cacheCapacity is the tokens an append's cache storage holds: its past storage's capacity where that holds the
+// append's tokens, else the page of the append's tokens or its reserve, whichever is more.
+func (r *Runner) cacheCapacity(past *deviceKVCache, tokens, reserve uint32) uint32 {
+	if stored := past.storedCapacity(); stored >= tokens {
+		return stored
+	}
+	return cachePageCapacity(max(tokens, reserve), r.spec.ContextLength, r.program.Decode.Session)
+}
+
+// storedCapacity is the tokens the cache's storage holds, the trailing extent of its first token-aligned key, or zero
+// without one.
+func (c *deviceKVCache) storedCapacity() uint32 {
+	if c == nil || c.storage == nil {
+		return 0
+	}
+	for _, key := range c.storage.keys {
+		if key.Pointer != 0 && key.Shape.Rank > 0 {
+			return uint32(key.Shape.Dims[key.Shape.Rank-tensor.SingletonExtent])
+		}
+	}
+	return 0
 }
 
 type deviceBatchGraph struct {
@@ -485,11 +517,17 @@ type deviceBatchGraph struct {
 	keys           []*tensor.Tensor
 	values         []*tensor.Tensor
 	states         []deviceGraphStates
-	cacheInputs    []layerGraphCacheInputs
-	pastTokens     uint32
-	nextPosition   uint32
-	tokenCount     uint32
-	sequences      uint32
+	// checkpointTokens are the span's token counts after which checkpoints holds each layer's fixed state, by layer and then
+	// by count; none for none.
+	checkpointTokens []uint32
+	checkpoints      [][]model.LayerCheckpoint
+	cacheInputs      []layerGraphCacheInputs
+	pastTokens       uint32
+	nextPosition     uint32
+	// positionAfter is the cache's next position past a projected prompt's largest; zero past one whose tokens follow it.
+	positionAfter uint32
+	tokenCount    uint32
+	sequences     uint32
 }
 
 type deviceCacheTargetLayer struct {
@@ -602,7 +640,11 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 		return nil, errors.New("inference: device batch is empty")
 	}
 	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
-		next, err := r.prefillDeviceCachedLocked(ctx, appends[0], plan, len(appends[0].Tokens))
+		chunk := len(appends[0].Tokens)
+		if r.promptChunkTokens > 0 {
+			chunk = min(chunk, r.promptChunkTokens)
+		}
+		next, err := r.prefillDeviceCachedLocked(ctx, appends[0], plan, chunk)
 		if err != nil {
 			return nil, err
 		}
@@ -633,8 +675,8 @@ func (r *Runner) cacheAppendPlan(appends []deviceBatchAppend, plan deviceOutputP
 			return deviceCacheAppendPlan{}
 		}
 		result.replay = result.replay && (span || appended == 1) && (!plan.is(deviceOutputGreedy) || past.Selection.Pointer != 0)
-		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
-		next := cachePageCapacity(past.Tokens+appended, r.spec.ContextLength, r.program.Decode.Session)
+		current := r.cacheCapacity(past, past.Tokens, 0)
+		next := r.cacheCapacity(past, past.Tokens+appended, item.Reserve)
 		if current < past.Tokens || next < past.Tokens+appended {
 			return deviceCacheAppendPlan{}
 		}
@@ -708,6 +750,10 @@ func (r *Runner) executeParameterizedDecodeSession(
 		}
 		return errors.Join(errs...)
 	}
+	slot, err := r.bindSpanSlot(ctx, session.execution.Graph, graphs, appends, plans, targets, session.program.identity.output)
+	if err != nil {
+		return nil, errors.Join(err, releaseStorages())
+	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(
 		ctx, session.execution.Graph, session.hostFeeds, session.execution.Inputs, targets, session.program.attributes,
 	)
@@ -720,6 +766,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	)
 	if err == nil {
 		session.replays++
+		holdSpanSlot(next, slot)
 	}
 	return next, err
 }
@@ -822,6 +869,8 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 //   - a generation keeps one session for each capacity page, one for the step onto each page and, under speculation, one for each span length of a page
 //   - 35 span identities were measured across a 512-token run, so 64 holds every live combination of a generation before a full clear
 //   - reconsider when one generation clears the kept sessions
+//   - trades the sessions a generation recreates (a graph's capture, 13 to 60 ms) against the card memory kept ones hold.
+//     Provisional: the load-costs step derives it from a capture's measured cost and a session's bytes.
 const decodeSessionLimit = 64
 
 // keptDecodeSession finds the compiled session that serves the step's identity.
@@ -852,8 +901,17 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
+	// A prompt read keeps its rows' streams for the draft where some lie in the window the draft attends over; the read
+	// builds its graph afresh, as a kept session keeps no streams.
+	var first uint32
+	if appends[0].Past != nil {
+		first = appends[0].Past.Tokens
+	}
+	draftPrompt := r.hyperDraft != nil && r.hyperDraft.prompt != nil
+	plan.streams = plan.streams && draftPrompt && len(appends) == 1 && first+uint32(len(appends[0].Tokens)) > r.hyperDraft.prompt.from
 	appendPlan := r.cacheAppendPlan(appends, plan)
-	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay
+	// A kept session replays a step's token rows and positions, not a projected prompt's media inputs.
+	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay && appends[0].Projected == nil && !plan.streams
 	tokenCount := uint32(1)
 	var identity decodeSessionIdentity
 	if parameterized {
@@ -863,6 +921,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			branches: uint32(len(appends)), tokenCount: tokenCount, output: plan,
 			blockSelection: r.program.Model.SelectsAttentionBlocks(appendPlan.ActiveTokens + tokenCount),
 			lora:           r.currentLoRASignature(),
+			checkpoints:    spanCheckpointIdentity(appends[0].Checkpoints),
 		}
 		if session := r.keptDecodeSession(identity, appends); session != nil {
 			return r.executeParameterizedDecodeSession(ctx, session, appends)
@@ -872,6 +931,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if capacity != 0 {
 		builder.SetCacheAppendPlan(appendPlan.CacheAppendPlan)
 	}
+	builder.SetPromptExperts(plan.promptExperts)
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphs := make([]deviceBatchGraph, len(appends))
@@ -883,7 +943,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -896,6 +956,9 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	}
 	execution, err := executor.CompileIndexed(outputs...)
 	if err != nil {
+		return nil, err
+	}
+	if err := plan.readBack(execution.Graph, graphs...); err != nil {
 		return nil, err
 	}
 	if err := execution.Inputs.Bind(deviceFeeds); err != nil {
@@ -963,6 +1026,20 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		return errors.Join(errs...)
 	}
+	// A prompt read writes its draft streams into the prompt's buffer, not beside the outputs the read's cache keeps.
+	var streams executor.DeviceValue
+	if plan.streams {
+		if streams, err = r.promptStreamsLocked(ctx, graphs[0].hidden.Shape); err == nil {
+			err = targets.Set(graphs[0].hidden, streams)
+		}
+		if err != nil {
+			return nil, errors.Join(err, releaseStorages())
+		}
+	}
+	slot, err := r.bindSpanSlot(ctx, execution.Graph, graphs, appends, targetPlans, targets, plan)
+	if err != nil {
+		return nil, errors.Join(err, releaseStorages())
+	}
 	execute := r.cuda.ExecuteRetainedCompiledOnce
 	if retainable {
 		execute = r.cuda.ExecuteRetainedCompiled
@@ -971,9 +1048,18 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}
-	return r.assembleDeviceBatchCaches(
+	next, err := r.assembleDeviceBatchCaches(
 		ctx, retained, storages, graphs, appends, targetPlans, sessions, hostFeeds, plan,
 	)
+	if err == nil {
+		holdSpanSlot(next, slot)
+	}
+	if err == nil && plan.streams {
+		if err = r.recordHyperDraftPromptLocked(ctx, streams, graphs[0].hidden.Type, appends[0].Tokens, first); err != nil {
+			return nil, errors.Join(err, next[0].Release(context.Background()))
+		}
+	}
+	return next, err
 }
 
 func (r *Runner) assembleDeviceBatchCaches(
@@ -1009,7 +1095,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 			Values:   make([]executor.DeviceValue, len(graph.values)),
 			States:   make([]deviceLayerStates, len(graph.states)),
 			Tokens:   graph.pastTokens + graph.tokenCount,
-			Position: graph.nextPosition + graph.tokenCount,
+			Position: cmp.Or(graph.positionAfter, graph.nextPosition+graph.tokenCount),
 		}
 		if graph.ngramHistory != nil {
 			cache.ngramHistory = hostFeeds[graph.ngramHistory].Data
@@ -1066,6 +1152,10 @@ func (r *Runner) assembleDeviceBatchCaches(
 				}
 			}
 		}
+		var checkpointErr error
+		if cache.checkpoints, checkpointErr = collectSpanCheckpoints(retained, graph); checkpointErr != nil {
+			return fail(checkpointErr)
+		}
 		if pageErr := rebuildDeviceCachePages(cache, r.program.Decode.Session); pageErr != nil {
 			return fail(pageErr)
 		}
@@ -1089,7 +1179,7 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 	plans := make([]deviceCacheTargetPlan, len(graphs))
 	for branch, graph := range graphs {
 		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
-		capacity := uint64(cachePageCapacity(graph.pastTokens+graph.tokenCount, r.spec.ContextLength, r.program.Decode.Session))
+		capacity := uint64(r.cacheCapacity(appends[branch].Past, graph.pastTokens+graph.tokenCount, appends[branch].Reserve))
 		target := func(node *tensor.Tensor, schema model.CacheState[model.CacheValueSchema]) (deviceCacheTargetValue, error) {
 			if !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
 				return deviceCacheTargetValue{}, nil
@@ -1177,7 +1267,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		past := appends[branch].Past
 		var storage *deviceCacheStorage
-		if reusableDeviceCacheStorage(past, plans[branch]) != nil {
+		if r.reusableDeviceCacheStorage(past, plans[branch]) != nil {
 			if _, duplicate := used[past.storage]; !duplicate && past.storage.retain() {
 				storage = past.storage
 				used[storage] = struct{}{}
@@ -1294,9 +1384,14 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	cacheWrite tensor.CacheWriteMode,
 	hostFeeds map[*tensor.Tensor]reference.Value,
 	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
+	checkpoints []uint32,
+	projected *ProjectedInputs,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
+	}
+	if projected == nil {
+		projected = &ProjectedInputs{}
 	}
 	if r.spec.NonCausalAttention {
 		return fail(errors.New("non-causal models do not support a device KV cache"))
@@ -1325,6 +1420,22 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	positions := sequence.positions
+	// A projected prompt's tokens take the multi-axis positions its media were placed at, and the cache's next
+	// position follows the largest of them, as the host's forward keeps it.
+	var multiPositions *[tensor.MaxDimensions][]uint32
+	var positionAfter uint32
+	if projected.MultiAxisPositions != nil {
+		axes := [tensor.MaxDimensions][]uint32(*projected.MultiAxisPositions)
+		multiPositions, positions = &axes, axes[0]
+		for _, axis := range axes {
+			for _, position := range axis {
+				positionAfter = max(positionAfter, position+1)
+			}
+		}
+		if positionAfter < nextPosition {
+			return fail(errors.New("projected positions precede the cache's next position"))
+		}
+	}
 	var positionRows []*tensor.Tensor
 	prefix := fmt.Sprintf("seq.%d.", branch)
 	embeddingTable, embeddingPointer, err := r.deviceInput(builder, r.weights.TokenEmbedding)
@@ -1334,6 +1445,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
 	current := tokenRowInput
 	deviceFeeds.Add(embeddingTable, embeddingPointer)
+	if len(projected.EmbeddingOverrides) > 0 {
+		current = overrideDeviceRows(builder, prefix, current, projected.EmbeddingOverrides, len(tokenIDs), hostFeeds)
+	}
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
 	if plan.is(deviceOutputGreedy) && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
@@ -1417,7 +1531,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	keys := make([]*tensor.Tensor, len(r.weights.Layers))
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
+	var streams *tensor.Tensor
 	states := make([]deviceGraphStates, len(r.weights.Layers))
+	layerCheckpoints := make([][]model.LayerCheckpoint, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	var positionFeeds []*tensor.Tensor
 	var ngramEmbedding, ngramHistory *tensor.Tensor
@@ -1436,7 +1552,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(layerErr)
 		}
 		*deviceFeeds = append(*deviceFeeds, layerFeeds...)
-		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip}
+		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip, multiPositions: projected.MultiAxisPositions}
 		if len(perLayerInputs) > 0 {
 			sideInputs.perLayerInput = perLayerInputs[layerIndex]
 		}
@@ -1477,27 +1593,34 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 			ngramEmbedding, ngramHistory = graphWeights.PerLayerInput, layerHistory
 		}
+		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_input", layerIndex), current, plan.DeepstackBefore, projected.DeepstackEmbeddings, hostFeeds)
 		result, buildErr := program.Build(model.CachedBlockContext{
-			NGramHistory: layerHistory,
-			Builder:      builder, Input: current, Positions: positions, TokenRows: tokenIndices,
+			NGramHistory: layerHistory, MultiPositions: multiPositions,
+			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
 			CurrentPositions: boundSideInputs.currentPositions,
 			PerLayerInput:    graphWeights.PerLayerInput,
 			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
-			CacheWrite: cacheWrite, Sequences: sequences,
+			CacheWrite: cacheWrite, Sequences: sequences, Checkpoints: checkpoints,
 		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
 		}
-		current = result.Output
+		current, streams = result.Output, result.Streams
+		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_output", layerIndex), current, plan.DeepstackAfter, projected.DeepstackEmbeddings, hostFeeds)
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
+		layerCheckpoints[layerIndex] = result.Checkpoints
 	}
 	// Span plans retain the pre-output-norm hidden rows: the NextN draft
 	// head normalizes the trunk hidden itself, so speculation seeds from
-	// the un-normed rows.
+	// the un-normed rows. A hyper-connection trunk's draft head reads the
+	// residual streams its head mixed, so those are the rows it keeps.
 	preNormHidden := current
+	if streams != nil {
+		preNormHidden = streams
+	}
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
 		return fail(err)
@@ -1543,7 +1666,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	selection, candidates := plan.reduce(builder, logits)
 	var spanHidden *tensor.Tensor
-	if plan.is(deviceOutputGreedySpan) {
+	if plan.is(deviceOutputGreedySpan) || plan.streams {
 		spanHidden = preNormHidden
 	}
 	return deviceBatchGraph{
@@ -1552,7 +1675,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		positionFeeds: positionFeeds, ngramEmbedding: ngramEmbedding, ngramHistory: ngramHistory,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
-		pastTokens: pastTokens, nextPosition: nextPosition,
+		checkpointTokens: checkpoints, checkpoints: layerCheckpoints,
+		pastTokens: pastTokens, nextPosition: nextPosition, positionAfter: positionAfter,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
 	}, nil
 }

@@ -21,7 +21,7 @@ func savePlanMutation(root string, document plan.Plan) error {
 }
 
 // Stop controls remain usable when the live plan cannot load. They publish
-// through the control owner without waiting for a running gate's mutation lock.
+// through the control home without waiting for a running gate's mutation lock.
 func recordStopControlCommand(root string, c cli, args []string, output io.Writer) error {
 	role, err := plan.AutomationRole(c.role)
 	if err != nil {
@@ -65,19 +65,19 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 			return errors.New("plan: resume cannot change stop scope")
 		}
 		event.Kind = plan.ControlResume
-		event.ReasonCode = "operator-resume"
+		event.ReasonCode = plan.ResumeCode
 		if c.maintenanceStop != "" {
 			if len(args) == 0 {
-				return errors.New("plan: maintenance requires item/step and an operator reason")
+				return errors.New("plan: maintenance requires item/step and a reason")
 			}
 			event.Kind = plan.ControlMaintenance
-			event.ReasonCode = "operator-maintenance"
+			event.ReasonCode = plan.MaintenanceCode
 			event.Task = args[0]
 			args = args[1:]
 		}
 		event.Detail = strings.TrimSpace(strings.Join(args, commandWordSeparator))
 		if event.Detail == "" {
-			return errors.New("plan: explicit resume requires an operator reason")
+			return errors.New("plan: explicit resume requires a reason")
 		}
 	}
 	recorded, err := plan.RecordStop(context.Background(), event)
@@ -90,7 +90,7 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 			Event plan.ControlEvent `json:"event"`
 		}{recorded.ID, recorded})
 	}
-	fmt.Fprintf(output, "recorded %s %s owner=%s scope=%s worktree=%s\n", recorded.Kind, recorded.ID, recorded.Lane, recorded.Mode, recorded.Worktree)
+	fmt.Fprintf(output, "recorded %s %s lane=%s scope=%s worktree=%s\n", recorded.Kind, recorded.ID, recorded.Lane, recorded.Mode, recorded.Worktree)
 	if recorded.Kind == plan.ControlMaintenance {
 		fmt.Fprintf(output, "For task %s only: inherit %s=%s with worker=%s; unattended work remains stopped.\n", recorded.Task, plan.AutomationMaintenanceEnvironment, recorded.ID, recorded.Worker)
 	}

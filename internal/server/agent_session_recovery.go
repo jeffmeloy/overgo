@@ -153,14 +153,21 @@ func (h *Handler) agentThread(response http.ResponseWriter, request *http.Reques
 	}
 	sessionID := agentSessionID(values.Get("agent"), values.Get("session"))
 	thread := agentThreadResponse{Session: sessionID, Bound: h.config.MaxStoredResponses, Entries: []agentThreadEntry{}}
-	page, err := overgodb.VisitDecodedDocuments(request.Context(), h.repository, overgodb.DocumentQuery{
+	// The prefix also names sessions whose names extend this one's: pages are read until the bound's worth of this
+	// session's own entries, and one more shows the thread is truncated.
+	query := overgodb.DocumentQuery{
 		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}},
 		AliasPrefixes: []string{runrecord.InteractionResponseAliasRoot + sessionID + "-"},
-		Order:         overgodb.DocumentOldestFirst, MaxResults: h.config.MaxStoredResponses,
-	}, runrecord.ParseInteraction, func(_ overgodb.DocumentView, interaction runrecord.Interaction) error {
+		Order:         overgodb.DocumentOldestFirst,
+	}
+	visit := func(_ overgodb.DocumentView, interaction runrecord.Interaction) error {
 		kind, number, named := strings.Cut(strings.TrimPrefix(interaction.Response, sessionID+"-"), "-")
 		if _, err := strconv.Atoi(number); !named || err != nil || (kind != agentTurnEntry && kind != agentStepEntry) {
 			return nil // another session whose name extends this one's
+		}
+		if len(thread.Entries) == thread.Bound {
+			thread.Truncated = true
+			return errAgentThreadFull
 		}
 		transcript, err := runrecord.RequireInteractionTranscript(request.Context(), h.repository, interaction.Message)
 		if err != nil {
@@ -187,11 +194,26 @@ func (h *Handler) agentThread(response http.ResponseWriter, request *http.Reques
 		}
 		thread.Entries = append(thread.Entries, entry)
 		return nil
-	})
-	if err != nil {
-		writeGenerationError(response, err)
-		return
 	}
-	thread.Truncated = page.Truncated
+	head, _ := h.repository.Head()
+	for {
+		query.MaxResults = thread.Bound + 1 - len(thread.Entries)
+		page, err := overgodb.VisitDecodedDocuments(request.Context(), h.repository, query, runrecord.ParseInteraction, visit)
+		if current, _ := h.repository.Head(); current != head {
+			writeError(response, http.StatusConflict, "history_changed", "History changed. Reload the session to continue.")
+			return
+		}
+		if errors.Is(err, errAgentThreadFull) || err == nil && page.Next == nil {
+			break
+		}
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		query.Cursor = page.Next
+	}
 	writeJSON(response, http.StatusOK, thread)
 }
+
+// errAgentThreadFull stops a thread's read at the entry past its bound.
+var errAgentThreadFull = errors.New("agent thread holds more entries than its bound")

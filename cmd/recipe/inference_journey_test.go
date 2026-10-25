@@ -50,7 +50,7 @@ func TestMeasurementSeparatesLoadPrefillAndVisibleOutput(t *testing.T) {
 	}
 	request, other := requests[0], requests[1]
 	var said bytes.Buffer
-	observation, _, err := observeInference(ctx, open, request, &said)
+	observation, _, err := observeInference(ctx, open, request, &said, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

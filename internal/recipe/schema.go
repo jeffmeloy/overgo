@@ -23,7 +23,9 @@ const (
 	TaskEmbedding  Task = "embedding"
 	TaskRerank     Task = "rerank"
 	TaskProjection Task = "projection"
-	TaskTraining   Task = "training"
+	// TaskSpeculation binds the draft a model speculates its decoding through.
+	TaskSpeculation Task = "speculation"
+	TaskTraining    Task = "training"
 	// TaskForecast: time-series forecasting (ladder rung 1, the first
 	// non-token capability; series in, quantile horizon out).
 	TaskForecast Task = "forecast"
@@ -159,19 +161,21 @@ const (
 	DependencyDerivationProfile DependencyRole = "derivation-profile"
 	DependencyTokenizer         DependencyRole = "tokenizer"
 	DependencyProjector         DependencyRole = "projector"
-	DependencyAdapter           DependencyRole = "adapter"
-	DependencyDataset           DependencyRole = "dataset"
-	DependencyCheckpoint        DependencyRole = "checkpoint"
-	DependencyDefinition        DependencyRole = "model-definition"
-	DependencyObjective         DependencyRole = "training-objective"
-	DependencyPrecision         DependencyRole = "training-precision"
-	DependencyPlacement         DependencyRole = "training-placement"
-	DependencyMemory            DependencyRole = "training-memory"
-	DependencyOptimizer         DependencyRole = "training-optimizer"
-	DependencyCheckpointPolicy  DependencyRole = "training-checkpoint"
-	DependencyEvaluation        DependencyRole = "training-evaluation"
-	DependencyEvaluator         DependencyRole = "evaluator"
-	DependencyPromotion         DependencyRole = "training-promotion"
+	// DependencyDraft binds the draft layer a speculation recipe speculates its model's decoding through.
+	DependencyDraft            DependencyRole = "draft"
+	DependencyAdapter          DependencyRole = "adapter"
+	DependencyDataset          DependencyRole = "dataset"
+	DependencyCheckpoint       DependencyRole = "checkpoint"
+	DependencyDefinition       DependencyRole = "model-definition"
+	DependencyObjective        DependencyRole = "training-objective"
+	DependencyPrecision        DependencyRole = "training-precision"
+	DependencyPlacement        DependencyRole = "training-placement"
+	DependencyMemory           DependencyRole = "training-memory"
+	DependencyOptimizer        DependencyRole = "training-optimizer"
+	DependencyCheckpointPolicy DependencyRole = "training-checkpoint"
+	DependencyEvaluation       DependencyRole = "training-evaluation"
+	DependencyEvaluator        DependencyRole = "evaluator"
+	DependencyPromotion        DependencyRole = "training-promotion"
 	// DependencyCandidateTrial binds a derived graph to the admitted,
 	// closed-world candidate compilation it executes or evaluates.
 	DependencyCandidateTrial DependencyRole = "candidate-trial"
@@ -378,6 +382,8 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindTokenizer
 	case DependencyProjector:
 		want = artifact.KindProjector
+	case DependencyDraft:
+		want = artifact.KindDraft
 	case DependencyAdapter:
 		want = artifact.KindAdapter
 	case DependencyDataset:
@@ -407,7 +413,7 @@ func validateDependency(dependency Dependency) error {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining,
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskSpeculation, TaskTraining,
 		TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskTranscription, TaskAlignment,
 		TaskDiarization, TaskActivityDetection, TaskAudioConversion, TaskAudioGeneration,
 		TaskImageGen, TaskVideoGen, TaskVQA, TaskImageEmbedding, TaskReconstruction, TaskExport, TaskMerge:

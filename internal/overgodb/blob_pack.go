@@ -131,7 +131,7 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 	// The pack is read once and every member held to its identity; a blob
 	// with no loose file is then answered by its place in the verified pack
 	// rather than by opening the pack again for each of its members.
-	if err := s.blobs.verifyPack(); err != nil {
+	if err := s.blobs.verifyPack(ctx); err != nil {
 		return 0, err
 	}
 	checked := 0
@@ -147,7 +147,7 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 			return checked, err
 		}
 		if _, statErr := os.Stat(path); statErr == nil {
-			err = s.blobs.verify(id)
+			err = s.blobs.verify(ctx, id)
 		} else if _, _, packed := s.blobs.packed(id); !packed {
 			err = fmt.Errorf("overgodb: blob %s is neither loose nor packed", id)
 		}
@@ -161,8 +161,12 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 
 // verifyPack streams every pack member through one buffer and holds its bytes
 // to the digest its index entry names, so verification holds one member's
-// buffer rather than the pack; a store with no pack has nothing to verify.
-func (b blobStore) verifyPack() error {
+// buffer rather than the pack, stopping between reads once ctx is done; a store
+// with no pack has nothing to verify.
+func (b blobStore) verifyPack(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	file, err := os.Open(filepath.Join(b.root, blobPackFilename))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -188,7 +192,7 @@ func (b blobStore) verifyPack() error {
 			return fmt.Errorf("overgodb: blob pack member %x lies outside the pack", entry[packKindBytes:packKeyBytes])
 		}
 		hash.Reset()
-		if _, err := io.CopyBuffer(hash, io.NewSectionReader(file, int64(offset), int64(size)), buffer); err != nil {
+		if _, err := io.CopyBuffer(hash, &backupReader{ctx: ctx, source: io.NewSectionReader(file, int64(offset), int64(size))}, buffer); err != nil {
 			return err
 		}
 		if !bytes.Equal(hash.Sum(nil), entry[packKindBytes:packKeyBytes]) {
@@ -216,7 +220,7 @@ func writePack(ctx context.Context, destination io.Writer, blobs blobStore, memb
 			return packed, err
 		}
 		size := int64(binary.BigEndian.Uint32(index[position*packEntryBytes+packKeyBytes+8:]))
-		written, err := blobs.copyVerified(destination, id, buffer)
+		written, err := blobs.copyVerified(ctx, destination, id, buffer)
 		if err != nil {
 			return packed, err
 		}

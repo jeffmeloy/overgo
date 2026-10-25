@@ -19,8 +19,8 @@ import (
 // rebuild is overgodb rebuild: it writes the store's projected state into a
 // fresh candidate store, stripping derived caches whose identities stay
 // registered. The store keeps recipes, prototypes, activations, and evaluated
-// performance; it stops carrying recomputable snapshots (owner ruling
-// 2026-08-27, measured: 6.07 GB of code manifests against ~450 MB of
+// performance; it stops carrying recomputable snapshots (measured
+// 2026-08-27: 6.07 GB of code manifests against ~450 MB of
 // knowledge). -without-retired also leaves out the records of the families the
 // store's code lists as retired, which nothing writes and nothing reads, and
 // prints what it left out of each and what it kept of each because a kept

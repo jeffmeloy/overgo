@@ -76,11 +76,11 @@ func TestStoredResultIsReusedOnlyUnderItsOwnIdentity(t *testing.T) {
 				return request.Value * gain, nil
 			})
 		},
-	), func(path string) (string, error) {
+	), func(ctx context.Context, store artifact.Repository, path string) (string, error) {
 		if unreadable {
 			return "", errors.New("the file beside the model cannot be read")
 		}
-		return Contents(func(string) []string { return []string{preprocessor} })(path)
+		return Contents(func(string) []string { return []string{preprocessor} })(ctx, store, path)
 	})
 	scorer := JSONScalar[scoreRequest, *strings.Builder, int](
 		"scalar", func(scoreRequest) error { return nil },

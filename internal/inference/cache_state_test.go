@@ -2,7 +2,10 @@ package inference
 
 import (
 	"encoding/binary"
+	"maps"
+	"math"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -244,6 +247,31 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
+	}
+	// A cache saved without positions restores with its own, consecutive up to its position.
+	missing := *cache
+	missing.Layers = []LayerCache{cache.Layers[0]}
+	missing.Layers[0].States = maps.Clone(cache.Layers[0].States)
+	delete(missing.Layers[0].States, model.CacheStatePositions)
+	unpositioned, err := marshalCache(&missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored, err = runner.LoadCache(unpositioned); err != nil || !reflect.DeepEqual(restored, cache) {
+		t.Fatalf("a cache without positions restored as %+v (%v), want %+v", restored, err, cache)
+	}
+	// A header that claims every token a count holds is refused before anything sized by its tokens is built.
+	header := make([]byte, cacheStateHeaderSize)
+	copy(header, cacheStateMagic)
+	binary.LittleEndian.PutUint32(header[8:], math.MaxUint32)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	if _, err := runner.LoadCache(header); err == nil {
+		t.Fatal("a header claiming 2^32 tokens was accepted")
+	}
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 1<<20 {
+		t.Fatalf("refusing a header claiming 2^32 tokens allocated %d bytes", allocated)
 	}
 	prefixShifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil || prefixShifted.Tokens != 1 || prefixShifted.Position != 2 {

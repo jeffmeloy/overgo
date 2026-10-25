@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -62,6 +63,7 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 	return errors.Join(
 		lib.FuncSetMaxDynamicShared(functions[kernelAttentionTiledBf16F32].function, attentionBF16EstablishedShared),
 		lib.FuncSetMaxDynamicShared(functions[kernelAttentionNativeBf16F32].function, attentionBF16SharedBytes),
+		lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes),
 	)
 }
 
@@ -172,6 +174,54 @@ func launchBF16Attention(
 // launch overhead (same floor as the tiled kernel's 32-row tile).
 const attentionBlasQueryFloor = uint32(32)
 
+// Tensor-core flash attention geometry (attention_flash_<width>_f32): a block takes 64 rows, each a query token and one
+// of its key/value head's query heads, in four warps of 16; key rows pad 8 floats and value rows 4, so a warp's fragment
+// reads fall in distinct banks. The key tile narrows as the heads widen, so a block's accumulators and tiles leave room
+// for two blocks a multiprocessor.
+const (
+	// attentionFlashValueInput is the values' place among an attention's inputs, after its queries and keys.
+	attentionFlashValueInput                            = 2
+	attentionFlashRows                                  = uint32(64)
+	attentionFlashThreads                               = uint32(128)
+	attentionFlashKeyPad                                = uint32(8)
+	attentionFlashValuePad                              = uint32(4)
+	attentionFlashNarrowWidth, attentionFlashNarrowKeys = uint32(64), uint32(64)
+	attentionFlashMiddleWidth, attentionFlashMiddleKeys = uint32(128), uint32(32)
+	attentionFlashWideWidth, attentionFlashWideKeys     = uint32(256), uint32(16)
+)
+
+// flashAttentionKernel answers the tensor-core kernel of a head width and the keys its tiles hold.
+func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
+	switch width {
+	case uint64(attentionFlashNarrowWidth):
+		return kernelAttentionFlash64F32, attentionFlashNarrowKeys, true
+	case uint64(attentionFlashMiddleWidth):
+		return kernelAttentionFlash128F32, attentionFlashMiddleKeys, true
+	case uint64(attentionFlashWideWidth):
+		return kernelAttentionFlash256F32, attentionFlashWideKeys, true
+	}
+	return 0, 0, false
+}
+
+// flashAttention reports a prompt's causal attention the tensor-core kernel reads, where its model admits the kernel
+// (AttentionAttributes.TensorCores, off by default since its half-precision products moved dense models' held-out
+// quality): grouped or not, with an optional
+// window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes, and at least the
+// strided-batched path's floor of queries (a decode span keeps the decode kernel). An encoder's attention, which
+// is not causal, keeps the f32 paths its reference tolerances hold (Gemma E4B's vision tower read half-precision
+// keys 0.6 percent from its reference, past its 0.5 percent limit), as NaiveF32 does.
+func flashAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
+	if len(node.Inputs) <= attentionFlashValueInput || node.Inputs[0].Shape.Rank < attentionMinimumRank || node.Inputs[1].Shape.Rank < attentionMinimumRank {
+		return false
+	}
+	query, key, value := node.Inputs[0].Shape.Dims, node.Inputs[1].Shape.Dims, node.Inputs[attentionFlashValueInput].Shape.Dims
+	_, _, ok := flashAttentionKernel(query[0])
+	return ok && key[0] == query[0] && value[0] == query[0] && key[1] != 0 && query[1]%key[1] == 0 &&
+		query[attentionTokenAxis] >= uint64(attentionBlasQueryFloor) && attributes.TensorCores && !attributes.NaiveF32 &&
+		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && attributes.MaxALiBiBias == 0 &&
+		!attributes.SymmetricWindow && !attributes.ChunkedWindow && attributes.Causal
+}
+
 // blasAttentionGeometry: strided-batched SGEMM attention admission
 // (featureless dense attention, causal or not, with an optional causal
 // sliding window and softcap, grouped-query heads batched per key-value
@@ -234,31 +284,34 @@ func decodeSplits(keyCapacityTokens uint32, valueWidth uint64) uint32 {
 	return max(1, min(splits, attentionDecodeMaxSplits))
 }
 
-// decodeAttention reports an attention the decode kernel serves: one causal query after the keys before it, without relative bias, sinks, block mask, key bias, ALiBi, or symmetric or chunked window.
-//   - the decode kernel reads the key count from the device, and every other attention path takes the key count and first query as launch arguments
+// decodeAttention reports an attention the decode kernel serves: up to q8InputSpanColumns causal queries (a speculative verify span) that end at the last key, without relative bias, sinks, block mask, key bias, ALiBi, or symmetric or chunked window.
+//   - the decode kernel reads the key count from the device and derives each query's from it, and every other attention path takes the key count and first query as launch arguments
+//   - a span on the online kernel took 0.55 ms a layer (two Flash-Next queries over 100 keys), one block a query head walking the keys
 func decodeAttention(node *tensor.Tensor, attributes tensor.AttentionAttributes) bool {
 	keys := uint64(attributes.KeyValueTokens)
 	if keys == 0 {
 		keys = node.Inputs[1].Shape.Dims[attentionTokenAxis]
 	}
-	return node.Inputs[0].Shape.Dims[attentionTokenAxis] == 1 && attributes.Causal && uint64(attributes.QueryStart)+1 == keys &&
+	queries := node.Inputs[0].Shape.Dims[attentionTokenAxis]
+	return queries >= 1 && queries <= q8InputSpanColumns && attributes.Causal && uint64(attributes.QueryStart)+queries == keys &&
 		attributes.RelativeBuckets == 0 && !attributes.HasSinks && !attributes.HasBlockMask && !attributes.HasKeyBias &&
 		attributes.MaxALiBiBias == 0 && !attributes.SymmetricWindow && !attributes.ChunkedWindow
 }
 
 // decodePartialBytes: compile-time staging reservation for the split
-// partials of a single-query causal attention node; the score staging
-// the strided-batched path reserves holds them, one stream at a time.
+// partials of a causal attention node of up to q8InputSpanColumns
+// queries; the score staging the strided-batched path reserves holds
+// them, one stream at a time.
 func decodePartialBytes(node *tensor.Tensor) (uint64, bool) {
 	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
 	if !ok || !attributes.Causal || len(node.Inputs) < 3 {
 		return 0, false
 	}
 	queryNode, keyNode, valueNode := node.Inputs[0], node.Inputs[1], node.Inputs[2]
-	if queryNode.Shape.Rank < 3 || keyNode.Shape.Rank < 3 || queryNode.Shape.Dims[2] != 1 {
+	if queryNode.Shape.Rank < 3 || keyNode.Shape.Rank < 3 || queryNode.Shape.Dims[attentionTokenAxis] > q8InputSpanColumns {
 		return 0, false
 	}
-	rows := queryNode.Shape.Dims[1]
+	rows := queryNode.Shape.Dims[1] * queryNode.Shape.Dims[attentionTokenAxis]
 	if queryNode.Shape.Rank == 4 {
 		rows *= queryNode.Shape.Dims[3]
 	}
@@ -337,8 +390,9 @@ func launchBlasFullAttention(
 	query, key, value, keyBias, output driver.DevicePtr,
 	geometry blasAttentionLaunch,
 ) error {
+	// The softmax reads a row a warp, eight rows a block (ATTENTION_ONLINE_ROWS).
 	const softmaxThreads = uint32(256)
-	const f64Bytes = uint32(8)
+	softmaxRows := softmaxThreads / uint32(kernel.WarpThreads())
 	queryHeads, keyValueHeads := geometry.queryHeads, geometry.keyValueHeads
 	queryTokens, keyValueTokens, keyWidth := geometry.queryTokens, geometry.keyValueTokens, geometry.keyWidth
 	chunk, keyChunk, scale := geometry.chunk, geometry.keyChunk, geometry.scale
@@ -353,6 +407,13 @@ func launchBlasFullAttention(
 	rowBytes := d * 4
 	kvRowBytes := kvD * 4
 	headBytes := uint64(keyWidth) * 4
+	// Plain heads, a key-value head each, batch whole in one call a product, each reading its key-value head a head
+	// further on, as a group's heads read the group's head (the vision encoders' 16 heads launched 16 products a
+	// tile pair); the key-value rows keep their width above.
+	keyValueStride := int64(0)
+	if group == 1 {
+		group, keyValueHeads, keyValueStride = queryHeads, 1, int64(keyWidth)
+	}
 	scores := blas.scores
 	stats := scores + driver.DevicePtr(uint64(queryHeads)*uint64(chunk)*uint64(keyChunk)*4)
 	statRows := queryHeads * chunk
@@ -404,7 +465,7 @@ func launchBlasFullAttention(
 						if err := blas.library.SGEMMStridedBatched(
 							blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 							int32(keys), int32(rows), int32(keyWidth), 1,
-							kHead, int32(kvD), 0,
+							kHead, int32(kvD), keyValueStride,
 							qHead, int32(d), int64(keyWidth),
 							0,
 							scoreHead, int32(keyChunk), scoreStride,
@@ -416,8 +477,8 @@ func launchBlasFullAttention(
 				}
 				if err := launchGridSharedABI(
 					state, functions[kernelAttentionOnlineSoftmaxF32],
-					driver.Dim3{X: queryHeads * rows, Y: 1, Z: 1},
-					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, softmaxThreads*f64Bytes,
+					driver.Dim3{X: (queryHeads*rows + softmaxRows - 1) / softmaxRows, Y: 1, Z: 1},
+					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, 0,
 					&scores, &oChunk, &stats,
 					&keyBias, &keyStart, &keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
 					&chunkPosition, &causal, &window, &softcap,
@@ -436,7 +497,7 @@ func launchBlasFullAttention(
 						if err := blas.library.SGEMMStridedBatched(
 							blas.handle, cublas.OperationNone, cublas.OperationNone,
 							int32(keyWidth), int32(rows), int32(keys), 1,
-							vHead, int32(kvD), 0,
+							vHead, int32(kvD), keyValueStride,
 							scoreHead, int32(keyChunk), scoreStride,
 							1,
 							oHead, int32(d), int64(keyWidth),
@@ -561,7 +622,7 @@ func launchAttentionLayout(
 		// partials combine through the score staging when it holds them,
 		// and a graph without that staging decodes in one block per head.
 		splits := decodeSplits(keyCapacityTokens, uint64(valueWidth))
-		rows := uint64(queryHeads) * uint64(sequences)
+		rows := uint64(queryHeads) * uint64(queryTokens) * uint64(sequences)
 		partialBytes := rows * uint64(splits) * (uint64(valueWidth) + attentionDecodeMetaFloats) * f32Bytes
 		if splits > 1 && (blas == nil || blas.scores == 0 || partialBytes > blas.scoreBytes) {
 			splits = 1
@@ -594,7 +655,7 @@ func launchAttentionLayout(
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
-				&sequences, &scale, &window, &softcap, &tileTokens, &splits, &partials,
+				&sequences, &queryTokens, &scale, &window, &softcap, &tileTokens, &splits, &partials,
 			); err != nil || splits == 1 {
 				return err
 			}
@@ -603,6 +664,22 @@ func launchAttentionLayout(
 				state, functions[kernelAttentionDecodeCombineF32],
 				driver.Dim3{X: rowCount, Y: 1, Z: 1}, driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1},
 				&partials, &output, &valueWidth, &splits, &rowCount,
+			)
+		}
+		// A prompt's dense attention reads on tensor cores, its scores in registers.
+		if function, keys, ok := flashAttentionKernel(uint64(keyWidth)); ok && flashAttention(node, attributes) {
+			rows := uint64(queryTokens) * uint64(queryHeads/keyValueHeads)
+			blocks := (rows + uint64(attentionFlashRows) - 1) / uint64(attentionFlashRows)
+			if blocks > math.MaxUint32 {
+				return errors.New("flash attention launch size exceeds uint32")
+			}
+			sharedBytes := uint64(keys) * uint64(keyWidth+attentionFlashKeyPad+valueWidth+attentionFlashValuePad) * f32Bytes
+			return launchGridSharedABI(
+				state, functions[function],
+				driver.Dim3{X: uint32(blocks), Y: keyValueHeads, Z: sequences},
+				driver.Dim3{X: attentionFlashThreads, Y: 1, Z: 1}, uint32(sharedBytes),
+				&query, &key, &value, &keyBias, &output, &queryHeads, &keyValueHeads, &queryTokens,
+				&keyValueTokens, &keyCapacityTokens, &scale, &queryStart, &causal, &window, &softcap,
 			)
 		}
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the

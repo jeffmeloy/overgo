@@ -9,20 +9,23 @@ import (
 )
 
 // ScorecardRow is one activated model and task on the user scorecard, its
-// cells in the order a user meets them.
+// cells in the order a user meets them, and a chat model's first output at
+// each longer prompt it was timed at, shortest first.
 type ScorecardRow struct {
-	Model  artifact.ID     `json:"model"`
-	Name   string          `json:"name"`
-	Task   string          `json:"task"`
-	Recipe artifact.ID     `json:"recipe,omitzero"`
-	Cells  []ScorecardCell `json:"cells"`
+	Model   artifact.ID     `json:"model"`
+	Name    string          `json:"name"`
+	Task    string          `json:"task"`
+	Recipe  artifact.ID     `json:"recipe,omitzero"`
+	Cells   []ScorecardCell `json:"cells"`
+	Lengths []ScorecardCell `json:"lengths,omitempty"`
 }
 
 // ScorecardCell is one metric's measured value with its unit, what it
 // measures and the record it came from, or the reason no record measures it.
 // A held-out quality also names the metric it measures and the direction it
 // improves in ("maximize" or "minimize"), and a trained model's carries its
-// base model's value on the same contract.
+// base model's value on the same contract. A longer prompt's first output
+// names the prompt's tokens.
 type ScorecardCell struct {
 	Metric    string      `json:"metric"`
 	Value     float64     `json:"value"`
@@ -33,6 +36,7 @@ type ScorecardCell struct {
 	Measure   string      `json:"measure,omitzero"`
 	Direction string      `json:"direction,omitzero"`
 	Base      *float64    `json:"base,omitempty"`
+	Prompt    int         `json:"prompt,omitzero"`
 }
 
 // ScorecardReader reads the user scorecard from the store.
@@ -41,7 +45,8 @@ type ScorecardReader func(context.Context, *overgodb.Store) ([]ScorecardRow, err
 // ScorecardMove is one thing that moved between the two newest published
 // scorecards: a row that came or went, or one of its cells that got better or
 // worse, changed where its metric names no direction, gained or lost its
-// measure, or has no comparison because the two measured it differently.
+// measure, or has no comparison because the two measured it differently. A
+// longer prompt's first output names the prompt's tokens.
 type ScorecardMove struct {
 	Name   string  `json:"name"`
 	Task   string  `json:"task"`
@@ -51,6 +56,7 @@ type ScorecardMove struct {
 	After  float64 `json:"after"`
 	Unit   string  `json:"unit,omitzero"`
 	Reason string  `json:"reason,omitzero"`
+	Prompt int     `json:"prompt,omitzero"`
 }
 
 // ScorecardHistory is what moved from the previous published scorecard to

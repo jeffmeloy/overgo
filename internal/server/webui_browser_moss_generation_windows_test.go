@@ -21,6 +21,7 @@ import (
 // TestWebUIBrowserMOSSGeneration checks source controls and exact prompt transport in Chromium.
 // The output is a stored fixture PNG and establishes no model quality claim.
 func TestWebUIBrowserMOSSGeneration(t *testing.T) {
+	t.Parallel()
 	requireWebUILane(t, "MOSS controls run through cmd/webui-lane")
 	started := make(chan struct{})
 	phaseReady, phaseContinue := make(chan struct{}), make(chan struct{})

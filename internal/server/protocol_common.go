@@ -64,7 +64,8 @@ type protocolGenerationPlan struct {
 	// lora: the request's adapter scales, when it named them.
 	lora           []inference.LoRAScale
 	loraConfigured bool
-	// speculative: the request drafts from the served model's draft head.
+	// speculative: the request drafts from the served model's draft head;
+	// otherwise it decodes a token a step, whatever the model does by default.
 	speculative bool
 }
 
@@ -175,7 +176,8 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	if err := h.admitSpeculation(parameters.Speculative, sampler); err != nil {
+	speculative, err := h.admitSpeculation(parameters.Speculative, sampler)
+	if err != nil {
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
@@ -186,7 +188,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	plan := &protocolGenerationPlan{
 		handler: h, request: request, session: lease,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
-		lora: lora, loraConfigured: loraConfigured, speculative: parameters.Speculative,
+		lora: lora, loraConfigured: loraConfigured, speculative: speculative,
 	}
 	if err := plan.admit(prompt); err != nil {
 		plan.release()
@@ -295,10 +297,8 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
 		options.CachePrompt = provider.SupportsPromptCache()
 	}
-	// A speculative turn decodes greedily on the device from an uncached prompt.
-	if plan.speculative {
-		options.SpeculativeDecode, options.DeviceGreedy, options.CachePrompt = true, true, false
-	}
+	// A speculative turn decodes greedily on the device, from and into the prompt cache.
+	options.SpeculativeDecode, options.PlainDecode = plan.speculative, !plan.speculative
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}
@@ -592,6 +592,9 @@ func boundedProtocolTokens(
 	return value, nil
 }
 
+// protocolGenerationOptions are a protocol request's generation options.
+//   - a raw-greedy request selects its tokens on the device: the protocols return no logits, and a decode step that
+//     copied its vocabulary's logits back and sampled them on the host spent about 0.4 ms of Flash-Next's 14.6
 func (h *Handler) protocolGenerationOptions(
 	maxTokens int,
 	sampler *sampling.Sampler,
@@ -601,6 +604,7 @@ func (h *Handler) protocolGenerationOptions(
 	return inference.GenerateOptions{
 		MaxNewTokens:    maxTokens,
 		Sampler:         sampler,
+		DeviceGreedy:    true,
 		ParseSpecial:    true,
 		ContextShift:    h.config.ContextShift,
 		PromptTokenIDs:  promptIDs,

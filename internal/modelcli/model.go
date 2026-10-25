@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -155,7 +156,56 @@ func openRunner(
 		_ = loaded.Close()
 		return nil, errors.Join(resolveErr, closeErr)
 	}
+	if profile := ExpertProfilePath(path); options.ExpertProfile == "" {
+		if _, err := os.Stat(profile); err == nil {
+			options.ExpertProfile = profile
+		}
+	}
 	return inference.OpenWithProgram(ctx, &loaded, options)
+}
+
+// ExpertProfilePath is where the expert profile of the model at path lies, beside it: a load of the model that finds
+// one there fills the card from it (cmd/expert-profile writes it).
+func ExpertProfilePath(path string) string { return path + ".experts.strp" }
+
+// ActiveDraft resolves the draft the active speculation recipe of the model at path binds, none when the store
+// declares none: the draft a server started without -draft speculates through, and a measured request decodes
+// through, so the swap proxy, the desktop launcher, the browser lane and the scorecard serve the model's draft as
+// they serve its projector. A model the store cannot resolve gets none here, and its open reports why.
+func ActiveDraft(ctx context.Context, repository, path string) (string, error) {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return "", err
+	}
+	defer store.Close()
+	model, _, err := ResolveModel(ctx, store, path)
+	if err != nil {
+		return "", nil
+	}
+	draft, _, err := discovery.ActiveDraft(ctx, store, model, discovery.LoadMemo(ctx, store))
+	return draft, err
+}
+
+// ModelReserve answers the memory reserve of a projector opened before its model: reserve asks the runner bind binds,
+// once it opens, for room as its own allocations do, however much context it holds (a screenshot's 663 MB beside a
+// 240,000-token cache was refused); nothing before then.
+func ModelReserve(ctx context.Context) (reserve func(bytes uint64) error, bind func(*inference.Runner)) {
+	var served atomic.Pointer[inference.Runner]
+	return func(bytes uint64) error { return served.Load().ReserveDeviceMemory(ctx, bytes) }, served.Store
+}
+
+// ResolveModel names the model at path as the store resolves it, through its identity memo and without loading its
+// weights, with its inference recipe's runtime description: the model a projector opened before it binds to, and the
+// placement the projector follows, so a hybrid model's expert cache takes the device memory the projector leaves, as
+// the reference engine keeps room for its image encoder.
+func ResolveModel(ctx context.Context, store *overgodb.Store, path string) (artifact.ID, modelrecipe.RuntimeDescription, error) {
+	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, store, path, discovery.LoadMemo(ctx, store).Claim)
+	if err != nil {
+		return artifact.ID{}, modelrecipe.RuntimeDescription{}, err
+	}
+	identity, err := loaded.Identity()
+	description, describeErr := loaded.Describe()
+	return identity.Model, description, errors.Join(err, describeErr, loaded.Close())
 }
 
 // OpenOptions returns inference model-loading options.

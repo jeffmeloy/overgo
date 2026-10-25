@@ -90,12 +90,19 @@ type Library struct {
 	cuStreamCreate       *syscall.Proc
 	cuStreamDestroy      *syscall.Proc
 	cuStreamSynchronize  *syscall.Proc
+	cuStreamQuery        *syscall.Proc
+	cuStreamWaitEvent    *syscall.Proc
+	cuEventCreate        *syscall.Proc
+	cuEventDestroy       *syscall.Proc
+	cuEventRecord        *syscall.Proc
 	cuMemAlloc           *syscall.Proc
 	cuMemFree            *syscall.Proc
 	cuMemGetInfo         *syscall.Proc
 	cuMemGetAddressRange *syscall.Proc
 	cuMemcpyHtoD         *syscall.Proc
+	cuMemcpyHtoDAsync    *syscall.Proc
 	cuMemcpyDtoH         *syscall.Proc
+	cuMemcpyDtoHAsync    *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
 	cuMemsetD32Async     *syscall.Proc
 	cuMemHostAlloc       *syscall.Proc
@@ -144,12 +151,19 @@ func Open() (*Library, error) {
 		{"cuStreamCreate", &lib.cuStreamCreate},
 		{"cuStreamDestroy_v2", &lib.cuStreamDestroy},
 		{"cuStreamSynchronize", &lib.cuStreamSynchronize},
+		{"cuStreamQuery", &lib.cuStreamQuery},
+		{"cuStreamWaitEvent", &lib.cuStreamWaitEvent},
+		{"cuEventCreate", &lib.cuEventCreate},
+		{"cuEventDestroy_v2", &lib.cuEventDestroy},
+		{"cuEventRecord", &lib.cuEventRecord},
 		{"cuMemAlloc_v2", &lib.cuMemAlloc},
 		{"cuMemFree_v2", &lib.cuMemFree},
 		{"cuMemGetInfo_v2", &lib.cuMemGetInfo},
 		{"cuMemGetAddressRange_v2", &lib.cuMemGetAddressRange},
 		{"cuMemcpyHtoD_v2", &lib.cuMemcpyHtoD},
+		{"cuMemcpyHtoDAsync_v2", &lib.cuMemcpyHtoDAsync},
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
+		{"cuMemcpyDtoHAsync_v2", &lib.cuMemcpyDtoHAsync},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
 		{"cuMemsetD32Async", &lib.cuMemsetD32Async},
 		{"cuMemHostAlloc", &lib.cuMemHostAlloc},
@@ -182,8 +196,7 @@ func Open() (*Library, error) {
 }
 
 func (l *Library) StreamBeginCapture(stream Stream) error {
-	result, _, _ := l.cuStreamBeginCapture.Call(uintptr(stream), 0)
-	return l.result("cuStreamBeginCapture", result)
+	return l.call(l.cuStreamBeginCapture, uintptr(stream), 0)
 }
 
 func (l *Library) StreamEndCapture(stream Stream) (Graph, error) {
@@ -249,16 +262,14 @@ func (l *Library) GraphDestroy(graph Graph) error {
 	if graph == 0 {
 		return nil
 	}
-	result, _, _ := l.cuGraphDestroy.Call(uintptr(graph))
-	return l.result("cuGraphDestroy", result)
+	return l.call(l.cuGraphDestroy, uintptr(graph))
 }
 
 func (l *Library) GraphExecDestroy(execution GraphExec) error {
 	if execution == 0 {
 		return nil
 	}
-	result, _, _ := l.cuGraphExecDestroy.Call(uintptr(execution))
-	return l.result("cuGraphExecDestroy", result)
+	return l.call(l.cuGraphExecDestroy, uintptr(execution))
 }
 
 // Close releases process handle for nvcuda.dll
@@ -281,8 +292,7 @@ func (l *Library) Close() error {
 
 // Init initializes CUDA driver
 func (l *Library) Init() error {
-	result, _, _ := l.cuInit.Call(0)
-	return l.result("cuInit", result)
+	return l.call(l.cuInit, 0)
 }
 
 // DriverVersion: returns highest CUDA version supported by driver
@@ -416,8 +426,7 @@ func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 		pinned.Pin(&created)
 		defer pinned.Unpin()
 		err = processcontrol.ResourceTransaction(uuid, func() error {
-			result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
-			return l.result("cuCtxCreate_v2", result)
+			return l.call(l.cuCtxCreate, uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
 		})
 		if err != nil {
 			return errors.Join(err, release())
@@ -467,8 +476,7 @@ func (l *Library) forgetAllocations() {
 
 // ContextSetCurrent makes context current on calling OS thread
 func (l *Library) ContextSetCurrent(context Context) error {
-	result, _, _ := l.cuCtxSetCurrent.Call(uintptr(context))
-	return l.result("cuCtxSetCurrent", result)
+	return l.call(l.cuCtxSetCurrent, uintptr(context))
 }
 
 // StreamCreate creates stream in current context
@@ -489,8 +497,23 @@ func (l *Library) StreamCreate(flags uint32) (Stream, error) {
 
 // StreamDestroy destroys stream
 func (l *Library) StreamDestroy(stream Stream) error {
-	result, _, _ := l.cuStreamDestroy.Call(uintptr(stream))
-	return l.result("cuStreamDestroy_v2", result)
+	return l.call(l.cuStreamDestroy, uintptr(stream))
+}
+
+// streamNotReady is cuStreamQuery's answer for a stream still working.
+const streamNotReady = 600
+
+// StreamQuery submits the work queued on stream to the device and reports
+// whether all of it has completed; a stream still working is no error. Under
+// Windows' display driver model queued work can wait unsubmitted in the
+// driver's buffer, so work another stream waits on starts late unless its
+// stream is queried.
+func (l *Library) StreamQuery(stream Stream) (bool, error) {
+	result, _, _ := l.cuStreamQuery.Call(uintptr(stream))
+	if result == streamNotReady {
+		return false, nil
+	}
+	return true, l.result("cuStreamQuery", result)
 }
 
 // StreamSynchronize waits for preceding work in stream
@@ -501,6 +524,41 @@ func (l *Library) StreamSynchronize(stream Stream) error {
 	}
 	l.streamSynchronizations.Add(1)
 	return nil
+}
+
+// StreamWait makes the work waiter takes from now on wait for the work
+// signaler holds now, without the host waiting: an event records signaler's
+// point, waiter waits for that record, and the event goes once both are queued.
+func (l *Library) StreamWait(waiter, signaler Stream) error {
+	var event uintptr
+	result, _, _ := l.cuEventCreate.Call(uintptr(unsafe.Pointer(&event)), eventDisableTiming)
+	if err := l.result("cuEventCreate", result); err != nil {
+		return err
+	}
+	return errors.Join(l.call(l.cuEventRecord, event, uintptr(signaler)), l.call(l.cuStreamWaitEvent, uintptr(waiter), event, 0), l.call(l.cuEventDestroy, event))
+}
+
+// RecordEvent marks the work stream holds now, for one WaitEvent to order another stream after it.
+func (l *Library) RecordEvent(stream Stream) (Event, error) {
+	var event uintptr
+	result, _, _ := l.cuEventCreate.Call(uintptr(unsafe.Pointer(&event)), eventDisableTiming)
+	if err := l.result("cuEventCreate", result); err != nil {
+		return 0, err
+	}
+	if err := l.call(l.cuEventRecord, event, uintptr(stream)); err != nil {
+		return 0, errors.Join(err, l.call(l.cuEventDestroy, event))
+	}
+	return Event(event), nil
+}
+
+// WaitEvent makes the work waiter takes from now on wait for the mark RecordEvent made, and releases the mark.
+func (l *Library) WaitEvent(waiter Stream, event Event) error {
+	return errors.Join(l.call(l.cuStreamWaitEvent, uintptr(waiter), uintptr(event), 0), l.ReleaseEvent(event))
+}
+
+// ReleaseEvent releases a mark RecordEvent made that no stream will wait for.
+func (l *Library) ReleaseEvent(event Event) error {
+	return l.call(l.cuEventDestroy, uintptr(event))
 }
 
 // MemAlloc: allocates bytes in current CUDA context
@@ -703,28 +761,35 @@ func (l *Library) ExecutionStats() ExecutionStats {
 
 // MemcpyHtoD: copies host byte slice into device memory
 func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
+	return l.memcpyHtoD(l.cuMemcpyHtoD, destination, source)
+}
+
+// MemcpyHtoDAsync queues the copy on stream and returns before it runs, so source stays unchanged
+// until the stream passes it; from MemHostAlloc's pinned memory it runs beside kernels on other streams.
+func (l *Library) MemcpyHtoDAsync(destination DevicePtr, source []byte, stream Stream) error {
+	return l.memcpyHtoD(l.cuMemcpyHtoDAsync, destination, source, uintptr(stream))
+}
+
+// memcpyHtoD copies source into destination through proc, given an asynchronous copy's stream.
+func (l *Library) memcpyHtoD(proc *syscall.Proc, destination DevicePtr, source []byte, stream ...uintptr) error {
 	if len(source) == 0 {
 		return nil
 	}
 	if !l.ownsDeviceRange(destination, uint64(len(source))) {
 		if trace, ok := l.freeTraces[destination]; ok {
-			return fmt.Errorf("cuMemcpyHtoD_v2: destination range is not allocated; pointer %#x last freed (%s)", destination, trace)
+			return fmt.Errorf("%s: destination range is not allocated; pointer %#x last freed (%s)", proc.Name, destination, trace)
 		}
 		l.allocationMu.Lock()
 		live := len(l.allocations)
 		l.allocationMu.Unlock()
-		return fmt.Errorf("cuMemcpyHtoD_v2: destination range is not allocated; pointer=%#x bytes=%d live_allocations=%d never_freed_here", destination, len(source), live)
+		return fmt.Errorf("%s: destination range is not allocated; pointer=%#x bytes=%d live_allocations=%d never_freed_here", proc.Name, destination, len(source), live)
 	}
 	var pinned runtime.Pinner
 	pinned.Pin(&source[0])
 	defer pinned.Unpin()
-	result, _, _ := l.cuMemcpyHtoD.Call(
-		uintptr(destination),
-		uintptr(unsafe.Pointer(&source[0])),
-		uintptr(len(source)),
-	)
+	result, _, _ := proc.Call(append([]uintptr{uintptr(destination), uintptr(unsafe.Pointer(&source[0])), uintptr(len(source))}, stream...)...)
 	runtime.KeepAlive(source)
-	if err := l.result("cuMemcpyHtoD_v2", result); err != nil {
+	if err := l.result(proc.Name, result); err != nil {
 		return err
 	}
 	l.hostToDeviceCopies.Add(1)
@@ -734,22 +799,29 @@ func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 
 // MemcpyDtoH: copies device memory into host byte slice
 func (l *Library) MemcpyDtoH(destination []byte, source DevicePtr) error {
+	return l.memcpyDtoH(l.cuMemcpyDtoH, destination, source)
+}
+
+// MemcpyDtoHAsync queues a copy of device memory into pinned host memory on
+// stream; the bytes are the device's once the stream reaches the copy.
+func (l *Library) MemcpyDtoHAsync(destination []byte, source DevicePtr, stream Stream) error {
+	return l.memcpyDtoH(l.cuMemcpyDtoHAsync, destination, source, uintptr(stream))
+}
+
+// memcpyDtoH copies source into destination through proc, given an asynchronous copy's stream.
+func (l *Library) memcpyDtoH(proc *syscall.Proc, destination []byte, source DevicePtr, stream ...uintptr) error {
 	if len(destination) == 0 {
 		return nil
 	}
 	if !l.ownsDeviceRange(source, uint64(len(destination))) {
-		return errors.New("cuMemcpyDtoH_v2: source range is not allocated")
+		return fmt.Errorf("%s: source range is not allocated", proc.Name)
 	}
 	var pinned runtime.Pinner
 	pinned.Pin(&destination[0])
 	defer pinned.Unpin()
-	result, _, _ := l.cuMemcpyDtoH.Call(
-		uintptr(unsafe.Pointer(&destination[0])),
-		uintptr(source),
-		uintptr(len(destination)),
-	)
+	result, _, _ := proc.Call(append([]uintptr{uintptr(unsafe.Pointer(&destination[0])), uintptr(source), uintptr(len(destination))}, stream...)...)
 	runtime.KeepAlive(destination)
-	if err := l.result("cuMemcpyDtoH_v2", result); err != nil {
+	if err := l.result(proc.Name, result); err != nil {
 		return err
 	}
 	l.deviceToHostCopies.Add(1)
@@ -816,6 +888,9 @@ const (
 	hostAllocDeviceMap = 0x02
 )
 
+// eventDisableTiming is cuEventCreate's CU_EVENT_DISABLE_TIMING: an event that only orders work records faster.
+const eventDisableTiming = 0x02
+
 // MemHostAlloc pins bytes of host memory and maps them into the device: the
 // host fills the returned slice and kernels read the returned address over
 // the bus. The pages stay pinned until MemFreeHost.
@@ -847,8 +922,7 @@ func (l *Library) MemFreeHost(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	result, _, _ := l.cuMemFreeHost.Call(uintptr(unsafe.Pointer(&data[0])))
-	return l.result("cuMemFreeHost", result)
+	return l.call(l.cuMemFreeHost, uintptr(unsafe.Pointer(&data[0])))
 }
 
 func (l *Library) ownsDeviceRange(pointer DevicePtr, bytes uint64) bool {
@@ -925,8 +999,7 @@ func (l *Library) ModuleUnload(module Module) error {
 	if module == 0 {
 		return nil
 	}
-	result, _, _ := l.cuModuleUnload.Call(uintptr(module))
-	return l.result("cuModuleUnload", result)
+	return l.call(l.cuModuleUnload, uintptr(module))
 }
 
 // ModuleFunction: resolves kernel function by name
@@ -1046,6 +1119,12 @@ func (l *Library) deviceAttribute(device Device, attribute int) (int, error) {
 		return 0, err
 	}
 	return int(value), nil
+}
+
+// call calls proc with arguments that hold no movable Go pointer, and reports its result.
+func (l *Library) call(proc *syscall.Proc, arguments ...uintptr) error {
+	result, _, _ := proc.Call(arguments...)
+	return l.result(proc.Name, result)
 }
 
 func (l *Library) result(operation string, value uintptr) error {

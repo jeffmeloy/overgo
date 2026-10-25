@@ -133,6 +133,7 @@ func run() error {
 		"read the /v1 bearer token from this file (or OVERGO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
+	draftPath := flag.String("draft", "", "draft layer GGUF the model speculates its greedy requests through (Flash-Next's MTP layer); a request with \"speculative\": false decodes a token a step")
 	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "", "remote-media JSON policy; empty (the default) disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "", "Responses file-ID JSON policy; empty (the default) disables file IDs")
@@ -190,6 +191,7 @@ func run() error {
 		loraScale = tensor.UnitScale
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
+	openOptions.Draft = *draftPath
 	if _, set := explicit["prompt-cache-entries"]; set {
 		openOptions.PromptCacheEntries = *promptCacheEntries
 	}
@@ -234,18 +236,66 @@ func run() error {
 			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
 		})
 	}
+	if openOptions.Draft == "" {
+		if openOptions.Draft, err = modelcli.ActiveDraft(shutdownContext, repositoryPath, modelReference); err != nil {
+			return err
+		}
+	}
+	// The projector comes from the command line or from the store: with no
+	// -mmproj, the model's active projection recipe names the projector
+	// bytes, so every launcher serves the modalities the store declares. It opens
+	// before the model, whose hybrid expert cache takes the device memory it leaves.
+	var vision, audio projector.Session
+	reserve, bind := modelcli.ModelReserve(shutdownContext)
+	{
+		store, openErr := overgodb.OpenReadOnly(repositoryPath)
+		if openErr != nil {
+			return fmt.Errorf("open model recipe repository: %w", openErr)
+		}
+		model, resolvedRecipe, identityErr := modelcli.ResolveModel(shutdownContext, store, modelReference)
+		if identityErr != nil {
+			return errors.Join(identityErr, store.Close())
+		}
+		clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(resolvedRecipe.Stages, func(stage recipe.Stage) bool {
+			return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
+		}))
+		resolved := *projectorPath
+		if resolved == "" {
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, model, discovery.LoadMemo(shutdownContext, store))
+			if resolveErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
+			}
+			if ok {
+				resolved = declared
+				log.Printf("serving the declared projector %s", resolved)
+			}
+		}
+		if resolved != "" {
+			vision, err = projector.OpenActiveSession(shutdownContext, store, model, resolved, projector.OpenOptions{
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal, MemoryReserve: reserve,
+			})
+		}
+		err = errors.Join(err, store.Close())
+		if err != nil {
+			return fmt.Errorf("open multimodal projector: %w", err)
+		}
+		if vision != nil {
+			defer vision.Close()
+			if vision.Capabilities().Audio {
+				audio = vision
+			}
+		}
+	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
 	}
 	defer runner.Close()
+	bind(runner)
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
 		return err
 	}
-	clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(description.Stages, func(stage recipe.Stage) bool {
-		return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
-	}))
 	policy := runner.RuntimePolicy()
 	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
 	if err != nil {
@@ -297,11 +347,15 @@ func run() error {
 		if workspaceStore == nil {
 			return errors.New("transcription workspace requires a repository")
 		}
+		// A policy found beside the store serves transcription where it can (a build of a committed tree); one named
+		// on the command line must.
+		var workspace *llamaserver.TranscriptionWorkspace
 		commit, err := runrecord.ExecutableCodeCommit(".")
 		if err != nil {
-			return fmt.Errorf("bind transcription source: %w", err)
+			err = fmt.Errorf("bind transcription source: %w", err)
+		} else {
+			workspace, err = llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
 		}
-		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
 		switch {
 		case err != nil && discovered:
 			log.Printf("transcription workspace unavailable under the declared policy: %v", err)
@@ -393,46 +447,6 @@ func run() error {
 		if err != nil {
 			log.Printf("evaluation workspace unavailable: %v", err)
 			evaluationWorkspace = nil
-		}
-	}
-	// The projector comes from the command line or from the store: with no
-	// -mmproj, the model's active projection recipe names the projector
-	// bytes, so every launcher serves the modalities the store declares.
-	var vision, audio projector.Session
-	{
-		repository, repositoryErr := modelFlags.RepositoryPath()
-		if repositoryErr != nil {
-			return repositoryErr
-		}
-		store, openErr := overgodb.OpenReadOnly(repository)
-		if openErr != nil {
-			return fmt.Errorf("open model recipe repository: %w", openErr)
-		}
-		resolved := *projectorPath
-		if resolved == "" {
-			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, runner.ModelID(), discovery.LoadMemo(shutdownContext, store))
-			if resolveErr != nil {
-				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
-			}
-			if ok {
-				resolved = declared
-				log.Printf("serving the declared projector %s", resolved)
-			}
-		}
-		if resolved != "" {
-			vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), resolved, projector.OpenOptions{
-				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
-			})
-		}
-		err = errors.Join(err, store.Close())
-		if err != nil {
-			return fmt.Errorf("open multimodal projector: %w", err)
-		}
-		if vision != nil {
-			defer vision.Close()
-			if vision.Capabilities().Audio {
-				audio = vision
-			}
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy

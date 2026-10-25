@@ -114,6 +114,7 @@ func newMOSSGenerationFixture(t *testing.T, onRequest func(context.Context, arti
 
 // TestMOSSImageGenerationContract checks registration, activation and retained HTTP outcomes.
 func TestMOSSImageGenerationContract(t *testing.T) {
+	t.Parallel()
 	fixture := newMOSSGenerationFixture(t, nil)
 	handler, workspace, store, root := fixture.handler, fixture.workspace, fixture.store, fixture.root
 	image := tinyPNG(t)

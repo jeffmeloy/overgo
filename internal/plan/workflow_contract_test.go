@@ -17,7 +17,7 @@ const orchestrationHead = "0123456789abcdef0123456789abcdef01234567"
 func stopFixture(t *testing.T) (string, ControlEvent) {
 	t.Helper()
 	root := t.TempDir()
-	return root, ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "user-stop", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
+	return root, ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "requested", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
 }
 
 func recordStop(t *testing.T, event ControlEvent) ControlEvent {
@@ -41,7 +41,7 @@ func TestStopStateContract(t *testing.T) {
 		}
 		grant := event
 		grant.Kind = "maintenance"
-		grant.ReasonCode = "operator-maintenance"
+		grant.ReasonCode = "maintenance"
 		grant.Detail = "publish the stop repair"
 		grant.Task = "row/do"
 		grant.Previous = stop.ID
@@ -71,7 +71,7 @@ func TestStopStateContract(t *testing.T) {
 		}
 		resumed := event
 		resumed.Kind = "resume"
-		resumed.ReasonCode = "operator-resume"
+		resumed.ReasonCode = "resume"
 		resumed.Detail = "operator continued"
 		resumed.Previous = stop.ID
 		resumed.CodeCommit = changed
@@ -169,7 +169,7 @@ func TestStopStateLivesOutsideTheStore(t *testing.T) {
 	before, sequence := store.Head()
 	stop := recordStop(t, event)
 	resume := event
-	resume.Kind, resume.ReasonCode, resume.Detail, resume.Previous = "resume", "operator-resume", "operator continued", stop.ID
+	resume.Kind, resume.ReasonCode, resume.Detail, resume.Previous = "resume", "resume", "operator continued", stop.ID
 	recordStop(t, resume)
 	if after, afterSequence := store.Head(); after != before || afterSequence != sequence {
 		t.Fatalf("recording a stop moved the store head from %v/%d to %v/%d", before, sequence, after, afterSequence)

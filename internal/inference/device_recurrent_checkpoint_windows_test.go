@@ -31,6 +31,11 @@ const (
 // recurrent layers followed by one gated-attention layer — the 27B's block
 // pattern at hermetic scale.
 func writeHermeticQwen35GGUF(t *testing.T) string {
+	return writeHermeticQwen35GGUFLast(t, "d")
+}
+
+// writeHermeticQwen35GGUFLast is writeHermeticQwen35GGUF with last as its last token's text.
+func writeHermeticQwen35GGUFLast(t *testing.T, last string) string {
 	t.Helper()
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen35"),
@@ -55,7 +60,7 @@ func writeHermeticQwen35GGUF(t *testing.T) string {
 		testutil.GGUFScalar("qwen35.ssm.group_count", gguf.ValueTypeUint32, uint32(hybridGroups)),
 		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
 		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString,
-			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", "d"}),
+			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", last}),
 		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, hermeticVocab)),
 		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32,
 			[]int32{2, 3, 3, 1, 1, 1, 1, 1}),
@@ -148,7 +153,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 
 	// Boundary: committed prefix with live recurrent state.
 	boundary, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4}, nil, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +163,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// Draft span from the boundary, twice: identical selections prove the
 	// append is a pure function of the boundary state.
 	first, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +172,7 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// Reject the draft: roll back by releasing the speculative cache.
 	release(first)
 	second, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{5, 6}, boundary, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -189,14 +194,14 @@ func TestRecurrentCheckpoint(t *testing.T) {
 	// decode of the full history — the boundary state survived both
 	// speculative appends unchanged.
 	alternative, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{7}, boundary, nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer release(alternative)
 	fresh, err := runner.forwardDeviceCachedModeLocked(
-		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil,
+		ctx, deviceOutputGreedySpan, []tokenizer.TokenID{1, 4, 7}, nil, nil,
 	)
 	if err != nil {
 		t.Fatal(err)

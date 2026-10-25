@@ -38,6 +38,20 @@ func BuildWithRewrites(
 	dependencies map[*tensor.Tensor][]*tensor.Tensor,
 	excluded map[*tensor.Tensor]struct{},
 ) (Plan, error) {
+	return BuildReleasing(outputs, alignment, dependencies, excluded, nil)
+}
+
+// BuildReleasing plans as BuildWithRewrites does, except that an output in
+// released, a view the executor copies into storage of its own where it
+// stands in the order, holds its storage root only to its last use rather
+// than to the end of the run.
+func BuildReleasing(
+	outputs []*tensor.Tensor,
+	alignment uint64,
+	dependencies map[*tensor.Tensor][]*tensor.Tensor,
+	excluded map[*tensor.Tensor]struct{},
+	released map[*tensor.Tensor]struct{},
+) (Plan, error) {
 	if alignment == 0 || alignment&(alignment-1) != 0 {
 		return Plan{}, fmt.Errorf("planner alignment %d is not a power of two", alignment)
 	}
@@ -89,6 +103,9 @@ func BuildWithRewrites(
 		}
 	}
 	for _, output := range outputs {
+		if _, copied := released[output]; copied {
+			continue
+		}
 		lastUse[roots[output]] = len(nodes)
 	}
 

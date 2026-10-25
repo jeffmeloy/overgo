@@ -357,10 +357,10 @@ func causalTail(session *cudaBLAS, final, ids, scales driver.DevicePtr, lexical 
 	if err != nil {
 		return 0, 0, err
 	}
-	widthU, rowsU, epsF := uint32(hidden), uint32(seq), float32(eps)
+	widthU, rowsU, weightRows, epsF := uint32(hidden), uint32(seq), uint32(1), float32(eps)
 	if err := session.launch1D(normKernel, rowsU*deviceBlockThreads,
 		unsafe.Pointer(&final), unsafe.Pointer(&finalNorm), unsafe.Pointer(&normed),
-		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&epsF)); err != nil {
+		unsafe.Pointer(&widthU), unsafe.Pointer(&rowsU), unsafe.Pointer(&weightRows), unsafe.Pointer(&epsF)); err != nil {
 		return 0, 0, err
 	}
 	predictions := seq - 1

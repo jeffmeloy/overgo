@@ -159,6 +159,8 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpAtan, "atan", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
 	{OpPixelShuffle2D, "pixel_shuffle_2d", OperationLayout, allExecutionBackends, CUDAProgramMathVision},
 	{OpSignedSqrt, "signed_sqrt", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpGatedDeltaConv, "gated_delta_conv", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpGatedDeltaGates, "gated_delta_gates", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
 }
 
 // DescribeOperation: typed operation lookup.

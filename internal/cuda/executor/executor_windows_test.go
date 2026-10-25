@@ -4,9 +4,13 @@ package executor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"math"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
@@ -181,6 +185,279 @@ func TestExecutorSparsePrimitivesMatchReference(t *testing.T) {
 	}
 	outputs = append(outputs, builder.BlockTopK(ordering, 1, 1, 5, 8))
 	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyProjection)...)
+}
+
+// TestExecutorGroupedSparseAttentionMatchesReference runs Flash-Next's
+// selected attention, 24 query heads over 2 key/value heads of 256 channels,
+// as a prompt (whole head groups a block, several tiles of slots) and as a
+// short step (a head a block), with skipped slots and slots after the query;
+// and a value row wider than a block's accumulators, which the per-channel
+// kernel serves. The prompt's 260 rows take the tensor-core kernel, its FP16
+// operands held to the reference within selectedHalfTolerance and its output to
+// the bits pinned here.
+func TestExecutorGroupedSparseAttentionMatchesReference(t *testing.T) {
+	type fixture struct {
+		keyWidth, valueWidth, queryHeads, keyValueHeads uint64
+		queryTokens, keyValueTokens, selected           uint64
+		queryStart                                      uint32
+		tolerance                                       float64
+		// bits: SHA-256 of the output, where it is pinned.
+		bits string
+	}
+	const (
+		flashNextWidth    = 256
+		flashNextHeads    = 24
+		flashNextKVHeads  = 2
+		flashNextCache    = 300
+		flashNextSelected = 64
+		promptQueries     = 130
+		promptStart       = 170
+		stepQueries       = 2
+		stepStart         = 298
+		wideValueWidth    = 8192
+		wideKeyWidth      = 4
+		wideCache         = 6
+		wideQueries       = 3
+		wideSelected      = 4
+		wideStart         = 3
+		// skippedSlot marks a slot the attention skips, every skipEvery-th.
+		skippedSlot      = -1
+		skipEvery        = 13
+		indexTokenStride = 31
+		indexSlotStride  = 7
+		inputScale       = 0.01
+		// selectedHalfTolerance bounds the tensor-core prompt kernel, whose keys, queries, values and probabilities round to
+		// FP16: its values reach 9, and the rounding moves an output by up to 7.9e-4.
+		selectedHalfTolerance = 2e-3
+	)
+	fixtures := []fixture{
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, promptQueries, flashNextCache, flashNextSelected, promptStart, selectedHalfTolerance,
+			"5fbf31f9a45ad17178140960761d49101b08844d03c7da5602ce308853cbaa0d"},
+		{flashNextWidth, flashNextWidth, flashNextHeads, flashNextKVHeads, stepQueries, flashNextCache, flashNextSelected, stepStart, accuracySparse, ""},
+		{wideKeyWidth, wideValueWidth, 1, 1, wideQueries, wideCache, wideSelected, wideStart, accuracySparse, ""},
+	}
+	for _, f := range fixtures {
+		builder := tensor.NewBuilder()
+		query := builder.Input("query", dtype.F32, tensor.MustShape(f.keyWidth, f.queryHeads, f.queryTokens))
+		key := builder.Input("key", dtype.F32, tensor.MustShape(f.keyWidth, f.keyValueHeads, f.keyValueTokens))
+		value := builder.Input("value", dtype.F32, tensor.MustShape(f.valueWidth, f.keyValueHeads, f.keyValueTokens))
+		indices := builder.Input("indices", dtype.F32, tensor.MustShape(f.selected, f.queryTokens))
+		attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1/float32(math.Sqrt(float64(f.keyWidth))), true, f.queryStart)
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		slots := make([]float32, f.selected*f.queryTokens)
+		for token := range f.queryTokens {
+			for slot := range f.selected {
+				index := float32((token*indexTokenStride + slot*indexSlotStride) % f.keyValueTokens)
+				if slot%skipEvery == skipEvery-1 {
+					index = skippedSlot
+				}
+				slots[token*f.selected+slot] = index
+			}
+		}
+		feeds := map[*tensor.Tensor]reference.Value{
+			query:   patternedValue(query.Shape, 3, inputScale, 0),
+			key:     patternedValue(key.Shape, 5, inputScale, 0),
+			value:   patternedValue(value.Shape, 7, 1, 0),
+			indices: {Shape: indices.Shape, Data: slots},
+		}
+		got := checkCUDAGraph(t, feeds, uniformGraphChecks([]*tensor.Tensor{attention}, f.tolerance)...)
+		if f.bits == "" {
+			continue
+		}
+		digest := sha256.Sum256(driver.Bytes(got[attention].Data))
+		if bits := hex.EncodeToString(digest[:]); bits != f.bits {
+			t.Errorf("%d queries: output %s, pinned %s", f.queryTokens, bits, f.bits)
+		}
+	}
+}
+
+// TestExecutorSplitSparseAttentionMatchesReference runs Flash-Next's selected
+// attention, 24 query heads over 2 key/value heads of 256 channels, over 2,048
+// selected slots of a 3,000-token cache as a decode step and as a speculative
+// span of three tokens, and as a step of 20 slots, one span. Skipped slots
+// and slots after the query are spread through each. Each runs the split kernel, its
+// spans folded by the decode combine where they are more than one, against
+// the reference.
+func TestExecutorSplitSparseAttentionMatchesReference(t *testing.T) {
+	const (
+		width, heads, keyValueHeads, cache = 256, 24, 2, 3000
+		// skippedSlot marks a slot the attention skips, every skipEvery-th.
+		skippedSlot      = -1
+		skipEvery        = 13
+		indexTokenStride = 31
+		indexSlotStride  = 7
+		inputScale       = 0.01
+		// A launch record is four header words, then eight bytes a pointer and four a scalar; the split
+		// kernel takes seven pointers and eleven scalars.
+		splitRecord = 4*8 + 7*8 + 11*4
+	)
+	word := binary.LittleEndian.Uint64
+	for _, f := range []struct {
+		name                  string
+		queryTokens, selected uint64
+		queryStart            uint32
+	}{
+		{"decode", 1, 2048, cache - 1},
+		{"span", 3, 2048, cache - 3},
+		{"one-span", 1, 20, cache - 1},
+	} {
+		t.Run(f.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			query := builder.Input("query", dtype.F32, tensor.MustShape(width, heads, f.queryTokens))
+			key := builder.Input("key", dtype.F32, tensor.MustShape(width, keyValueHeads, cache))
+			value := builder.Input("value", dtype.F32, tensor.MustShape(width, keyValueHeads, cache))
+			indices := builder.Input("indices", dtype.F32, tensor.MustShape(f.selected, f.queryTokens))
+			attention := builder.SparseAttentionWithOffset(query, key, value, indices, 1/float32(math.Sqrt(width)), true, f.queryStart)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			slots := make([]float32, f.selected*f.queryTokens)
+			for token := range f.queryTokens {
+				for slot := range f.selected {
+					index := float32((token*indexTokenStride + slot*indexSlotStride + uint64(f.queryStart)/2) % cache)
+					if slot%skipEvery == skipEvery-1 {
+						index = skippedSlot
+					}
+					slots[token*f.selected+slot] = index
+				}
+			}
+			feeds := map[*tensor.Tensor]reference.Value{
+				query:   patternedValue(query.Shape, 3, inputScale, 0),
+				key:     patternedValue(key.Shape, 5, inputScale, 0),
+				value:   patternedValue(value.Shape, 7, 1, 0),
+				indices: {Shape: indices.Shape, Data: slots},
+			}
+			program, err := tensor.CompileProgram(attention)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := reference.Execute(program.Outputs(), feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cuda := newFixtureExecutor(t)
+			trace := &device.LaunchTrace{}
+			if err := cuda.worker.Do(t.Context(), func(state *device.State) error { state.Trace = trace; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compare(t, got[attention].Data, want[attention].Data, accuracySparse)
+			geometry, _ := splitSparseAttention(width, width, heads, keyValueHeads, uint32(f.queryTokens), uint32(f.selected))
+			data := trace.Data()
+			if len(data) < splitRecord+8 && geometry.splits > 1 || len(data) < 8 || word(data) != uint64(kernelSparseAttentionSplitF32) {
+				t.Fatal("the split kernel did not run first")
+			}
+			if folded := geometry.splits > 1; folded != (len(data) > splitRecord && word(data[splitRecord:]) == uint64(kernelAttentionDecodeCombineF32)) {
+				t.Fatalf("%d spans, and the decode combine ran %t", geometry.splits, !folded)
+			}
+		})
+	}
+}
+
+// TestExecutorTopKRowsMatchReference selects Flash-Next's indexer blocks, a
+// budget of 2,048 tokens in blocks of 4, for prompt rows that see more blocks
+// than the budget and rows that see fewer, and a plain top 2,048 of 5,000,
+// over scores on a coarse grid (ties) with NaN, signed zeros and infinities.
+func TestExecutorTopKRowsMatchReference(t *testing.T) {
+	const (
+		flashNextBudget    = 2048
+		flashNextBlockSize = 4
+		blocks             = 1300
+		cached             = blocks * flashNextBlockSize
+		tailRows           = 64
+		tailStart          = cached - tailRows
+		headRows           = 700
+		plainWidth         = 5000
+		plainRows          = 4
+		gridSteps          = 64
+		gridCenter         = 2048
+		specialEvery       = 9
+	)
+	specials := []float32{float32(math.NaN()), float32(math.Copysign(0, -1)), 0, float32(math.Inf(1)), float32(math.Inf(-1))}
+	scores := func(shape tensor.Shape) reference.Value {
+		elements, _ := shape.Elements()
+		data := make([]float32, elements)
+		state := uint32(11)
+		for index := range data {
+			state = state*1664525 + 1013904223
+			data[index] = float32(int32(state>>20)-gridCenter) / gridSteps
+			if index%specialEvery == 0 {
+				data[index] = specials[int(state>>8)%len(specials)]
+			}
+		}
+		return reference.Value{Shape: shape, Data: data}
+	}
+	builder := tensor.NewBuilder()
+	tail := builder.Input("tail", dtype.F32, tensor.MustShape(blocks, tailRows))
+	head := builder.Input("head", dtype.F32, tensor.MustShape(blocks, headRows))
+	plain := builder.Input("plain", dtype.F32, tensor.MustShape(plainWidth, plainRows))
+	outputs := []*tensor.Tensor{
+		builder.BlockTopK(tail, flashNextBudget, flashNextBlockSize, tailStart, cached),
+		builder.BlockTopK(head, flashNextBudget, flashNextBlockSize, 0, cached),
+		builder.TopK(plain, flashNextBudget),
+	}
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{tail: scores(tail.Shape), head: scores(head.Shape), plain: scores(plain.Shape)}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyExact)...)
+}
+
+// TestExecutorArgmaxWideRowsMatchReference picks each row's largest value, the lower index of a tie, over a
+// vocabulary-wide row read four values a load and an odd width whose later rows are not 16-byte aligned, as the host
+// reference does; a row with a NaN picks -1, the card's mark of invalid logits.
+func TestExecutorArgmaxWideRowsMatchReference(t *testing.T) {
+	const (
+		vocabulary, odd, rows = 248320, 5001, 3
+		gridSteps, gridCenter = 64, 2048
+		peak                  = 1000
+		nanRow                = 2
+		invalid               = -1
+	)
+	withNaN := false
+	scores := func(shape tensor.Shape) reference.Value {
+		elements, _ := shape.Elements()
+		width := int(shape.Dims[0])
+		data := make([]float32, elements)
+		state := uint32(23)
+		for index := range data {
+			state = state*1664525 + 1013904223
+			data[index] = float32(int32(state>>20)-gridCenter) / gridSteps
+		}
+		for row := range rows {
+			// A tie at the peak: the lower index wins.
+			data[row*width+width/3], data[row*width+width-1] = peak, peak
+		}
+		if withNaN {
+			data[nanRow*width+width/2] = float32(math.NaN())
+		}
+		return reference.Value{Shape: shape, Data: data}
+	}
+	builder := tensor.NewBuilder()
+	wide := builder.Input("wide", dtype.F32, tensor.MustShape(vocabulary, rows))
+	unaligned := builder.Input("unaligned", dtype.F32, tensor.MustShape(odd, rows))
+	outputs := []*tensor.Tensor{builder.TopK(wide, 1), builder.TopK(unaligned, 1)}
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	feeds := map[*tensor.Tensor]reference.Value{wide: scores(wide.Shape), unaligned: scores(unaligned.Shape)}
+	checkCUDAGraph(t, feeds, uniformGraphChecks(outputs, accuracyExact)...)
+	withNaN = true
+	feeds = map[*tensor.Tensor]reference.Value{wide: scores(wide.Shape), unaligned: scores(unaligned.Shape)}
+	values, err := newFixtureExecutor(t).Execute(t.Context(), outputs, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range outputs {
+		if picked := values[output].Data; picked[nanRow] != invalid || picked[0] == invalid {
+			t.Fatalf("picks with a NaN in row %d = %v", nanRow, picked)
+		}
+	}
 }
 
 func TestExecutorTopKPairsMultiChunkMatchesReference(t *testing.T) {

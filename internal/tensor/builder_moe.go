@@ -230,5 +230,6 @@ func (b *Builder) buildMoE(
 			HasRouterBias: biases != nil, HasExpertBiases: biases != nil,
 			HasSelectedExperts: selectedExperts != nil,
 			SwiGLUClamp:        swigluClamp,
+			Prompt:             b.promptExperts,
 		})
 }

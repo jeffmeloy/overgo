@@ -351,6 +351,17 @@ func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, 
 	})
 }
 
+// GroupNormNative selects the source Welford reduction for channel groups.
+func (b *Builder) GroupNormNative(input, weight, bias *Tensor, groups uint32, epsilon float32) *Tensor {
+	out := b.GroupNorm(input, weight, bias, groups, epsilon)
+	if out != nil {
+		attributes := out.Attrs.(GroupNormAttributes)
+		attributes.Native = true
+		out.Attrs = attributes
+	}
+	return out
+}
+
 // GroupNorm: channel groups across one sequence.
 func (b *Builder) GroupNorm(input, weight, bias *Tensor, groups uint32, epsilon float32) *Tensor {
 	if b.err != nil {

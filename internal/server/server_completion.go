@@ -152,8 +152,10 @@ type samplingParameters struct {
 	// omitted keeps the loaded scales.
 	LoRA json.RawMessage `json:"lora"`
 	// Speculative drafts from the served model's draft head and verifies the
-	// drafts in one trunk pass; it asks greedy sampling.
-	Speculative bool `json:"speculative"`
+	// drafts in one trunk pass; it asks greedy sampling. Absent, a greedy
+	// request speculates when the model was served with a draft; false
+	// decodes a token a step.
+	Speculative *bool `json:"speculative"`
 }
 
 type completionRequest struct {

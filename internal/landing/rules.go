@@ -59,7 +59,7 @@ func (l *landing) rules(ctx context.Context) error {
 	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
 	left := l.charge(growth)
 	if growth > left {
-		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count where this change's terms are read, in a change to the plan alone before it, or in the row of a merge", growth, l.Ref, left))
+		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count with a reason in this change's own plan edit, or in the row of a merge", growth, l.Ref, left))
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))

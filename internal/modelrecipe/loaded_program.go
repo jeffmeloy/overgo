@@ -113,12 +113,15 @@ func ResolveClaimedGGUF(
 }
 
 // ResolveCandidateGGUF verifies one explicit candidate before promotion.
+// Shards the claimer knows are claimed as ResolveClaimedGGUF claims them: not
+// hashed here, and proved by whoever takes the program.
 func ResolveCandidateGGUF(
 	path string,
 	definition recipe.Definition,
 	resolved ResolvedModelDefinition,
+	claimer modelartifact.Claimer,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path, nil)
+	loaded, err := loadGGUFFacts(path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -157,6 +160,14 @@ func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
 		return ProgramIdentity{}, errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	return l.state.Program.Identity, nil
+}
+
+// Describe returns the resolved program's runtime description before transfer: its stages and their placements.
+func (l *LoadedProgram) Describe() (RuntimeDescription, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return RuntimeDescription{}, errors.New("model recipe: loaded program is unavailable or consumed")
+	}
+	return Describe(l.state.Program)
 }
 
 // RuntimePolicy returns the resolved request policy before transfer.

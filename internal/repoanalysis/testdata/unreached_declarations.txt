@@ -169,7 +169,6 @@ prototype internal/model/layer_plan.go ModelPlan.AudioWaveform
 prototype internal/model/layer_plan.go ModelPlan.CacheProjection
 prototype internal/model/layer_plan.go ModelPlan.SameExecutionProfile
 prototype internal/routedlm/positions.go BlockCausalEnds
-prototype internal/sampling/sampler.go Sampler.AcceptToken
 prototype internal/sampling/speculative.go Sampler.SpeculativeSample
 prototype internal/sampling/speculative.go Sampler.commitSpeculativeToken
 prototype internal/sampling/speculative.go Sampler.speculativeCandidates

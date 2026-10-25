@@ -29,6 +29,13 @@
       }
       const scorecardCell = (cell) => cell.reason ? gap(cell.reason)
         : cell.metric === qualityColumn ? qualityCell(cell) : el("span", { class: "nowrap", title: cell.label || "", text: measure(cell.metric, cell.unit, cell.value) });
+      // A chat model's first output at a longer prompt sits under its own, named by the prompt's tokens.
+      const promptSize = (tokens) => tokens % 1024 ? tokens + " tokens" : tokens / 1024 + "K tokens";
+      const lengthLine = (cell) => el("div", { class: "note nowrap", title: cell.label || "", text: measure(cell.metric, cell.unit, cell.value) + " at " + promptSize(cell.prompt) });
+      function firstOutputCell(cell, lengths) {
+        const shown = scorecardCell(cell);
+        return lengths.length ? el("span", {}, shown, ...lengths.map(lengthLine)) : shown;
+      }
 
       // renderHistory: every change from the previous published scorecard to the newest, grouped by how it moved
       // and whether a user would call it better, targeted or not.
@@ -43,7 +50,8 @@
           return;
         }
         const moves = history.moves || [];
-        const where = (move) => move.name + " " + move.task + (move.metric ? ", " + (columnLabels.get(move.metric) || move.metric) : "");
+        const where = (move) => move.name + " " + move.task + (move.metric ? ", " + (columnLabels.get(move.metric) || move.metric) : "") +
+          (move.prompt ? " at " + promptSize(move.prompt) : "");
         const value = (move, number) => measure(move.metric, move.unit, number);
         const change = (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after);
         // A cell measured another way than the previous scorecard's has no comparison; the technical reason waits in the tooltip.
@@ -72,7 +80,8 @@
         note.textContent = rows.length ? "What a user feels of each activated model. A dash means no record measures it yet; hover it for why." : "No activated model to score yet.";
         body.replaceChildren(...rows.map((row) => {
           const cells = new Map((row.cells || []).map((cell) => [cell.metric, cell]));
-          const shown = columns.map(([metric]) => cells.has(metric) ? scorecardCell(cells.get(metric)) : gap("the scorecard reads no " + metric));
+          const shown = columns.map(([metric]) => !cells.has(metric) ? gap("the scorecard reads no " + metric)
+            : metric === "first-output" ? firstOutputCell(cells.get(metric), row.lengths || []) : scorecardCell(cells.get(metric)));
           const line = overgo.tableRow([el("span", { text: row.name }), el("span", { text: row.task }), ...shown]);
           ["Model", "Task", ...columns.map(([, label]) => label)].forEach((label, index) => { line.children[index].dataset.label = label; });
           // A phone stacks a row under its headers and shows only what was measured.

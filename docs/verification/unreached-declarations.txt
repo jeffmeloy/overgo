@@ -181,17 +181,16 @@ reason: No live function of internal/devicemath does this math, and the claim qw
 group inference-draft-coordinator
 class: prototype
 surface: inside
-declarations: 20
-lines: 549
+declarations: 19
+lines: 541
 members: internal/inference/greedy_draft.go
 members: internal/inference/sampled_draft.go
 members: internal/inference/mtp_session_common.go advanceTargetVerification
 members: internal/inference/single_head_mtp_speculative.go Runner.projectHiddenLogits
 members: internal/inference/runner.go Runner.ForwardCached Runner.ForwardCachedWithProjectedInputs
 members: internal/sampling/speculative.go
-members: internal/sampling/sampler.go Sampler.AcceptToken
 reason: It is the draft and verify loops, the cached forward they enter and the ratio-acceptance sampler that the five host draft families share, and it has no caller apart from them.
-reason: The live device loop takes the greedy token itself (internal/inference/nextn_device_speculation.go:51) and uses no sampler, so nothing replaced the sampled acceptance.
+reason: The live device loop takes the greedy token itself (internal/inference/nextn_device_speculation.go) and gives the sampler only a lazy grammar's tokens, so nothing replaced the sampled acceptance.
 
 group inference-draft-session-state
 class: prototype

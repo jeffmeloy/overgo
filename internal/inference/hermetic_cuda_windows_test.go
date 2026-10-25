@@ -213,7 +213,7 @@ func deviceCacheRoundTrip(t *testing.T, runner *Runner, prompt, appended []token
 	ctx := t.Context()
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
-	_, original, err := runner.forwardDeviceCachedLocked(ctx, prompt, nil)
+	original, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, prompt, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func deviceCacheRoundTrip(t *testing.T, runner *Runner, prompt, appended []token
 	for step, token := range appended {
 		var next [2]*deviceKVCache
 		for index, past := range []*deviceKVCache{original, uploaded} {
-			if _, next[index], err = runner.forwardDeviceCachedLocked(ctx, []tokenizer.TokenID{token}, past); err != nil {
+			if next[index], err = runner.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, []tokenizer.TokenID{token}, past, nil); err != nil {
 				t.Fatalf("append %d: %v", step, err)
 			}
 			_ = past.Release(ctx)

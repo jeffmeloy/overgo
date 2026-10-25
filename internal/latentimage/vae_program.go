@@ -269,7 +269,11 @@ func (g *vaeGraphBuilder) channelNorm(x *tensor.Tensor, gamma []float32, c int) 
 
 func (g *vaeGraphBuilder) normalize(op media.CodecOperation[[]float32], x *tensor.Tensor, gamma, bias []float32, channels int) *tensor.Tensor {
 	if op.Kernels.Has(media.CodecKernelGroupNorm) {
-		return g.b.GroupNorm(x, g.weight(gamma, uint64(channels)), g.weight(bias, uint64(channels)), op.NormGroups, op.NormEpsilon)
+		normalize := g.b.GroupNorm
+		if op.Spatial {
+			normalize = g.b.GroupNormNative
+		}
+		return normalize(x, g.weight(gamma, uint64(channels)), g.weight(bias, uint64(channels)), op.NormGroups, op.NormEpsilon)
 	}
 	return g.channelNorm(x, gamma, channels)
 }

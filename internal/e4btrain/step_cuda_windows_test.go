@@ -51,6 +51,7 @@ func TestE4BFullParameterStepMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer trainer.Close()
 	deviceLoss, err := model.differentiate(trainer.attention)
 	if err != nil {
 		t.Fatal(err)

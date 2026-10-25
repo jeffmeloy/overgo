@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
+	"overgo/internal/discovery"
 	"overgo/internal/pathidentity"
 	"overgo/internal/processmeasure"
 	"overgo/internal/pytorchzip"
@@ -52,10 +53,12 @@ type promptEncoderKey struct {
 }
 
 // content names the admitted checkpoint and the current tokenizer bytes.
-// The canonical checkpoint path keeps subsequent reads on the admitted file.
-func (spec TextConditioningSpec) content(admitAbsent bool) (identity, checkpoint string, err error) {
+// The canonical checkpoint path keeps subsequent reads on the admitted file. names keeps
+// the checkpoint's digest under its size and modification time (discovery.FileIdentity),
+// so a process admits it without reading eleven gigabytes; nil reads it.
+func (spec TextConditioningSpec) content(admitAbsent bool, names *discovery.Memo) (identity, checkpoint string, err error) {
 	named := sha256.New()
-	archive, err := admitCheckpoint(spec.EncoderCheckpoint)
+	archive, err := admitCheckpoint(spec.EncoderCheckpoint, names)
 	if admitAbsent && errors.Is(err, fs.ErrNotExist) {
 		fmt.Fprintln(named, "absent")
 	} else if err != nil {
@@ -79,8 +82,8 @@ func (spec TextConditioningSpec) content(admitAbsent bool) (identity, checkpoint
 }
 
 // admitCheckpoint keeps immutable archives with the process's existing prompt cache.
-// A platform without write exclusion rehashes before reuse instead of trusting metadata.
-func admitCheckpoint(path string) (*pytorchzip.Admission, error) {
+// A platform without write exclusion admits the archive again before each reuse.
+func admitCheckpoint(path string, names *discovery.Memo) (*pytorchzip.Admission, error) {
 	canonical, err := pathidentity.Canonical(path)
 	if err != nil {
 		return nil, err
@@ -90,7 +93,10 @@ func admitCheckpoint(path string) (*pytorchzip.Admission, error) {
 	if held := promptEncoders.archives[canonical]; held != nil {
 		return held, nil
 	}
-	admitted, err := pytorchzip.Admit(canonical)
+	admitted, err := pytorchzip.Admit(canonical, func(path string) (string, bool) {
+		id, ok := discovery.FileIdentity(path, artifact.KindFile, names)
+		return id.DigestHex(), ok
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +121,7 @@ func promptEncoderFor(spec TextConditioningSpec) (*promptEncoder, error) {
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return nil, fmt.Errorf("text conditioning: positive sequence length required")
 	}
-	content, checkpoint, err := spec.content(false)
+	content, checkpoint, err := spec.content(false, nil)
 	if err != nil {
 		return nil, err
 	}

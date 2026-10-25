@@ -26,7 +26,11 @@ func serverScorecard(ctx context.Context, store *overgodb.Store) ([]llamaserver.
 			}
 			cells = append(cells, shownCell(name, cell))
 		}
-		shown = append(shown, llamaserver.ScorecardRow{Model: row.Model, Name: row.Name, Task: string(row.Task), Recipe: row.Recipe, Cells: cells})
+		var lengths []llamaserver.ScorecardCell
+		for _, length := range row.Lengths {
+			lengths = append(lengths, shownCell(metric.FirstOutput, length))
+		}
+		shown = append(shown, llamaserver.ScorecardRow{Model: row.Model, Name: row.Name, Task: string(row.Task), Recipe: row.Recipe, Cells: cells, Lengths: lengths})
 	}
 	return shown, nil
 }
@@ -36,7 +40,7 @@ func serverScorecard(ctx context.Context, store *overgodb.Store) ([]llamaserver.
 // and a trained model's base value, which it reads against.
 func shownCell(name metric.Name, cell scorecard.Cell) llamaserver.ScorecardCell {
 	return llamaserver.ScorecardCell{Metric: string(name), Value: cell.Value, Unit: cell.Unit, Label: cell.Label, Source: cell.Source, Reason: cell.Reason,
-		Measure: cell.Contract.Metric, Direction: string(cell.Direction), Base: cell.Base}
+		Measure: cell.Contract.Metric, Direction: string(cell.Direction), Base: cell.Base, Prompt: cell.Prompt}
 }
 
 // comparedRecords are the published scorecards a history compares: the
@@ -59,7 +63,7 @@ func scorecardHistory(storeRoot string) llamaserver.ScorecardHistoryReader {
 		history := &llamaserver.ScorecardHistory{Previous: previous.Commit, Current: current.Commit, Moves: []llamaserver.ScorecardMove{}}
 		for _, move := range scorecard.Moves(previous, current) {
 			history.Moves = append(history.Moves, llamaserver.ScorecardMove{Name: move.Name, Task: move.Task, Kind: moveKind(move), Metric: string(move.Column),
-				Before: move.Before, After: move.After, Unit: move.Unit, Reason: move.Reason})
+				Before: move.Before, After: move.After, Unit: move.Unit, Reason: move.Reason, Prompt: move.Prompt})
 		}
 		return history, nil
 	}

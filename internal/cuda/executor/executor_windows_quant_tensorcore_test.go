@@ -26,7 +26,7 @@ func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 	leftShape := tensor.MustShape(inner, rows)
 	rightValue := patternedValue(tensor.MustShape(inner, columns), 7, 0.05, 0.02)
 	rng := rand.New(rand.NewPCG(17, 23))
-	for _, dataType := range []dtype.Type{dtype.Q8_0, dtype.Q1_0, dtype.Q4K, dtype.Q5K, dtype.Q6K} {
+	for _, dataType := range []dtype.Type{dtype.Q8_0, dtype.Q1_0, dtype.Q4K, dtype.Q5K, dtype.Q6K, dtype.IQ4NL, dtype.IQ4XS} {
 		t.Run(dataType.String(), func(t *testing.T) {
 			var storage []byte
 			if dataType == dtype.Q8_0 || dataType == dtype.Q1_0 {
@@ -39,8 +39,8 @@ func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				// Every byte pattern is a valid K-quant block; random blocks
-				// exercise the scale and minimum unpacking. The block's
+				// Every byte pattern is a valid K-quant or IQ4 block; random
+				// blocks exercise the scale, minimum and group-scale unpacking. The block's
 				// half-precision super-scales are pinned small so the
 				// dequantized weights stay of order one and the absolute
 				// tolerance reads as a relative one.
@@ -82,8 +82,8 @@ func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 	}
 }
 
-// kQuantBlockScales: a K-quant block's byte size and the offsets of its
-// half-precision super-scales (scale and, where present, minimum).
+// kQuantBlockScales: a K-quant or IQ4 block's byte size and the offsets of
+// its half-precision super-scales (scale and, where present, minimum).
 func kQuantBlockScales(dataType dtype.Type) (int, []int) {
 	switch dataType {
 	case dtype.Q4K:
@@ -92,6 +92,10 @@ func kQuantBlockScales(dataType dtype.Type) (int, []int) {
 		return 176, []int{0, 2}
 	case dtype.Q6K:
 		return 210, []int{208}
+	case dtype.IQ4NL:
+		return 18, []int{0}
+	case dtype.IQ4XS:
+		return 136, []int{0}
 	}
 	return 0, nil
 }

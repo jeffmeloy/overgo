@@ -131,6 +131,39 @@ func TestLandingCompletesSeveralSteps(t *testing.T) {
 	}
 }
 
+// TestLandingRaisesItsOwnCount holds the count a landing grows by to its row's: a change whose own plan raises the
+// row's count with a reason of its own is admitted by the raised count and publishes it less the growth, and one
+// that raises it without a new reason is admitted by the count it had.
+func TestLandingRaisesItsOwnCount(t *testing.T) {
+	t.Parallel()
+	const before, raised, growth = 2, 9, 5
+	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{
+		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: before, Reason: "the row's start"},
+			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
+	}}
+	if err := plan.Save(fixture.planPath(), document); err != nil {
+		t.Fatal(err)
+	}
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "plan of one row")
+	for _, raise := range []struct {
+		reason string
+		admits int
+	}{{"the change's growth", raised}, {"the row's start", before}} {
+		// The change edits a file beside the plan, so the plan it builds on judges it.
+		fixture.write("a.txt", raise.reason+"\n")
+		document.Items[0].Budget = plan.Budget{Nodes: raised, Reason: raise.reason}
+		if err := plan.Save(fixture.planPath(), document); err != nil {
+			t.Fatal(err)
+		}
+		l := fixture.candidateOf("row/do")
+		if left := l.charge(growth); left != raise.admits || l.advanced.Items[0].Budget.Nodes != raise.admits-growth {
+			t.Errorf("a raise for %q admits %d and leaves %d, want %d and %d", raise.reason, left, l.advanced.Items[0].Budget.Nodes, raise.admits, raise.admits-growth)
+		}
+	}
+}
+
 // TestLandingFixRegeneratesTheAPIManifest holds the fix stage to the
 // derived API manifest: a Go change regenerates it with the repository's own
 // command, and the regenerated file joins the ship set the checks validate.

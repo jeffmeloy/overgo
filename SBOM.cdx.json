@@ -32,10 +32,21 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "4a29ee9bcda75e2130dc77cabb66afb3da33e4ccaefb8029df645cb7ee6adcb3"
+          "content": "c5f1207935cb2576864f3857c7240471e5564088fbdf5ac7c18b756de92c324a"
         }
       ],
       "name": "internal/cuda/kernel/ops_f32.ptx",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:internal/cuda/kernel/ops_native.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883"
+        }
+      ],
+      "name": "internal/cuda/kernel/ops_native.ptx",
       "type": "file"
     },
     {
@@ -101,10 +112,21 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "4c9bb83c7dc344983c88d5560d1103a50099de380fb3434fb9a853d3262bb524"
+          "content": "4f609fe23377545035cebd8abb336edefc7df02f14cbe3cbcc9abf8aaf9e0bb0"
         }
       ],
       "name": "kernels/cuda/ops_f32.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/ops_native.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5e66a7adeb1eee0362300503663867a90515935bc31815321a111d9863652e4e"
+        }
+      ],
+      "name": "kernels/cuda/ops_native.cu",
       "type": "file"
     },
     {
@@ -134,7 +156,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "519e9da859048c4cfe78954273ed0a1bdf64ba0c192344a2cf0d6ecae3b9618f"
+          "content": "873e9ff3104a7ef0b5eb08abde1fa78c88d76a2a26d0a7929b34bd2451a07704"
         }
       ],
       "name": "kernels/manifest.json",
@@ -273,11 +295,13 @@
         "component:nvidia-cuda-driver-api",
         "component:nvidia-cuda-toolkit",
         "file:internal/cuda/kernel/ops_f32.ptx",
+        "file:internal/cuda/kernel/ops_native.ptx",
         "file:internal/cuda/kernel/torch_cuda_randn.ptx",
         "file:internal/cuda/kernel/vector_add.ptx",
         "file:internal/quant/iq_tables_generated.go",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/ops_native.cu",
         "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",

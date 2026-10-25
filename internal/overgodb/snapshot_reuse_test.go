@@ -105,7 +105,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	if repaired.Head != second || repaired.BytesCopied != advanced.Extent+int64(len(payload)) {
 		t.Fatalf("repair: %+v", repaired)
 	}
-	if err := newBlobStore(destination).verify(id); err != nil {
+	if err := newBlobStore(destination).verify(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
 	// Copies remain independent of source file mutations.
@@ -116,7 +116,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	if err := os.WriteFile(sourceBlob, bytes.Repeat([]byte("y"), len(payload)), storeFileMode); err != nil {
 		t.Fatal(err)
 	}
-	if err := newBlobStore(destination).verify(id); err != nil {
+	if err := newBlobStore(destination).verify(t.Context(), id); err != nil {
 		t.Fatalf("snapshot shares source storage: %v", err)
 	}
 	badDestination := filepath.Join(t.TempDir(), "bad")

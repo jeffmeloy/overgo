@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
@@ -16,7 +17,7 @@ func launchMoE(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
-	_ *q8InputState,
+	q8Input *q8InputState,
 	node *tensor.Tensor,
 	_ tensor.Attributes,
 	pointers launchPointerFrame,
@@ -166,13 +167,16 @@ func launchMoE(
 		// the routed experts for the residency to read between runs.
 		indexed := uint32(0)
 		var routed driver.DevicePtr
+		var routedFlags []byte
+		var residency ExpertBanks
 		banks := node.Inputs[moeFirstBankInput:wantInputs]
 		if pointers.experts != nil && pointers.experts.IsExpertBank(banks[0].Name) {
-			indexed = 1
-			if routed, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
+			indexed, residency = 1, pointers.experts
+			if routed, routedFlags, err = pointers.experts.ExpertRoutes(state, banks); err != nil {
 				return err
 			}
 		}
+		_, matrixNode := nativeMoEMatrix(node)
 		for start := uint32(0); start < tokens; start += group {
 			if pointers.ctx != nil {
 				if err := pointers.ctx.Err(); err != nil {
@@ -188,26 +192,39 @@ func launchMoE(
 			if attributes.HasSelectedExperts {
 				groupSelected += driver.DevicePtr(tokenOffset * uint64(topK))
 			}
-			if err := launchGridSharedABI(
-				state, routerKernel,
-				driver.Dim3{X: (experts-1)/moeRouterExpertsPerBlock + 1, Y: count, Z: 1},
-				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, 0,
-				&groupRouterInput, &router, &routerBias, &routerLogits, &routerHidden, &count, &experts,
-			); err != nil {
+			if err := launchRouterLogits(state, functions, blas, routerKernel, attributes.Compute,
+				groupRouterInput, router, routerBias, routerLogits, routerHidden, count, experts); err != nil {
 				return err
+			}
+			// A group taking the grouped products brings its routes to the host, which marks its experts' flags there:
+			// the kernel's writes, a byte a routed slot over the link, took 1.5 ms a Flash-Next layer of 8,192 tokens.
+			groupRouted, groupFlags := routed, []byte(nil)
+			if matrixNode && count >= moeMatrixTokens(attributes) {
+				groupRouted, groupFlags = 0, routedFlags
 			}
 			if err := launchGridSharedABI(
 				state, functions[kernelMoeRouteF32],
 				driver.Dim3{X: count, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1}, logitBytes,
-				&routerLogits, &selectionBias, &groupSelected, &routeState, &routed, &count, &experts, &topK, &routing,
+				&routerLogits, &selectionBias, &groupSelected, &routeState, &groupRouted, &count, &experts, &topK, &routing,
 				&expertIndexDivisor,
 			); err != nil {
 				return err
 			}
-			if used, err := launchMoEMatrices(pointers.ctx, state, functions, blas, node,
-				groupInput, routeState, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
-				count, indexed); err != nil {
+			// A captured decode group's q8 products ring for the CPU's experts: the hidden products' first block rings,
+			// and the down products' last block waits for the answer.
+			var onHost, doorbell driver.DevicePtr
+			ring := indexed == 1 && start == 0 && count == tokens && pointers.doorbell.rings(node, q8Input, count)
+			if ring {
+				if onHost, err = residency.ExpertsOnHost(state, banks); err != nil {
+					return err
+				}
+				doorbell = pointers.doorbell.descriptor
+				pointers.doorbell.capture = append(pointers.doorbell.capture, node)
+			}
+			if used, err := launchMoEMatrices(state, functions, blas, node,
+				groupInput, routeState, activations, groupOutput, gate, up, down, gateBias, upBias, downBias, expertScale,
+				count, residency, groupFlags); err != nil {
 				return err
 			} else if used {
 				continue
@@ -218,6 +235,8 @@ func launchMoE(
 			hiddenGrid := count * topK * ((intermediate-1)/moeThreads + 1)
 			sharedBytes := moeHiddenSharedBytes
 			downThreads := downCount
+			hiddenInput, downActivations := groupInput, activations
+			var quantizeActivations bool
 			if attributes.Compute == tensor.MulMatComputeNativeTensorCore {
 				// Native execution gives each routed row and each output channel a warp.
 				hiddenThreads, hiddenErr := quantMulMatLaunchCount(dtype.BF16, intermediate, count*topK)
@@ -227,25 +246,76 @@ func launchMoE(
 					hiddenGrid = (hiddenThreads-1)/moeThreads + 1
 					sharedBytes = 0
 					downThreads = nativeDown
+					// Products of a q8 storage take q8 activations in the q8 input staging: the input's blocks, then
+					// the slots'. A whole group's input stays staged for a product of the same input that follows.
+					hiddenQ8, downQ8 := moeQ8Products(attributes, node.Inputs[moeFirstBankInput].Type, upNode.Type, downNode.Type, hidden, intermediate)
+					inputBytes, q8Bytes := moeQ8Bytes(hidden, intermediate, topK, count)
+					if (hiddenQ8 || downQ8) && q8Input != nil && q8Input.staging != 0 && q8Bytes <= q8Input.stagingBytes {
+						whole := start == 0 && count == tokens
+						if hiddenQ8 {
+							inputNode := node.Inputs[0]
+							if !whole || (q8Input.stagedNode != inputNode && q8Input.stagedNode != q8Source(inputNode)) {
+								if err := launchQ8InputQuantization(
+									state, functions[kernelQuantizeQ80InputF32], groupInput, q8Input.staging, count*hidden/moeQ8Width,
+								); err != nil {
+									return err
+								}
+							}
+							q8Input.stagedNode = nil
+							if whole {
+								q8Input.stagedNode = inputNode
+							}
+							hiddenInput, hiddenKernel = q8Input.staging, functions[kernelMoeHiddenQ8F32]
+							if count > 1 && count <= moeSpanTokens {
+								// A verify span's tokens read each expert they share once.
+								hiddenKernel = functions[kernelMoeHiddenSpanQ8F32]
+							}
+							hiddenGrid = (hiddenCount*moeQ8RowLanes-1)/moeThreads + 1
+						}
+						if downQ8 {
+							if !hiddenQ8 || !whole {
+								q8Input.stagedNode = nil
+							}
+							downActivations, downKernel = q8Input.staging+driver.DevicePtr(inputBytes), functions[kernelMoeDownQ8F32]
+							quantizeActivations = true
+						}
+					}
 				}
+			}
+			hiddenArguments := []any{&hiddenInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
+				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
+				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount}
+			// The q8 products skip the slots of experts the CPU computes.
+			if hiddenKernel.id == kernelMoeHiddenQ8F32 || hiddenKernel.id == kernelMoeHiddenSpanQ8F32 {
+				hiddenArguments = append(hiddenArguments, &onHost, &doorbell, &groupInput)
+			} else if ring {
+				return errors.New("a ringing routed group's hidden products are not q8 products")
 			}
 			if err := launchGridSharedABI(
 				state, hiddenKernel,
 				driver.Dim3{X: hiddenGrid, Y: 1, Z: 1},
 				driver.Dim3{X: moeThreads, Y: 1, Z: 1},
 				sharedBytes,
-				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
-				&hidden, &topK, &intermediate, &routing, &gateStorage, &upStorage, &gated, &fusedGateUp,
-				&activation, &expertIndexDivisor, &swigluClamp, &indexed, &hiddenCount,
+				hiddenArguments...,
 			); err != nil {
 				return err
 			}
-			if err := launch1DABI(
-				state, downKernel, downThreads,
-				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
+			if quantizeActivations {
+				if err := launchQ8InputQuantization(
+					state, functions[kernelQuantizeQ80InputF32], activations, downActivations, hiddenCount/moeQ8Width,
+				); err != nil {
+					return err
+				}
+			}
+			downArguments := []any{&routeState, &downActivations, &down, &expertScale, &downBias, &groupOutput,
 				&hidden, &topK, &intermediate, &normalize, &scale, &downStorage,
-				&expertIndexDivisor, &indexed, &downCount,
-			); err != nil {
+				&expertIndexDivisor, &indexed, &downCount}
+			if downKernel.id == kernelMoeDownQ8F32 {
+				downArguments = append(downArguments, &onHost, &doorbell)
+			} else if ring {
+				return errors.New("a ringing routed group's down products are not q8 products")
+			}
+			if err := launch1DABI(state, downKernel, downThreads, downArguments...); err != nil {
 				return err
 			}
 		}
@@ -253,6 +323,45 @@ func launchMoE(
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+// launchRouterLogits writes a group's router logits, each token's experts
+// together. A native group of a tile or more takes them as one F32 product of
+// its router inputs with the router, then adds the router's bias: the kernel's
+// warp a logit reads the router again for every token, 1.09 s of Flash-Next's
+// 20,605-token prompt where the product takes milliseconds. A smaller group,
+// and every strict one, keeps the kernel and its order of sums.
+func launchRouterLogits(state *device.State, functions functionSet, blas *blasState, kernel boundKernel, compute tensor.MulMatCompute,
+	input, router, bias, logits driver.DevicePtr, hidden, count, experts uint32) error {
+	if compute != tensor.MulMatComputeNativeTensorCore || count < moeTileTokens {
+		return launchGridSharedABI(
+			state, kernel,
+			driver.Dim3{X: (experts-1)/moeRouterExpertsPerBlock + 1, Y: count, Z: 1},
+			driver.Dim3{X: moeThreads, Y: 1, Z: 1}, 0,
+			&input, &router, &bias, &logits, &hidden, &count, &experts,
+		)
+	}
+	if !traceExternalCall(state, traceTagSGEMM, uint64(router), uint64(input), uint64(logits), uint64(experts), uint64(count), uint64(hidden)) {
+		if err := blas.library.SGEMM(
+			blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+			int32(experts), int32(count), int32(hidden), gemmProductScale,
+			router, int32(hidden), input, int32(hidden), gemmAccumulatorScale,
+			logits, int32(experts),
+		); err != nil {
+			return err
+		}
+	}
+	if bias == 0 {
+		return nil
+	}
+	total, one := experts*count, uint32(1)
+	return launch1DABI(
+		state, functions[kernelBroadcastAddF32], total,
+		&logits, &bias, &logits, &total,
+		&experts, &count, &one, &one,
+		&experts, &one, &one, &one,
+		&experts, &count, &one,
+	)
 }
 
 const (
@@ -263,8 +372,16 @@ const (
 	moeThreads = uint32(256)
 	// moeRouterExpertsPerBlock: the router logits give one warp of a block to each expert.
 	moeRouterExpertsPerBlock = moeThreads / 32
+	// moeSpanTokens: the most tokens of a native group that read each routed
+	// expert's gate and up rows once, the CUDA MOE_SPAN_TOKENS.
+	moeSpanTokens = 4
+	// moeQ8Width: the weights of a q8 block and of a routed row's sub-block,
+	// the CUDA MOE_Q8_WIDTH; moeQ8RowLanes: the lanes that share a routed row
+	// of the q8 products, MOE_Q8_ROW_LANES.
+	moeQ8Width    = uint32(32)
+	moeQ8RowLanes = uint32(16)
 	// moeHiddenSharedBytes holds two banks of sector-wide F32 rows with one padding word.
-	// Keep this ABI equal to the CUDA tile and reconsider it with measured occupancy.
+	// Keep this ABI equal to the CUDA tile, the kernel's layout, and reconsider it with the occupancy a profile shows.
 	moeHiddenSharedBytes = 2 * moeThreads * (32/4 + 1) * 4
 	// A token's route words: each routed slot's expert and route weight, then
 	// the route weights' sum.
@@ -274,6 +391,58 @@ const (
 	// longer prompt runs as several groups.
 	moeScratchLimitBytes = uint64(32 << 20)
 )
+
+// moeQ8Storage reports whether an expert storage dots q8 activations in
+// integers, the storages the CUDA visit_q8_format names.
+func moeQ8Storage(storage dtype.Type) bool {
+	switch storage {
+	case dtype.IQ3S, dtype.IQ4XS, dtype.IQ4NL, dtype.Q8_0:
+		return true
+	}
+	return false
+}
+
+// moeQ8Products reports which of a native group's routed products take q8
+// activations: the gate and up when the layer is gated and both share a q8
+// storage, and the down when its storage has one. A product's inner width is
+// whole q8 blocks.
+func moeQ8Products(attributes tensor.MoEAttributes, gate, up, down dtype.Type, hidden, intermediate uint32) (bool, bool) {
+	if attributes.Compute != tensor.MulMatComputeNativeTensorCore {
+		return false, false
+	}
+	hiddenQ8 := attributes.Gated && gate == up && moeQ8Storage(up) && hidden%moeQ8Width == 0
+	return hiddenQ8, moeQ8Storage(down) && intermediate%moeQ8Width == 0
+}
+
+// moeQ8Bytes returns the q8 staging a group of count tokens takes: its
+// input's blocks, then those and its slots' activations' blocks together.
+func moeQ8Bytes(hidden, intermediate, topK, count uint32) (uint64, uint64) {
+	input := uint64(count) * uint64(hidden/moeQ8Width) * q8InputTraits.TypeSize
+	activations := uint64(count) * uint64(topK) * uint64(intermediate/moeQ8Width) * q8InputTraits.TypeSize
+	return input, input + activations
+}
+
+// moeQ8StagingBytes returns the q8 staging a routed-expert node's groups of
+// at most group tokens take, zero when none of its products takes q8
+// activations; a group of a tile or more takes the grouped products instead.
+func moeQ8StagingBytes(node *tensor.Tensor, group uint32) uint64 {
+	attributes, ok := node.Attrs.(tensor.MoEAttributes)
+	down := moeFirstBankInput + 1
+	if attributes.Gated && !attributes.FusedGateUp {
+		down++
+	}
+	if !ok || len(node.Inputs) <= down || node.Shape.Dims[0] > math.MaxUint32 ||
+		node.Inputs[down].Shape.Dims[0] > math.MaxUint32 {
+		return 0
+	}
+	hidden, intermediate := uint32(node.Shape.Dims[0]), uint32(node.Inputs[down].Shape.Dims[0])
+	if hiddenQ8, downQ8 := moeQ8Products(attributes, node.Inputs[moeFirstBankInput].Type, node.Inputs[down-1].Type,
+		node.Inputs[down].Type, hidden, intermediate); !hiddenQ8 && !downQ8 {
+		return 0
+	}
+	_, bytes := moeQ8Bytes(hidden, intermediate, attributes.TopK, min(group, moeTileTokens-1))
+	return bytes
+}
 
 // moeScratchGroup: the tokens one routed-expert launch group covers and the
 // scratch bytes each of them holds -- its route words and one activation per
@@ -292,11 +461,16 @@ func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
 		intermediate == 0 || intermediate > math.MaxUint32/uint64(attributes.TopK) {
 		return 0, 0, errors.New("invalid grouped MoE dimensions")
 	}
-	tokenLimit := tokens
+	tokenLimit, scratchLimit := tokens, moeScratchLimitBytes
 	if geometry, ok := nativeMoEMatrix(node); ok {
-		tokenLimit = min(tokenLimit, (quantStagedChunkBytes-geometry.weightBytes-f32ScalarBytes)/(geometry.rowBytes*geometry.rowsPerToken+geometry.slotBytes))
+		tokenLimit = min(tokenLimit, geometry.tokenLimit())
+		// A matrix group reads its experts once a tile, so a group takes as many tokens as the staging holds.
+		scratchLimit = moeMatrixStagingBytes
 	}
 	activations := uint64(attributes.TopK) * intermediate
 	tokenBytes := (uint64(attributes.TopK)*moeSlotRouteWords + moeTokenRouteWords + activations + uint64(attributes.Experts)) * f32ScalarBytes
-	return uint32(max(1, min(tokenLimit, moeScratchLimitBytes/tokenBytes))), tokenBytes, nil
+	group := max(1, min(tokenLimit, scratchLimit/tokenBytes))
+	// Groups of one size leave no short last group, which would fall below the matrix products' reuse.
+	groups := (tokens-1)/group + 1
+	return uint32((tokens-1)/groups + 1), tokenBytes, nil
 }

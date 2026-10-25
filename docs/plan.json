@@ -424,7 +424,8 @@
             "dense-prompt-precision/do",
             "flashnext-tensor-cores/do",
             "lane-failures-20261025/do",
-            "readme-scorecard/do"
+            "readme-scorecard/do",
+            "readme-models/do"
           ]
         }
       ]

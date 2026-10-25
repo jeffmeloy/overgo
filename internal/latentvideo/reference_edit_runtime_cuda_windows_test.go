@@ -15,9 +15,19 @@ import (
 	"overgo/internal/testutil"
 )
 
+// The digests of the frozen request's latent and decoded frames. Moved on
+// 2026-10-25 from the values of 2026-10-10: the measurement run of
+// 2026-10-19 (commit 32b26610) still drew those, the run of 2026-10-24 did
+// not, and every commit from 2026-10-22 on draws these, so the move lies in
+// the CUDA kernel changes of 2026-10-19 to 10-22 the denoiser and the codec
+// run on (selected-slot products, attention key scoring, group-norm sums and
+// prompt attention), which the store that followed them cannot bisect; the
+// served edit stayed within TestServedEditMatchesTheModelsOwnEdit's bound of
+// the model's own code, and the held-out score held at 0.84375 on 64 clips
+// in the records of 2026-10-19, 10-24 and 10-25.
 const (
-	liveEditDeviceLatentOracle = "f73e55a69a2e5662100dfe664cc8234dc050d4b217174ce1a4ff45ac51bd4f17"
-	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
+	liveEditDeviceLatentOracle = "fe7304c47b45dbaa6b3df38029fe8ba6a5aeec2cd1719e6b05fb98692d58f9b0"
+	liveEditDeviceFrameOracle  = "bb2aafe78247f3c712509089474036d1dbdb84202b03729128741f28f86af530"
 )
 
 // newLiveEditRuntimeFixture gives a runtime, and the text context, source

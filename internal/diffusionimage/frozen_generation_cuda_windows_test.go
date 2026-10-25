@@ -72,12 +72,17 @@ func TestFrozenDiffusionGeneration(t *testing.T) {
 	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
+	// The outputs are the protocol's recorded originals of 2026-08-27, which
+	// the code draws again since the run of 2026-10-18: the pictures the
+	// coverage bound on 2026-09-13 differ from them by two pixels and by one
+	// pixel of 65,536, each by one level, a rounding the kernels moved by and
+	// back, and this test was pinned to those until 2026-10-25.
 	cases := []struct {
 		request       Request
 		input, output string
 	}{
-		{Request{Seed: 5, Steps: 8, Height: 256, Width: 256}, "ab444aa99af1a85d3b6a2b64fb7459892048e244112cc4e3f88101d797c377ea", "939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78"},
-		{Request{Seed: 105, Steps: 8, Height: 256, Width: 256}, "2b9ae1a1da5bce737b548e20c27223dab9a351ba6e45dcd81c813fc63fc119dd", "e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef"},
+		{Request{Seed: 5, Steps: 8, Height: 256, Width: 256}, "ab444aa99af1a85d3b6a2b64fb7459892048e244112cc4e3f88101d797c377ea", "43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319"},
+		{Request{Seed: 105, Steps: 8, Height: 256, Width: 256}, "2b9ae1a1da5bce737b548e20c27223dab9a351ba6e45dcd81c813fc63fc119dd", "0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e"},
 	}
 	generator, err := LoadResidentGenerator(t.Context(), directory, cases[0].request)
 	if err != nil {

@@ -2816,12 +2816,17 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 	if r.arena != 0 && r.arenaSize >= size {
 		return r.arena, nil
 	}
+	// A first arena takes its need exactly, since the rounding below paid nothing on the one arena most models hold yet
+	// held 64 MiB idle on each (17 peak rows of the run of 2026-10-24); a growing arena rounds its need up (arenaGranule),
+	// and takes its need alone where the card has no room for the rest.
+	growing := r.arena != 0
 	if err := r.releaseArena(state); err != nil {
 		return 0, err
 	}
-	// A growing arena rounds its need up (arenaGranule), and takes its need alone where the card has no room for the
-	// rest.
-	grown := arenaBytes(size)
+	grown := size
+	if growing {
+		grown = arenaBytes(size)
+	}
 	next, err := r.allocate(state, grown)
 	if err != nil {
 		grown = size

@@ -73,26 +73,28 @@ func TestArenaMetrics(t *testing.T) {
 	if large.memory.ArenaSize <= small.memory.ArenaSize {
 		t.Fatalf("fixture arena sizes = %d and %d", large.memory.ArenaSize, small.memory.ArenaSize)
 	}
-	if err := cuda.PrepareCompiled(ctx, large); err != nil {
+	// A first arena takes its need exactly; the larger run that follows grows it, and a growth rounds up to the granule.
+	if err := cuda.PrepareCompiled(ctx, small); err != nil {
 		t.Fatal(err)
 	}
-	if err := cuda.PrepareCompiled(ctx, small); err != nil {
+	first, err := cuda.Metrics(ctx)
+	if err != nil || first.ArenaCommittedBytes != small.memory.ArenaSize || first.ArenaGrowths != 1 {
+		t.Fatalf("the first arena committed %d bytes over %d growths (%v), want the run's need %d exactly in one", first.ArenaCommittedBytes, first.ArenaGrowths, err, small.memory.ArenaSize)
+	}
+	if err := cuda.PrepareCompiled(ctx, large); err != nil {
 		t.Fatal(err)
 	}
 	metrics, err := cuda.Metrics(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metrics.ArenaRequiredBytes != small.memory.ArenaSize ||
+	if metrics.ArenaRequiredBytes != large.memory.ArenaSize ||
 		metrics.ArenaPeakRequiredBytes != large.memory.ArenaSize ||
-		metrics.ArenaCommittedBytes != arenaBytes(large.memory.ArenaSize) {
+		metrics.ArenaCommittedBytes != arenaBytes(large.memory.ArenaSize) || metrics.ArenaGrowths != 2 {
 		t.Fatalf("arena byte evidence is invalid: %+v", metrics)
 	}
 	if metrics.ArenaUnusedBytes != metrics.ArenaCommittedBytes-metrics.ArenaRequiredBytes {
 		t.Fatalf("arena unused bytes are invalid: %+v", metrics)
-	}
-	if metrics.ArenaGrowths == 0 {
-		t.Fatalf("arena growth was not recorded: %+v", metrics)
 	}
 }
 

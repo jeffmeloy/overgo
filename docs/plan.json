@@ -216,24 +216,10 @@
       "title": "Repair the confirmed findings, measure every cell on one commit and push it to GitHub's main",
       "status": "open",
       "budget": {
-        "nodes": 189,
+        "nodes": 176,
         "reason": "The defects took 71 production syntax nodes and the bench's sampled pass 90; the peak repair adds the condition and its comment, and the attention step 31: the TensorCores attention option and attribute, their mapping and the kernel's admission on it. Nothing smaller keeps the kernel admitted per model."
       },
       "steps": [
-        {
-          "id": "flashnext-attention",
-          "title": "Admit the tensor-core prompt attention for Flash-Next, whose quality it held",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^TestPromptTensorCoresAdmittedPerArchitecture$' -count=1",
-          "rationale": "Serves: Flash-Next's first output at length, 6 to 10 percent slower in the second record with the tensor-core prompt attention off (4K 1.50 to 1.66 s, 16K 5.23 to 5.54 s) although its MMLU-Pro held 0.6245 with the kernel on and without (2026-10-19 to 10-24); the architecture profile admits the kernel per model, qwen4exp alone.\nDisappears: nothing; gemma4 and every other architecture keep the f32 paths.\nEvidence: TestPromptTensorCoresAdmittedPerArchitecture (the catalog admits qwen4exp alone); the next record's Flash-Next first-output cells.\nBatch: model host tests."
-        },
-        {
-          "id": "arena-first",
-          "title": "Take a first arena at its need and round only a regrowth",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestArenaMetrics$' -count=1",
-          "rationale": "Serves: every model's peak device memory, 64 MiB of slack on each since arenaGranule (268518b01) rounds every arena up, a model's first and only arena included; the first allocation takes its need exactly and only a regrowth rounds, which is where the rounding pays (each growth drops the kept graphs and waits on the clear).\nDisappears: the slack on a first arena (17 peak rows filed by the first run close at the next record).\nEvidence: TestArenaMetrics holds a first run's arena to its need and a larger run's regrowth to the granule; the next record's peak cells.\nBatch: cuda/executor device lane."
-        },
         {
           "id": "push",
           "title": "Push the measured commit to GitHub's main",
@@ -243,6 +229,20 @@
           "depends_on": [
             "release/scorecard"
           ]
+        }
+      ]
+    },
+    {
+      "id": "flashnext-tensor-cores",
+      "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestPromptTensorCoresAdmittedPerArchitecture$' -count=1 \u0026\u0026 go test ./internal/modelrecipe ./internal/inferencesurface -count=1 \u0026\u0026 go test ./internal/evaluation -run '^TestQwenSmallRetainedTextAcceptance$' -count=1",
+          "rationale": "Serves: Flash-Next's first output at length, 6 to 10 percent slower in the record of 2026-10-25 with the tensor-core prompt attention off (4K 1.50 to 1.66 s, 16K 5.23 to 5.54 s, against Strata's 2.2 and 5.0) although its MMLU-Pro held 0.6245 with the kernel on and without (the records of 2026-10-19 and 10-24), where gemma-4-12B-it-fp8's BBH fell under it.\nBuild: the architecture profile's runtime policy gains PromptTensorCores, set for qwen4exp alone in architecture_profiles.json, and the block builder passes it to each dense causal attention node as its TensorCores attribute (three sites in block.go). The gate holds serving code to selecting nothing by an architecture name (TestServingCodeNamesNoArchitecture refused a spec constant, 2026-10-25), and a profile field moves the catalog, fact and fact-schema digests TestProfileProvenanceHasExactTypedCoverage and TestRegisteredProfileSemanticDigest pin, and the provenance coverage of every stored profile document, which TestQwenSmallRetainedTextAcceptance reads from the store: the registered models' definitions are republished with the new profile documents before the field lands, through the activation path, never by hand-editing records.\nDisappears: nothing; every other architecture keeps the f32 paths.\nEvidence: TestPromptTensorCoresAdmittedPerArchitecture (the catalog admits qwen4exp alone); the modelrecipe and inferencesurface suites; the retained Qwen acceptance resolving against the republished documents; the next record's Flash-Next first-output cells. The constant form that the gate refused is kept at tmp/release/flashnext-tensorcores-constant.patch.\nBatch: model, modelrecipe, inferencesurface and evaluation host tests; a store republication."
         }
       ]
     },
@@ -414,7 +414,8 @@
           "rationale": "Serves: Require the identified final performance comparison, independent quality outcomes and all delivered GUI and modality obligations.\nRemove completed steps and campaign-only paragraphs through the existing completion workflow.\nLeave no unsupported model capability, unowned temporary implementation or unmeasured parity claim.\nDisappears: Keep only immutable artifacts, necessary independently generated fixtures and retained run records.\nDelete disposable acquisition and experiment scratch after confirming its authoritative copies and active writers.\nKeep the immutable model source and required recovery data.\nDo not create a campaign history, second plan or resolved-item ledger.\nEvidence: The complete case of the shared TestFlashNextRetainedEvidence table checks the protocol's denominator and exact accepted identities without rerunning models.\nAll required common cells must establish parity and all distinct video and speech contracts must be met.\nA negative experiment may be complete while this campaign remains open.\nMeasured limitations requiring a changed target are recorded as a decision rather than silently waived.\nBatch: Use the existing claims and closeout owners.\nNo broad confidence rerun or additional performance ratchet is added.\nThe plan shrinks as accepted increments land.",
           "depends_on": [
             "strata-port/parity",
-            "dense-prompt-precision/do"
+            "dense-prompt-precision/do",
+            "flashnext-tensor-cores/do"
           ]
         }
       ]

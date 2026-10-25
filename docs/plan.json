@@ -212,6 +212,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "readme-models",
+      "title": "Show every served model with its modality, and a measured sample output of each media model, in the README",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 160,
+        "reason": "The sample exporter gains a third selection, the attempt each scorecard cell is measured on, so the README can show the output whose time and memory the scorecard reports; the exporter's other two selections, every run and the frozen requests, write hundreds of files or miss the measured attempts."
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show every served model with its modality, and a measured sample output of each media model, in the README",
+          "status": "open",
+          "verify": "bash -c 'grep -q \"^### Sample outputs\" README.md \u0026\u0026 go test ./internal/repoanalysis -run \"^TestDocsInventoryPolicy$\" -count=1 \u0026\u0026 go test ./cmd/validate -run \"^TestImageVideoReportContract$\" -count=1'"
+        }
+      ]
+    },
+    {
       "id": "flashnext-tensor-cores",
       "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
       "status": "open",
@@ -425,6 +443,7 @@
             "flashnext-tensor-cores/do",
             "lane-failures-20261025/do",
             "readme-scorecard/do",
+            "readme-models/do",
             "readme-models/do"
           ]
         }

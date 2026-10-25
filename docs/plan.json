@@ -212,27 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "release",
-      "title": "Repair the confirmed findings, measure every cell on one commit and push it to GitHub's main",
-      "status": "open",
-      "budget": {
-        "nodes": 176,
-        "reason": "The defects took 71 production syntax nodes and the bench's sampled pass 90; the peak repair adds the condition and its comment, and the attention step 31: the TensorCores attention option and attribute, their mapping and the kernel's admission on it. Nothing smaller keeps the kernel admitted per model."
-      },
-      "steps": [
-        {
-          "id": "push",
-          "title": "Push the measured commit to GitHub's main",
-          "status": "open",
-          "verify": "git fetch -q origin main \u0026\u0026 test \"$(git rev-parse HEAD)\" = \"$(git rev-parse origin/main)\"",
-          "rationale": "Serves: the published trunk. origin/main stands 646 commits behind master (last pushed 2026-10-13) and master holds it, so the push is a fast-forward (git push origin master:main), never forced.\nDisappears: nothing; origin/master (2026-09-18) is left as it is.\nEvidence: GitHub runs test.yml on the push (validate -tests, vet, build, sbom, the kernel manifest); release.yml runs only on a v* tag and gpu.yml only by hand, so nothing is released; no file in the range exceeds 50 MB.\nBatch: the push alone, after the scorecard step; no build, test or measurement beside it.",
-          "depends_on": [
-            "release/scorecard"
-          ]
-        }
-      ]
-    },
-    {
       "id": "flashnext-tensor-cores",
       "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
       "status": "open",

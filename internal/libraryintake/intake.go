@@ -324,13 +324,22 @@ func validate(ctx context.Context, repository *overgodb.Store, reporter operatio
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
+	// The recording and the replay must decode the same tokens, so a file-backed expert residency holds every
+	// expert where the load placed it: promoted between runs, an expert's card product differs from its host
+	// product by a rounding that flips a near tie.
+	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{HoldExperts: true})
 	if err != nil {
 		return operation.Completion{}, err
 	}
 	defer runner.Close()
 	progress("record")
 	started := time.Now()
+	// A runner's first generation decodes a near tie differently from every later one (Flash-Next, 2026-10-25:
+	// the first of five held runs alone differed), so the recording follows a generation that is kept by no one,
+	// and it and the replay share the path every later request takes.
+	if _, err := evaluation.Record(ctx, runner, "warm", prompts[0], maxTokens); err != nil {
+		return operation.Completion{}, err
+	}
 	suite, err := modelintake.RecordExactSuite(ctx, runner, "library/"+filepath.Base(path), prompts, maxTokens)
 	if err != nil {
 		return operation.Completion{}, err

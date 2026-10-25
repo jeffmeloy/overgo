@@ -222,6 +222,10 @@ type expertResidency struct {
 	// queuedPromoting counts the leading moves of promoting whose copies are queued; an advance records the rest,
 	// whose copies start once the next run is launched.
 	queuedPromoting int
+	// held stops promotion between runs: every expert stays where the load placed it, so runs of one prompt
+	// compute the same experts in the same places and decode the same tokens, as a library validation's
+	// recording and replay must.
+	held bool
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -424,6 +428,14 @@ func (w *DeviceWeights) IsExpertBank(name string) bool {
 // HasExpertResidency distinguishes file-backed expert execution from full device residency.
 func (w *DeviceWeights) HasExpertResidency() bool { return w != nil && w.experts != nil }
 
+// HoldExperts keeps every expert where the load placed it: no promotion between runs, so runs of one prompt
+// compute the same experts in the same places and decode the same tokens. It is set before the first run.
+func (w *DeviceWeights) HoldExperts() {
+	if w != nil && w.experts != nil {
+		w.experts.held = true
+	}
+}
+
 // ExpertMemory reports the card bytes of experts, which a reservation can release.
 // Pointer tables remain resident and are excluded.
 func (w *DeviceWeights) ExpertMemory(state *device.State) (uint64, error) {
@@ -600,6 +612,9 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 				}
 			}
 		}
+	}
+	if c.held {
+		missed = nil
 	}
 	missed = admitMisses(missed)
 	if err := c.spare(ctx, missed); err != nil {

@@ -278,6 +278,11 @@ type OpenOptions struct {
 	// ExpertProfile names an expert profile file (STRP) whose top-ranked experts a file-backed expert residency
 	// places on the card at load, where it would place them in index order.
 	ExpertProfile string
+	// HoldExperts keeps every expert of a file-backed residency where the load placed it, with no promotion
+	// between runs, so runs of one prompt compute the same experts in the same places and decode the same
+	// tokens: a library validation records and replays under it, where host and card products differ by
+	// a rounding that flips a near tie.
+	HoldExperts bool
 }
 
 func (r *Runner) Spec() model.Spec {

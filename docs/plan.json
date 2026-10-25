@@ -212,21 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "lane-failures-20261025",
-      "title": "Repair the model-test lanes both measurement runs ended with",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "journey",
-          "title": "Repair the library validation journey",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -journeys -run '^TestModelJourneyLibraryValidation$'",
-          "rationale": "TestModelJourneyLibraryValidation (the webui lane in journey mode) has failed in every run since 2026-10-19: the hub model the journey downloads and validates ends its evaluation in an exact mismatch on its recorded case (\"recorded-1\"), the recorded tokens against the served ones. Read whether the record or the served path moved, then repair the one that did."
-        }
-      ]
-    },
-    {
       "id": "flashnext-tensor-cores",
       "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
       "status": "open",

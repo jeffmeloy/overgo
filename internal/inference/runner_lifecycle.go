@@ -161,6 +161,9 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if err != nil {
 			return fail(err)
 		}
+		if options.HoldExperts {
+			rawWeights.HoldExperts()
+		}
 		// The pass that fell back to streaming stopped before it hashed the whole file.
 		if recovered && len(claims) != 0 {
 			if err := modelartifact.VerifyClaims(file, claims); err != nil {

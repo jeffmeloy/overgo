@@ -1393,14 +1393,20 @@ func launchRopeAppend(
 	output := pointers.output()
 	left := pointers.input(0)
 	if output != left {
-		leftCount, err := elementCount32(node.Inputs[0].Shape)
-		if err != nil {
-			return err
-		}
-		if err := launch1DABI(
-			state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
-		); err != nil {
-			return err
+		if node.Type == dtype.Q8_0 {
+			if err := copyQ8Cells(state, functions, node.Inputs[0].Shape, left, output); err != nil {
+				return err
+			}
+		} else {
+			leftCount, err := elementCount32(node.Inputs[0].Shape)
+			if err != nil {
+				return err
+			}
+			if err := launch1DABI(
+				state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	count, err := elementCount32(fusion.rope.Shape)
@@ -1452,6 +1458,16 @@ func launchRopeAppend(
 	function := functions[kernelRopeAppendNormalF32]
 	if fusion.rope.Op == tensor.OpRoPENeoX {
 		function = functions[kernelRopeAppendNeoxF32]
+	}
+	if node.Type == dtype.Q8_0 {
+		// The rotated rows are quantized a block a warp into the cache's cells.
+		if inner%uint32(q8CellTraits.BlockSize) != 0 || count%uint32(q8CellTraits.BlockSize) != 0 {
+			return errors.New("Q8_0 cache rows must be whole blocks")
+		}
+		function = functions[kernelRopeAppendNormalQ80F32]
+		if fusion.rope.Op == tensor.OpRoPENeoX {
+			function = functions[kernelRopeAppendNeoxQ80F32]
+		}
 	}
 	return launch1DABI(
 		state, function, count,

@@ -247,7 +247,8 @@ func CompileOutputTargetContract(node *Tensor) (OutputTargetContract, error) {
 			return OutputTargetContract{}, errors.New("cache append attributes are invalid")
 		}
 		inputBytes, sizeErr := node.Inputs[0].Shape.Bytes(node.Inputs[0].Type)
-		writeBytes, writeErr := node.Inputs[1].Shape.Bytes(node.Inputs[1].Type)
+		// The appended rows take the cache's own form: F32 rows written into Q8_0 cells occupy the cells' bytes.
+		writeBytes, writeErr := node.Inputs[1].Shape.Bytes(node.Type)
 		inner := uint64(1)
 		for axis := uint32(0); axis < attributes.Axis; axis++ {
 			if inner > math.MaxUint64/node.Shape.Dims[axis] {

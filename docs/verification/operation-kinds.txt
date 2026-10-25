@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1721
+lines: 1744
 functions: 10
 packages: 4
 constants: 68
@@ -90,11 +90,11 @@ row: a method of each of the seven attribute types with per-step values, in one 
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 304
+lines: 315
 constants: 4
 clauses: 5
 dispatch-lines: 8
-decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset
+decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel) (a page of Q8_0 cells dequantized to F32 staging first), of concat as an append in place when its output is its left input, and of cache_append as a copy and a write at a device-resident offset, quantized when the cache holds Q8_0 cells
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 
@@ -117,11 +117,11 @@ row: the entry of each operation and, as a column, the kernel each elementwise o
 table: yes
 
 switch: internal/cuda/executor/launch_recurrent_selection.go#launchRecurrentSelection
-lines: 344
+lines: 356
 constants: 16
 clauses: 17
 dispatch-lines: 20
-decides: the device launch of the state-space and recurrent operations (ssm_conv, ssm_scan, gated_delta_net, gated_linear_attention, wkv6, wkv7), the fused gated-delta preparation (gated_delta_conv, gated_delta_gates), the row reductions and selections (sum_rows, fwht, the top-k operations, gather_last) and the sparse attention operations (sparse_attention, indexer_score), each by reading its dimensions, narrowing them to 32-bit words and launching its kernel
+decides: the device launch of the state-space and recurrent operations (ssm_conv, ssm_scan, gated_delta_net, gated_linear_attention, wkv6, wkv7), the fused gated-delta preparation (gated_delta_conv, gated_delta_gates), the row reductions and selections (sum_rows, fwht, the top-k operations, gather_last) and the sparse attention operations (sparse_attention, indexer_score), each by reading its dimensions, narrowing them to 32-bit words and launching its kernel, a sparse attention over Q8_0 cells first gathering its selected slots as F32 rows
 row: the entry of each operation, while each body marshals its own kernel's arguments
 table: yes
 

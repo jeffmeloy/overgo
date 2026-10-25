@@ -6,7 +6,9 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/quant"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 func fwht(shape tensor.Shape, input Value) (Value, error) {
@@ -542,8 +544,12 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 	return Value{Shape: shape, Data: output}, nil
 }
 
+// cacheAppend writes the rows at the offset; into a cache of Q8_0 cells, the
+// written rows hold the values the cells return, the rows rounded through
+// the cell form (roundQ8Cells).
 func cacheAppend(
 	shape tensor.Shape,
+	cells dtype.Type,
 	left, right Value,
 	attributes tensor.CacheAppendAttributes,
 ) (Value, error) {
@@ -579,5 +585,40 @@ func cacheAppend(
 	output := make([]float32, int(outputElements))
 	copy(output, left.Data[:leftElements])
 	copy(output[offset:offset+rightElements], right.Data[:rightElements])
+	if cells == dtype.Q8_0 {
+		if err := roundQ8Cells(output[offset : offset+rightElements]); err != nil {
+			return Value{}, err
+		}
+	}
 	return Value{Shape: shape, Data: output}, nil
 }
+
+// roundQ8Cells rounds rows through the Q8_0 cell form the device writes: a
+// block's scale is its absolute maximum over 127 as stored in f16, and each
+// value is its code against that stored scale times the scale.
+func roundQ8Cells(rows []float32) error {
+	traits, ok := dtype.Q8_0.Traits()
+	if !ok || uint64(len(rows))%traits.BlockSize != 0 {
+		return errors.New("Q8_0 cells take whole blocks")
+	}
+	block := int(traits.BlockSize)
+	for start := 0; start < len(rows); start += block {
+		group := rows[start : start+block]
+		var maximum float32
+		for _, value := range group {
+			maximum = max(maximum, float32(math.Abs(float64(value))))
+		}
+		scale := quant.Float16ToFloat32(quant.Float32ToFloat16(maximum / q8CellLevels))
+		for index, value := range group {
+			code := float32(0)
+			if scale != 0 {
+				code = max(-q8CellLevels, min(q8CellLevels, float32(math.RoundToEven(float64(value/scale)))))
+			}
+			group[index] = scale * code
+		}
+	}
+	return nil
+}
+
+// q8CellLevels is the code a block's absolute maximum takes, the int8 range's top.
+const q8CellLevels = float32(127)

@@ -168,6 +168,11 @@ func sparseStagingBytes(node *tensor.Tensor) (uint64, bool) {
 	if node.Op != tensor.OpSparseAttention || len(node.Inputs) < sparseAttentionInputs {
 		return 0, false
 	}
+	if node.Inputs[sparseAttentionKey].Type == dtype.Q8_0 {
+		// The cells are gathered as F32 rows beside the kernels' own staging.
+		layout, err := q8SparseStagingLayout(node)
+		return layout.total, err == nil
+	}
 	query, key := node.Inputs[sparseAttentionQuery].Shape, node.Inputs[sparseAttentionKey].Shape
 	value, indices := node.Inputs[sparseAttentionValue].Shape, node.Inputs[sparseAttentionIndices].Shape
 	keyWidth, valueWidth := uint32(query.Dims[0]), uint32(value.Dims[0])
@@ -468,6 +473,18 @@ func launchRecurrentSelection(
 		queryStart := pointers.attribute
 		if queryStart == 0 {
 			return errors.New("sparse attention first-query storage is unavailable")
+		}
+		if node.Inputs[sparseAttentionKey].Type == dtype.Q8_0 {
+			// The step's selected cells are gathered as F32 rows, the causal rule applied by the gather, and the
+			// kernels below run on those rows as a cache of their own.
+			keys, values, remapped, rows, err := gatherQ80SparseRows(
+				state, functions, blas, node, key, value, indices, queryStart,
+				keyWidth, valueWidth, keyValueHeads, queryTokens, keyValueTokens, selected, causal,
+			)
+			if err != nil {
+				return err
+			}
+			key, value, indices, keyValueTokens, causal = keys, values, remapped, rows, kernelBool(false)
 		}
 		if mmaSparseAttention(keyWidth, valueWidth, queryHeads, keyValueHeads, queryTokens) {
 			// The cache's keys and values convert to FP16 in the score staging, so each query token gathers half the bytes.

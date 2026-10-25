@@ -571,6 +571,138 @@ extern "C" __global__ void copy_token_offset_f32(
     }
 }
 
+// copy_u8: a byte copy, for a cache whose cells are blocks rather than floats.
+extern "C" __global__ void copy_u8(
+        const unsigned char * input,
+        unsigned char * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = input[index];
+    }
+}
+
+// Q8_0 cells: a cache row of width values is width / Q8_0_BLOCK_WIDTH blocks of
+// Q8_0_BLOCK_WIDTH int8 codes behind one f16 scale (Q8_0_BLOCK_BYTES), the form
+// gather_last_q8_0_f32 reads. A warp writes one block: the scale is the group's
+// absolute maximum over 127 as stored in f16, and each lane's code is its value
+// over that stored scale, so a read returns the nearest representable value.
+// Strata keeps its cells in groups of 64 (kv_q8.cu); the group size is ours,
+// provisional until the load-costs step prices it.
+__device__ __forceinline__ void store_q8_0_warp(
+        unsigned char * block,
+        float value,
+        unsigned int lane) {
+    float maximum = fabsf(value);
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        maximum = fmaxf(maximum, __shfl_down_sync(0xffffffff, maximum, offset));
+    }
+    maximum = __shfl_sync(0xffffffff, maximum, 0);
+    const __half scale = __float2half(maximum / 127.0f);
+    const float stored = __half2float(scale);
+    if (lane == 0) {
+        *reinterpret_cast<__half *>(block) = scale;
+    }
+    const int quantized = stored == 0.0f
+        ? 0
+        : max(-127, min(127, __float2int_rn(value / stored)));
+    *(reinterpret_cast<signed char *>(block + Q8_0_SCALE_BYTES) + lane) = (signed char) quantized;
+}
+
+// q8_0_value reads one element of a Q8_0 cell: element index over a row-major
+// store whose rows are whole blocks.
+__device__ __forceinline__ float q8_0_value(
+        const unsigned char * cells,
+        unsigned long long element) {
+    const unsigned char * block = cells + (element / Q8_0_BLOCK_WIDTH) * Q8_0_BLOCK_BYTES;
+    const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+    const signed char code = *(reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES) +
+                               element % Q8_0_BLOCK_WIDTH);
+    return scale * (float) code;
+}
+
+// cache_append_q8_0_f32: copy_token_offset_f32 onto a Q8_0 cache: the appended
+// rows are quantized a block a warp at the device-resident row offset. count is a
+// whole number of blocks and inner a whole number of blocks a row, so a warp's
+// lanes are one block of one row.
+extern "C" __global__ void cache_append_q8_0_f32(
+        const float * input,
+        unsigned char * output,
+        const unsigned int * offset_rows,
+        unsigned int inner,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned long long base =
+        (unsigned long long) offset_rows[0] * (unsigned long long) inner;
+    const unsigned long long block = (base + index) / Q8_0_BLOCK_WIDTH;
+    store_q8_0_warp(output + block * Q8_0_BLOCK_BYTES, input[index], index % Q8_0_BLOCK_WIDTH);
+}
+
+// gather_q8_0_rows_f32: the selected slots of a Q8_0 cache as F32 rows, as
+// Strata's kv_gather_q8_step reads a step's cells back. Query token q's slot s
+// becomes row q * selected + s of the gathered store, every head of the cell in
+// it, and the slot's index is rewritten to that row, or to -1 for a slot the
+// sparse attention kernels would skip (unset, out of range, or past the query
+// under the causal rule), so the kernels then run on the gathered rows with no
+// causal rule of their own. count is rows x heads x width.
+extern "C" __global__ void gather_q8_0_rows_f32(
+        const unsigned char * cells,
+        const float * indices,
+        float * rows,
+        float * remapped,
+        unsigned int width,
+        unsigned int key_value_heads,
+        unsigned int selected,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int causal,
+        const unsigned int * first_query,
+        unsigned int write_remapped,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int channel = index % width;
+    const unsigned int head = (index / width) % key_value_heads;
+    const unsigned int row = index / (width * key_value_heads);
+    const unsigned int query_token = row / selected;
+    const unsigned int slot = row % selected;
+    if (query_token >= query_tokens) {
+        return;
+    }
+    const float raw = indices[(size_t) query_token * selected + slot];
+    int key_token = -1;
+    if (isfinite(raw) && raw >= 0.0f && raw < (float) key_value_tokens) {
+        const unsigned int token = (unsigned int) raw;
+        if (raw == (float) token && !(causal && token > *first_query + query_token)) {
+            key_token = (int) token;
+        }
+    }
+    float value = 0.0f;
+    if (key_token >= 0) {
+        value = q8_0_value(cells, ((unsigned long long) key_token * key_value_heads + head) * width + channel);
+    }
+    rows[index] = value;
+    if (write_remapped && head == 0 && channel == 0) {
+        remapped[(size_t) query_token * selected + slot] = key_token >= 0 ? (float) row : -1.0f;
+    }
+}
+
+// dequantize_q8_0_rows_f32: a Q8_0 store as F32, element for element.
+extern "C" __global__ void dequantize_q8_0_rows_f32(
+        const unsigned char * cells,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = q8_0_value(cells, index);
+    }
+}
+
 extern "C" __global__ void silu_f32(
         const float * input,
         float * output,
@@ -5033,6 +5165,112 @@ extern "C" __global__ void rope_append_neox_f32(
     *destination = column < half
         ? x0 * cosine - x1 * sine
         : x0 * sine + x1 * cosine;
+}
+
+// rope_append_normal_q8_0_f32: rope_append_normal_f32 onto a Q8_0 cache. Every
+// lane computes its rotated value, and the warp quantizes its block
+// (store_q8_0_warp); a column past the rotary dimensions is the input
+// unrotated, decided without a branch the warp could diverge on.
+extern "C" __global__ void rope_append_normal_q8_0_f32(
+        const float * input,
+        const unsigned int * positions,
+        const float * frequency_factors,
+        unsigned char * output,
+        const unsigned int * offset,
+        unsigned int inner,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int rotary_dimensions,
+        float frequency_base,
+        float frequency_scale,
+        unsigned int original_context,
+        float ext_factor,
+        float attention_factor,
+        float beta_fast,
+        float beta_slow,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % width;
+    float value = input[index];
+    if (column < rotary_dimensions) {
+        const unsigned int row = index / width;
+        const unsigned int token = (row / heads) % tokens;
+        const unsigned int pair = column / 2;
+        const unsigned int pair_offset = row * width + pair * 2;
+        const float theta_extrapolated =
+            (float) positions[token] *
+            powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+            (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
+        float sine;
+        float cosine;
+        rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+            original_context, frequency_base, ext_factor, attention_factor,
+            beta_fast, beta_slow, &cosine, &sine);
+        const float x0 = input[pair_offset];
+        const float x1 = input[pair_offset + 1];
+        value = (column & 1) == 0
+            ? x0 * cosine - x1 * sine
+            : x0 * sine + x1 * cosine;
+    }
+    const unsigned long long base = (unsigned long long) offset[0] * (unsigned long long) inner;
+    const unsigned long long block = (base + index) / Q8_0_BLOCK_WIDTH;
+    store_q8_0_warp(output + block * Q8_0_BLOCK_BYTES, value, index % Q8_0_BLOCK_WIDTH);
+}
+
+// rope_append_neox_q8_0_f32: rope_append_neox_f32 onto a Q8_0 cache.
+extern "C" __global__ void rope_append_neox_q8_0_f32(
+        const float * input,
+        const unsigned int * positions,
+        const float * frequency_factors,
+        unsigned char * output,
+        const unsigned int * offset,
+        unsigned int inner,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens,
+        unsigned int rotary_dimensions,
+        float frequency_base,
+        float frequency_scale,
+        unsigned int original_context,
+        float ext_factor,
+        float attention_factor,
+        float beta_fast,
+        float beta_slow,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % width;
+    float value = input[index];
+    if (column < rotary_dimensions) {
+        const unsigned int row = index / width;
+        const unsigned int token = (row / heads) % tokens;
+        const unsigned int half = rotary_dimensions / 2;
+        const unsigned int pair = column % half;
+        const unsigned int pair_offset = row * width + pair;
+        const float theta_extrapolated =
+            (float) positions[token] *
+            powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions) /
+            (frequency_factors == nullptr ? 1.0f : frequency_factors[pair]);
+        float sine;
+        float cosine;
+        rope_yarn_angles(theta_extrapolated, frequency_scale, pair, rotary_dimensions,
+            original_context, frequency_base, ext_factor, attention_factor,
+            beta_fast, beta_slow, &cosine, &sine);
+        const float x0 = input[pair_offset];
+        const float x1 = input[pair_offset + half];
+        value = column < half
+            ? x0 * cosine - x1 * sine
+            : x0 * sine + x1 * cosine;
+    }
+    const unsigned long long base = (unsigned long long) offset[0] * (unsigned long long) inner;
+    const unsigned long long block = (base + index) / Q8_0_BLOCK_WIDTH;
+    store_q8_0_warp(output + block * Q8_0_BLOCK_BYTES, value, index % Q8_0_BLOCK_WIDTH);
 }
 
 extern "C" __global__ void rope_multi_f32(

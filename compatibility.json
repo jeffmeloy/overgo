@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:062e4f7c57afc6b21b7e955c604e04e7732437ef5e5b3e6287cd49812a693d0e"
+     "identity": "file:sha256:091206a39d516e55d1c141c04686a254add2c697071298edf4d78f3821dea32a"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:bf8e3d50d7c3f58d674a7fd20e7a2ffe4164c3a3da6d24e6a2188847b7d4991b"
+     "identity": "file:sha256:7207d626de73ddafcb4e2971f93da7bf7f151d4e7f7024c97fea2578237dfbe1"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",

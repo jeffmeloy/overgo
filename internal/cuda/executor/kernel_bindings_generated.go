@@ -28,6 +28,7 @@ const (
 	kernelAttentionTiledF32
 	kernelBf16RoundF32
 	kernelBf16ToF32
+	kernelCacheAppendQ80F32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
 	kernelBroadcastMultiplyF32
@@ -43,6 +44,7 @@ const (
 	kernelConv2dWeightBackwardF32
 	kernelCopyF32
 	kernelCopyTokenOffsetF32
+	kernelCopyU8
 	kernelDequantRowsIq4NlF16
 	kernelDequantRowsIq4XsF16
 	kernelDequantRowsQ10F16
@@ -50,6 +52,7 @@ const (
 	kernelDequantRowsQ5KF16
 	kernelDequantRowsQ6KF16
 	kernelDequantRowsQ80F16
+	kernelDequantizeQ80RowsF32
 	kernelDivideF32
 	kernelEmbeddingGatherRowsF32
 	kernelExpF32
@@ -73,6 +76,7 @@ const (
 	kernelGatedLinearAttentionF32
 	kernelGatherLastF32
 	kernelGatherLastQ80F32
+	kernelGatherQ80RowsF32
 	kernelGeluErfF32
 	kernelGeluF32
 	kernelGeluTanhExactF32
@@ -189,7 +193,9 @@ const (
 	kernelRmsNormBackwardF32
 	kernelRmsNormF32
 	kernelRopeAppendNeoxF32
+	kernelRopeAppendNeoxQ80F32
 	kernelRopeAppendNormalF32
+	kernelRopeAppendNormalQ80F32
 	kernelRopeHalfBackwardF32
 	kernelRopeHalfF32
 	kernelRopeMultiF32
@@ -276,6 +282,7 @@ var kernelFunctionNames = [...]string{
 	"attention_tiled_f32",
 	"bf16_round_f32",
 	"bf16_to_f32",
+	"cache_append_q8_0_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
 	"broadcast_multiply_f32",
@@ -291,6 +298,7 @@ var kernelFunctionNames = [...]string{
 	"conv_2d_weight_backward_f32",
 	"copy_f32",
 	"copy_token_offset_f32",
+	"copy_u8",
 	"dequant_rows_iq4_nl_f16",
 	"dequant_rows_iq4_xs_f16",
 	"dequant_rows_q1_0_f16",
@@ -298,6 +306,7 @@ var kernelFunctionNames = [...]string{
 	"dequant_rows_q5_K_f16",
 	"dequant_rows_q6_K_f16",
 	"dequant_rows_q8_0_f16",
+	"dequantize_q8_0_rows_f32",
 	"divide_f32",
 	"embedding_gather_rows_f32",
 	"exp_f32",
@@ -321,6 +330,7 @@ var kernelFunctionNames = [...]string{
 	"gated_linear_attention_f32",
 	"gather_last_f32",
 	"gather_last_q8_0_f32",
+	"gather_q8_0_rows_f32",
 	"gelu_erf_f32",
 	"gelu_f32",
 	"gelu_tanh_exact_f32",
@@ -437,7 +447,9 @@ var kernelFunctionNames = [...]string{
 	"rms_norm_backward_f32",
 	"rms_norm_f32",
 	"rope_append_neox_f32",
+	"rope_append_neox_q8_0_f32",
 	"rope_append_normal_f32",
+	"rope_append_normal_q8_0_f32",
 	"rope_half_backward_f32",
 	"rope_half_f32",
 	"rope_multi_f32",
@@ -523,6 +535,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	13,
 	3,
 	3,
+	5,
 	15,
 	15,
 	15,
@@ -538,6 +551,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	3,
 	5,
+	3,
 	5,
 	5,
 	5,
@@ -545,6 +559,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	5,
+	3,
 	4,
 	5,
 	3,
@@ -568,6 +583,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	12,
 	7,
 	7,
+	13,
 	3,
 	3,
 	8,
@@ -683,6 +699,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	8,
 	5,
+	18,
+	18,
 	18,
 	18,
 	5,

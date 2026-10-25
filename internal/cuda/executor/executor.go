@@ -1359,6 +1359,16 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 			continue
 		}
+		// An attention over Q8_0 cells dequantizes its page into the staging, past the kernels' own regions.
+		if node.Inputs[1].Type == dtype.Q8_0 {
+			layout, err := q8AttentionStagingLayout(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, layout.total)
+			continue
+		}
 		// The tensor-core kernel keeps a prompt's scores in registers, so its attention reserves no score staging.
 		if attributes, ok := node.Attrs.(tensor.AttentionAttributes); ok && flashAttention(node, attributes) {
 			continue
@@ -2312,7 +2322,7 @@ func execute(
 		if node.Op == tensor.OpInput {
 			continue
 		}
-		if node.Type != dtype.F32 {
+		if node.Type != dtype.F32 && !(node.Type == dtype.Q8_0 && node.Op == tensor.OpCacheAppend) {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if frame.skipped {

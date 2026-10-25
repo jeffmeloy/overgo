@@ -285,17 +285,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 538,
-        "reason": "Carried from decode-loop (138, the loan's remainder) and verify-states (400, the delta-net state written in place); each port landing raises it by the growth it measures, with its own reason."
+        "nodes": 41,
+        "reason": "kv-kernels adds the Q8_0 cell launches (the quantizing appends, the selected-slot gather, the page dequantization, their staging layouts and the reference's rounding) beside the F32 kernels, which stay for the caches the kv step has not moved; its landing measured the growth, and the kv step raises the count by what it measures when it adopts the cells."
       },
       "steps": [
-        {
-          "id": "kv-kernels",
-          "title": "Store K/V as Q8_0 cells in the kernels, held to the F32 kernels",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestInt8KVAttentionMatchesTheF32Reference$' -count=1",
-          "rationale": "Serves: the kv step's first half, landing alone: the Q8_0 K/V cell kernels and their launches in the executor, with no model or cache change yet, so the kernels are held to the F32 kernels before any served path reads them. Port: Strata's int8 cells (kv_q8.cu: kv_append_q8_step writing a step's cells, kv_gather_q8_step reading the selected cells back) in our Q8_0 block form (32 codes and an f16 scale, dtype.Q8_0): a rope-append that quantizes the rotated keys a 32-wide group at the cache offset, a value append that quantizes rows at the offset, the sparse attention kernels (one thread a channel, grouped, split) reading a key or value element as scale times code, the tensor-core path gathering only the step's selected slots to F16 in place of converting the whole cache, and a page's F16 staging for the prompt attention. The builder admits a Q8_0 cache beside an F32 source in a cache append and a Q8_0 key and value in attention. Each value from Strata lands named provisional (the group size is ours, 32 against Strata's 64, a row of load-costs' table). Disappears: nothing yet; the F32 kernels stay until the kv step moves the served caches. Evidence: TestInt8KVAttentionMatchesTheF32Reference (the Q8_0 kernels on a quantized cache against the F32 kernels on the same values, within the Q8_0 rounding bound written before the change: a key's or value's element within its group's absmax over 127, carried through one softmax). Batch: the cuda/executor device lane. Designed 2026-10-25 in tmp/strata-port/kv-design.txt while the measurement run held the machine; coded in the scratch worktree, built after the run."
-        },
         {
           "id": "kv",
           "title": "Store K/V as int8 at a fixed resident size, read by Strata's attention and indexer kernels",
@@ -940,6 +933,36 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7d8cc7a9001cffd0 -target 0.7818181818181819",
           "rationale": "- Qwen3.8-27B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.781818182 to 0.763636364 (-0.0181818182, -2.3%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-eeab4788f8674aab",
+      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-eeab4788f8674aab -target 1.6591464708e+10",
+          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65914647e+10 to 1.66008934e+10 (+9428736, +0.1%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T194250Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f720274acf031e2f",
+      "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f720274acf031e2f -target 2.6925272444e+10",
+          "rationale": "- Krea-2-Turbo peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9}: 2.69252724e+10 to 2.69732407e+10 (+47968256, +0.2%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T194250Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

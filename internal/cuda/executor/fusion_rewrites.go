@@ -912,7 +912,7 @@ func addendEpilogueCompatible(node, addend *tensor.Tensor) bool {
 func applyBF16AppendRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
-		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
+		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 || node.Type != dtype.F32 {
 			continue
 		}
 		if compiled.hasFusion(node, compiledFusionRopeAppend) {

@@ -63,7 +63,7 @@ func CompileProgram(program tensor.Program) (*Program, error) {
 		outputs: program.Outputs(),
 	}
 	for index, node := range order {
-		if node.Type != dtype.F32 {
+		if node.Type != dtype.F32 && !holdsCells(node) {
 			return nil, fmt.Errorf("reference executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		indexes[node] = index

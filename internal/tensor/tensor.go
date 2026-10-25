@@ -683,6 +683,21 @@ func (b *Builder) WriteCache(left, right *Tensor, axis uint32, mode CacheWriteMo
 	}
 }
 
+// cacheAppendTypes admits a cache and the rows appended to it: the same type, or F32 rows into a cache of Q8_0
+// cells, which the append quantizes a block at a time, so a row is a whole number of blocks.
+func cacheAppendTypes(cache, rows dtype.Type, width uint64) bool {
+	if cache == rows {
+		return true
+	}
+	traits, ok := cache.Traits()
+	return ok && cache == dtype.Q8_0 && rows == dtype.F32 && width%traits.BlockSize == 0
+}
+
+// cacheReadTypes admits the keys and values an attention reads from a cache: F32, or Q8_0 cells, both the same.
+func cacheReadTypes(key, value dtype.Type) bool {
+	return key == value && (key == dtype.F32 || key == dtype.Q8_0)
+}
+
 // AppendCache: bounded fixed-capacity append.
 func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
 	if b == nil {
@@ -695,7 +710,7 @@ func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	if left == nil || right == nil || left.Type != right.Type ||
+	if left == nil || right == nil || !cacheAppendTypes(left.Type, right.Type, left.Shape.Dims[0]) ||
 		left.Shape.Rank == 0 || left.Shape.Rank != right.Shape.Rank ||
 		axis+1 != uint32(left.Shape.Rank) ||
 		left.Shape.Dims[axis] != uint64(b.cacheAppend.SourceCapacityTokens) {

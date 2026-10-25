@@ -346,7 +346,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpConcat:
 		return concat(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.ConcatAttributes).Axis)
 	case tensor.OpCacheAppend:
-		return cacheAppend(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.CacheAppendAttributes))
+		return cacheAppend(node.Shape, node.Type, inputs[0], inputs[1], node.Attrs.(tensor.CacheAppendAttributes))
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}

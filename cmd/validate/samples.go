@@ -91,7 +91,7 @@ func exportRecipeSamples(
 	store *overgodb.Store,
 	definition artifact.ID,
 	directory string,
-	selection mediaSampleSelection,
+	selection *mediaSampleSelection,
 ) (int, error) {
 	written := 0
 	err := visitRecipeSamples(ctx, store, definition, selection, func(sample sampleRef, data []byte) error {
@@ -124,7 +124,7 @@ type sampleRef struct {
 
 // recipeSampleNames lists the exportable samples one recipe
 // definition's succeeded runs produced, in lineage order.
-func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID, selection mediaSampleSelection) ([]sampleRef, error) {
+func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID, selection *mediaSampleSelection) ([]sampleRef, error) {
 	var names []sampleRef
 	seen := map[string]bool{}
 	err := visitRecipeSamples(ctx, store, definition, selection, func(sample sampleRef, _ []byte) error {
@@ -143,7 +143,7 @@ func visitRecipeSamples(
 	ctx context.Context,
 	store *overgodb.Store,
 	definition artifact.ID,
-	selection mediaSampleSelection,
+	selection *mediaSampleSelection,
 	visit func(sample sampleRef, data []byte) error,
 ) error {
 	return visitRecipeRuns(ctx, store, definition, func(run runrecord.Run) error {

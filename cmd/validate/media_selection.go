@@ -12,22 +12,37 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/scorecard"
+	"overgo/internal/scorecard/metric"
 )
 
 // Focused sample export selects frozen requests, including later executions
-// of those same requests. The canonical report retains all recorded media.
-type mediaSampleSelection map[artifact.ID][][]artifact.ID
+// of those same requests, or the exact runs the scorecard's cells are
+// measured on. The canonical report retains all recorded media.
+type mediaSampleSelection struct {
+	// requests are the frozen requests by recipe: a run with the same inputs
+	// is an execution of one of them.
+	requests map[artifact.ID][][]artifact.ID
+	// runs are the attempts the scorecard measures, one run each.
+	runs map[artifact.ID]bool
+}
 
-func (selection mediaSampleSelection) includes(run runrecord.Run) bool {
+func (selection *mediaSampleSelection) includes(run runrecord.Run) bool {
 	if selection == nil {
 		return true
 	}
-	return slices.ContainsFunc(selection[run.Recipe], func(inputs []artifact.ID) bool {
+	if selection.runs != nil {
+		return selection.runs[run.ID]
+	}
+	return slices.ContainsFunc(selection.requests[run.Recipe], func(inputs []artifact.ID) bool {
 		return slices.Equal(inputs, run.Inputs)
 	})
 }
 
-func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.Store, scope mediaReportScope, entries []discovery.CatalogEntry) (mediaSampleSelection, error) {
+func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.Store, scope mediaReportScope, entries []discovery.CatalogEntry) (*mediaSampleSelection, error) {
+	if scope.MeasuredAttempts {
+		return measuredSampleSelection(ctx, store)
+	}
 	if !scope.FrozenRequests {
 		return nil, nil
 	}
@@ -38,7 +53,7 @@ func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.
 	if protocol.Version != 1 || len(protocol.Cases) == 0 || len(protocol.RequiredChecks) == 0 {
 		return nil, errors.New("media report: incomplete quality protocol")
 	}
-	selection := mediaSampleSelection{}
+	selection := &mediaSampleSelection{requests: map[artifact.ID][][]artifact.ID{}}
 	seen := map[string]bool{}
 	for _, value := range protocol.Cases {
 		if value.ID == "" || seen[value.ID] {
@@ -60,13 +75,39 @@ func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.
 		if err := checkImageVideoCaseRun(value, run); err != nil {
 			return nil, err
 		}
-		selection[value.Recipe] = append(selection[value.Recipe], value.Inputs)
+		selection.requests[value.Recipe] = append(selection.requests[value.Recipe], value.Inputs)
 	}
 	for _, entry := range entries {
 		for _, capability := range entry.Capabilities {
-			if len(selection[capability.Recipe]) == 0 {
+			if len(selection.requests[capability.Recipe]) == 0 {
 				return nil, fmt.Errorf("media report: protocol omits %s/%s", entry.Model, capability.Task)
 			}
+		}
+	}
+	return selection, nil
+}
+
+// measuredSampleSelection selects, for each media activation, the run of the
+// attempt the scorecard's first-output cell is measured on, read from that
+// cell's source, so the exported sample is the output whose time and memory
+// the scorecard reports.
+func measuredSampleSelection(ctx context.Context, store *overgodb.Store) (*mediaSampleSelection, error) {
+	rows, err := scorecard.Build(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	selection := &mediaSampleSelection{runs: map[artifact.ID]bool{}}
+	for _, row := range rows {
+		source := row.Cells[metric.FirstOutput].Source
+		if !mediaTask(row.Task) || !source.Valid() {
+			continue
+		}
+		observation, err := runrecord.RequireServingObservation(ctx, store, source)
+		if err != nil {
+			return nil, err
+		}
+		if observation.Run.Valid() {
+			selection.runs[observation.Run] = true
 		}
 	}
 	return selection, nil

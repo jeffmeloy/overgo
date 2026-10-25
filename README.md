@@ -99,26 +99,58 @@ scorecard, and files each decline and each open gap as a plan row. There is no
 passed state: progress is each scorecard cell compared with its previous
 measurement.
 
-### Scorecard highlights
+### Served models
 
-From the record `scorecard-20261025T021213Z` (one measurement run on the
-reference PC: Ryzen 9 9950X, RTX 4090 D with 48 GiB, Windows 11; every row
-served and scored on this machine). First output and throughput are the first
-request after a fresh load, so the throughput here is a cold figure; the warm
-bench figures follow the table.
+Every model with an active recipe, as the record `scorecard-20261025T021213Z`
+measured it: one measurement run on the reference PC (Ryzen 9 9950X, RTX 4090 D
+with 48 GiB, Windows 11), every row served and scored on this machine. First
+output and throughput are the first request after a fresh load, so throughput
+is a cold figure; the warm bench figures follow the table. Peak device memory
+is the most the measured attempt held on the card; "host" marks a model that
+runs on the CPU. The full scorecard, with failure rate, load time and setup
+steps, is `go run ./cmd/validate -scorecard`; beyond these models, 138
+architecture profiles are registered (`go run ./cmd/validate -models -repo <store>`).
 
-| Model | Task | First output | Throughput | Held-out quality | Peak device memory |
+| Model | Input → output | First output | Throughput | Held-out quality | Peak device memory |
 | --- | --- | --- | --- | --- | --- |
-| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | chat | 0.94 s; 1.66 s at a 4K prompt; 5.5 s at 16K | 73 tok/s | MMLU-Pro 0.62 on 1,209 cases | 45.9 GiB |
-| Qwen3.8-27B (Q6_K) | chat | 112 ms | 31 tok/s | MMLU-Pro 0.59 | 21.2 GiB |
-| Qwen3.5-9B (Q8_0) | chat | 38 ms | 97 tok/s | MMLU-Pro 0.50 | 9.1 GiB |
-| gemma-4-12B-it (fp8, native) | chat | 173 ms | 50 tok/s | MMLU-Pro 0.49 | 14.4 GiB |
-| Qwen2.5-0.5B (f16) | chat | 112 ms | 516 tok/s | MMLU-Pro 0.17 | 1.0 GiB |
-| granite-speech 470M | transcription | 2.8 s | — | 0.9% word error rate on 32 held-out clips | 1.1 GiB |
-| pocket-tts | speech | 2.6 s | — | 2.2% word error rate, re-transcribed | — |
-| Krea-2-Turbo | image generation | 13.9 s | — | 0.94 on 415 prompts | 25.1 GiB |
-| Wan2.1-T2V 1.3B | video generation | 13.0 s | — | 0.91 on 128 clips | 3.6 GiB |
-| Hy-Embodied-RxBrain | visual question answering | 9.8 s | 182 tok/s | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text → text; image → text | 0.94 s; 1.66 s at a 4K prompt; 5.5 s at 16K | 73 tok/s | MMLU-Pro 0.62 on 1,209 cases; image questions 0.47 on 64 | 45.9 GiB |
+| Qwen3.8-27B (Q6_K) | text → text; image or video → text | 112 ms; 2.1 s at 4K; 8.5 s at 16K | 31 tok/s | MMLU-Pro 0.59; image and video questions 0.92 on 64 | 21.2 GiB |
+| Qwen3.5-9B (Q8_0) | text → text | 38 ms; 0.74 s at 4K; 2.8 s at 16K | 97 tok/s | MMLU-Pro 0.50 | 9.1 GiB |
+| Qwen3.5-4B | text → text | 131 ms; 0.38 s at 4K; 1.9 s at 16K | 97 tok/s | MMLU-Pro 0.48; 0.75 on 40 questions when left to think | 8.3 GiB |
+| gemma-4-12B-it (fp8, native) | text → text | 173 ms; 1.1 s at 4K; 5.1 s at 16K | 50 tok/s | MMLU-Pro 0.49 | 14.4 GiB |
+| gemma-4-12B-it (fp8 unpacked to bf16) | text → text | 168 ms; 1.3 s at 4K | 37 tok/s | MMLU-Pro 0.49 | 22.3 GiB |
+| gemma-4-E4B-it | text → text; audio or image → text | 148 ms; 0.52 s at 4K; 2.4 s at 16K | 76 tok/s | MMLU-Pro 0.44; 1.9% word error rate on 32 clips | 14.0 GiB |
+| Bonsai-27B (Q1_0) | text → text | 101 ms; 2.2 s at 4K; 8.9 s at 16K | 51 tok/s | MMLU-Pro 0.43 | 4.3 GiB |
+| MiniCPM5-1B | text → text | 113 ms; 0.10 s at 4K; 0.59 s at 16K | 365 tok/s | MMLU-Pro 0.30 | 2.1 GiB |
+| Qwen2.5-0.5B (f16) | text → text | 112 ms; 0.15 s at 4K; 1.2 s at 16K | 516 tok/s | MMLU-Pro 0.17 | 1.0 GiB |
+| Unlimited-OCR (bf16) | text → text | 133 ms; 0.26 s at 4K; 0.97 s at 16K | 435 tok/s | BBH 0.30, within noise of a constant answer | 5.7 GiB |
+| Carbon-500M (f16) | DNA sequence → DNA sequence | 114 ms; 0.37 s at 4K | 506 tok/s | perplexity 910 on 128 sequences (a draft model; not what it is for) | 1.0 GiB |
+| Fractale-350M-base | text → text, carrying notes between chunks | 4.8 s | 4.1 tok/s | carried gain 5.6 on 37 documents | host |
+| needle | text → function call | 487 ms | 221 tok/s | 0.255 on 400 calls | host |
+| Hy-Embodied-RxBrain-1.0 | image + question → answer | 9.8 s | 182 tok/s | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
+| Krea-2-Turbo | text → image | 13.9 s | — | 0.94 on 415 prompts | 25.1 GiB |
+| SenseNova-U1-8B-MoT-Infographic-V3 | text → image (infographics) | 13.1 s | — | 100 of 100, the suite's ceiling | 15.5 GiB |
+| SimpleDiffusion-TensorProductAttentionRope | noise → image, no caption | 0.92 s | — | no caption suite applies | 0.6 GiB |
+| MOSS-Image-SFT | text → image | not yet measured | — | — | — |
+| Un-0 | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | 12 ms; 29 ms | — | no caption suite applies | host |
+| Wan2.1-T2V 1.3B | text → video | 13.0 s | — | 0.91 on 128 clips | 3.6 GiB |
+| LiveEdit | video + instruction → video | 9.5 s | — | 0.84 on 64 clips | 3.5 GiB |
+| Wan2.1 VAE | video frame → frame (reconstruction) | 1.4 s | — | 41.4 dB PSNR on 128 | 4.4 GiB |
+| ViTXL_n08 | image → image (reconstruction) | 7.9 s | — | 20.5 dB PSNR on 128 | host |
+| webssl-dino300m-full2b-224 | image → embedding | 4.5 s | — | retrieval 0.46 on 483 | host |
+| webssl-dino-to-rae-bridge | image → image through a fitted bridge | 10.5 s | — | 18.2 dB PSNR on 128 | host |
+| granite-speech 470M | speech → text | 2.8 s | — | 0.9% word error rate on 32 clips | 1.1 GiB |
+| nemotron-3.5-asr-streaming-0.6b | speech → text, streaming | 4.3 s | — | 3.1% word error rate on 32 clips | host |
+| pocket-tts | text → speech | 2.6 s | — | 2.2% word error rate, re-transcribed, on 64 texts | host |
+| timesfm-2.5-200m | numeric series → forecast | 0.69 s | — | mean absolute error 2.24 on 11 series | host |
+| timesfm-3.0 | numeric series → forecast | 0.93 s | — | mean absolute error 2.18 on 30 series | host |
+| tabfm-1.0.0 | table → class | 2.4 s | — | 0.72 on 7 tables, within noise of a constant answer | host |
+
+Training recipes with a completed proof on this machine: Qwen2.5-0.5B (token
+accuracy 0.508 against its base 0.500 on 24 held-out cases), Qwen3.5-4B,
+Qwen3.5-9B, Hy-Embodied-RxBrain, LiveEdit, Wan2.1, tabfm (0.729 against 0.724)
+and the dino-to-RAE bridge; see the
+[training report](docs/TRAINING_COMPATIBILITY.md).
 
 Warm, served, against Strata's frozen bench suite on the same PC and model
 (three alternating rounds each, 2026-10-24): Flash-Next decodes a short chat at
@@ -127,6 +159,69 @@ token in 1.46 s against 2.2 s and a 16K prompt in 5.3 s against 5.0 s, and
 decodes agent turns at 91 to 93 tok/s against 145 to 146; a conversation of
 237,290 tokens is read in 2m16s with every later question answered in about
 0.8 s. The remaining decode gap is the Strata port, the plan's next campaign.
+
+### Sample outputs
+
+Each sample is the output of the attempt the scorecard measures, exported from
+the store by `go run ./cmd/validate -export-samples -media-scope measured -repo <store>`
+and named by the SHA-256 of its bytes, so it is checkable against the run that
+produced it. The time is that attempt's whole request after a fresh load; the
+memory is its peak on the card.
+
+**Krea-2-Turbo, text → image.** "a red fox licking a vanilla ice cream cone in
+snow", 512 × 512, 4 steps, seed 2026: 13.9 s, 25.1 GiB.
+
+![Krea-2-Turbo: a red fox licking a vanilla ice cream cone in snow](docs/media_samples/4f08c0fe12295fba0593c4932420b9d49defe20ce73a00b3b59c223f4f1840c3.png)
+
+**SenseNova-U1-8B-MoT-Infographic-V3, text → image.** "a minimal infographic
+of three rising bars labeled A B C", 512 × 512, 4 steps, guidance 4.5, seed
+2026: 13.1 s, 15.5 GiB. A 1536 × 2720 infographic in 50 steps from the frozen
+visual-review case:
+[image](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png).
+
+![SenseNova: a minimal infographic of three rising bars labeled A B C](docs/media_samples/2ff397c2af4142c28e0de7b09e510422e2bcd6a09731f3659d76055bb8d3e9fd.png)
+
+**SimpleDiffusion-TensorProductAttentionRope, noise → image.** 256 × 256 in 8
+steps, seed 2026: 0.92 s, 0.6 GiB.
+
+![SimpleDiffusion: a 256 by 256 sample](docs/media_samples/cd3f5feb951d9413f07060683035b12baaa909f67dead4b698c0fac24a629220.png)
+
+**Wan2.1-T2V 1.3B, text → video.** The measured request is a small one: "a red
+fox licking a vanilla ice cream cone on a snowy pine forest trail", 21 frames
+at 32 × 16, 2 steps: 13.0 s, 3.6 GiB
+([clip](docs/media_samples/e6e246d2f322356bf07a83e137a2c4341a97eed8dd45b3f188736ba92e248865.gif)).
+The frozen visual-review case, 81 frames at 832 × 480 in 50 steps, took 6 min
+14 s when it was drawn at commit fcda318af (2026-09-12); its device memory was
+not recorded.
+
+![Wan2.1-T2V: 81 frames at 832 by 480](docs/media_samples/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif)
+
+**LiveEdit, video + instruction → video.** 21 source frames at 32 × 16 through
+four denoising steps, seed 7: 9.5 s, 3.5 GiB
+([clip](docs/media_samples/5b1c2046f691ac277efc9b08f4f6fe0f35225e021a82afc8006fedebad127d4b.gif)).
+
+**pocket-tts, text → speech.** "Once upon a time, in a quiet valley, a small
+fox learned to sing.", voice alba: 5.4 s of 24 kHz audio in 2.6 s on the host
+([WAV](docs/media_samples/e845e24c17cae1270136a1aac2feb680c79e81c842a243ef2e69def47db8bc4a.wav)).
+
+**granite-speech 470M and nemotron, speech → text.** The same held-out
+LibriSpeech clip. granite, 2.8 s and 1.1 GiB: "my 1st and principal reason was
+that they enforced beyond all resistance on any student who might attempt to
+copy them this method of laying portions of distinct hue side by side".
+nemotron, 4.3 s on the host: "My first and principal reason was that they
+enforced beyond all resistance on any student who might attempt to copy them
+this method of laying portions of distinct hue side by side."
+
+**Hy-Embodied-RxBrain-1.0, image + question → answer.** On the model's own
+demonstration picture, "What objects are on the stovetop, and where is the
+green toy?" → "The stovetop holds a metal pot on the left burner", the
+request's 12-token budget, in 9.8 s and 3.5 GiB.
+
+**Un-0, class → picture or clip.** Class 1, seed 2026: an 8 × 8
+[picture](docs/media_samples/1995cda0e2c6ed9fb394c00c7baa68b208b3d8a6a604923588289d1c5950b556.png)
+in 12 ms and a 12-frame 16 × 16
+[clip](docs/media_samples/db326dae32fc3850abcf31985b0516513f3a59ca27276de82eccbb66806da36d.gif)
+in 29 ms, on the host.
 
 ## Training
 

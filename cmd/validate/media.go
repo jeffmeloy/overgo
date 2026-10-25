@@ -25,6 +25,10 @@ import (
 type mediaReportScope struct {
 	Tasks          []recipe.Task
 	FrozenRequests bool
+	// MeasuredAttempts selects the request of the attempt each scorecard
+	// cell is measured on, so the exported sample is the output whose time
+	// and memory the scorecard reports.
+	MeasuredAttempts bool
 }
 
 func resolveMediaReportScope(name string) (mediaReportScope, error) {
@@ -33,8 +37,10 @@ func resolveMediaReportScope(name string) (mediaReportScope, error) {
 		return mediaReportScope{Tasks: mediaTasks}, nil
 	case "image-video":
 		return mediaReportScope{Tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen}, FrozenRequests: true}, nil
+	case "measured":
+		return mediaReportScope{Tasks: mediaTasks, MeasuredAttempts: true}, nil
 	default:
-		return mediaReportScope{}, errors.New("media scope must be all or image-video")
+		return mediaReportScope{}, errors.New("media scope must be all, image-video or measured")
 	}
 }
 

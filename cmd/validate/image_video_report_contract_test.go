@@ -132,6 +132,9 @@ func TestImageVideoReportContract(t *testing.T) {
 	if _, err := resolveMediaReportScope("image"); err == nil {
 		t.Fatal("unknown report scope accepted")
 	}
+	if measured, err := resolveMediaReportScope("measured"); err != nil || !measured.MeasuredAttempts || len(measured.Tasks) != len(mediaTasks) {
+		t.Fatal("measured scope differs")
+	}
 	model, ok := definition.Dependency(recipe.DependencyModel, 0)
 	if !ok {
 		t.Fatal("fixture has no model dependency")
@@ -198,7 +201,7 @@ func TestImageVideoReportContract(t *testing.T) {
 		}
 	}
 	writeProtocol(protocol)
-	selection := mediaSampleSelection{definition.ID: {successful.Inputs}}
+	selection := &mediaSampleSelection{requests: map[artifact.ID][][]artifact.ID{definition.ID: {successful.Inputs}}}
 	changed := successful
 	changed.Inputs = []artifact.ID{outputID}
 	if !selection.includes(successful) || selection.includes(changed) {

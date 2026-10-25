@@ -76,7 +76,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
 	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
 	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
-	mediaScope := flags.String("media-scope", "all", "with -export-samples: the tasks exported, all or image-video; the media report always renders every media task")
+	mediaScope := flags.String("media-scope", "all", "with -export-samples: the samples exported: all for every run's output, image-video for the frozen requests, measured for the attempt each scorecard cell is measured on; the media report always renders every media task")
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
 	var censusBindings []string

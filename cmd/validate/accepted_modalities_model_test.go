@@ -117,7 +117,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "0982d3d434b2dd473efed4f0973b3dda446e6312cec5bb3b3c1142f17a0091df", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "03c355cab2d73e0d3d26dafc3d877b1fbcb83527e27d335ea921987d66ea4ded", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskInference, recipe.TaskProjection, recipe.TaskVQA, recipe.TaskEmbedding, recipe.TaskRerank)
 }
 
@@ -162,6 +162,13 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 	if err != nil || truncated {
 		t.Fatalf("coverage: live denominator unavailable or truncated: %v", err)
 	}
+	// Another lane's additions stand aside under their finding until their
+	// owner freezes them, as the inventory's acceptance sets them aside.
+	pending, err := loadMediaPending(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries = pending.catalogEntries(entries)
 	if err := checkAcceptedDenominator(t.Context(), store, coverage.Models, entries); err != nil {
 		t.Fatal(err)
 	}

@@ -186,6 +186,14 @@
             "verification/flashnext-capacity-protocol#candidate-execution"
           ],
           "Scope": "Qwen3.8-Flash-Next UD-IQ4_XS under its capacity session: the eight protocol cases of fixtures/protocol_acceptance.json (arithmetic, grounding, history, reasoning, a required tool call, a stream, a cancelled stream and the request after it) answered through the chat, responses and messages handlers, and its first chat case bound as the exact plan recipe measure replays. Vision, long context and speculation are not claimed here; no benchmark or quality claim."
+        },
+        {
+          "Task": "projection",
+          "Recipe": "recipe:sha256:17b9e52f640c3f61f3a107c3d759b5fb422b68062a9a8b8e61c7605b1a201fca",
+          "Proofs": [
+            "verification/flashnext-projection-exact#candidate-execution"
+          ],
+          "Scope": "Qwen3.8-Flash-Next's image projector under its active projection recipe: the exact suite of twenty retained cases ran again under the recipe and matched every case, the activation's decision at 4b9fb9611 on 2026-10-24; held-out image questions score 0.47 on 64 cases, and the served image path is held to no reference beyond this suite."
         }
       ]
     }
@@ -287,6 +295,13 @@
       "Commit": "fe2ec7ad774a3a83080c17d3b58c2f14e18a5785",
       "Verify": "go run ./cmd/recipe verify -task inference -protocol -input-file fixtures/protocol_acceptance.json C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
       "Result": "evidence:sha256:cd79c6c8f1f8002d39d1e260ed06c256b8a732de5d39271b52722e2b0298f5bd",
+      "Check": "candidate-execution"
+    },
+    {
+      "Reference": "verification/flashnext-projection-exact",
+      "Commit": "4b9fb96116b9b68573b3302edc885400f6c55c83",
+      "Verify": "go run ./cmd/recipe verify -task projection -reverify -projector C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/mmproj-Qwen3.8-Flash-Next-BF16.gguf C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
+      "Result": "evidence:sha256:a110449b84d51331db70e924f2224a46796b575faa9753b6da292c707c010cff",
       "Check": "candidate-execution"
     }
   ],

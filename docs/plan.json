@@ -218,13 +218,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "records",
-          "title": "Re-derive the accepted-evidence records the cmd/validate lanes pin",
-          "status": "open",
-          "verify": "go test -tags modeltest,integration ./cmd/validate -run '^(TestAcceptedImageVideoEvidence|TestAcceptedTextVisionEvidence|TestAcceptedModalityCoverage|TestAcceptedProtocolCoverageProjection|TestAcceptedSmallModelMMLUPro)$' -count=1",
-          "rationale": "The cmd/validate accepted-evidence tests (TestAcceptedImageVideoEvidence, TestAcceptedTextVisionEvidence, TestAcceptedModalityCoverage, TestAcceptedProtocolCoverageProjection, TestAcceptedSmallModelMMLUPro) pin records against activations and coverage that moved: an image-gen and a projection activation changed or duplicated, and Flash-Next scored on MMLU-Pro under raw-completion alone where the record wants both protocols; failing since 2026-10-18. Each pin is re-derived from the store or corrected with its reading."
-        },
-        {
           "id": "journey",
           "title": "Repair the library validation journey",
           "status": "open",

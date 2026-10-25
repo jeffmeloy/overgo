@@ -224,12 +224,26 @@
           "id": "scorecard",
           "title": "Measure every scorecard cell on one commit beside Strata's bench suite",
           "status": "open",
-          "verify": "d=\"${OVERGO_DATA_ROOT:-$(git rev-parse --path-format=absolute --git-common-dir)/../../overgo_data}/scorecards\" \u0026\u0026 f=$(ls -t \"$d\"/scorecard-*.json | head -1) \u0026\u0026 c=$(grep -o '\"commit\": \"[0-9a-f]*\"' \"$f\" | head -1 | cut -d'\"' -f4) \u0026\u0026 git merge-base --is-ancestor 01c01d66da308daaee0fd2885a630acc33528661 \"$c\" \u0026\u0026 git merge-base --is-ancestor \"$c\" HEAD",
-          "rationale": "Serves: one measured baseline for the push and for the port. The last record (2026-10-19, at 32b2661) predates the campaign's decode, prompt and residency work; this one measures every cell on one commit, with Strata's bench suite (chat, 4K, 16K and agent turns; cmd/benchmark strata, three alternating rounds) run twice, greedy as today and at the model file's recommended sampling (temperature 1.0, top-p 0.95, top-k 20, seeded, both engines), and the long-context acceptance, on the same commit.\nDisappears: the bench figures scattered through the plan's notes, which this record replaces as the port's starting point.\nEvidence: go run ./cmd/loop -improve (about 6.5 hours, started outside a session) publishes the scorecard, and the rows it files land with this step: a decline since 2026-10-19 that the campaign's work caused is repaired and its cell measured again before the push; every other gap ranks into the port or after it. The sampled pass names today's gap where our card speculates only greedily: a sampled request decodes a token a forward.\nBatch: the measurement run; nothing builds, tests or pushes beside it (a build or a test on this machine moves its timing cells), so only plan-only landings while it runs.\n\nRead 2026-10-24 from the store's serving observations (tmp/release/attempts): the Flash-Next throughput cell (23.88 tok/s) is the median of the recipe's newest attempts that timed their load, three of 2026-10-22 (42 prompt tokens, 16 output tokens, 21 to 23 s of load, 565 to 824 ms of decode, 19 to 28 tok/s), a first request on a freshly loaded card, its graphs captured and its experts missed during those 16 tokens; the thousands of served requests since (the bench's, 60 to 120 tok/s warm) time no load, so the cell's window never reads them. The cell is neither stale nor another path: it is the scorecard's cold first request by design (first output = the first request after load), and the warm rate is the bench suite's. The measurement run re-measures the same cold request; the record is read as such beside the bench, and a warm decode cell, if wanted, is a scorecard change filed after the run.\n\nMeasured 2026-10-24 at 609b182 (tmp/release/bench.sh and benchsum; Strata's bench suite on both engines, each on a fresh server, three alternating rounds, greedy and at the model file's sampling, temperature 1.0, top-p 0.95, top-k 20, seed 7; every kept request succeeded except in Strata's first greedy round, discarded because a stray client of a stopped run shared its server, so Strata greedy stands on two rounds). Decode in tok/s, first output in seconds, the rounds' ranges. Ours greedy: chat 98.8 to 104.4, 4K first 1.46 to 1.47 and decode 75.8 to 83.2, 16K first 5.27 to 5.33 and decode 72.8 to 82.1, agent turns 90.5 to 93.4. Strata greedy: chat 132.8 to 136.3, 4K first 2.20 to 2.23 and decode 132.6 to 141.1, 16K first 4.97 to 4.99 and decode 103.6 to 103.9, agent turns 145.2 to 146.1. Ours sampled: chat 28.2 to 29.3, 4K first 1.52 to 1.54 and decode 25.8 to 27.8, 16K first 5.27 to 5.29 and decode 26.9 to 28.0, agent turns 26.7 to 27.9. Strata sampled: chat 136.5 to 141.8, 4K first 2.17 to 2.23 and decode 101.1 to 126.0, 16K first 4.86 to 4.97 and decode 94.8 to 99.9, agent turns 140.8 to 148.8. So first output leads Strata at 4K and in the agent turns and trails at 16K (5.3 against 5.0); greedy decode trails in every cell (chat by a quarter, 4K and the agent turns by about two fifths, 16K by a quarter); and a sampled request, which our card decodes a token a forward with the sampling on the host, runs at 28 tok/s against Strata's 95 to 148, a gap the port's window and sampling steps take. The long-context acceptance on the same commit: a 237,290-token read in 2m16s, every follow-up answered in about 0.8 s, the card's peak 45,009 MiB of 49,139.\n\nMeasured 2026-10-24, the run at 609b182 (go run ./cmd/loop -improve, started 12:50; scorecard-20261024T194833Z.json published at 15:48 after 112 cells, no cell failing). Flash-Next's inference row against the 2026-10-19 record: first output 986 to 936 ms, 1.78 to 1.5 s at 4,096 tokens, 5.27 to 5.23 s at 16,384; throughput 23.88 to 28.34 tok/s (the cold first request after a 23.2 s load); held-out quality 0.6245 on 1,209 MMLU-Pro cases, unchanged; failures 0%; peak 45.9 GiB. The run filed 28 rows: one failed gemma-4-12B-it-fp8 attempt; peak-device-memory up by about 128 MiB on every dense inference model (Bonsai, Carbon, MiniCPM, Qwen2.5-0.5B, Qwen3.5-4B and 9B, Qwen3.8-27B, the three gemma files, Unlimited-OCR by 210 MiB) and by less on the media models, which the loan step caused (a prompt read takes an arena of its own, meant for the experts to take back; a model without experts has none to lend it to and kept both arenas), repaired before the push; held-out-quality declines on gemma-4-12B-it-fp8 (BBH 0.657 to 0.643, 8 of 577 cases right to wrong and none back; IFEval 0.836 to 0.818), gemma-native (IFEval 0.891 to 0.873), Qwen3.5-9B (IFEval 0.818 to 0.782) and MiniCPM5 (IFEval 0.727 to 0.673), each a few cases of 55 or 577, all on dense models whose prompt attention moved to tensor cores on 2026-10-22 (e70ceee56, 5a98df021, 6c78ad384), the cause to be established by the same evaluation with that path off; webssl-dino load-time 213 to 243 ms; and the uncompared, unmeasured and unscored gaps the record carries from before. Six further quality moves the run did not file, their case flips within chance.\n\nEstablished 2026-10-24 at fd7856a: gemma-4-12B-it-fp8's BBH scores 0.6568457539 with the tensor-core prompt attention off (OVERGO_PROBE_NOFLASH, a store copy), the 10-19 reading to the digit, against 0.643 with it on in the run; the attention step turns the path off by default and dense-prompt-precision turns it back on once its products hold quality.",
+          "verify": "bash -c 'd=\"${OVERGO_DATA_ROOT:-$(git rev-parse --path-format=absolute --git-common-dir)/../../overgo_data}/scorecards\"; f=$(ls -t \"$d\"/scorecard-*.json | head -1); c=$(grep -o \"\\\"commit\\\": \\\"[0-9a-f]*\\\"\" \"$f\" | head -1 | cut -d\\\" -f4); git merge-base --is-ancestor 01c01d66da308daaee0fd2885a630acc33528661 \"$c\" \u0026\u0026 git merge-base --is-ancestor \"$c\" HEAD'",
+          "rationale": "Serves: one measured baseline for the push and for the port. The last record (2026-10-19, at 32b2661) predates the campaign's decode, prompt and residency work; this one measures every cell on one commit, with Strata's bench suite (chat, 4K, 16K and agent turns; cmd/benchmark strata, three alternating rounds) run twice, greedy as today and at the model file's recommended sampling (temperature 1.0, top-p 0.95, top-k 20, seeded, both engines), and the long-context acceptance, on the same commit.\nDisappears: the bench figures scattered through the plan's notes, which this record replaces as the port's starting point.\nEvidence: go run ./cmd/loop -improve (about 6.5 hours, started outside a session) publishes the scorecard, and the rows it files land with this step: a decline since 2026-10-19 that the campaign's work caused is repaired and its cell measured again before the push; every other gap ranks into the port or after it. The sampled pass names today's gap where our card speculates only greedily: a sampled request decodes a token a forward.\nBatch: the measurement run; nothing builds, tests or pushes beside it (a build or a test on this machine moves its timing cells), so only plan-only landings while it runs.\n\nRead 2026-10-24 from the store's serving observations (tmp/release/attempts): the Flash-Next throughput cell (23.88 tok/s) is the median of the recipe's newest attempts that timed their load, three of 2026-10-22 (42 prompt tokens, 16 output tokens, 21 to 23 s of load, 565 to 824 ms of decode, 19 to 28 tok/s), a first request on a freshly loaded card, its graphs captured and its experts missed during those 16 tokens; the thousands of served requests since (the bench's, 60 to 120 tok/s warm) time no load, so the cell's window never reads them. The cell is neither stale nor another path: it is the scorecard's cold first request by design (first output = the first request after load), and the warm rate is the bench suite's. The measurement run re-measures the same cold request; the record is read as such beside the bench, and a warm decode cell, if wanted, is a scorecard change filed after the run.\n\nMeasured 2026-10-24 at 609b182 (tmp/release/bench.sh and benchsum; Strata's bench suite on both engines, each on a fresh server, three alternating rounds, greedy and at the model file's sampling, temperature 1.0, top-p 0.95, top-k 20, seed 7; every kept request succeeded except in Strata's first greedy round, discarded because a stray client of a stopped run shared its server, so Strata greedy stands on two rounds). Decode in tok/s, first output in seconds, the rounds' ranges. Ours greedy: chat 98.8 to 104.4, 4K first 1.46 to 1.47 and decode 75.8 to 83.2, 16K first 5.27 to 5.33 and decode 72.8 to 82.1, agent turns 90.5 to 93.4. Strata greedy: chat 132.8 to 136.3, 4K first 2.20 to 2.23 and decode 132.6 to 141.1, 16K first 4.97 to 4.99 and decode 103.6 to 103.9, agent turns 145.2 to 146.1. Ours sampled: chat 28.2 to 29.3, 4K first 1.52 to 1.54 and decode 25.8 to 27.8, 16K first 5.27 to 5.29 and decode 26.9 to 28.0, agent turns 26.7 to 27.9. Strata sampled: chat 136.5 to 141.8, 4K first 2.17 to 2.23 and decode 101.1 to 126.0, 16K first 4.86 to 4.97 and decode 94.8 to 99.9, agent turns 140.8 to 148.8. So first output leads Strata at 4K and in the agent turns and trails at 16K (5.3 against 5.0); greedy decode trails in every cell (chat by a quarter, 4K and the agent turns by about two fifths, 16K by a quarter); and a sampled request, which our card decodes a token a forward with the sampling on the host, runs at 28 tok/s against Strata's 95 to 148, a gap the port's window and sampling steps take. The long-context acceptance on the same commit: a 237,290-token read in 2m16s, every follow-up answered in about 0.8 s, the card's peak 45,009 MiB of 49,139.\n\nMeasured 2026-10-24, the run at 609b182 (go run ./cmd/loop -improve, started 12:50; scorecard-20261024T194833Z.json published at 15:48 after 112 cells, no cell failing). Flash-Next's inference row against the 2026-10-19 record: first output 986 to 936 ms, 1.78 to 1.5 s at 4,096 tokens, 5.27 to 5.23 s at 16,384; throughput 23.88 to 28.34 tok/s (the cold first request after a 23.2 s load); held-out quality 0.6245 on 1,209 MMLU-Pro cases, unchanged; failures 0%; peak 45.9 GiB. The run filed 28 rows: one failed gemma-4-12B-it-fp8 attempt; peak-device-memory up by about 128 MiB on every dense inference model (Bonsai, Carbon, MiniCPM, Qwen2.5-0.5B, Qwen3.5-4B and 9B, Qwen3.8-27B, the three gemma files, Unlimited-OCR by 210 MiB) and by less on the media models, which the loan step caused (a prompt read takes an arena of its own, meant for the experts to take back; a model without experts has none to lend it to and kept both arenas), repaired before the push; held-out-quality declines on gemma-4-12B-it-fp8 (BBH 0.657 to 0.643, 8 of 577 cases right to wrong and none back; IFEval 0.836 to 0.818), gemma-native (IFEval 0.891 to 0.873), Qwen3.5-9B (IFEval 0.818 to 0.782) and MiniCPM5 (IFEval 0.727 to 0.673), each a few cases of 55 or 577, all on dense models whose prompt attention moved to tensor cores on 2026-10-22 (e70ceee56, 5a98df021, 6c78ad384), the cause to be established by the same evaluation with that path off; webssl-dino load-time 213 to 243 ms; and the uncompared, unmeasured and unscored gaps the record carries from before. Six further quality moves the run did not file, their case flips within chance.\n\nEstablished 2026-10-24 at fd7856a: gemma-4-12B-it-fp8's BBH scores 0.6568457539 with the tensor-core prompt attention off (OVERGO_PROBE_NOFLASH, a store copy), the 10-19 reading to the digit, against 0.643 with it on in the run; the attention step turns the path off by default and dense-prompt-precision turns it back on once its products hold quality.\n\nMeasured 2026-10-24, the second run at 4b9fb96 (scorecard-20261025T021213Z.json, 115 cells, none failing). Against the first record: gemma-4-12B-it-fp8's BBH is back at 0.6568457539 and its IFEval at 0.8364, MiniCPM5's IFEval at 0.727 (three rows retired); every dense model's peak fell by 67 MB, half its rise, the other half being arenaGranule (268518b01, 2026-10-23): every arena rounds up to a 64 MiB granule, slack on a model's first and only arena, so the first allocation is to take its need exactly and only a regrowth round (the arena-first step); Flash-Next's cold throughput 28 to 73 tok/s, its first output at 4K 1.50 to 1.66 s and at 16K 5.23 to 5.54 s with the tensor-core attention off although its MMLU-Pro held 0.6245 with the kernel on (the flashnext-attention step admits it for qwen4exp alone); load times up 0.5 to 0.7 s on every model (three rows filed), the store having grown; IFEval moved both ways on three more models (55 prompts judged by value), filed as the run judges them. The run filed six rows; 26 scorecard rows stand, the peak rows to close at the record after arena-first.",
           "depends_on": [
             "release/cell",
             "release/long-context"
           ]
+        },
+        {
+          "id": "flashnext-attention",
+          "title": "Admit the tensor-core prompt attention for Flash-Next, whose quality it held",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestPromptTensorCoresAdmittedPerArchitecture$' -count=1",
+          "rationale": "Serves: Flash-Next's first output at length, 6 to 10 percent slower in the second record with the tensor-core prompt attention off (4K 1.50 to 1.66 s, 16K 5.23 to 5.54 s) although its MMLU-Pro held 0.6245 with the kernel on and without (2026-10-19 to 10-24); the architecture profile admits the kernel per model, qwen4exp alone.\nDisappears: nothing; gemma4 and every other architecture keep the f32 paths.\nEvidence: TestPromptTensorCoresAdmittedPerArchitecture (the catalog admits qwen4exp alone); the next record's Flash-Next first-output cells.\nBatch: model host tests."
+        },
+        {
+          "id": "arena-first",
+          "title": "Take a first arena at its need and round only a regrowth",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestArenaMetrics$' -count=1",
+          "rationale": "Serves: every model's peak device memory, 64 MiB of slack on each since arenaGranule (268518b01) rounds every arena up, a model's first and only arena included; the first allocation takes its need exactly and only a regrowth rounds, which is where the rounding pays (each growth drops the kept graphs and waits on the clear).\nDisappears: the slack on a first arena (17 peak rows filed by the first run close at the next record).\nEvidence: TestArenaMetrics holds a first run's arena to its need and a larger run's regrowth to the granule; the next record's peak cells.\nBatch: cuda/executor device lane."
         },
         {
           "id": "push",
@@ -319,7 +333,7 @@
           "title": "Store K/V as int8 at a fixed resident size, read by Strata's attention and indexer kernels",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestInt8KVAttentionMatchesTheF32Reference$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestInt8KVDecodingMatchesPlainDecoding$' -count=1 \u0026\u0026 go test -tags modeltest ./internal/evaluation -run '^TestFlashNextLongContextAcceptance$' -count=1 -timeout 60m",
-          "rationale": "Serves: decode at context (a verify at 4K tokens costs 22 to 25 ms against Strata's 13 at 16K) and the fixed K/V the window step keys its graphs over.\nPort: Strata's int8 K/V cells (codes and scales a cell, kv_q8_bytes_per_cell), the resident ring (--kv-resident 32768, at least 20,480) with the streaming of the cells beyond it (src/kernels/cuda/kv_stream.cu), and the attention and block-sparse indexer kernels that read them, into internal/cuda/executor and internal/inference, with MIT attribution. Each value it brings from Strata lands named in its comment as provisional (Provisional: the load-costs step) and as a row of load-costs' table, never as a derived constant.\nDisappears: F32 K/V storage on Flash-Next's served path and the indexer's scoring of the whole capacity each step.\nEvidence: TestInt8KVAttentionMatchesTheF32Reference (the kernels against the F32 reference within a tolerance written before the change); TestInt8KVDecodingMatchesPlainDecoding (greedy output on the hermetic Flash-Next fixture, past the resident ring, equal to plain decoding's); TestFlashNextLongContextAcceptance, passing as it does on HEAD (retrieval at 262,144 tokens, follow-ups, cancellation, the image beside the context, the peak no higher); the bench suite's 4K, 16K and agent cells against Strata over three alternating rounds; held-out quality (IFEval 300) held. The map confirms or renames these tests before the code.\nCarries SQA-188: the prompt-attention tables fold as this step rewrites them.\nBatch: cuda/executor and inference device lanes and the models lane.",
+          "rationale": "Serves: decode at context (a verify at 4K tokens costs 22 to 25 ms against Strata's 13 at 16K) and the fixed K/V the window step keys its graphs over.\nPort: Strata's int8 K/V cells (codes and scales a cell, kv_q8_bytes_per_cell), the resident ring (--kv-resident 32768, at least 20,480) with the streaming of the cells beyond it (src/kernels/cuda/kv_stream.cu), and the attention and block-sparse indexer kernels that read them, into internal/cuda/executor and internal/inference, with MIT attribution. Each value it brings from Strata lands named in its comment as provisional (Provisional: the load-costs step) and as a row of load-costs' table, never as a derived constant.\nDisappears: F32 K/V storage on Flash-Next's served path and the indexer's scoring of the whole capacity each step.\nEvidence: TestInt8KVAttentionMatchesTheF32Reference (the kernels against the F32 reference within a tolerance written before the change); TestInt8KVDecodingMatchesPlainDecoding (greedy output on the hermetic Flash-Next fixture, past the resident ring, equal to plain decoding's); TestFlashNextLongContextAcceptance, passing as it does on HEAD (retrieval at 262,144 tokens, follow-ups, cancellation, the image beside the context, the peak no higher); the bench suite's 4K, 16K and agent cells against Strata over three alternating rounds; held-out quality (IFEval 300) held. The map confirms or renames these tests before the code.\nCarries SQA-188: the prompt-attention tables fold as this step rewrites them.\nBatch: cuda/executor and inference device lanes and the models lane.\n\nRead 2026-10-24 from the runs' logs: gemma-4-12B-it-fp8's one failed attempt is its 16,384-token prompt, refused by the card's memory admission for 25,769,803,776 bytes, which is its K/V storage in F32 at the 32,768-token page the capacity rounds up to (cachePageCapacity: the page is the prompt's highest power of two, so 16,384 tokens plus the output's reserve take a 32,768-token page): 48 layers × 2 × 32,768 × 2,048 (4 K/V heads × 512) × 4 bytes, beside 24 GB of weights on a 49 GB card; its long-form guard's 8,192 rung, lost to the second arena in the first run, is back in the second. The kv step's int8 K/V takes that storage to 6.4 GB, and a page at the prompt's length rather than its power of two would halve it before that; the failing-attempt row stands until one of them lands.",
           "depends_on": [
             "strata-port/map"
           ]
@@ -707,7 +721,7 @@
           "title": "Fix the inference attempts that failed",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
-          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nRead 2026-10-24 from the runs' logs: gemma-4-12B-it-fp8's one failed attempt is its 16,384-token prompt, refused by the card's memory admission for 25,769,803,776 bytes, which is its K/V storage in F32 at the 32,768-token page the capacity rounds up to (cachePageCapacity: the page is the prompt's highest power of two, so 16,384 tokens plus the output's reserve take a 32,768-token page): 48 layers × 2 × 32,768 × 2,048 (4 K/V heads × 512) × 4 bytes, beside 24 GB of weights on a 49 GB card; its long-form guard's 8,192 rung, lost to the second arena in the first run, is back in the second. The kv step's int8 K/V takes that storage to 6.4 GB, and a page at the prompt's length rather than its power of two would halve it before that; the failing-attempt row stands until one of them lands.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -753,21 +767,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1c8951167b5fa74c -target 9.90643712e+08",
           "rationale": "- Qwen2.5-0.5B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 990643712 to 1.12321587e+09 (+132572160, +13.4%, allowed 50000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-26fa867a93de506e",
-      "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.656845754 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.656845754 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-26fa867a93de506e -target 0.6568457538994801",
-          "rationale": "- gemma-4-12B-it-fp8 held-out-quality, {Metric:accuracy Origin:evaluation Suite:store/bbh Protocol:raw-completion Comparison:profile:sha256:50356827f8e576872c7b2b1911f53ffebb5b991652b65542d3eb803aab6b1981 Scope:}: 0.656845754 to 0.642980936 (-0.013864818, -2.1%, allowed 5e-05; accuracy, store/bbh (raw-completion))\n- the decline stands because 8 of the 577 cases both readings answered went from right to wrong and 0 from wrong to right, and so many go wrong with chance 0.00391 where either way is as likely, against the 0.0228 a decline stands at\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -967,21 +966,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-bb03bce8d732b5c2",
-      "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.836363636 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8 inference held-out-quality to 0.836363636 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb03bce8d732b5c2 -target 0.8363636363636363",
-          "rationale": "- gemma-4-12B-it-fp8 held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.836363636 to 0.818181818 (-0.0181818182, -2.2%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-bb68e1e58205bdab",
       "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
       "owner": "master-lead",
@@ -1042,21 +1026,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-fe1799b11ff64521",
-      "title": "Restore MiniCPM5-1B-native-chat inference held-out-quality to 0.727272727 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore MiniCPM5-1B-native-chat inference held-out-quality to 0.727272727 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-fe1799b11ff64521 -target 0.7272727272727273",
-          "rationale": "- MiniCPM5-1B-native-chat held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.727272727 to 0.672727273 (-0.0545454545, -7.5%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-inference",
       "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
       "owner": "master-lead",
@@ -1113,6 +1082,96 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
           "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-0b978d73b48a3693",
+      "title": "Restore Carbon-500M-f16-ropefix inference load-time to 1701.6942 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Carbon-500M-f16-ropefix inference load-time to 1701.6942 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-0b978d73b48a3693 -target 1701.6942000000001",
+          "rationale": "- Carbon-500M-f16-ropefix load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 1078.5574 to 1741.2927 (+662.7353, +61.4%, allowed 623.1368; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-1644fca48df4f0b9",
+      "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.836363636 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.836363636 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1644fca48df4f0b9 -target 0.8363636363636363",
+          "rationale": "- Qwen3.8 Flash Next held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.836363636 to 0.818181818 (-0.0181818182, -2.2%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-3da6a23271347f6e",
+      "title": "Restore Qwen2.5-0.5B inference held-out-quality to 0.236363636 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen2.5-0.5B inference held-out-quality to 0.236363636 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-3da6a23271347f6e -target 0.23636363636363636",
+          "rationale": "- Qwen2.5-0.5B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.236363636 to 0.218181818 (-0.0181818182, -7.7%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-449cbf9f2f0134fe",
+      "title": "Restore Bonsai-27B-Q1_0 inference load-time to 2846.4165 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Bonsai-27B-Q1_0 inference load-time to 2846.4165 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-449cbf9f2f0134fe -target 2846.4165000000003",
+          "rationale": "- Bonsai-27B-Q1_0 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 2256.4425 to 2901.6322 (+645.1897, +28.6%, allowed 589.974; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-590291ee3f36bb5b",
+      "title": "Restore Unlimited-OCR-bf16 inference load-time to 3387.6021 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Unlimited-OCR-bf16 inference load-time to 3387.6021 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-590291ee3f36bb5b -target 3387.6020999999982",
+          "rationale": "- Unlimited-OCR-bf16 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 2814.1209 to 3614.8717 (+800.7508, +28.5%, allowed 573.4812; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-7d8cc7a9001cffd0",
+      "title": "Restore Qwen3.8-27B inference held-out-quality to 0.781818182 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference held-out-quality to 0.781818182 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7d8cc7a9001cffd0 -target 0.7818181818181819",
+          "rationale": "- Qwen3.8-27B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.781818182 to 0.763636364 (-0.0181818182, -2.3%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

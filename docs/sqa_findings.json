@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "32 active/3 deferred.220 restores an existing arena test requirement with19 test nodes; no new safe net reduction established.209 remains a concrete test/setup reduction after rebasing its file counts. No finding closed.",
-      "priority": "Retained video/cancellation and library-validation failures now have implementation-owned lane-failures-20261025 steps and warrant correctness investigation before optional optimization.218 remains the leading SQA recovery defect;215/213 remain evidence/derivation gaps.220 is a limited test gap, not a production regression.",
-      "declined_candidates": "Do not merge prompt-loan/shared-arena lifetimes, remove distinct retention/reintroduction coverage, widen checkpoint domains, or add literal/geometry registries. No admitted concurrent same-instance Release writer was established in the isolated production candidate path."
+      "assessment": "34 active/3 deferred.222 proves a small same-owner test reduction;221 identifies an aggregate-versus-attempt attribution mismatch. No existing finding closed.",
+      "priority": "218 recovery remains first. Existing implementation-owned media/cancellation/journey failures and215/213 acceptance/derivation gaps precede optional reductions. Large setup/production reductions precede222;221 is secondary evidence interpretation.",
+      "declined_candidates": "No new safe reduction established in tokenizer/control-marker, query planner, media hash/decoding or landing slice lifetime/error paths. Similar getters/tests are insufficient grounds to remove distinct boundary/error coverage. Do not merge aggregate scorecard timing and newest-memory semantics."
     },
   "committed_plan": {
-    "git_blob": "12cc0dd77a1c09de43bb36b8af295f1ab4f77189",
+    "git_blob": "a9c4db590207545907f1171990435f1817da1f03",
     "path": "docs/plan.json",
-    "revision": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
-    "sha256": "7d59016b06b1e3c5d839347581961f5dd6d1769374a0ee3df5d1e19df4a6fe9b",
+    "revision": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+    "sha256": "55021642d58777b6d24a08f01674952e1e1d75a8322dda95d0ffdb2ead819153",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -1559,6 +1559,46 @@
       "comparison": "Inspect TempGGUF/WriteGGUF equivalence and run the existing TestOpenProjectorResourceClosesFileOnBuildFailure through the affected native Go test invocation once if adopted. No CUDA/model run,extra gate,benchmark or confidence suite is justified by this setup-only change. SQA performs source review only."
     },
     {
+      "id": "SQA-222",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-consolidation",
+      "classification": "source-opportunity",
+      "title": "Merge declared-quality gap checks into the existing editor evaluation test",
+      "evidence_commit": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+      "sources": [
+        {
+          "path": "internal/scorecard/captioned_generation_test.go",
+          "symbol": "TestAnEditorIsProposedItsOwnEvaluation:39-66; TestADeclaredNotApplicableQualityIsNotWorkToDefine:71-92; TestOnlyAPromptTakingGeneratorIsAskedAboutItsCaption:14"
+        },
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "Build generation-quality consumers; unmeasuredGeneration:360; acceptsCaption:380; inapplicable"
+        },
+        {
+          "path": "internal/scorecard/record.go",
+          "symbol": "Record.Gaps:557-615; proposed NotApplicable quality branch:596"
+        }
+      ],
+      "evidence": "Both named tests construct proposed/declared quality cells, build a synthetic Record and run the same Gaps/detail aggregation to require proposed rows and exclude declared rows. They share actual behavior and the existing test owner, not just AST shape. The second test contributes distinct direct inapplicable flags and the image-generation proposal; the first contributes video/editor dispatch, the unchanged generator reason and derived class-conditioned exclusion. An AST-only complete merge retaining all four gap rows and both task kinds measures file658->590(-68), existing owner314->416, removed declaration170; the independent five-case acceptsCaption predicate owner163 remains unchanged.",
+      "recommended_change": "Move the image-task proposed cell, direct inapplicable cell and their flag assertions into TestAnEditorIsProposedItsOwnEvaluation. Add their captioned/declared rows to its existing Record and require both editor and captioned detail while excluding both class-conditioned and declared detail. Delete TestADeclaredNotApplicableQualityIsNotWorkToDefine and its duplicated Gaps/detail loop. Use the current native test body; no new helper/table/fixture/framework.",
+      "impact": "One quality-gap fixture and assertion owner replaces two overlapping bodies while preserving each unique requirement. Savings are code and cheap synthetic setup; no measured gate elapsed or memory benefit.",
+      "displaced_surface": "Remove one170-node test declaration, one Record construction and one Gaps/append/Join/assert sequence. Retain and extend the314-node editor test by102 nodes, including all migration. Preserve image versus video task identity, generator reason, editor proposal reason/flags, direct and derived NotApplicable/no-Proposed cases. Keep TestOnlyAPromptTakingGeneratorIsAskedAboutItsCaption's five input-domain cases. Untagged native Go; no errors/cancellation/device/resource-lifetime behavior is merged, no fixture files/config/exports/dependencies/data/security changes.",
+      "expected_benefit": {
+        "outcome": "Measured hypothetical full test file658->590(-68); production unchanged. Test functions3->2; Gaps calls2->1 and Record constructions2->1; four quality rows remain. qualityCell calls2->2, inapplicable1->1 and unmeasuredGeneration3->3. No wrapper/helper/migration cost omitted, fixture files/bytes0->0, store/model/device setups0->0, gate/package invocations unchanged.",
+        "uncertainty": "AST-only textual comparison, not executed or landed. One fewer Gaps invocation saves only small synthetic work; parallelism changes2 overlapping test functions->1 and elapsed/RSS effect is unknown. No numeric comparison or timing acceptance changes."
+      },
+      "likely_effort": "Small same-file test-body merge.",
+      "plan_references": [],
+      "plan_coverage": "Advisory; no current row explicitly adopts this scorecard-test reduction. Do not modify or advance the plan to publish this review.",
+      "closure_criteria": [
+        "Both image-proposed and video-editor rows remain work to define; both directly declared and derived class-conditioned rows remain absent from quality gaps.",
+        "Existing editor/generator reasons and flags and the separate five predicate cases remain tested; remove the displaced declaration only after migration.",
+        "Whole-file AST decreases after all moved assertions/comments; no new helper, fixture, setup execution or gate. Expected net68-node reduction includes102-node migration."
+      ],
+      "comparison": "Review the four row identities and unique flags against the two original native tests. If implemented, the existing scorecard package's ordinary affected check is sufficient; this refactor adds no behavior and warrants no new test or SQA run."
+    },
+    {
   "category": "storage-query-code-consolidation",
   "classification": "source-opportunity",
   "closure_criteria": [
@@ -1566,8 +1606,8 @@
       ],
   "comparison": "Retain overgodb.TestQueryFiltersAndFollowsImmutableCatalog, TestQueryBoundsAndCycleRejection, TestQueryCursorBindsHeadAndContract and TestProjectionQueryPlanEfficiency. Add a mixed-kind/mixed-relation order assertion to the existing query fixture only if its current assertions do not pin this order. Preserve bounded traversal, duplicate compaction, cursor and historical semantics; native go test ./internal/overgodb is the existing owner. No SQA validation.",
   "displaced_surface": "One duplicate comparator body and compactLineage wrapper disappear. Two actual query callers share the same operation. No exported API, new package, format, index, cache or migration.",
-  "evidence": "Fresh AST: query.go3800 nodes/22 functions, followEdges211,sortedQueryLineage115,compactLineage23. Both source sort bodies still order relation then Child.String then Parent.String; existing runrecord.compareLineage and artifact.CompareID have different order contracts. Prior64-node comparator counts remain applicable; no new comparator/helper implemented. Actual current-head index cardinalities choose the narrower projection, with existing bounded/refusal behavior retained.",
-  "evidence_commit": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
+  "evidence": "Fresh rotated AST reconfirms query.go3800 nodes/22 functions, followEdges211,sortedQueryLineage115,compactLineage23. Both source sort bodies order relation then Child.String then Parent.String; binary artifact.CompareID and runrecord.compareLineage have different contracts. The selected query plan test uses actual head widths and retains distinct seed/refusal/determinism cases. No implementation or runtime measurement.",
+  "evidence_commit": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
   "expected_benefit": {
         "outcome": "One local ordering policy and less production Go.",
         "uncertainty": "Estimated production -45..-65/test 0..+40 AST nodes, no new setup/fixture/gate/schema. Total saving may be small after necessary ordering coverage; decline if helper/migration cost erases it. String formatting cost remains intentionally unchanged."
@@ -1575,7 +1615,7 @@
   "id": "SQA-154",
   "impact": "Duplicated sorting policy and a displaced wrapper require parallel maintenance. No query latency or storage-byte benefit has been measured.",
   "likely_effort": "Small, lower priority than demonstrated request costs.",
-  "plan_coverage": "Pinned64f0fcc46 retains reductions/storage. Rechecked source and changed arena context; filing is not implementation or closure. Preserve the named behavioral owners and complete migration/setup cost.",
+  "plan_coverage": "Pinned38efadaac retains reductions/storage. Source and callers rechecked; lower-priority maintenance opportunity, not an implemented saving.",
   "plan_references": [
         "reductions/storage"
       ],
@@ -1697,6 +1737,62 @@
   "status": "open",
   "title": "Use the existing controlled-stream fixture instead of four timed token sleeps"
 },
+    {
+      "id": "SQA-221",
+      "status": "open",
+      "severity": "P3",
+      "category": "measurement-provenance",
+      "classification": "confirmed-source-contract-mismatch",
+      "title": "Do not describe a scorecard's representative sample as an exact joint timing and memory measurement",
+      "evidence_commit": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+      "sources": [
+        {
+          "path": "cmd/validate/media_selection.go",
+          "symbol": "measuredSampleSelection:90-113; loadMediaSampleSelection; mediaSampleSelection.includes"
+        },
+        {
+          "path": "cmd/validate/media.go",
+          "symbol": "mediaReportScope.MeasuredAttempts comment:28-31; resolveMediaReportScope"
+        },
+        {
+          "path": "cmd/validate/samples.go",
+          "symbol": "exportMediaSamples; visitRecipeSamples; exportRecipeSamples; sampleRef"
+        },
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "servingSummary.timed:544-567; firstOutputCell:762; peakMemoryCell:1104"
+        },
+        {
+          "path": "internal/scorecard/scorecard_test.go",
+          "symbol": "TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts:121-268"
+        },
+        {
+          "path": "README.md",
+          "symbol": "Sample outputs introduction and time/peak claims"
+        },
+        {
+          "path": "cmd/validate/image_video_report_contract_test.go",
+          "symbol": "TestImageVideoReportContract measured-scope admission:135"
+        }
+      ],
+      "evidence": "The new selector loads the serving observation named by FirstOutput.Source and exports its exact Run. That is a representative attempt, not necessarily an attempt with the cell's value or the memory cell's source. timed deliberately names the newer of two while returning their midpoint; the retained test explicitly admits 200/100 ms ->150 ms with Source naming the100 ms attempt. For three attempts the central timing may name an older attempt, while peakMemoryCell always names the newest measured one. The selector/media scope comments and README introduction instead assert one sample owns the scorecard time and memory. This is a source-proven mismatch in the stated contract; the eight published samples' individual measurements were not reread, so no particular displayed number is claimed false.",
+      "recommended_change": "Keep the existing representative-source selection and file export. Remove the assertion that FirstOutput.Source identifies an exact joint time/peak measurement. Describe the selected file as the output of the serving attempt named by the first-output cell; when documenting that sample's individual elapsed time and peak, read those fields from that same retained observation/run. Label the row's median and newest-attempt peak separately when quoting scorecard cells. No change to the existing median, memory owner, exporter return type or new reporting abstraction is required.",
+      "impact": "Prevents a representative output from being used as proof of a timing/memory pair that may belong to multiple attempts. This affects interpretation of performance evidence, not generated bytes, execution correctness or retained data.",
+      "displaced_surface": "Displace the exact-joint-measurement claim in measuredSampleSelection/mediaReportScope comments and the README's sample introduction. Retain scorecard.Build, FirstOutput.Source selection, observation.Run lookup, healthy activation filtering, content-addressed bytes, failed/cancelled-run filtering, decoding and hash checks. No production executable code, API, option, fixture, error/cancellation path, platform tag or resource-lifetime change; no data-loss/confidentiality change.",
+      "expected_benefit": {
+        "outcome": "Production executable AST and tests unchanged; two affected parsed exporter files remain598+1412=2010 nodes apart from comment wording. No added helper/wrapper, fixture bytes, setup, gate or model execution. No speed or memory saving claimed; this secondary evidence correction does not displace larger reductions.",
+        "uncertainty": "Admitted two/three-attempt counterexamples follow the retained arithmetic contract. Actual published sample/observation equality remains unverified. A source may also be a benchmark fallback; no current media-row failure from that path was established, so this finding does not prescribe a speculative guard."
+      },
+      "likely_effort": "Small evidence/comment correction using existing retained observation identities.",
+      "plan_references": [],
+      "plan_coverage": "Advisory after completed readme-models/do; no current adoption. Preserve the arithmetic/statistical contract and the existing load-costs work.",
+      "closure_criteria": [
+        "Sample documentation distinguishes the representative run from aggregate timing/newest-attempt memory, or cites that run's own retained elapsed/peak values.",
+        "The two-attempt150-versus100 counterexample cannot be described as an exact sample timing. Preserve the existing scorecard median/source and memory tests.",
+        "No extra measurement, framework, metadata schema or export mode is added merely to correct prose."
+      ],
+      "comparison": "The smallest deciding comparison is a read of each affected retained sample's FirstOutput.Source observation, its Run/output identity and its own elapsed/peak against the documented values; the already-retained two-attempt scorecard test establishes the general mismatch. No SQA test/model run. Prose-only correction needs no new test."
+    },
     {
   "category": "evaluation_design",
   "classification": "source-opportunity",
@@ -1860,120 +1956,122 @@
   ],
   "gate_test_assessment": {
       "ast_analysis": {
-        "revision": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
-        "method": "Existing external parser/ast on10 rotated committed files; supplemental executor.go parsed for changed arena/caller accounting. Original arithmetic helpers checked with go/types/standard importer. One hypothetical existing-test amendment parsed only to measure19 nodes.",
+        "revision": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+        "method": "Existing external Go parser/ast on14 selected committed files, comments included; original reasoning stream/marker declarations checked with go/types. One hypothetical full test merge parsed solely for whole-file cost.",
         "files": [
-          "internal/cuda/executor/device_buffer_pool.go",
-          "internal/cuda/executor/executor_windows_buffer_pool_test.go",
-          "internal/cuda/executor/executor_windows_evidence_test.go",
-          "internal/inference/span_checkpoint.go",
-          "internal/inference/span_checkpoint_windows_test.go",
-          "internal/overgodb/retention.go",
-          "internal/overgodb/retention_test.go",
-          "internal/server/hub_workspace.go",
-          "internal/server/one_event_stream_test.go",
-          "internal/landing/lanes.go"
+          "cmd/validate/media_selection.go",
+          "cmd/validate/samples.go",
+          "cmd/validate/image_video_report_contract_test.go",
+          "internal/inference/sampling_vocab.go",
+          "internal/inference/sampling_vocab_test.go",
+          "internal/overgodb/query.go",
+          "internal/overgodb/query_plan_test.go",
+          "internal/server/scorecard_view.go",
+          "internal/server/scorecard_view_test.go",
+          "internal/landing/scorecard.go",
+          "internal/landing/scorecard_test.go",
+          "internal/inference/chat_reasoning_stream.go",
+          "internal/inference/chat_reasoning_stream_test.go",
+          "internal/scorecard/captioned_generation_test.go"
         ],
-        "production_nodes": 8796,
-        "test_nodes": 3498,
-        "functions": 65,
-        "parser_local_bindings": 2446,
-        "type_resolution": "Original arenaBytes/deviceBufferBucket/wholePercent and original arenaGranule/deviceAllocationAlignment:37 uses,10 definitions,70 expressions,0 selections. No stubs; dependent packages not built.",
+        "production_nodes": 9385,
+        "test_nodes": 6520,
+        "functions": 79,
+        "parser_local_bindings": 2955,
+        "type_resolution": "Original reasoning stream plus reasoningMarkers/chatReasoningMarkers:288 uses,44 definitions,373 expressions,66 selections. No stubs; no application package build.",
         "duplicates": [
-          "209 rechecked: replay metric-only319 and reference replay268 declaration nodes still share the existing owner; merge saves about183 test nodes including migration, one executor and six device executions.",
-          "Arena/shared-prompt and retention/blob paths differ in ownership/error/publication requirements; no new safe consolidation established."
-        ],
-        "supplemental": "executor.go16067 nodes/78 functions/3307 bindings. Total11 parsed files24863 production/3498 test,143 functions/5753 bindings. ensureArena160,arenaBytes35,releaseArena75,ensurePromptArena174,TestArenaMetrics241. Hypothetical220 test241->260/file904->923."
+          "222: actual Record.Gaps callers share synthetic fixture/assertion behavior;170-node declaration removed after102-node unique-case migration, net-68 full-file AST.",
+          "154 reconfirmed: query.go3800 nodes, two identical lexical lineage sorts and23-node compactLineage wrapper remain; binary identity comparison is a different contract."
+        ]
       },
       "test_decisions": [
         {
           "tests": [
-            "TestGraphReplayMetrics",
-            "TestExecutorReplayMatchesReference"
+            "TestAnEditorIsProposedItsOwnEvaluation",
+            "TestADeclaredNotApplicableQualityIsNotWorkToDefine"
           ],
           "classification": "merge",
-          "requirements": "209 retains the mixed-sign Add/Scale reference oracle, six readbacks/releases and all cache/driver metrics in the existing reference owner. Delete the metric-only body only after its unique assertions move. No new fixture."
+          "requirements": "222 retains image/video proposals, direct inapplicable flags, editor-specific reason, unchanged generator reason and class-conditioned exclusion in the existing editor test; four gap rows, one Gaps invocation. No new helper/setup."
         },
         {
           "tests": [
-            "TestArenaMetrics"
+            "TestOnlyAPromptTakingGeneratorIsAskedAboutItsCaption"
           ],
           "classification": "retain",
-          "requirements": "220 restores the displaced smaller-after-larger reuse/current-vs-peak case in the same test. Preserve exact first size and rounded regrowth; add one prepare, no allocation or graph execution. Measured +19 test AST, not a saving."
+          "requirements": "Five distinct input-domain cases: prompt, prompt+video, class, image tensor, none. Predicate coverage is not displaced by quality-gap consolidation."
         },
         {
           "tests": [
-            "TestDeviceBufferClass",
-            "TestDeviceBufferPoolReusesClasses"
+            "TestImageVideoReportContract"
           ],
           "classification": "retain",
-          "requirements": "Exact/aligned/class boundaries and repeated allocation/release through the public device owner differ. Keep actual expected class values and bounded pool allocation count; do not claim the600 requests prove all sizes or a timing distribution."
+          "requirements": "Retain render refusals, frozen-request membership, deterministic projection, absent acceptance credit, failed/cancelled counts, damaged/missing content, path confidentiality and substituted lineage. New mode flag assertion does not exercise measured run selection; no deletion or added SQA run justified."
         },
         {
           "tests": [
-            "TestDeviceBufferPoolReleaseBound",
-            "TestDeviceBufferPoolCapacityRefusalReclaimsIdle"
+            "TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts"
           ],
           "classification": "retain",
-          "requirements": "Supplemental source review: canceled/idempotent release, retained outputs, missing-feed cleanup and physical/expert-reservation refusal retain distinct resource-lifetime requirements. Sharing a pool is not proof these tests duplicate one another."
+          "requirements": "Source-only supplemental review: exact two-point interpolation, named representative, independent newest memory, missing timing, resident requests and benchmark fallback are deliberate contracts.221 must not change them to fit prose."
         },
         {
           "tests": [
-            "TestSpanCheckpointKeepsThePendingTokens"
+            "TestProjectionQueryPlanEfficiency"
           ],
           "classification": "retain",
-          "requirements": "Independent kept-prefix graph result versus checkpoint commit across three partial-acceptance cases; exact token/position/NGram history, shaped keys/values/states and fixed2e-4 arithmetic tolerance. Keep cleanup/Windows/device admission; no timing-linked tolerance or model-quality inference."
+          "requirements": "Actual head index widths, mismatched media/schema pair, seed lookup, refusal of unindexed scan, equal-head determinism each matter. Repeated query is a determinism check, not a self-comparison without failure signal."
         },
         {
           "tests": [
-            "TestRetentionTypedLineage",
-            "TestRetentionPinnedRootsSurvive",
-            "TestRetentionRefusesLiveStoreLocalAlias",
-            "TestReleasedContentReintroduces"
+            "TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces"
           ],
           "classification": "retain",
-          "requirements": "Typed parent versus untyped reference, external/missing roots, live-authority refusal and concurrent second-handle content reintroduction protect distinct data. Existing retentionContent/releaseEverything fixture owners already serve multiple tests. No new common harness."
+          "requirements": "Control tokens decode empty for infill but remain present in prompt rendering; EOG and NullToken->-1 and invalid render mode differ from ordinary tokenizer output."
         },
         {
           "tests": [
-            "TestOneWorkbenchEventStream"
+            "TestChatReasoningStreamPromptState"
           ],
           "classification": "retain",
-          "requirements": "Per-file/whole-percent notification, initial authoritative snapshot, live admission/cancel and response-body lifetime are distinct from generic hub overflow. Snapshot/read-path recovery218 remains separate."
+          "requirements": "Native control-token delivery, prepared-token state, tool-template precedence, bytewise tool JSON, progress before finish and12 marker/UTF8 cases retain distinct failure signals. Bytewise plus each two-piece split exercise different boundaries; no safe deletion established."
         },
         {
           "tests": [
-            "TestLiveEditDeviceRuntime",
-            "TestLiveEditCancellationRecovery",
-            "TestFrozenDiffusionGeneration",
-            "TestModelJourneyLibraryValidation"
+            "TestScorecardView"
           ],
           "classification": "retain",
-          "requirements": "Plan-owned retained failures: identify actual changed numerical/activation/served behavior before updating an oracle or pin. Do not delete these tests because a scorecard cell or ordinary gate passed; SQA runs none."
+          "requirements": "HTTP no-reader response, correct repository propagation, row roundtrip and empty JSON list; reuses existing testScorecard with browser callers."
+        },
+        {
+          "tests": [
+            "TestLandingMeasuresTheScorecardSlice"
+          ],
+          "classification": "retain",
+          "requirements": "One existing fixture repository already covers identity/first-parent baselines, legacy/varied outputs, process failure/panic/busy and unchanged dependency scope. Preserve cheap stub and native cache; do not duplicate this with new policy/gate tests."
         }
       ],
-      "inference_memory": "First shared arena takes exact need; regrowth still uses provisional64MiB rounding and fallback. Prompt arena remains a separate reclaimable expert loan with stream/graph lifetime differences. Buffer pool derives allocation classes and current total-memory share but keeps provisional1/64 free share. Span checkpoints preserve fixed states and narrow only token-aligned cache values; bounded draft producer supplies at most7 checkpoints.",
-      "database_storage": "collectLiveSet already owns alias/pinned/typed-lineage/causality closure with copies that outlive its read lock. Release uses expected-head commits and splits by transactionFits rather than an arbitrary batch count. Current production precheck holds authority, clones a fresh candidate and releases only derived classes there; no admitted same-instance writer was found to establish a new race. Preserve class/refusal/head/reintroduction checks and released-blob cleanup; no live database operation.",
-      "gui_responsiveness": "downloadRegistry.observe coalesces by displayed whole percent/file, snapshots copy job values, and cancellation leaves transfer slots held until unwound. shutdown cancels then waits; body closure ends only the event stream. Existing runtime snapshots carry downloads;218's inventory invalidation omission remains unchanged. No new polling, capacity or event abstraction.",
-      "gate_efficiency": "Ordinary landing lanes exclude CycleTags=modeltest,integration; cycleLanes and journey mode own the retained failing checks. discover already shares native Go listings by build context; device lanes serialize and host/browser work can run beside them. Native caching/resume remain credited. No SQA gate, selector, confidence run or cache bypass.",
+      "inference_memory": "DeviceMemory reads executor accounting and live driver/free bytes through existing owners, saturates the residual with min(live,attributed), and sorts owners descending. Diagnostic reads are not a proven atomic snapshot; no admitted harmful race established. Tokenizer wrappers preserve special-token/nil/error contracts. No current load/transfers or expert-residency implementation changed; existing219 generic zero-copy view and217 cache-identity opportunities remain.",
+      "database_storage": "Query performs bounded selection under its read lock, ties cursor to head+contract, chooses media/schema by actual current candidate widths and keeps returned content-presence separate from retained payload bytes. Seeded lineage traversal, lexical edge ordering and binary descriptor ordering differ. Existing release/reintroduction/retained-before-cutoff owners stay intact; no new live-store read or retention workload.",
+      "gui_responsiveness": "Reasoning stream retains undecided marker/UTF8/trailing-newline fragments and emits completed content before Finish; chat_stream owns tool parsing and terminal delivery. Caller fixtures cover native control tokens, generated byte boundaries and final outputs. Scorecard route reuses launcher reader and keeps unreadable history separate from rows.218's unchanged hub-resync/inventory omission remains open.",
+      "gate_efficiency": "Landing slice uses existing dependency closure, native build/cache, identity-bound first-parent baselines and retained fixture. Timed cells are observations, never a one-run noise threshold; failures/busy stay explicit. Existing regular lanes and cycle/journey lanes have separate scopes; no SQA execution, selector, ratchet or cache bypass.",
       "retained_results": [
+        "38efadaac README/export gate: +217 production/+45 test AST,0 schemas/CUDA/fixture files per footer; host3m20.967s/13 packages (cmd/validate37s), invariants1m19.905s/4 packages, lanes723ms with device/webui/cuda skipped, verify6.586s, slice not reached. Eight published media outputs add1058745 bytes of documentation assets, not test fixtures.",
         "6937305bf first-arena repair: +13 production/+39 test AST,0 schemas/CUDA/fixtures. Existing TestArenaMetrics reportedly failed on prior rounded first allocation. Host2m42.354s; invariants1m16.89s; lanes wall12m17.099s (device7m12.142s,webui2m46.311s,cuda5m4.167s,11 executed/5 cached); verify1.45s.",
         "Same repair's Qwen2.5-0.5B slice: outputs identical,peak1294.6MiB (-31.7),first102ms,throughput498tok/s,load1235ms. These single-model observations do not close17 peak rows or show a significant timing change. A fresh whole-record confirmation has not been credited.",
         "Retained second scorecard4b9fb96/scorecard-20261025T021213Z.json has115 completed cells,none failing: gemma BBH0.6568457539/IFEval0.8364 and MiniCPM5 IFEval0.727 restored. Its memory figures predate6937305bf. Six load/IFEval regressions and remaining obligations stay recorded.",
         "8ac12d7e5 files failed model-cycle lanes from both measurement runs. Adaptiveparity scratch/resident memory checks reportedly pass at87ec480 after arena repair. LiveEdit latent/frame oracle and cancellation recovery still fail; attention changes are a hypothesis for bisect, not proven cause. Frozen diffusion lineage and five accepted-evidence tests failed earlier too; library journey's recorded token mismatch dates from10-19. TestE4BResourceRecovery failed first run only. No failure erased or pin refresh accepted without reading.",
-        "64f0fcc46 README-only gate: +0 production/test/fixtures; invariants1m28.822s,host10m1.032s over8 packages,lanes discovery798ms with device/webui/cuda skipped. This is retained cost, not evidence for a new selector/framework or a model-lane pass.",
         "609b182 bench remains separate: greedy chat99..104 vsStrata133..136tok/s;4K first1.46..1.47 vs2.20..2.23s;16K5.27..5.33 vs4.97..4.99s;agent90.5..93.4 vs145.2..146.1; sampled28 vs137..142. Strata greedy2 retained rounds after1 contaminated discard, sampled3; no universal optimum/statistical parity claim.",
         "609b182 long-context237290 tokens,2m16s,peak45009/49139MiB remains below262144 boundary. Prior arena/precision fixes and their actual coverage costs are retained history; no new model measurement."
       ],
-      "plan_assessment": "Pinned64f0fcc46 has48 items/63 open steps. Arena-first and push completed; former FlashNext release step now flashnext-tensor-cores/do includes architecture profile/schema/provenance/activation work. lane-failures-20261025 owns media/record/journey failures. All report plan_references resolve.220 is advisory; no plan changes by SQA.",
+      "plan_assessment": "Current plan differs only in completed README dependencies since64f0fcc46;48 items/63 open steps remain. lane-failures-20261025 continues to own retained media/cancellation/record/journey failures. All finding plan refs validated;221/222 not adopted. No plan edits.",
       "assumptions_audit": [
-        "deviceAllocationAlignment256 is a device alignment contract. deviceBufferExactLimit1MiB/class steps8/free share64 are allocation/residency policies with different denominators, not interchangeable format limits; source's first class above1MiB is1.25MiB. Cost derivation remains213/load-costs, not a new threshold sweep.",
-        "arenaGranule64MiB now applies only after an existing shared arena grows. Exact first allocation removes needless initial slack; neither fixed regrowth granule nor1/64 idle pool share is thereby derived for every machine/request.",
-        "maxSpanCheckpoints=q8InputSpanColumnsWindow-1=7 follows the admitted producer's at-most8-token verify window; checkpoints use pending+prefix indices. No caller with more than7 checkpoints established, so no defensive registry/overflow branch recommended.",
-        "Span tolerance2e-4 compares batch versus prefix arithmetic on the same hermetic model and is independent of timing. It does not establish real-model quality or justify changing LiveEdit exact oracles.",
-        "Retention divides an oversized release batch by2 only after the actual frame-admission predicate refuses; this is bounded splitting, not a workload-distribution estimate. Blob fixture padding derives from inlineContentLimit.",
-        "Download100 converts a bounded file progress fraction to displayed percent; unknown/nonpositive totals are explicitly zero and terminal state still publishes. The review did not establish an admitted overflow-size download or need for an adaptive progress policy.",
-        "Completed scorecard cells, normal landing lanes and model-cycle/journey lanes have different evidence scopes. Current media oracle drift and cancellation failure must not be explained away by warm throughput or cell completion."
+        "Scorecard median over at most3 attempts is its existing arithmetic contract, not proof of stationarity/independence or a confidence interval. With2 samples the median is neither attempt's value; with3 its source can differ from the memory source.221 corrects attribution, not the statistic.",
+        "First-output may mean prefill or whole-output by task; don't equate it generally to whole request after load. Separate per-attempt MeasuredNS/resources from aggregate cells, benchmark fallback and warm request timings.",
+        "Query planner uses actual index cardinalities at this head, not uniform/independent filter selectivity. Retain cursor head and digest validation; changing page size is intentionally absent from query contract digest.",
+        "Reasoning marker lengths and UTF8 rune completion derive from loaded template/wire syntax. Prefix retention is bounded by unresolved data rather than a fixed token count; incomplete final literal and prompt-closed whitespace behavior stay covered.",
+        "Media samples retain PNG/GIF encoded geometry and hash checks; the real speech producer emits one channel, and existing WAV encoder is mono PCM16 with declared sample rate and clipping. No admitted stereo producer or oversized RIFF sample established; no speculative branch proposed.",
+        "Device owner totals use bytes and saturating subtraction; fixed tail/config values in unrelated packages not censused.213 retains expert/chunk cost derivation concern without new sweep, adaptive policy or universal threshold.",
+        "Landing exact output/peak comparisons remain separate from timing noise. Existing model-cycle failure evidence is not overruled by successful media export or ordinary landing."
       ]
     },
   "hygiene_assessment": "No cleanup census, new dependency, registry, selector, telemetry, confidence suite or policy framework proposed.",
@@ -2347,11 +2445,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "New220 is source-proven coverage loss; current production arena metrics are correct in the inspected path. No test/mutation execution or measured runtime cost.",
-      "Only three original arithmetic helpers/constants received go/types checking; package integration, CUDA and JS were source-traced without builds. AST proxies do not imply elapsed/RSS improvements.",
-      "Large selected files were parsed wholly but only relevant declarations/callers were manually reviewed. Supplemental tests were source-read; no recurring full census.",
-      "Lane failures and scorecard improvements are retained implementation evidence. Video oracle causes remain unresolved; a changed pin alone cannot establish numerical or cancellation correctness.",
-      "No additional safe net reduction established in this rotation. Necessary19-node test growth must remain visible beside209's separate estimated savings."
+      "Only selected reasoning/marker declarations received go/types checking. Parser-local resolution is not package-wide symbol/type analysis; no CUDA/JS or application build.",
+      "AST estimates include complete migration;222's measured hypothetical is not executed. Source/type inspection does not measure elapsed/RSS/device-memory savings.",
+      "221's arithmetic counterexample is admitted by existing tests; actual README sample rows may agree coincidentally. No blanket normality, independence or workload-generalization claim.",
+      "160 unchanged cited files were reconciled by identity, not entirely reread. Retained model-cycle failures remain unresolved despite successful host gate and scorecard cells."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -2421,12 +2518,12 @@
       }
     }
   },
-  "next_finding_number": 221,
+  "next_finding_number": 223,
   "publication_context": {
-      "checked_head": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
-      "committed_plan_git_blob": "12cc0dd77a1c09de43bb36b8af295f1ab4f77189",
-      "assessment": "Pin64f0fcc46 includes first-arena sizing, plan/evidence and README changes. Actual push is retained implementation history; SQA performs no push.",
-      "newer_commit_note": "Later work is publication context only; re-read report/HEAD immediately before writing and preserve concurrent changes.",
+      "checked_head": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+      "committed_plan_git_blob": "a9c4db590207545907f1171990435f1817da1f03",
+      "assessment": "Pin38efadaac includes README/model examples and measured-sample export; no inference/store/GUI implementation changed since the prior review.",
+      "newer_commit_note": "Re-read current report and HEAD immediately before writing; any later implementation lies outside this pinned review.",
       "publication": "Report-only path-limited commit under existing landing/gate locks; no hooks/security/gate changes."
     },
   "ranked_active_finding_ids": [
@@ -2459,34 +2556,35 @@
     "SQA-162",
     "SQA-153",
     "SQA-194",
+    "SQA-222",
     "SQA-154",
     "SQA-161",
-    "SQA-170"
+    "SQA-170",
+    "SQA-221"
   ],
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "First-arena sizing landed at6937305bf: +13 production/+39 test AST. Retained identical-output Qwen slice peak falls31.7MiB; the17 model peak rows still await a new record.",
-      "The arena test's new first/growth sequence dropped its former smaller-after-larger observation.220 restores that requirement in the same test with no additional allocation or fixture.",
-      "Replay bodies319/268 nodes are unchanged.209 still removes one executor and six device executions; its whole-file estimate is rebased to904 nodes, including independent arena-test growth.",
-      "The latest plan distinguishes normal landing lanes from modeltest,integration and journey failures. Passing landing lanes or115 completed scorecard cells cannot close the retained media/recovery/evidence/journey failures.",
-      "Existing pointer-identity and F32-view reductions remain valid; no new abstraction or runtime policy is proposed. All implementation-owned fields preserved byte-for-byte."
+      "38efadaac adds measured-sample export at+217 production/+45 test AST per retained gate. Its sole new test assertion admits the mode, while the existing whole report test retains its prior export/hash/lineage coverage.",
+      "222 removes one170-node declaration after102 nodes migrate into its existing owner; full file658->590. Both image/video proposals and direct/derived not-applicable cases remain.",
+      "221 uses the already-retained200/100->150 example: Source names100ms, not the interpolated value. Peak memory uses the newest attempt independently; current individual sample values were not reread.",
+      "Existing reduction sources remain byte-identical at this pin. Native Go caching, affected build contexts, slice identity and resume mechanisms already avoid repeated work; no new selector or policy suite.",
+      "User tuning concerns remain213: trace costs and variable inputs without treating Strata or a small sweep as universal. No new tuning mechanism proposed."
     ],
-  "reviewed_at": "2026-10-25T06:11:58Z",
-  "reviewed_master": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
+  "reviewed_at": "2026-10-25T08:19:04Z",
+  "reviewed_master": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
   "schema_version": 1,
   "scope": [
-      "Read unchanged repository instructions and committed plan first; pin master64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa, plan blob12cc0dd77a1c09de43bb36b8af295f1ab4f77189.",
-      "Ten rotated files parsed:8796 production/3498 test AST,65 functions/2446 parser-local bindings. Supplemental executor.go adds16067 production,78 functions/3307 bindings:11 parsed files24863 production/3498 test,143 functions/5753 bindings. Large files were source-read only around relevant owners/callers.",
-      "Actual go/types checking on original arenaBytes,deviceBufferBucket,wholePercent plus their two original constants:37 uses/10 definitions/70 expressions, no stubs. AST-only test amendment measures +19 nodes; no changed test executed.",
-      "Covered arena/pool/load reservation and checkpoint lifetimes, retention/live-set/query/blob consumers, GUI download stream/lifetime and existing gate/cycle lanes. Provisional conclusions formed before reading prior findings.",
-      "Reconciled160 cited paths:155 unchanged; executor.go,executor_windows_evidence_test.go,plan and two generated compatibility identities changed. Existing implementation responses and all owner fields remain exact.",
-      "This chat previously implemented Overgo changes and is not an independent third-party reviewer. No implementation, agents, production gate, tests, models, services, benchmarks or profiles."
+      "Read repository instructions and committed plan first; pin master38efadaac06eb1543d57c8a7a68f421db0f24a44 and plan bloba9c4db590207545907f1171990435f1817da1f03.",
+      "Rotated14 committed files:9385 production/6520 test AST,79 functions/2955 parser-local bindings. Typechecked original reasoning stream plus markers type/function:288 uses/44 definitions/373 expressions/66 selections, no stubs. Other packages source-traced, not built.",
+      "Covered inference/tokenizer and device memory attribution, query/blob-content/cursor/retention ownership, reasoning/GUI stream consumers, media sample lineage, scorecard decisions and native landing slice execution. Large files read around selected owners, not a recurring census.",
+      "Fresh provisional conclusions preceded prior report. Rechecked161 cited paths by committed diff:160 unchanged, only plan changed. Existing implementation responses preserved; no closure inferred from documentation or passing cells.",
+      "This chat previously implemented Overgo changes and is not an independent third-party reviewer. No implementation, agents, tests/gates/model workloads/services/benchmarks/profiles."
     ],
   "sqa_response": {
-      "reviewed_master": "64f0fcc46a8be2bf5ca06a1b60d80e150a3827fa",
-      "assessment": "32 active/3 deferred. NewP3 SQA-220 preserves the smaller-after-growth metrics requirement lost during the valid first-arena repair. No closure. Existing218 recovery remains first among SQA findings.",
-      "evidence": "10-file8796/3498 AST plus executor16067;3 original arithmetic helpers type-checked.155/160 cited paths unchanged. Retained arena slice/gate and newly filed model-cycle failures reconciled; no SQA runs.",
+      "reviewed_master": "38efadaac06eb1543d57c8a7a68f421db0f24a44",
+      "assessment": "34 active/3 deferred; no closure. New222 establishes a net68-node test reduction with all unique cases retained. New221 corrects an unsupported claim that a representative sample owns aggregate timing and newest-attempt memory.218 remains first for recovery risk.",
+      "evidence": "Fresh14-file AST:9385 production/6520 test,79 functions/2955 parser-local bindings; original reasoning stream and markers typechecked without stubs.160 of161 existing cited paths unchanged; only plan changed. No new execution evidence.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2495,9 +2593,9 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review,master_lead_triage and every implementation-owned field preserved byte-for-byte. New plan/retained results acknowledged without inventing an implementation response."
       },
-      "recommendation": "Keep the arena memory repair and restore its existing reuse test leg. Investigate the already-filed media/cancellation/record/journey failures through retained owners. Optional209/217/219 reductions remain separate and include their whole-surface costs.",
-      "next_action": "Commit only the parsed,reconciled report under existing locks; preserve unrelated work and do not run a production gate.",
-      "uncertainty": "A single-model slice does not close17 peak rows.115 scorecard cells without cell failures does not mean cycle lanes passed.220 is a test gap, not demonstrated runtime corruption; its extra prepare cost is unmeasured.",
+      "recommendation": "Prioritize existing GUI recovery and implementation-owned media/cancellation/journey failures. Keep larger existing consolidation opportunities ahead of222's small synthetic saving. Correct sample attribution through existing retained observations; do not replace the statistical contract or tune by another sweep.",
+      "next_action": "Report-only path-limited commit after concurrent re-read under existing locks; preserve implementation fields and unrelated work.",
+      "uncertainty": "221 establishes the general attribution mismatch, not a verified error in any one of the eight images/audio/clips.222 is an AST saving, not measured runtime gain. Prior gate/scorecard and model-cycle failure scopes remain distinct.",
       "user_findings": [
         "SQA-110"
       ],

@@ -99,6 +99,35 @@ scorecard, and files each decline and each open gap as a plan row. There is no
 passed state: progress is each scorecard cell compared with its previous
 measurement.
 
+### Scorecard highlights
+
+From the record `scorecard-20261025T021213Z` (one measurement run on the
+reference PC: Ryzen 9 9950X, RTX 4090 D with 48 GiB, Windows 11; every row
+served and scored on this machine). First output and throughput are the first
+request after a fresh load, so the throughput here is a cold figure; the warm
+bench figures follow the table.
+
+| Model | Task | First output | Throughput | Held-out quality | Peak device memory |
+| --- | --- | --- | --- | --- | --- |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | chat | 0.94 s; 1.66 s at a 4K prompt; 5.5 s at 16K | 73 tok/s | MMLU-Pro 0.62 on 1,209 cases | 45.9 GiB |
+| Qwen3.8-27B (Q6_K) | chat | 112 ms | 31 tok/s | MMLU-Pro 0.59 | 21.2 GiB |
+| Qwen3.5-9B (Q8_0) | chat | 38 ms | 97 tok/s | MMLU-Pro 0.50 | 9.1 GiB |
+| gemma-4-12B-it (fp8, native) | chat | 173 ms | 50 tok/s | MMLU-Pro 0.49 | 14.4 GiB |
+| Qwen2.5-0.5B (f16) | chat | 112 ms | 516 tok/s | MMLU-Pro 0.17 | 1.0 GiB |
+| granite-speech 470M | transcription | 2.8 s | — | 0.9% word error rate on 32 held-out clips | 1.1 GiB |
+| pocket-tts | speech | 2.6 s | — | 2.2% word error rate, re-transcribed | — |
+| Krea-2-Turbo | image generation | 13.9 s | — | 0.94 on 415 prompts | 25.1 GiB |
+| Wan2.1-T2V 1.3B | video generation | 13.0 s | — | 0.91 on 128 clips | 3.6 GiB |
+| Hy-Embodied-RxBrain | visual question answering | 9.8 s | 182 tok/s | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
+
+Warm, served, against Strata's frozen bench suite on the same PC and model
+(three alternating rounds each, 2026-10-24): Flash-Next decodes a short chat at
+99 to 104 tok/s against Strata's 133 to 136, reads a 4K prompt to its first
+token in 1.46 s against 2.2 s and a 16K prompt in 5.3 s against 5.0 s, and
+decodes agent turns at 91 to 93 tok/s against 145 to 146; a conversation of
+237,290 tokens is read in 2m16s with every later question answered in about
+0.8 s. The remaining decode gap is the Strata port, the plan's next campaign.
+
 ## Training
 
 One Muon optimizer handles matrices, vectors, scalars, embeddings,

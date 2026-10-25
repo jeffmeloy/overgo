@@ -281,20 +281,6 @@
       ]
     },
     {
-      "id": "readme-scorecard",
-      "title": "Show the scorecard's highlights in the README",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show the scorecard's highlights in the README",
-          "status": "open",
-          "verify": "grep -q 'scorecard-20261025T021213Z' README.md \u0026\u0026 grep -q 'tok/s' README.md \u0026\u0026 go test ./internal/repoanalysis -run 'Docs|Tracked' -count=1",
-          "rationale": "Serves: readers of the repository, who meet the scorecard only through cmd/validate today. The README's measured-improvement section gains the current record's highlights (first output, throughput, held-out quality and peak memory for the served models, the long-context acceptance, and the Strata comparison), each number as the record of 2026-10-25 holds it, with the record named so a reader can regenerate the table.\nDisappears: nothing; the table is read from the published record.\nEvidence: the section present with the record named; the docs hygiene test.\nBatch: docs only."
-        }
-      ]
-    },
-    {
       "id": "lane-failures-20261025",
       "title": "Repair the model-test lanes both measurement runs ended with",
       "status": "open",

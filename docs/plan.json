@@ -217,15 +217,15 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 160,
-        "reason": "The sample exporter gains a third selection, the attempt each scorecard cell is measured on, so the README can show the output whose time and memory the scorecard reports; the exporter's other two selections, every run and the frozen requests, write hundreds of files or miss the measured attempts."
+        "nodes": 220,
+        "reason": "The sample exporter gains a third selection, the exact run of the attempt each scorecard cell is measured on, so the README can show the output whose time and memory the scorecard reports; the selection becomes a struct carrying either the frozen requests or those runs, with its pointer method, the measured branch, the scope case and the flag's help, which the checks measured at 217 nodes; the exporter's other two selections, every run and the frozen requests, write hundreds of files or miss the measured attempts."
       },
       "steps": [
         {
           "id": "do",
           "title": "Show every served model with its modality, and a measured sample output of each media model, in the README",
           "status": "open",
-          "verify": "bash -c 'grep -q \"^### Sample outputs\" README.md \u0026\u0026 go test ./internal/repoanalysis -run \"^TestDocsInventoryPolicy$\" -count=1 \u0026\u0026 go test ./cmd/validate -run \"^TestImageVideoReportContract$\" -count=1'"
+          "verify": "grep -q '^### Sample outputs' README.md \u0026\u0026 go test ./internal/repoanalysis -run '^TestDocsInventoryPolicy$' -count=1 \u0026\u0026 go test ./cmd/validate -run '^TestImageVideoReportContract$' -count=1"
         }
       ]
     },

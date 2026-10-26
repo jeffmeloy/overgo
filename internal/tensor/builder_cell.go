@@ -49,10 +49,11 @@ func CellAttentionHolds(width, heads, kvHeads uint64) bool {
 
 // CellState is one layer's cells for one sequence at a capacity of cells, which a step appends to in place: the int8
 // K/V codes and their fp16 scales in pages of CellPageCells cells `[page][kv_head][CellPageCells][width]` behind the
-// page table.
+// page table, which maps each of the capacity's pages to one of the pools'. The pools hold the capacity's pages, or
+// fewer, which a sliding layer's table takes in turn as its window passes them.
 type CellState struct {
-	KeyCodes, ValueCodes   *Tensor // I8 (width, kvHeads x capacity)
-	KeyScales, ValueScales *Tensor // F16 (width / 64, kvHeads x capacity)
+	KeyCodes, ValueCodes   *Tensor // I8 (width, kvHeads x pooled cells)
+	KeyScales, ValueScales *Tensor // F16 (width / 64, kvHeads x pooled cells)
 	PageTable              *Tensor // I32 (capacity / CellPageCells)
 }
 
@@ -133,8 +134,15 @@ func validateCellAttention(query, key, value *Tensor, state CellState, attribute
 			return errors.New("cell attention cells are not consecutive inside the state")
 		}
 	}
-	codes := MustShape(width, kvHeads*capacity)
-	scales := MustShape(width/QSAScaleGroup, kvHeads*capacity)
+	if state.KeyCodes == nil || state.KeyCodes.Shape.Rank != PairedExtent {
+		return errors.New("cell attention state does not hold the layer's cells")
+	}
+	pooled := state.KeyCodes.Shape.Dims[1] / kvHeads
+	if pooled == 0 || pooled%CellPageCells != 0 || pooled > capacity {
+		return errors.New("cell attention pools are not whole pages within the capacity")
+	}
+	codes := MustShape(width, kvHeads*pooled)
+	scales := MustShape(width/QSAScaleGroup, kvHeads*pooled)
 	for _, part := range []struct {
 		tensor *Tensor
 		kind   dtype.Type

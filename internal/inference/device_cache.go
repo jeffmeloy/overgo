@@ -1551,6 +1551,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if past.staleLive() {
 		return fail(errQSAStaleLive)
 	}
+	if past.staleCells() {
+		return fail(errCellsStale)
+	}
 	if r.spec.NonCausalAttention {
 		return fail(errors.New("non-causal models do not support a device KV cache"))
 	}
@@ -1764,9 +1767,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		case r.holdsCells(layerIndex):
 			// A layer over cells reads and appends them in place and takes no cache value as an input.
 			kvHeads, width, _ := program.AttentionCells()
+			pages, _ := r.cellPoolPages(layerIndex, cells)
 			state, nodes := cellStateInputs(builder, func(suffix string) string {
 				return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
-			}, kvHeads, width, cells)
+			}, kvHeads, width, cells, pages*tensor.CellPageCells)
 			cellInputs[layerIndex] = nodes
 			cellBinding = &model.CellBinding{State: state, Capacity: cells, FirstCell: pastTokens}
 		case plan.SharedKV:

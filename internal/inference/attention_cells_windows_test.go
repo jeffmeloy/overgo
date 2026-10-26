@@ -18,16 +18,18 @@ import (
 // TestAttentionCellsMatchF32Decoding holds a runner over attention cells (widen-kv: Strata's int8 K/V cells for an
 // attention layer's own geometry) to the same runner over its F32 cache, on a miniature Gemma 4 12B: a sliding layer of
 // 8 K/V heads of 256 reading a 24-token window and a global layer of one K/V head of 512 whose keys are its values. A
-// 40-token prompt is read past the window, then 32 tokens decode, the cells' runner fed the F32 runner's greedy tokens:
+// 200-token prompt is read past the window in 16-token chunks, which give the sliding layer a ring of two pages, then 64
+// tokens decode past the cells' first capacity, the cells' runner fed the F32 runner's greedy tokens:
 // each step's logits within 2% of the F32 logits' spread, the codes' rounding (an fp16 scale a 64-value group, codes of
 // 127 steps) being all that moves them, and the greedy token the same wherever the F32 runner's lead over its second is
-// more than twice the logits' difference; the decode steps replay captured graphs. The cells take about a quarter of
-// the F32 cache's bytes.
+// more than twice the logits' difference; the decode steps replay captured graphs, and a cache of the prompt alone
+// reads cells the ring has written over. The cells, the ring among them, take less than a third of the F32 cache's
+// bytes.
 func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	const promptTokens, steps = 40, 32
-	path := testutil.HermeticGemma4CellsGGUF(t, 256)
+	const promptTokens, steps, chunk = 200, 64, 16
+	path := testutil.HermeticGemma4CellsGGUF(t, 1024)
 	open := func(cells bool) *Runner {
 		t.Helper()
 		loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity,
@@ -46,6 +48,8 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 		if !cells {
 			runner.cellLayers = nil
 		}
+		// A prompt read of small chunks gives the sliding layer a ring of two pages, its window and a chunk.
+		runner.promptChunkTokens = chunk
 		return runner
 	}
 	prompt := make([]tokenizer.TokenID, promptTokens)
@@ -87,6 +91,12 @@ func TestAttentionCellsMatchF32Decoding(t *testing.T) {
 			}
 			logits = append(logits, slices.Clone(next.Logits))
 			tokens = []tokenizer.TokenID{feed(step, next.Logits)}
+		}
+		// The cells grew past their first capacity, a fork, and the ring passed the prompt's window many times: a cache
+		// of the prompt alone reads cells the ring has written over, the last cache none.
+		if cells := past.storage.cells; cells != nil && (cells.ringPages == 0 || cells.capacity <= promptTokens*2 || !cells.stale(promptTokens) || past.staleCells()) {
+			t.Fatalf("the sliding cells ring %d pages at a capacity of %d; a prompt's cache stale %t, the last %t",
+				cells.ringPages, cells.capacity, cells.stale(promptTokens), past.staleCells())
 		}
 		return logits, bytes
 	}

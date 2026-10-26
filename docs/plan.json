@@ -665,21 +665,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-514c2975ce629429",
-      "title": "Restore webssl-dino300m-full2b-224 image-embedding load-time to 230.6077 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore webssl-dino300m-full2b-224 image-embedding load-time to 230.6077 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-514c2975ce629429 -target 230.6077",
-          "rationale": "- webssl-dino300m-full2b-224 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:1fd5b3b31c8a2f3868ce4f98cc32d2e36f61ac6deeacd1ed0604dc1636faa7fe}: 213.0601 to 242.5475 (+29.4874, +13.8%, allowed 17.5476; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-53dd0e6a7ae9ad60",
       "title": "Restore gemma-4-12B-it-fp8 inference peak-device-memory to 2.38366082e+10 bytes",
       "owner": "master-lead",

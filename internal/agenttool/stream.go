@@ -10,7 +10,6 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"slices"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -208,7 +207,6 @@ func (stream *InvocationStream) Receive(ctx context.Context) (StreamEvent, error
 		if !open {
 			return StreamEvent{}, io.EOF
 		}
-		event.Value = slices.Clone(event.Value)
 		return event, nil
 	case <-ctx.Done():
 		stream.cancelInvocation()
@@ -271,7 +269,7 @@ func (stream *InvocationStream) pump() {
 		}
 		event := StreamEvent{
 			Invocation: stream.invocation, Manual: stream.manual,
-			Sequence: uint64(nextCount), Value: slices.Clone(value),
+			Sequence: uint64(nextCount), Value: value,
 		}
 		count, total = nextCount, nextTotal
 		select {

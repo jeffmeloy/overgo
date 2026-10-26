@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -179,15 +180,22 @@ func TestRequestMonitorRecordsARefusedRequest(t *testing.T) {
 }
 
 // TestRequestMonitorStreamsThroughTheRecorder serves a streamed completion over a real
-// connection: the first event reaches the client while the request is still in flight, which the
-// monitor then shows without a status, and the finished request holds the tokens it streamed.
+// connection: the first event reaches the client while generation is held, which the monitor
+// then shows in flight without a status, and the released request holds the tokens it streamed,
+// the held prefix among them.
 func TestRequestMonitorStreamsThroughTheRecorder(t *testing.T) {
 	t.Parallel()
-	const tokenDelay = 150 * time.Millisecond
-	handler := newTestHandler(t, &fakeGenerator{pieces: []string{"A", "B", "C", "D"}, tokenDelay: tokenDelay})
+	// Buffered, neither the start nor the release waits on the other side, so a failed check's
+	// deferred release frees the generation wherever it is held.
+	generator := &responseControlGenerator{
+		recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"B", "C", "D"}}),
+		starts:                   make(chan context.Context, 1), release: make(chan error, 1), prefix: "A",
+	}
+	handler := newTestHandler(t, generator)
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
+	defer close(generator.release)
 	response, err := http.Post(server.URL+"/completion", "application/json", strings.NewReader(`{"prompt":"hi","n_predict":4,"stream":true}`))
 	if err != nil {
 		t.Fatal(err)
@@ -206,13 +214,14 @@ func TestRequestMonitorStreamsThroughTheRecorder(t *testing.T) {
 	if len(inFlight) != 1 || !inFlight[0].InFlight || inFlight[0].Status != 0 || inFlight[0].Route != "/completion" {
 		t.Fatalf("with the first event read, the monitor shows %+v, want the stream in flight", inFlight)
 	}
+	generator.release <- nil
 	for events.Scan() {
 	}
 	// Closing the server returns once its handlers have, which is when the monitor has the request's end.
 	server.Close()
 	finished := handler.requests.snapshot().Requests
-	if len(finished) != 1 || finished[0].InFlight || finished[0].Status != http.StatusOK || finished[0].CompletionTokens != 4 || finished[0].DurationMS < float64(tokenDelay/time.Millisecond) {
-		t.Fatalf("the finished stream = %+v, want 200 with four tokens that took at least a token's delay", finished)
+	if len(finished) != 1 || finished[0].InFlight || finished[0].Status != http.StatusOK || finished[0].CompletionTokens != 4 {
+		t.Fatalf("the finished stream = %+v, want 200 with the prefix and three tokens", finished)
 	}
 }
 

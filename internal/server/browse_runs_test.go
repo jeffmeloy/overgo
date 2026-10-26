@@ -56,11 +56,14 @@ func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "browse-recipe")
+	inputID := testutil.ArtifactID(t, artifact.KindDataset, "browse-input")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "browse-output")
-	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: outputID}}}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{
+		{ID: recipeID}, {ID: inputID}, {ID: outputID},
+	}}); err != nil {
 		t.Fatal(err)
 	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "")
+	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,43 +93,7 @@ func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 	if result.Count != 1 || len(result.Runs) != 1 || result.Runs[0].ID != run.ID.String() {
 		t.Fatalf("runs=%+v", result)
 	}
-}
-
-func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	store, err := overgodb.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "detail-recipe")
-	inputID := testutil.ArtifactID(t, artifact.KindDataset, "detail-input")
-	outputID := testutil.ArtifactID(t, artifact.KindOutput, "detail-output")
-	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "detail/facts", Artifacts: []artifact.Descriptor{
-		{ID: recipeID}, {ID: inputID}, {ID: outputID},
-	}}); err != nil {
-		t.Fatal(err)
-	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err := run.Batch("detail/run")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = handler.Close() })
-	response := serveTestRequest(handler, http.MethodGet, "/runs?id="+run.ID.String(), "")
+	response = serveTestRequest(handler, http.MethodGet, "/runs?id="+run.ID.String(), "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}

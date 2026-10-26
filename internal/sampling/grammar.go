@@ -78,8 +78,7 @@ func NewChoiceGrammar(
 		Accepting:      make([]bool, len(states)),
 	}
 	for state, item := range states {
-		result.Transitions[state] = make(map[int]int, len(item.next))
-		maps.Copy(result.Transitions[state], item.next)
+		result.Transitions[state] = item.next
 		result.Accepting[state] = item.accepting
 	}
 	return result, nil

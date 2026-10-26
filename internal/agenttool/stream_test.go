@@ -18,74 +18,58 @@ import (
 
 func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 	t.Parallel()
+	lines := []string{`{"token":"first"}`, `{"token":"second"}`}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.Header().Set("Content-Type", HTTPJSONStreamMediaType)
-		fmt.Fprintln(response, `{"token":"first"}`)
-		fmt.Fprintln(response, `{"token":"second"}`)
+		for _, line := range lines {
+			fmt.Fprintln(response, line)
+		}
 	}))
 	defer server.Close()
 	manual := streamManual(t, server.URL)
-	stream, err := operatorStreamAdapter().openStream(t.Context(), manual, json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
-		MaxEvents: 2, MaxEventBytes: 256, MaxBytes: 512,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stream.Close()
-	for sequence := uint64(1); sequence <= 2; sequence++ {
-		event, err := stream.Receive(t.Context())
+	// The two-event stream completes under a two-event policy and fails at its admission bound under a one-event policy.
+	for _, row := range []struct {
+		maxEvents uint32
+		state     StreamState
+		failure   string
+	}{{2, StreamCompleted, ""}, {1, StreamFailed, "stream admission bound exceeded at event 2"}} {
+		stream, err := operatorStreamAdapter().openStream(t.Context(), manual, json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
+			MaxEvents: row.maxEvents, MaxEventBytes: 256, MaxBytes: 512,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if event.Sequence != sequence || event.Invocation.Kind() != artifact.KindRun {
-			t.Fatalf("event = %+v", event)
+		defer stream.Close()
+		var events []StreamEvent
+		for range row.maxEvents {
+			event, err := stream.Receive(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			events = append(events, event)
 		}
-		if _, err := event.ArtifactContent(); err != nil {
+		if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
+			t.Fatalf("end error = %v", err)
+		}
+		// Each event is read after the scanner has taken every later line, so a value sharing its buffer would show here.
+		for index, event := range events {
+			if event.Sequence != uint64(index+1) || event.Invocation.Kind() != artifact.KindRun || string(event.Value) != lines[index] {
+				t.Fatalf("event = %+v", event)
+			}
+			if _, err := event.ArtifactContent(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		terminal, err := stream.Terminal()
+		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
-		t.Fatalf("end error = %v", err)
-	}
-	terminal, err := stream.Terminal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if terminal.State != StreamCompleted || terminal.Events != 2 || terminal.Bytes == 0 {
-		t.Fatalf("terminal = %+v", terminal)
-	}
-	if _, err := terminal.ArtifactContent(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestHTTPJSONStreamFailsAtAdmissionBound(t *testing.T) {
-	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
-		response.Header().Set("Content-Type", HTTPJSONStreamMediaType)
-		fmt.Fprintln(response, `{"value":1}`)
-		fmt.Fprintln(response, `{"value":2}`)
-	}))
-	defer server.Close()
-	stream, err := operatorStreamAdapter().openStream(t.Context(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
-		MaxEvents: 1, MaxEventBytes: 128, MaxBytes: 128,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stream.Close()
-	if _, err := stream.Receive(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
-		t.Fatalf("end error = %v", err)
-	}
-	terminal, err := stream.Terminal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if terminal.State != StreamFailed || terminal.Events != 1 || terminal.Error == "" {
-		t.Fatalf("terminal = %+v", terminal)
+		if terminal.State != row.state || terminal.Events != row.maxEvents || terminal.Bytes == 0 || !strings.Contains(terminal.Error, row.failure) {
+			t.Fatalf("terminal = %+v", terminal)
+		}
+		if _, err := terminal.ArtifactContent(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

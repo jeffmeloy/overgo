@@ -3,11 +3,10 @@ package projector
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testutil"
 )
 
 func openImageProjectorAs[T Projector](path string, options OpenOptions) (T, error) {
@@ -25,20 +24,9 @@ func testSession(t *testing.T, source Projector) Session {
 }
 
 func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "projector.gguf")
-	output, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := gguf.Write(output, nil, []gguf.TensorData{
+	path := testutil.TempGGUF(t, "projector.gguf", nil, []gguf.TensorData{
 		f32Tensor("weight", []uint64{1}, []float32{1}),
-	}, gguf.WriteOptions{}); err != nil {
-		_ = output.Close()
-		t.Fatal(err)
-	}
-	if err := output.Close(); err != nil {
-		t.Fatal(err)
-	}
+	})
 	want := errors.New("build failed")
 	var captured *gguf.File
 	result, err := openProjectorResource(t.Context(), path, func(file *gguf.File) (*gguf.File, error) {

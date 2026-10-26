@@ -57,7 +57,7 @@ func draftSampled[S any](
 		Distributions: make([][]sampling.TokenProbability, 0, maximum),
 		History:       slices.Clone(history),
 		Base:          base,
-		samplerStates: [][]byte{slices.Clone(initialState)},
+		samplerStates: [][]byte{initialState},
 	}
 	currentToken, currentState := initialToken, base
 	currentHistory := tokenHistory(history)
@@ -80,7 +80,7 @@ func draftSampled[S any](
 		token := tokenizer.TokenID(result.Token)
 		draft.Tokens = append(draft.Tokens, token)
 		draft.Probabilities = append(draft.Probabilities, result.SelectedProbability)
-		draft.Distributions = append(draft.Distributions, slices.Clone(result.Top))
+		draft.Distributions = append(draft.Distributions, result.Top)
 		draft.samplerStates = append(draft.samplerStates, state)
 		currentToken, currentState = token, next
 		currentHistory = append(currentHistory, result.Token)

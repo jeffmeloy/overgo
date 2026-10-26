@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"testing"
@@ -94,46 +93,6 @@ func TestGrammarVocabularyBindingReuse(t *testing.T) {
 			}
 			if value, err := bad.grammarVocabulary(); value != nil || err == nil {
 				t.Fatal("failed decode published a partial binding")
-			}
-		}
-	})
-
-	t.Run("warm compile allocation and state parity", func(t *testing.T) {
-		var baseline float64
-		for _, size := range []int{8, 8192} {
-			runner := newRunner(size)
-			first, err := runner.CompileGBNF(`root ::= "0"`, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			allocations := testing.AllocsPerRun(10, func() {
-				if _, err := runner.CompileGBNF(`root ::= "0"`, ""); err != nil {
-					t.Fatal(err)
-				}
-			})
-			t.Logf("vocabulary=%d warm compile allocations=%.0f", size, allocations)
-			if baseline != 0 && allocations != baseline {
-				t.Fatalf("allocations grew: %.0f -> %.0f", baseline, allocations)
-			}
-			baseline = allocations
-			second, err := runner.CompileGBNF(`root ::= "0"`, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			var previous []byte
-			for _, grammar := range []*sampling.GBNFGrammar{first, second} {
-				sampler, err := sampling.New(sampling.Config{GBNF: grammar, Seed: 17})
-				if err != nil {
-					t.Fatal(err)
-				}
-				state, err := sampler.SaveState()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if previous != nil && !bytes.Equal(previous, state) {
-					t.Fatal("warm signature changed")
-				}
-				previous = state
 			}
 		}
 	})

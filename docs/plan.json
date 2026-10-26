@@ -216,20 +216,10 @@
       "title": "Land the review's reductions once the port has begun",
       "status": "open",
       "budget": {
-        "nodes": 161,
+        "nodes": 206,
         "reason": "Reductions only: each step deletes more production code than it adds."
       },
       "steps": [
-        {
-          "id": "serving",
-          "title": "Drop serving's copies and timed waits and fold its duplicated tests (SQA-170, SQA-191, SQA-196, SQA-197, SQA-184, SQA-162, SQA-194)",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/agenttool ./internal/sampling ./internal/projector -count=1 \u0026\u0026 ! grep -q 'slices.Clone' internal/agenttool/stream.go \u0026\u0026 ! grep -q 'maps.Copy' internal/sampling/grammar.go \u0026\u0026 ! grep -q 'slices.Clone(initialState)\\|slices.Clone(result.Top)' internal/inference/sampled_draft.go \u0026\u0026 ! grep -q 'tokenDelay' internal/server/request_monitor_test.go \u0026\u0026 ! grep -q 'warm compile allocation and state parity' internal/inference/grammar_test.go \u0026\u0026 ! grep -q 'func TestRunDetailReconstructsImmutableEvidence' internal/server/browse_runs_test.go \u0026\u0026 ! grep -q 'os.Create' internal/projector/resources_test.go",
-          "rationale": "Serves: serving's upkeep: the request monitor's test waits on the response-control fixture's real boundary, not on timed tokens (SQA-170); an agent tool's streamed event, a choice grammar's transitions and a sampled draft's states keep the bytes they own instead of copying them (SQA-191, SQA-196, SQA-184).\nDisappears: both slices.Clone calls in agenttool/stream.go, the maps.Copy in sampling/grammar.go, the two clones in inference/sampled_draft.go, the request monitor test's tokenDelay, the Runner grammar test's warm-compile subtest (SQA-197), TestRunDetailReconstructsImmutableEvidence folded into TestBrowseRunsReadsOvergoDBRecords (SQA-162), and the projector fixture's own GGUF writer for testutil.TempGGUF (SQA-194).\nEvidence: the packages' tests, unchanged in what they hold.\nBatch: server, agenttool, sampling, projector and inference host tests; no measured cell moves; never beside a measurement run.",
-          "depends_on": [
-            "strata-port/map"
-          ]
-        },
         {
           "id": "inference",
           "title": "Drop the compiler's and the residency's discarded work and fold the duplicated host tests (SQA-185, SQA-183, SQA-160, SQA-175, SQA-198, SQA-210, SQA-172)",

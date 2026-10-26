@@ -80,7 +80,7 @@ func (r *Runner) bindSpanSlot(
 	if !r.speculating || len(graphs) != 1 || len(appends) != 1 || len(plans) != 1 {
 		return nil, nil
 	}
-	span := output.is(deviceOutputGreedySpan)
+	span := output.span()
 	if !span && appends[0].Reserve == 0 {
 		return nil, nil
 	}

@@ -41,6 +41,9 @@ type deviceKVCache struct {
 	// span append — one token per consumed position, the MTP verify
 	// batch's output.
 	SpanSelected []tokenizer.TokenID
+	// SpanLogits holds the per-position logits of a sampled verify span, one row a consumed position, which the request
+	// draws its rows from.
+	SpanLogits [][]float32
 	// SpanHidden holds the pre-output-norm hidden rows of a span
 	// append, one column per consumed position — the trunk states the
 	// NextN draft head seeds from.
@@ -661,7 +664,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 	if len(appends) == 0 {
 		return nil, errors.New("inference: device batch is empty")
 	}
-	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
+	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.span() {
 		chunk := len(appends[0].Tokens)
 		if r.promptChunkTokens > 0 {
 			chunk = min(chunk, r.promptChunkTokens)
@@ -687,7 +690,7 @@ func (r *Runner) cacheAppendPlan(appends []deviceBatchAppend, plan deviceOutputP
 	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity || !r.program.Model.SupportsCapacityCache() {
 		return deviceCacheAppendPlan{}
 	}
-	span := plan.is(deviceOutputGreedySpan)
+	span := plan.span()
 	result := deviceCacheAppendPlan{replay: !span || len(appends) == 1}
 	var count uint32
 	for index, item := range appends {
@@ -999,7 +1002,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.is(deviceOutputGreedySpan) {
+	if len(appends) == 1 && len(appends[0].Tokens) > 1 && !plan.span() {
 		if err := r.checkDevicePrefillMemory(ctx, execution, targetPlans[0], appends[0].Past); err != nil {
 			return nil, err
 		}
@@ -1715,7 +1718,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	lastHidden := current
-	if plan.is(deviceOutputGreedySpan) {
+	if plan.span() {
 		if sequences != 1 {
 			return fail(errors.New("span output selection requires one sequence"))
 		}
@@ -1738,7 +1741,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	selection, candidates := plan.reduce(builder, logits)
 	var spanHidden *tensor.Tensor
-	if plan.is(deviceOutputGreedySpan) || plan.streams {
+	if plan.span() || plan.streams {
 		spanHidden = preNormHidden
 	}
 	return deviceBatchGraph{

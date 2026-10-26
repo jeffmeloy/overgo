@@ -15,7 +15,7 @@ import (
 // Only a memory refusal before execution reduces a chunk and retries it.
 // The caller retains ownership of the supplied prefix on every exit.
 func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput deviceBatchAppend, plan deviceOutputPlan, chunk int) (_ *deviceKVCache, err error) {
-	if chunk <= 0 || len(appendInput.Tokens) == 0 || plan.is(deviceOutputGreedySpan) {
+	if chunk <= 0 || len(appendInput.Tokens) == 0 || plan.span() {
 		return nil, errors.New("inference: bounded prefill requires tokens, a positive chunk and final-position output")
 	}
 	past := appendInput.Past

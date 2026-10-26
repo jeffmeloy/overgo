@@ -27,6 +27,7 @@ func (s *Sampler) SpeculativeSample(
 	if s == nil {
 		return SpeculativeSampleResult{}, errors.New("sampler is nil")
 	}
+	s.drawAt(history)
 	if len(logits) == 0 {
 		return SpeculativeSampleResult{}, errors.New("sampling logits are empty")
 	}
@@ -47,7 +48,7 @@ func (s *Sampler) SpeculativeSample(
 	targetProbability := target[proposed]
 	accepted := targetProbability >= draftProbability
 	if len(candidates) > 1 {
-		accepted = s.random.Float64() < min(1, targetProbability/draftProbability)
+		accepted = s.uniform(philoxCounterAccept) < min(1, targetProbability/draftProbability)
 	}
 	chosen := proposed
 	if !accepted {
@@ -67,7 +68,7 @@ func (s *Sampler) SpeculativeSample(
 			)
 		}
 		chosen = residual[sampleCandidateIndex(
-			s.random.Float64(), residual, residualTotal,
+			s.uniform(philoxCounterResidual), residual, residualTotal,
 		)].id
 	}
 	if err := s.commitSpeculativeToken(chosen, target[chosen], original, mirostat); err != nil {

@@ -145,7 +145,7 @@ func writeHermeticFlashNextMTPGGUF(t *testing.T, trunkPath string, copyTrunk boo
 	return path
 }
 
-// copyDraftAcceptance replays generateDeviceSpeculativeGreedy's rounds over the plain greedy tokens when every draft repeats the last emitted token: what the copying draft layer drafts.
+// copyDraftAcceptance replays generateDeviceSpeculative's greedy rounds over the plain greedy tokens when every draft repeats the last emitted token: what the copying draft layer drafts.
 //   - the first window drafts too, from the prompt's last row, which the prompt's read wrote into the draft's history
 func copyDraftAcceptance(plain []tokenizer.TokenID, generated int) (drafted, accepted int) {
 	emitted := 1

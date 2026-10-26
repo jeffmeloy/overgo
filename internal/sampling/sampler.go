@@ -110,6 +110,10 @@ type Sampler struct {
 	dryRepeatCount   []int
 	dryMaxRepeat     map[int]int
 	infillScratch    [2][]candidate
+	// positioned keys the current call's draws by drawCounter, the position of the row it samples (drawAt); a call
+	// without the sequence draws from the sequential stream.
+	positioned  bool
+	drawCounter uint64
 }
 
 type candidate struct {
@@ -396,6 +400,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	if s == nil {
 		return 0, errors.New("sampler is nil")
 	}
+	s.drawAt(history)
 	if len(logits) == 0 {
 		return 0, errors.New("sampling logits are empty")
 	}
@@ -500,6 +505,7 @@ func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (i
 	if s == nil {
 		return 0, errors.New("sampler is nil")
 	}
+	s.drawAt(nil)
 	limit, ok := s.BoundedTopK()
 	if !ok {
 		return 0, errors.New("sampling configuration has no bounded top-K prefix")
@@ -579,7 +585,7 @@ func (s *Sampler) sampleCandidatePipeline(
 	if err != nil {
 		return 0, err
 	}
-	selected := sampleCandidateIndex(s.random.Float64(), candidates, total)
+	selected := sampleCandidateIndex(s.uniform(0), candidates, total)
 	selectedID := candidates[selected].id
 	s.recordCandidateProbabilities(candidates, total, selectedID)
 	return s.acceptGrammar(selectedID)
@@ -685,7 +691,7 @@ func (s *Sampler) sampleAdaptiveP(candidates []candidate, vocabularySize int) (i
 	if err != nil {
 		return 0, 0, err
 	}
-	selected := sampleCandidateIndex(s.random.Float64(), candidates, total)
+	selected := sampleCandidateIndex(s.uniform(0), candidates, total)
 	token := candidates[selected].id
 	return token, original[token], nil
 }
@@ -859,7 +865,7 @@ func (s *Sampler) applySamplerStage(
 		if s.config.XTCProbability > 0 &&
 			s.config.XTCThreshold <= xtcDisableThreshold &&
 			len(candidates) >= 2 &&
-			s.random.Float32() <= s.config.XTCProbability {
+			float32(s.uniform(philoxCounterXTC)) <= s.config.XTCProbability {
 			sortCandidates(candidates)
 			total, err := candidateProbabilities(candidates)
 			if err != nil {
@@ -1337,7 +1343,7 @@ func (s *Sampler) sampleMirostatV2(logits []float32) (int, error) {
 	for index := range candidates {
 		total += candidates[index].probability
 	}
-	target := s.random.Float64() * total
+	target := s.uniform(0) * total
 	var cumulative float64
 	selected := len(candidates) - 1
 	for index, item := range candidates {
@@ -1369,7 +1375,7 @@ func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
 	for _, item := range candidates {
 		total += item.probability
 	}
-	selected := sampleCandidateIndex(s.random.Float64(), candidates, total)
+	selected := sampleCandidateIndex(s.uniform(0), candidates, total)
 	normalizedProbability := candidates[selected].probability / total
 	observedSurprise := -math.Log2(normalizedProbability)
 	errorValue := observedSurprise - float64(s.config.MirostatTau)

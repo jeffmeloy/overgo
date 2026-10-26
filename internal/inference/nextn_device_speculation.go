@@ -149,7 +149,7 @@ func spanHiddenRow(hidden reference.Value, width uint64, row int) (reference.Val
 	return reference.Value{Shape: tensor.MustShape(width, 1), Data: data}, nil
 }
 
-// generateDeviceSpeculativeGreedy: the NextN MTP generation loop. Each round
+// generateDeviceSpeculative: the NextN MTP generation loop. Each round
 // drafts up to speculationDraftTokens successors with the draft head,
 // then verifies the pending emitted tokens plus the draft in ONE device span
 // forward — one trunk weight read that commits acceptedTokens+1 emissions.
@@ -159,25 +159,24 @@ func spanHiddenRow(hidden reference.Value, width uint64, row int) (reference.Val
 //   - a lazy grammar awaiting its trigger takes each token, and the loop ends at the token that triggers it, the
 //     cache it answers then holding every id before the ones still pending; sampled reports that ending, after which
 //     the grammar chooses the tokens
-func (r *Runner) generateDeviceSpeculativeGreedy(
+//   - a sampled request (drawing) verifies by Strata's rule (src/core/verify.cpp run, sampler.cu): the window's rows
+//     publish their logits and are drawn in order after the window, each at its own position, and a draft is kept while
+//     it equals its row's draw; the first row that differs gives the correction, and no row past it is drawn, so the
+//     sampler moves as plain sampling moves and a seed gives the text plain decoding gives
+func (r *Runner) generateDeviceSpeculative(
 	ctx context.Context,
 	ids []tokenizer.TokenID,
 	prefill *deviceKVCache,
 	options GenerateOptions,
+	drawing bool,
 ) (_ []tokenizer.TokenID, _ *deviceKVCache, sampled bool, _ string, _ error) {
 	var generatedText strings.Builder
 	emitted := 0
 	stopped, ended, triggered := false, false, false
 	lazy := options.Sampler.GreedyUntilTrigger()
-	emit := func(id tokenizer.TokenID) error {
-		if lazy {
-			if err := options.Sampler.AcceptToken(int(id)); err != nil {
-				return err
-			}
-			triggered = !options.Sampler.GreedyUntilTrigger()
-		}
-		event := TokenEvent{ID: id, Index: emitted}
-		ids = append(ids, id)
+	deliver := func(event TokenEvent) error {
+		event.Index = emitted
+		ids = append(ids, event.ID)
 		emitted++
 		stop, err := r.deliverGenerationToken(&event, options, &generatedText)
 		if err != nil {
@@ -187,11 +186,32 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		stopped = ended || triggered
 		return nil
 	}
+	emit := func(id tokenizer.TokenID) error {
+		if lazy {
+			if err := options.Sampler.AcceptToken(int(id)); err != nil {
+				return err
+			}
+			triggered = !options.Sampler.GreedyUntilTrigger()
+		}
+		return deliver(TokenEvent{ID: id})
+	}
+	// draw samples a row after the ids emitted so far, at the position of the last: the sampler's draw is keyed by it.
+	draw := func(logits []float32) (TokenEvent, error) { return sampleGenerationToken(logits, ids, options) }
 	boundary := prefill
-	if err := emit(boundary.Selected); err != nil {
+	first := boundary.Selected
+	if drawing {
+		event, err := draw(boundary.Logits)
+		if err == nil {
+			err = deliver(event)
+		}
+		if err != nil {
+			return ids, boundary, false, "", err
+		}
+		first = event.ID
+	} else if err := emit(first); err != nil {
 		return ids, boundary, false, "", err
 	}
-	pending := []tokenizer.TokenID{boundary.Selected}
+	pending := []tokenizer.TokenID{first}
 	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
 	if r.hyperDraft != nil {
@@ -255,40 +275,69 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		for index := range checkpoints {
 			checkpoints[index] = uint32(len(pending) + index)
 		}
-		span, err := r.forwardDeviceCachedModeLocked(
-			ctx, deviceOutputGreedySpan, spanTokens, boundary, nil, checkpoints...,
-		)
+		mode := deviceOutputGreedySpan
+		if drawing {
+			mode = deviceOutputLogitsSpan
+		}
+		span, err := r.forwardDeviceCachedModeLocked(ctx, mode, spanTokens, boundary, nil, checkpoints...)
 		if err != nil {
 			return ids, boundary, false, "", err
 		}
-		selections := span.SpanSelected
-		if len(selections) != len(spanTokens) {
-			releaseErr := span.Release(context.Background())
-			return ids, boundary, false, "", errors.Join(
-				errors.New("inference: span selections are incomplete"), releaseErr,
-			)
-		}
 		base := len(pending) - 1
 		accepted := 0
-		for accepted < len(drafts) && drafts[accepted] == selections[base+accepted] {
-			accepted++
-		}
-		if options.OnDraftSpan != nil && len(drafts) > 0 {
-			options.OnDraftSpan(len(drafts), accepted)
-		}
-		correction := selections[base+accepted]
-		for index := 0; index < accepted && !stopped; index++ {
-			if err := emit(drafts[index]); err != nil {
-				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+		var correction tokenizer.TokenID
+		if drawing {
+			if len(span.SpanLogits) != len(spanTokens) {
+				return ids, boundary, false, "", errors.Join(errors.New("inference: span logits are incomplete"), span.Release(context.Background()))
 			}
-			if triggered && !ended {
-				// The span keeps its state before the draft that triggered the grammar, which is all that is pending.
-				accepted, correction = index, drafts[index]
+			// Each row is drawn after the ones before it, at its own position; a draft is kept while it equals its row's
+			// draw, and the first row that differs, or the last, gives the correction.
+			for row := base; !stopped; row++ {
+				event, drawErr := draw(span.SpanLogits[row])
+				if drawErr == nil {
+					drawErr = deliver(event)
+				}
+				if drawErr != nil {
+					return ids, boundary, false, "", errors.Join(drawErr, span.Release(context.Background()))
+				}
+				if offset := row - base; offset < len(drafts) && event.ID == drafts[offset] {
+					accepted++
+					continue
+				}
+				correction = event.ID
+				break
 			}
-		}
-		if !stopped {
-			if err := emit(correction); err != nil {
-				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+			if options.OnDraftSpan != nil && len(drafts) > 0 {
+				options.OnDraftSpan(len(drafts), accepted)
+			}
+		} else {
+			selections := span.SpanSelected
+			if len(selections) != len(spanTokens) {
+				releaseErr := span.Release(context.Background())
+				return ids, boundary, false, "", errors.Join(
+					errors.New("inference: span selections are incomplete"), releaseErr,
+				)
+			}
+			for accepted < len(drafts) && drafts[accepted] == selections[base+accepted] {
+				accepted++
+			}
+			if options.OnDraftSpan != nil && len(drafts) > 0 {
+				options.OnDraftSpan(len(drafts), accepted)
+			}
+			correction = selections[base+accepted]
+			for index := 0; index < accepted && !stopped; index++ {
+				if err := emit(drafts[index]); err != nil {
+					return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+				}
+				if triggered && !ended {
+					// The span keeps its state before the draft that triggered the grammar, which is all that is pending.
+					accepted, correction = index, drafts[index]
+				}
+			}
+			if !stopped {
+				if err := emit(correction); err != nil {
+					return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+				}
 			}
 		}
 		spanStart := span.Position - uint32(len(spanTokens))

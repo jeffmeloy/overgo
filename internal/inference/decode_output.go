@@ -20,6 +20,9 @@ const (
 	// the output head and selects greedily per position — the MTP
 	// verify batch: one weight read scores the whole draft span.
 	deviceOutputGreedySpan
+	// deviceOutputLogitsSpan keeps every position of a span append in the output head as the greedy span does and
+	// publishes each row's logits, which a sampled request's verify draws its rows from.
+	deviceOutputLogitsSpan
 )
 
 // deviceOutputPlan: graph reduction and publication contract.
@@ -35,7 +38,7 @@ type deviceOutputPlan struct {
 
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {
 	switch mode {
-	case deviceOutputLogits, deviceOutputGreedy, deviceOutputGreedySpan:
+	case deviceOutputLogits, deviceOutputGreedy, deviceOutputGreedySpan, deviceOutputLogitsSpan:
 		if topK != 0 {
 			return deviceOutputPlan{}, errors.New("inference: decode output count requires top-K mode")
 		}
@@ -55,6 +58,11 @@ func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (de
 // position in the output head with its own greedy selection — the MTP
 // verify batch.
 func (p deviceOutputPlan) is(mode deviceOutputMode) bool { return p.mode == mode }
+
+// span reports whether the plan keeps every position of the append in the output head: a verify window's.
+func (p deviceOutputPlan) span() bool {
+	return p.mode == deviceOutputGreedySpan || p.mode == deviceOutputLogitsSpan
+}
 
 func (p deviceOutputPlan) reduce(builder *tensor.Builder, logits *tensor.Tensor) (selection, candidates *tensor.Tensor) {
 	switch p.mode {
@@ -83,7 +91,7 @@ func (p deviceOutputPlan) readBack(compiled *executor.CompiledGraph, graphs ...d
 	var outputs []*tensor.Tensor
 	for _, graph := range graphs {
 		outputs = append(outputs, p.graphOutput(graph))
-		if p.is(deviceOutputGreedySpan) && graph.hidden != nil {
+		if p.span() && graph.hidden != nil {
 			outputs = append(outputs, graph.hidden)
 		}
 	}
@@ -105,6 +113,29 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 			return err
 		}
 		caches[0].SpanSelected = selected
+		if graph.hidden != nil {
+			hidden, hiddenErr := retained.CopyToHost(ctx, graph.hidden)
+			if hiddenErr != nil {
+				return hiddenErr
+			}
+			caches[0].SpanHidden = hidden
+		}
+	case deviceOutputLogitsSpan:
+		if count != 1 {
+			return errors.New("inference: span logits cover exactly one sequence")
+		}
+		value, err := retained.CopyToHost(ctx, graph.logits)
+		if err != nil {
+			return err
+		}
+		rows := int(graph.tokenCount)
+		if vocabulary <= 0 || len(value.Data) != vocabulary*rows {
+			return errors.New("inference: span logits shape is incompatible")
+		}
+		caches[0].SpanLogits = make([][]float32, rows)
+		for row := range rows {
+			caches[0].SpanLogits[row] = r.finalizeLogits(value.Data[row*vocabulary : (row+1)*vocabulary])
+		}
 		if graph.hidden != nil {
 			hidden, hiddenErr := retained.CopyToHost(ctx, graph.hidden)
 			if hiddenErr != nil {

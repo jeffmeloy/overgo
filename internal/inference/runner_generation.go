@@ -221,8 +221,8 @@ func (r *Runner) Generate(
 						return nil, "", err
 					}
 				}
-				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does.
-				if deviceGreedy && r.hyperDraft != nil && r.deviceSpeculationReady(options) {
+				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does, greedy or sampled.
+				if r.hyperDraft != nil && r.deviceSpeculationReady(options) {
 					if err := r.beginHyperDraftPromptLocked(ctx, len(ids), cached, options.MaxNewTokens); err != nil {
 						return nil, "", err
 					}
@@ -358,14 +358,15 @@ func (r *Runner) Generate(
 
 	// start is the tokens decoded before the loop below: those a speculation decoded until a grammar triggered.
 	start, promptTokens := 0, len(ids)
-	if deviceGreedy && deviceCache != nil && r.deviceSpeculationReady(options) {
+	// A greedy request verifies its drafts by the window's selections, a sampled one by drawing the window's rows.
+	if deviceCache != nil && r.deviceSpeculationReady(options) {
 		if err := r.startSpeculatingLocked(); err != nil {
 			return nil, "", err
 		}
 		var speculatedText string
 		var sampled bool
-		ids, deviceCache, sampled, speculatedText, err = r.generateDeviceSpeculativeGreedy(
-			ctx, ids, deviceCache, options,
+		ids, deviceCache, sampled, speculatedText, err = r.generateDeviceSpeculative(
+			ctx, ids, deviceCache, options, !deviceGreedy,
 		)
 		if err != nil {
 			// A failed span ends the request with the ids decoded so far, as a failed step does.

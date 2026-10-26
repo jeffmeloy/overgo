@@ -114,16 +114,37 @@ func OpenRunner(
 	repository, path string,
 	options inference.OpenOptions,
 ) (*inference.Runner, error) {
+	return open(ctx, repository, path, options, false)
+}
+
+// OpenServedRunner opens the model at path as it is served: with the draft its active speculation recipe binds where
+// options names none, none when the store declares none, resolved over the one open of the store the recipe is
+// resolved from, so a measured request decodes through the model's draft as a server started without -draft does.
+// The store opened apart for the draft took as long again as the recipe's open (0.7 s of Carbon-500M's 1.9 s load).
+func OpenServedRunner(
+	ctx context.Context,
+	repository, path string,
+	options inference.OpenOptions,
+) (*inference.Runner, error) {
+	return open(ctx, repository, path, options, true)
+}
+
+func open(
+	ctx context.Context,
+	repository, path string,
+	options inference.OpenOptions,
+	served bool,
+) (*inference.Runner, error) {
 	if strings.TrimSpace(repository) == "" {
 		return nil, errors.New("model recipe repository is required")
 	}
-	runner, err := openRunner(ctx, repository, path, options, true)
+	runner, err := openRunner(ctx, repository, path, options, true, served)
 	if errors.Is(err, artifact.ErrContentMismatch) {
 		// The memo was stale: the file changed without a new size or modification
 		// time, and nothing was served. Resolve it again by hashing, under the
 		// identity its bytes have now.
 		fmt.Fprintf(os.Stderr, "model %s: its remembered identity does not match its bytes; hashing the file\n", path)
-		return openRunner(ctx, repository, path, options, false)
+		return openRunner(ctx, repository, path, options, false, served)
 	}
 	return runner, err
 }
@@ -132,7 +153,7 @@ func openRunner(
 	ctx context.Context,
 	repository, path string,
 	options inference.OpenOptions,
-	remembered bool,
+	remembered, served bool,
 ) (*inference.Runner, error) {
 	// Serving only READS the store (recipe resolution); a writer open here
 	// starved concurrent serves and self-deadlocked the smoke lane against
@@ -145,11 +166,21 @@ func openRunner(
 		return nil, fmt.Errorf("open model recipe repository: %w", err)
 	}
 	resolved := processmeasure.Stage(ctx, "recipe resolve")
+	var memo *discovery.Memo
 	var claimer modelartifact.Claimer
+	if remembered || served {
+		memo = discovery.LoadMemo(ctx, store)
+	}
 	if remembered {
-		claimer = discovery.LoadMemo(ctx, store).Claim
+		claimer = memo.Claim
 	}
 	loaded, resolveErr := modelrecipe.ResolveClaimedGGUF(ctx, store, path, claimer)
+	if resolveErr == nil && served && options.Draft == "" {
+		var identity modelrecipe.ProgramIdentity
+		if identity, resolveErr = loaded.Identity(); resolveErr == nil {
+			options.Draft, _, resolveErr = discovery.ActiveDraft(ctx, store, identity.Model, memo)
+		}
+	}
 	closeErr := store.Close()
 	resolved()
 	if resolveErr != nil || closeErr != nil {
@@ -167,24 +198,6 @@ func openRunner(
 // ExpertProfilePath is where the expert profile of the model at path lies, beside it: a load of the model that finds
 // one there fills the card from it (cmd/expert-profile writes it).
 func ExpertProfilePath(path string) string { return path + ".experts.strp" }
-
-// ActiveDraft resolves the draft the active speculation recipe of the model at path binds, none when the store
-// declares none: the draft a server started without -draft speculates through, and a measured request decodes
-// through, so the swap proxy, the desktop launcher, the browser lane and the scorecard serve the model's draft as
-// they serve its projector. A model the store cannot resolve gets none here, and its open reports why.
-func ActiveDraft(ctx context.Context, repository, path string) (string, error) {
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return "", err
-	}
-	defer store.Close()
-	model, _, err := ResolveModel(ctx, store, path)
-	if err != nil {
-		return "", nil
-	}
-	draft, _, err := discovery.ActiveDraft(ctx, store, model, discovery.LoadMemo(ctx, store))
-	return draft, err
-}
 
 // ModelReserve answers the memory reserve of a projector opened before its model: reserve asks the runner bind binds,
 // once it opens, for room as its own allocations do, however much context it holds (a screenshot's 663 MB beside a

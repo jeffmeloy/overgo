@@ -49,11 +49,7 @@ type servedModel interface {
 // and records nothing (journeyInference).
 func measureRunner(repository, path string, journey bool) error {
 	open := func(ctx context.Context) (servedModel, error) {
-		draft, err := modelcli.ActiveDraft(ctx, repository, path)
-		if err != nil {
-			return nil, err
-		}
-		runner, err := modelcli.OpenRunner(ctx, repository, path, inference.OpenOptions{Draft: draft})
+		runner, err := modelcli.OpenServedRunner(ctx, repository, path, inference.OpenOptions{})
 		if err != nil {
 			return nil, err
 		}

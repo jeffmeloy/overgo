@@ -236,15 +236,11 @@ func run() error {
 			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
 		})
 	}
-	if openOptions.Draft == "" {
-		if openOptions.Draft, err = modelcli.ActiveDraft(shutdownContext, repositoryPath, modelReference); err != nil {
-			return err
-		}
-	}
-	// The projector comes from the command line or from the store: with no
-	// -mmproj, the model's active projection recipe names the projector
-	// bytes, so every launcher serves the modalities the store declares. It opens
-	// before the model, whose hybrid expert cache takes the device memory it leaves.
+	// The projector and the draft come from the command line or from the store: with
+	// no -mmproj or -draft, the model's active projection and speculation recipes name
+	// their bytes, so every launcher serves the modalities and the draft the store
+	// declares, read over the one open of the store. The projector opens before the
+	// model, whose hybrid expert cache takes the device memory it leaves.
 	var vision, audio projector.Session
 	reserve, bind := modelcli.ModelReserve(shutdownContext)
 	{
@@ -259,9 +255,17 @@ func run() error {
 		clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(resolvedRecipe.Stages, func(stage recipe.Stage) bool {
 			return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
 		}))
+		memo := discovery.LoadMemo(shutdownContext, store)
+		if openOptions.Draft == "" {
+			draft, _, draftErr := discovery.ActiveDraft(shutdownContext, store, model, memo)
+			if draftErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared draft: %w", draftErr), store.Close())
+			}
+			openOptions.Draft = draft
+		}
 		resolved := *projectorPath
 		if resolved == "" {
-			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, model, discovery.LoadMemo(shutdownContext, store))
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, model, memo)
 			if resolveErr != nil {
 				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
 			}

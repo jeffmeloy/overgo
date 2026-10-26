@@ -702,21 +702,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-0b978d73b48a3693",
-      "title": "Restore Carbon-500M-f16-ropefix inference load-time to 1701.6942 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Carbon-500M-f16-ropefix inference load-time to 1701.6942 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-0b978d73b48a3693 -target 1701.6942000000001",
-          "rationale": "- Carbon-500M-f16-ropefix load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 1078.5574 to 1741.2927 (+662.7353, +61.4%, allowed 623.1368; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-1644fca48df4f0b9",
       "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.836363636 ",
       "owner": "master-lead",

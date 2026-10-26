@@ -1,14 +1,14 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "39 active,3 deferred. Reopen189 for the new Q8 test's bypass of the repaired NaN-safe comparison owner; direct reuse removes30test AST. No other newly established reduction or closure.",
-      "priority": "218 remains first for user-visible inventory recovery;189 follows for acceptance correctness before served K/V adoption.215 actual-context coverage and213 cost derivation remain ahead of optional reductions.",
-      "declined_candidates": "Keep Q8 rounded and unrounded comparisons,normal-RoPE prompt versus selected attention,pack integrity versus cancellation/streaming allocation,GUI initial/admit/cancel events,and lane context/refusal/scheduling cases. Similar setup alone does not make their requirements redundant."
+      "assessment": "40 active,3 deferred. New227 removes one unnecessary compressed-position clone in shared cache validation; no test or setup growth. No closure or urgent priority change.",
+      "priority": "218 recovery and189 numerical acceptance remain first, followed by215 context coverage and213 scoped policy derivation.227 is a small optional source reduction.",
+      "declined_candidates": "Keep cache state trust-boundary/alias cases, cutoff chronology versus byte budgets, continuation identity/replay/SSE checks and distinct landing outcomes. No safe additional test deletion or shared-fixture saving was established."
     },
   "committed_plan": {
     "git_blob": "417d80733b19775e3f2e93af9c95a1c6cf97dd19",
     "path": "docs/plan.json",
-    "revision": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+    "revision": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
     "sha256": "eba25094a4e44aa6708e087e8c2e5da3ef540b584168159f369bb4028e4566ed",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
@@ -2034,6 +2034,72 @@
       "comparison": "Smallest deciding comparison during implementation is the existing fixture's encoded bytes versus the proposed buffer,then existing native device integration coverage under its current gate. No new permanent assertion or SQA execution. The full-file AST comparison is already retained."
     },
     {
+      "id": "SQA-227",
+      "status": "open",
+      "severity": "P3",
+      "category": "inference-memory-and-surface",
+      "classification": "source-opportunity",
+      "title": "Borrow compressed-cache positions during validation instead of cloning them",
+      "evidence_commit": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
+      "sources": [
+        {
+          "path": "internal/inference/cache_state.go",
+          "symbol": "Runner.validateCache120-182, especially deepSeekPositions159; SaveCache26, LoadCache38, validateEncoderDecoderCache237, RemoveCacheRange259; materializeCompressedCachePositions61 and cloneCache460 retain owned copies"
+        },
+        {
+          "path": "internal/model/cache_schema.go",
+          "symbol": "CacheCompressedAttention positions schema and WithTokenCount require one F32 position per active token"
+        },
+        {
+          "path": "internal/inference/runner.go",
+          "symbol": "forwardCachedProjectedChunkModeLocked calls validateCache610 before graph execution"
+        },
+        {
+          "path": "internal/inference/paired_projection.go",
+          "symbol": "AdvancePairedProjection validates TargetCache75 under runner locks"
+        },
+        {
+          "path": "internal/inference/mtp_session_common.go",
+          "symbol": "validateSingleHeadMTPSession calls validateCache194"
+        },
+        {
+          "path": "internal/inference/multi_head_mtp.go",
+          "symbol": "validateMultiHeadMTPSession calls validateCache287"
+        },
+        {
+          "path": "internal/inference/prompt_cache.go",
+          "symbol": "SavePromptState -> SaveCache72; RestorePromptState -> decodePromptState -> LoadCache148; device download/upload remain separate"
+        },
+        {
+          "path": "internal/inference/cache_state_test.go",
+          "symbol": "TestDeepSeek4CacheStateRoundTrip223; TestKVCacheNamedStatesRoundTripAndEdit38; TestRemoveCacheRangePreservesPrefixAndSuffix662; TestShiftHybridCacheRetainsIndependentRecurrentState709"
+        },
+        {
+          "path": "internal/inference/layer_side_inputs.go",
+          "symbol": "writeCurrentPositions and maxExactFloat32Position preserve exact F32 coordinate admission"
+        }
+      ],
+      "evidence": "The first compressed layer's positions are copied into deepSeekPositions solely to compare later layers. The local slice is read only, never returned or stored, and no intervening validation call mutates cache values. Supported example: LoadCache of the existing DeepSeek4 round-trip fixture allocates a temporary copy even though its one compressed layer needs no later comparison; SaveCache and a multiple-layer validated cache likewise need only a borrowed read view. The unsupported assumption is that validation needs independent ownership of this local reference. Direct production callers were enumerated: SaveCache, LoadCache, validateEncoderDecoderCache, RemoveCacheRange, validateSingleHeadMTPSession, validateMultiHeadMTPSession, AdvancePairedProjection and forwardCachedProjectedChunkModeLocked; only compressed-cache plans enter this branch. Syntax-only substitution in the complete committed file measures3635->3631 AST nodes. No execution or allocation profile was run.",
+      "recommended_change": "Replace only deepSeekPositions = slices.Clone(positions) with deepSeekPositions = positions inside Runner.validateCache. Keep all bounds, schema, value, order and cross-layer equality checks. The existing shared validation owner serves SaveCache and LoadCache as well as cached forward callers; no helper or new abstraction is needed.",
+      "displaced_surface": "Delete one temporary clone call, retaining the local slice and existing comparison loop. Keep slices.Clone in materializeCompressedCachePositions and every clone/edit owner: those copies escape and preserve independently mutable caches/layers. No tests, unique cases, fixtures, configuration, imports or exports disappear or move. Errors, numerical ordering, cancellation boundaries, platform/build tags and device transfer/release lifetimes remain unchanged. Callers must already avoid concurrent mutation of the cache being validated; the present clone covers only one slice and is not a coherent concurrent snapshot.",
+      "impact": "One avoidable O(T) host copy during compressed-cache validation, where T is active token count. No data-loss or confidentiality defect is established. Extending the deletion to returned/materialized cache values would introduce aliasing; the recommendation is limited to the local read-only validation view.",
+      "expected_benefit": {
+        "outcome": "Complete affected production file3635->3631 (-4 AST); complete cache-state test file7309 unchanged. Across the fresh eight-file sample:6875->6871 production,10556->10556 test. No helper/wrapper/migration cost, new fixture, setup execution, gate invocation or additional maintenance owner. Existing test/fixture bodies all remain.",
+        "uncertainty": "Source proxy: removes one temporary T-element F32 copy, nominal4*T payload bytes, per invocation reaching the first compressed layer. Actual allocator behavior, peak live memory and elapsed savings were not measured; no end-to-end speed claim. Full replacement was parsed only, not typechecked as an inference package or executed. Existing slices import remains required."
+      },
+      "likely_effort": "One assignment in the existing owner; no new test is needed for this trivial read-only ownership change.",
+      "plan_references": [
+        "reductions/inference"
+      ],
+      "plan_coverage": "Optional small reduction under the existing inference reduction owner; no plan change or adoption by SQA. It stays behind recovery, numerical acceptance and measured policy work.",
+      "closure_criteria": [
+        "The first compressed layer is borrowed only during validateCache; the temporary clone disappears and all validation branches and errors remain.",
+        "Materialized/restored and edited caches retain independent values. Existing compressed-position round-trip/missing-position/header-refusal and cache edit/alias cases keep their current owners; no test is removed.",
+        "Whole-file AST decreases by4 without adding a helper, fixture or compensating code. Report any implementation-specific change honestly rather than claiming measured memory/latency savings."
+      ],
+      "comparison": "Smallest deciding comparison is source ownership: follow the local reference through the existing read-only validation loop and confirm it cannot escape or mutate. Retain TestDeepSeek4CacheStateRoundTrip and existing edit/anti-alias cases in ordinary native package validation when implementing. No new confidence run, allocation benchmark, model workload or SQA test execution."
+    },
+    {
   "category": "evaluation_design",
   "classification": "source-opportunity",
   "closure_criteria": [
@@ -2196,103 +2262,97 @@
   ],
   "gate_test_assessment": {
       "ast_analysis": {
-        "revision": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
-        "method": "Existing external Go parser/ast including comments on8 pinned files; supplemental comparator and in-memory two-call replacement parsed. Original maxAbsDifference/q8CellBound typechecked using go/types standard-library importer,no stubs; no repository package built or test executed.",
+        "revision": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
+        "method": "Existing external Go parser/ast including comments on eight committed files, plus in-memory single-assignment substitution. Three original stdlib-only context functions typechecked with go/types/importer and no stubs. No repository package built or tests executed.",
         "files": [
-          "internal/cuda/executor/launch_cache_q8.go",
-          "internal/cuda/executor/executor_windows_q8_cells_test.go",
-          "internal/overgodb/blob_pack.go",
-          "internal/overgodb/blob_pack_test.go",
-          "internal/server/stream_events.go",
-          "internal/server/one_event_stream_test.go",
-          "internal/landing/lanes.go",
-          "internal/landing/lanes_test.go"
+          "internal/inference/cache_state.go",
+          "internal/inference/cache_state_test.go",
+          "internal/overgodb/documents.go",
+          "internal/overgodb/documents_cutoff_test.go",
+          "internal/server/response_session.go",
+          "internal/server/response_session_test.go",
+          "internal/landing/spent.go",
+          "internal/landing/spent_test.go"
         ],
-        "production_nodes": 5301,
-        "test_nodes": 6263,
-        "functions": 47,
-        "parser_local_bindings": 2519,
-        "type_resolution": "Two original functions:60uses,14definitions,94expressions,3selections. No full executor/CUDA linkage or hypothetical full-test typecheck.",
+        "production_nodes": 6875,
+        "test_nodes": 10556,
+        "functions": 88,
+        "parser_local_bindings": 3255,
+        "type_resolution": "Original contextDiscardCount, planContextShift and effectiveKeepTokens:109 uses,26 definitions,175 expressions,0 selections. validateCache was inspected with parser-local binding and source/caller resolution only; its replacement was not package-typechecked.",
         "duplicates": [
-          "189: Q8 max-difference loop duplicates the existing comparator but omits NaN refusal. Full changed file1340->1310; retained owner3084 unchanged.",
-          "172/157/223 remain source-identical and retain their previously counted complete replacement costs; no new savings are added to them."
+          "227: complete cache_state.go3635->3631; test7309 unchanged; no helper/fixture/setup growth.",
+          "175: fresh Jamba/Granite/PLaMo2 declarations remain220/230/227 nodes. Existing estimate includes all explicit case data and shared body; no new saving is added."
         ]
       },
       "test_decisions": [
         {
           "tests": [
-            "TestInt8KVAttentionMatchesTheF32Reference"
-          ],
-          "classification": "simplify",
-          "requirements": "Replace only its local max-difference loop with two existing maxAbsDifference calls. Retain nonempty/length checks,rounded-reference bound,unrounded-F32 bound,logs,both subtests and all six executions. -30test AST,0production; no fixture/setup reduction."
-        },
-        {
-          "tests": [
-            "TestNumericalComparisonsRejectNaN"
-          ],
-          "classification": "retain",
-          "requirements": "Established shared owner tests NaN in got/reference,within and beyond tolerance,and equal infinities. Reuse it; no duplicate Q8-specific oracle suite."
-        },
-        {
-          "tests": [
-            "TestSmallBlobsArePacked",
-            "TestBlobVerificationStopsWhenCancelled"
+            "TestJambaHybridCacheValidation",
+            "TestGraniteHybridCacheValidation",
+            "TestPLaMo2HybridCacheValidation"
           ],
           "classification": "merge",
-          "requirements": "223 remains valid at the identical1807-node file: move empty-store,damaged-pack and loose-blob cancellation into existing mixed-kind/repack/backup fixture,then delete410-node separate test with110-node migration included (net-300). Keep all byte/corruption/reopen contracts."
+          "requirements": "175 retained: three explicit architecture/shape cases in one local table using fixtureRunner; keep Granite width16/groups2 and PLaMo2 per-layer heads. All three fresh setups and twelve value allocations remain. Estimated677->350..500 test AST, no helper or fixture file."
         },
         {
           "tests": [
-            "TestPackIndexRejectsImpossibleCounts",
-            "TestPackStreamsItsMembers"
+            "TestDeepSeek4CacheStateRoundTrip",
+            "TestKVCacheNamedStatesRoundTripAndEdit",
+            "TestKVCacheStateRejectsTruncationAndTrailingData",
+            "TestKVCacheStateRejectsLayerCountBeyondPayload",
+            "TestRemoveCacheRangePreservesPrefixAndSuffix",
+            "TestShiftHybridCacheRetainsIndependentRecurrentState"
           ],
           "classification": "retain",
-          "requirements": "File-derived index-count refusal and serial bounded-allocation behavior are distinct from content correctness.256members/64KiB and volume/8 discriminate whole-payload allocation in this fixture; not a runtime policy or timing target."
+          "requirements": "Keep compressed positions, missing-position materialization, huge-header-before-allocation refusal, named-state ordering, truncation/trailing-data, prefix/suffix and alias independence. Other recurrent/cross-attention shape and rejection cases remain distinct; no additional safe deletion established."
         },
         {
           "tests": [
-            "TestOneWorkbenchEventStream"
+            "TestDeepSeek4PositionRequiresExactF32Representation"
           ],
           "classification": "retain",
-          "requirements": "One handler covers per-file/whole-percent progress,initial empty snapshot,admission and cancellation. Connection-body close owns stream release. No repeated independent fixture to delete."
+          "requirements": "Supplemental source inspection: exact2^24 coordinate admitted,2^24+1 refused at input owner. A format/representation boundary, not a tuning constant."
         },
         {
           "tests": [
-            "TestLaneSelectionUsesTheLaneBuildContext",
-            "TestCUDATestsNeedALane"
-          ],
-          "classification": "simplify",
-          "requirements": "172 remains: keep lane-specific descriptor assertions,run each distinct build context once,reuse writeModule. Preserve tagged/untagged/neighbour/missing-dependency and unlaned-package cases; no new selector."
-        },
-        {
-          "tests": [
-            "TestLandingRunKeepsEachStreamOwned",
-            "TestReachInvariants",
-            "TestCPULanesOverlapTheDeviceLane",
-            "TestLanesMeasurementLine",
-            "TestAudioLaneOptsIntoTheStoreAcceptance"
+            "TestDocumentHistoricalContentCutoff",
+            "TestDocumentContentByteBudget"
           ],
           "classification": "retain",
-          "requirements": "Subprocess streams,real dependency boundaries,CPU/device scheduling,executed/cached reporting and cycle opt-in are distinct contracts. Existing native Go caching owns repeat avoidance."
+          "requirements": "Cutoff chronology, cursor binding, alias/future-cutoff refusal and snapshot/reopen differ from per-page/total content budgets and refusal before callback. No safe shared setup reduction established; preserve current retained-before-cutoff semantics."
+        },
+        {
+          "tests": [
+            "TestContinuationRestoresSamplerState"
+          ],
+          "classification": "retain",
+          "requirements": "Retain seeded stop/continuation equivalence, exact token/text output, one-token recomputation, model and sampling mismatch refusal, missing state and streamed prefix. The alternate model fixture supplies identity refusal; it is not a redundant setup."
+        },
+        {
+          "tests": [
+            "TestLandingRecordsItsWaitsByCause"
+          ],
+          "classification": "retain",
+          "requirements": "Already one four-outcome table covers preflight, verify refusal, moved-tree conflict and landing. Keep stage-specific records and timing inclusion. Signal-controlled wait and measured accounting are not a performance threshold."
         }
       ],
-      "inference_memory": "d30ea8316 adds kernel support only; served caches at this pin remain F32. copyQ8Cells serves ordinary and fused RoPE append, q8CellBytes delegates to dtype storage geometry, and existing BLAS state owns staging. Selected gather stores queryTokens*selected F32 rows plus the chosen kernel's partial/F16 regions; prompt dequantizes the whole page to F32. Compressed cell size alone does not establish lower peak memory or faster decode. Keep alias/output validation and worker lifetime; no extra staging abstraction proposed.",
-      "database_storage": "PackSmallBlobs/precheck and VerifyBlobs/check share blobStore.copyVerified for loose/member reads. One buffer streams payloads; verified index size is bounded by actual file length; publish/sync precedes loose removal. Retention excludes released content from the next pack and requires explicit roots/admission. Preserve independent integrity/cancellation and historical-content limits;157/223 remain the established small reductions.",
-      "gui_responsiveness": "runtimeActivityStream snapshots sessions/activity/operations/downloads and observes cancellation/unsubscribe. downloadRegistry.observe uses changed file/whole-percent as UI coalescing and owns latest bytes even without publication. This does not replace eventHub overflow/reconnect recovery;218 remains unchanged because snapshots still omit inventory invalidation.",
-      "gate_efficiency": "lanes.discover uses declared build contexts; shared-device lanes run serially beside host-only work and cancellation joins all workers. Existing measurement lines distinguish discovery,turn/admission,executed and cached packages. Reuse native caching and cycle resume; no production gate was run for SQA.",
+      "inference_memory": "LoadCache bounds tokens before missing-position allocation and validates serialized extents before values.227 removes only a local validation copy. hostLayerCacheInputs already borrows existing reference.Value feeds; SavePromptState/RestorePromptState reuse SaveCache/LoadCache, keep model/recipe/token identity and retain device download/upload ownership. loadWithHostRecovery requires OOM plus successful partial release. Close detaches once, releases caches and closes the executor before residency stores so loans return while their owner lives; worker/file close remains last. No broader lifetime consolidation established.",
+      "database_storage": "VisitDocuments and CountDocuments share documentAt, with budgets checked before content visitor and lock release before callback; count does not materialize payloads. documentAt checks the current released flag before historical cutoff, so120 stays deferred without an admitted complete-as-of consumer. Existing blob streaming/release owners and retained pack/cancellation evidence remain unchanged; no new scan or workload.",
+      "gui_responsiveness": "continuedResponse reuses durable turn records and rejects incompatible model/recipe/sampling, incomplete state and unsupported continuation. publishTurn excludes reasoning from public transcript; terminal publication uses the existing non-cancelled context. Seed/state and streamed prefix remain necessary correctness contracts.218's separate inventory-resync defect remains source-identical.",
+      "gate_efficiency": "recordSpent reuses stateRecords and jsonfile.Write. Its test already shares one repository fixture across distinct outcomes. Native Go caching, existing lane scheduling and landing/cycle resume remain the reuse owners; no production gate was run for review.",
       "retained_results": [
         "d30ea8316 retained gate: +2079production AST,+1345test AST,+238CUDA lines/+6entrypoints,0fixtures/record-schema growth. New Q8 test itself is1340AST; growth supplies new behavior and is not a reduction.",
         "Same landing: invariants8.584s/2packages; host tests2m54.986s/130packages; lanes12m14.252s (device6m35.184s,webui2m46.336s,CUDA5m38.357s,16executed/0cached); verify1.447s. Lane wall is not the sum of concurrent durations.",
         "Qwen0.5 scorecard slice remains output-identical at1294.6MiB,101ms first output,502tok/s,1142ms load. This served path does not use Q8 caches, so it proves no Q8 memory/latency gain. cc72070ff plan-only verify63ms.",
         "Historical sqa-oracle/do repair retained NaN fault-injection and passed device tests.189 reopens for a new bypassing caller,not failure of that helper repair. No new complete model-cycle or Q8 model-quality evidence was acquired."
       ],
-      "plan_assessment": "Committed plan35items/49steps. kv-kernels is landed; kv now adopts cells,kv-ring and kv-indexer are separate open steps,window awaits ring and parity awaits all three. Existing load-costs owns provisional values; SQA changes no plan row.215 also applies to the new ring step's named context acceptance.",
+      "plan_assessment": "Same committed plan blob417d80733b19775e3f2e93af9c95a1c6cf97dd19:35items/49steps. kv adoption, ring and indexer remain distinct open steps; load-costs retains provisional policy derivation. No plan row advanced.",
       "assumptions_audit": [
-        "Q8_0 uses32codes plus f16 scale,34bytes per32values; signed code range127 and warp32 follow representation/kernel geometry.32versus Strata64 is explicitly provisional.256-byte staging alignment is a device-load layout requirement. Keep these distinct from universal tuning defaults.",
-        "Builder/Shape/StorageBytes reject zero extents and partial quantization blocks; output-target ByteOffset sizes writes in cache dtype. Selected gather remaps per-query slots and applies causal/out-of-range rules before reusing F32 attention. Checked32-bit row/count admission remains; no impossible-state branch proposed.",
-        "The Q8 fixture is bounded uniform[-1,1),width64,2KV/4queryheads,256capacity,8added/32selected,normal RoPE. Its step/softmax formula and one selected dispatch do not establish outlier behavior,all kernels,NeoX,model quality,or a memory/speed optimum.189 concerns invalid result acceptance independently of that bound.",
-        "Packing entry sizes and file-count bounds are format/extent facts. Test allocation fraction is a regression discriminator on a known volume,not a probabilistic tail or timing claim. Cancellation wins independently of a damaged payload.",
-        "Download percent publication is explicit UI granularity; event queue bound is validated configuration. Gate test times are scoped retained observations,not new thresholds. No independence,normality or stationarity premise is added."
+        "Cache header20, magic8, scalar/count4 and record-value44 bytes follow the existing serialization layout. Decode checks remaining bytes and shape element count before allocation; preserve trust-boundary validation.",
+        "Compressed positions are schema[1,1,T], strictly increasing integer-valued F32 below next position. writeCurrentPositions admits coordinates through2^24 exactly and refuses larger values. Per-layer materialization/edit ownership must survive227.",
+        "Context shifting widens token arithmetic to uint64 and preserves at least one token. Half-discard and four-token keep margin are explicit existing request/upstream contracts, not newly established hardware optima; no change is justified by their literals alone.",
+        "Document cutoff and byte budgets are exact sequence/byte contracts, not representative sampling. Continuation's fixed seed tests state equivalence; it makes no distribution-quality or independence claim.",
+        "Spent stages are scoped timing observations. No normality or stationarity assumption, universal threshold, adaptive mechanism or numerical acceptance based on timing is introduced.213's chunk/promotion derivation limits remain unchanged."
       ]
     },
   "hygiene_assessment": "No cleanup census,dependency,registry,selector,telemetry,confidence suite or policy framework proposed.",
@@ -2666,10 +2726,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Primary AST scope is8files; supplemental caller/source reads do not imply a full audit. Original two-function typecheck has no CUDA/package linkage. Hypothetical test replacement is syntax-only.",
-      "NaN counterexample follows the current comparisons and existing retained failure-injection contract; SQA did not execute a fault or reproduce device failure.",
-      "No measured runtime or memory saving for comparator reuse; two helper scans replace one interleaved loop. Q8 storage/staging counts are source proxies,not end-to-end measurements.",
-      "Concurrent served-KV work is excluded. Retained numerical/timing results keep their model,request,build and machine scope; no full cycle success or third-party independence is claimed."
+      "Eight-file primary syntax scope and bounded supplemental caller reads are not a complete audit. Parser-local binding is not full type resolution. Three original stdlib functions typechecked; the proposed validateCache substitution was only parsed.",
+      "One removed O(T) host copy and4*T payload bytes are source proxies, not measured allocation, peak-memory or elapsed improvements. No full-model or new quality result.",
+      "Current implementation worktree changes are excluded. All prior cited sources are unchanged; retained gate/model results preserve their original request, hardware and build scope.",
+      "No safe additional test reduction was established beyond the already-open175 table proposal. Tests can share syntax while owning different recovery, ordering or lifetime requirements."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -2739,13 +2799,13 @@
       }
     }
   },
-  "next_finding_number": 227,
+  "next_finding_number": 228,
   "publication_context": {
-      "checked_head": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+      "checked_head": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
       "committed_plan_git_blob": "417d80733b19775e3f2e93af9c95a1c6cf97dd19",
-      "assessment": "Substantive reopened acceptance regression with a30-node test reduction; reconcile new Q8 kernel landing and split plan.",
-      "newer_commit_note": "Pinned committed master only; re-read HEAD/report immediately before publication and preserve concurrent implementation fields/work.",
-      "publication": "Only docs/sqa_findings.json committed under existing landing/gate locks. Unrelated index/worktree and raw implementation fields preserved; no hook/security/gate changes."
+      "assessment": "Substantive small227 source reduction, with fresh bounded AST and explicit retention of all affected tests; no timestamp-only commit.",
+      "newer_commit_note": "Re-read HEAD/report immediately before publication and reconcile concurrent implementation-owned fields and work.",
+      "publication": "Only docs/sqa_findings.json committed under existing landing/gate locks; unrelated index/worktree and raw implementation-owned fields preserved. No hooks,security settings or production gates changed."
     },
   "ranked_active_finding_ids": [
     "SQA-218",
@@ -2786,48 +2846,47 @@
     "SQA-221",
     "SQA-224",
     "SQA-225",
-    "SQA-226"
+    "SQA-226",
+    "SQA-227"
   ],
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "189 reopens at a newly introduced caller. maxAbsDifference already owns NaN rejection and is used by multiple executor tests; the smallest complete repair also reduces test surface.",
-      "Q8 kernel support adds2079production/1345test nodes before served adoption. No displaced F32 path or whole-request memory gain has landed yet; do not count compressed storage alone as savings.",
-      "176of182 prior cited paths are unchanged. Changed executor code adds Q8 staging/admission; the graph serial,driver.Bytes reuse opportunity,arena tests,Q8 pair indexing and existing F32 prompt test targets remain. Compatibility changes only refresh unrelated identities.",
-      "Current owner responses are historical; preserve the correctly implemented original189 response and all deferred110/124/120 ownership. Deferrals have no new admitted counterexample in this sample.",
-      "172/157/223 were rechecked in fresh AST/caller scope; their retained reductions remain optional and must include complete migration/setup costs."
+      "227 deletes the first compressed-position clone only inside read-only validation. Save/Load and other validation callers retain the same error and ownership contract; materialized/edited caches still copy.",
+      "175's three hybrid bodies remain677 nodes; preserve explicit differing shapes and all three setups when merging. Other sampled cache tests have distinct serialized-state or mutation requirements.",
+      "All184 previous cited paths are unchanged.218,189,215 and213 retain priority; no new device failure or cost-model measurement. Original189 implementation response remains correct for the existing helper, while its new Q8 bypass remains open.",
+      "120 remains deferred: current released-content filtering cannot be described as complete historical reconstruction, but no newly affected historical consumer was admitted.110/124 owner deferrals also remain.",
+      "Retained native Go caching, current fixture owners and landing/cycle resume suffice. No new validation workload was acquired."
     ],
-  "reviewed_at": "2026-10-26T00:18:08Z",
-  "reviewed_master": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+  "reviewed_at": "2026-10-26T02:20:59Z",
+  "reviewed_master": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
   "schema_version": 1,
   "scope": [
-      "Pinned master cc72070ff924c7c567fb1f24249a8b1dd3f720b8; instruction blob a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan blob 417d80733b19775e3f2e93af9c95a1c6cf97dd19 checked first. Dirty served-KV implementation files excluded.",
-      "Rotated8-file Go AST sample:5301 production/6263 test nodes,47 functions,2519 parser-local bindings. Supplemental comparator file3084 nodes. Original maxAbsDifference/q8CellBound typecheck with standard-library imports and no stubs:60uses/14defs/94expressions/3selections.",
-      "Reviewed Q8 append/gather/dequantization, shapes/staging/alias lifetime and callers; blob pack/read/verify/release ownership; shared GUI stream/download progress; lane reach/scheduling/caching and retained gate results. No full recurring census.",
-      "Provisional source conclusions preceded reading the report. Of182 prior cited paths,176 are byte-identical. Six changed paths were reconciled: plan,executor,attention launch,BF16 fusion guard,and two generated compatibility documents. Existing reduction targets are not removed by Q8 staging.",
-      "This chat previously implemented changes; this is not independent third-party review. Only the report changes; no agents,implementation,tests,gates,services,model workloads,benchmarks or profiles."
+      "Pinned master66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3; instruction bloba81b403c183378ba9a3aa11ca0328acfffd7c531 and plan blob417d80733b19775e3f2e93af9c95a1c6cf97dd19 checked first. Dirty implementation work excluded.",
+      "Rotated eight-file AST sample:6875 production/10556 test nodes,88 functions,3255 parser-local bindings. Original three-function context typecheck:109uses/26definitions/175expressions/0selections; no inference-package linkage.",
+      "Reviewed cache parse/validation/load/edit and host/device persistence ownership, document query/count/cutoff/budgets, durable response continuation and streaming, gate wait accounting; supplemental exact-position and runner recovery/close sources. Existing blob and gate results retained, no full recurring census.",
+      "Provisional conclusions preceded prior report. All184 prior cited paths are byte-identical to the prior reviewed commit; the only intervening commit changes the report. Existing findings and owner responses were reconciled without new runtime evidence.",
+      "This chat previously implemented changes; this is not independent third-party review. Only the report changes. No agents,implementation,tests,gates,services,model workloads,benchmarks or profiles."
     ],
   "sqa_response": {
-      "reviewed_master": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
-      "assessment": "39active,3deferred. Reopen189 as a newly bypassing Q8 acceptance caller;218 stays first. No other closure or priority change.",
-      "evidence": "Eight-file AST5301production/6263test; complete hypothetical Q8 test1340->1310,retained comparator3084 unchanged. Original comparator/bound typecheck. Six changed cited paths reconciled;176unchanged.",
+      "reviewed_master": "66d731cb4e9af8afd6d88fa04adf6ba3e6c029f3",
+      "assessment": "40active,3deferred. New227 is a small optional memory/source reduction. No closure or change to the leading recovery/numerical priorities.",
+      "evidence": "Fresh8-file AST6875production/10556test; syntax-only complete cache_state.go3635->3631 with all7309 test nodes retained. Three original context functions typechecked;184 prior cited paths unchanged.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
-      "reopened_findings": [
-        "SQA-189"
-      ],
+      "reopened_findings": [],
       "implementation_response_context": {
         "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "status": "Historical implementation_review,master_lead_triage and all implementation-owned fields preserved byte-for-byte. Original189 repair remains correct; this report scopes its recurrence to d30ea8316's new local loop."
+        "status": "Historical implementation_review, master_lead_triage and every implementation-owned/unknown finding field preserved byte-for-byte. No new implementation response or adoption inferred."
       },
-      "recommendation": "Reuse maxAbsDifference for both Q8 comparisons before relying on kernel acceptance for served adoption. Retain all numerical executions and existing invalid-result tests. Continue actual-token context and scoped cost derivation through existing owners.",
-      "next_action": "Implementation owner decides adoption. Existing native validation/cycle resume suffice; no new SQA workload,framework,selector or telemetry.",
-      "uncertainty": "No observed CUDA NaN or runtime improvement; source-proven acceptance hole. No new model quality/full-cycle measurement. Compressed cache geometry is distinct from peak staging.",
+      "recommendation": "Retain leading recovery and numerical work. When maintaining cache validation, borrow its read-only positions and delete the temporary clone; keep escaping ownership copies. Existing175 consolidation remains optional with explicit family cases.",
+      "next_action": "Implementation owner decides adoption. Use ordinary native affected validation and existing resume mechanisms; no new SQA workload or framework.",
+      "uncertainty": "No measured throughput/peak-memory gain or new production failure. Syntax savings are exact for the hypothetical single-assignment substitution; package execution was not performed.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "110/124/120 keep their owner deferrals. Sampled retention continues to require explicit roots and releasable classes; it does not establish complete-as-of historical reads."
+      "user_finding_assessment": "110/124/120 retain their owner deferrals; no new admitted counterexample was established. The user's tuning concern remains under213 and the existing load-costs owner."
     }
 }

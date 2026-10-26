@@ -290,13 +290,6 @@
       },
       "steps": [
         {
-          "id": "window-kernels",
-          "title": "Port Strata's gated-delta verify kernels as operations with their parity program as a test",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestStrataGatedDeltaWindowParity$' -count=1",
-          "rationale": "Serves: the window step's gated-delta layers, which read their state untouched through a window and leave its advance to the commit (Strata's verifier). Our verify span scanned to each checkpoint and wrote the state at each (block.go's checkpoint scans), so a window of n drafts wrote n + 1 states a layer.\nPort, literally (Strata at 296b59d2, MIT): Strata's verify kernels (src/kernels/cuda/verify_kernels.cu): gdn_conv_l2_multi (a window's conv over [history | rows] with its SiLU and the q and k heads' L2 norm, the history left), gdn_step_norm_multi (the recurrence from the untouched state over the window's rows, each output normed and gated by sigmoid(z); the kept-count form writing the state), gdn_conv_commit and gdn_step_commit (the history and the state advanced in place over a kept count read from device memory), each an operation with its reference, indexed over our state's layout ([value head][value][key]; Strata's is [key][value head][value]), so the prompt read's scan writes the state the window reads.\nEvidence: TestStrataGatedDeltaWindowParity, gdn_parity.cpp's section 5 and 6 as a test: a window of 1 to 8 tokens gives the outputs one-token windows give in turn and leaves the state, the kept-count form and the commit give the state those tokens give, bit for bit; the conv's window and its commit against one-token commits; the references against the CUDA kernels; the four rival readings gdn_parity pins (modulo heads, decay before the update, the conv's slide, the norm's epsilon) observable against the reference.\nDisappears: nothing yet; the window step replaces the checkpoint scans with these.\nBatch: tensor, tensor/reference and cuda/executor device lane; kernels."
-        },
-        {
           "id": "window",
           "title": "Key verify graphs by the window's size, verify sampled windows by Strata's rule and replay the commit",
           "status": "open",

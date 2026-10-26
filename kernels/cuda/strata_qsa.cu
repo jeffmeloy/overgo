@@ -1545,3 +1545,6 @@ extern "C" __global__ void strata_prefill_kv_append_q8(
         if (threadIdx.x == 0) (is_v ? stage_v_scale : stage_k_scale)[row_id * 4 + g] = sb;
     }
 }
+
+// Strata's gated-delta verify kernels (verify_kernels.cu), compiled with this module's flags as Strata compiles them.
+#include "strata_gdn.cuh"

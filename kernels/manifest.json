@@ -2075,9 +2075,15 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "dfa916da253473b9194a6eb35973104ce0d6afca7e0351faf775796681b1f0c3",
+      "sourceSha256": "3928c89aef47c693bc19904c870cff9da0c31b54de99b19d8fac1bab42baf9cb",
+      "sourceDependencies": [
+        {
+          "path": "kernels/cuda/strata_gdn.cuh",
+          "sha256": "7d96b291a8886d06dabdd6f958a47f4cc03de5902456389bc7d9cd86e5719214"
+        }
+      ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "749068622dc8dd739dd280a7ff2713d70c8e1a94b6372fcf17730e58c5890c1b",
+      "assetSha256": "e37b681366f72c396594a40090d5881221a2961a13582a7b1a50e091d0162b4b",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2095,6 +2101,11 @@
         "strata_block_topk_reg",
         "strata_block_topk_wide",
         "strata_gate_apply_f32",
+        "strata_gdn_conv_commit",
+        "strata_gdn_conv_l2_multi",
+        "strata_gdn_step_commit",
+        "strata_gdn_step_norm_multi_all",
+        "strata_gdn_step_norm_multi_kept",
         "strata_indexer_key_append",
         "strata_kv_append_f16",
         "strata_kv_append_q8",
@@ -2236,6 +2247,88 @@
           ],
           "functions": [
             "strata_gate_apply_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_gdn_conv_commit"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_gdn_conv_l2_multi"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_gdn_step_commit"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".f32",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_gdn_step_norm_multi_all"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".f32",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_gdn_step_norm_multi_kept"
           ]
         },
         {

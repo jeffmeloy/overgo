@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "38 active,3 deferred.226 establishes a112-node test reduction including replacement setup. No existing closure or priority change.",
-      "priority": "218 inventory recovery,215 actual-token acceptance and213 tuning derivation remain ahead of small reductions.226 stays last and removes no execution.",
-      "declined_candidates": "Keep actual CUDA readback versus fake-device lifecycle coverage,checkpoint-record arithmetic,hub fanout versus HTTP resnapshot,and quiet-machine versus injected process-list cases. No other safe net reduction established."
+      "assessment": "39 active,3 deferred. Reopen189 for the new Q8 test's bypass of the repaired NaN-safe comparison owner; direct reuse removes30test AST. No other newly established reduction or closure.",
+      "priority": "218 remains first for user-visible inventory recovery;189 follows for acceptance correctness before served K/V adoption.215 actual-context coverage and213 cost derivation remain ahead of optional reductions.",
+      "declined_candidates": "Keep Q8 rounded and unrounded comparisons,normal-RoPE prompt versus selected attention,pack integrity versus cancellation/streaming allocation,GUI initial/admit/cancel events,and lane context/refusal/scheduling cases. Similar setup alone does not make their requirements redundant."
     },
   "committed_plan": {
-    "git_blob": "6b1b859de0e26ecd41b1432501560cba0e0755c3",
+    "git_blob": "417d80733b19775e3f2e93af9c95a1c6cf97dd19",
     "path": "docs/plan.json",
-    "revision": "85f0d5c2b7e6f19b1ebc97723077781b2d5800c9",
-    "sha256": "0e3c1ca116f21142317d4306a6e1b8dc2c9ddd49bcac542e447c39fb1a1e7b3d",
+    "revision": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+    "sha256": "eba25094a4e44aa6708e087e8c2e5da3ef540b584168159f369bb4028e4566ed",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -82,6 +82,59 @@
       "comparison": "Reuse TestRuntimeStreamDeliversServingObservation's existing slow_reader_resnapshot probe to compose one inventory invalidation with the overflow, and its reconnect fixture for the initial marker. Extend the existing TestWebUIBrowserStreamLifecycle inventory leg to observe one reread after hubResync while retaining its unrelated-inventory no-reread check. Unit fan-out and route mutation/refusal/GET tests remain unchanged. This is the smallest split between wire recovery and actual client read behavior; no sleeps, new suite or recurring stress workload. Only the implementation's normal affected host/browser check is needed; SQA ran none."
     },
     {
+      "id": "SQA-189",
+      "status": "open",
+      "severity": "P2",
+      "category": "numerical-acceptance-and-test-consolidation",
+      "classification": "confirmed-test-regression",
+      "title": "Reuse the NaN-safe comparator in the new Q8 cell acceptance",
+      "evidence_commit": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+      "sources": [
+        {
+          "path": "internal/cuda/executor/executor_windows_q8_cells_test.go",
+          "symbol": "TestInt8KVAttentionMatchesTheF32Reference compare closure, lines173-190; q8CellBound; q8CellStep"
+        },
+        {
+          "path": "internal/cuda/executor/executor_compare_windows_test.go",
+          "symbol": "maxAbsDifference529; compare504; TestNumericalComparisonsRejectNaN550"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_flash_attention_test.go",
+          "symbol": "TestExecutorFlashAttentionMatchesReference uses maxAbsDifference for replay and numerical bounds"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_tiled_attention_test.go",
+          "symbol": "TestExecutorTiledAttentionMatchesReference and TestExecutorPrefillAttentionMatchesReference use maxAbsDifference"
+        },
+        {
+          "path": "internal/cuda/executor/launch_cache_q8.go",
+          "symbol": "gatherQ80SparseRows; dequantizeQ80Page; launchCacheAppendQ80"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "strata-port/kv verify consumes TestInt8KVAttentionMatchesTheF32Reference; kv-kernels landed d30ea8316"
+        }
+      ],
+      "evidence": "Reopened under its existing stable ID: the shared comparator repair remains intact, but d30ea8316 introduced a separate max/Abs loop in the Q8 acceptance. Unsupported assumption: every successful execution returns finite comparison values. An unexpected NaN in actual with nil execution error makes both max accumulators NaN; neither toReference > bound nor toUnrounded > 2*bound fails. A NaN in the expected reference similarly bypasses its bound. This is a source-proven acceptance hole, not an observed CUDA NaN or a new workload result. The existing maxAbsDifference explicitly rejects a NaN difference, has retained failure injection in TestNumericalComparisonsRejectNaN, and already serves FlashAttention and Tiled/Prefill callers. In-memory parsing of the complete Q8 test with only that loop replaced gives1340->1310 nodes; the existing comparator file stays3084. Original maxAbsDifference and q8CellBound typecheck with standard-library imports, no stubs (60uses/14defs/94expressions/3selections).",
+      "recommended_change": "Replace the local declaration and difference-accumulation loop with toReference, _ := maxAbsDifference(t, actual, expected) and toUnrounded, _ := maxAbsDifference(t, actual, unrounded). Keep length/nonempty validation, both logs and both existing absolute bounds. The existing comparison owner supplies NaN refusal; no new helper, numerical framework, tolerance, fixture or test is needed.",
+      "displaced_surface": "Delete the duplicate max/Abs accumulation loop and its variable declaration; retain the same test, both selected/prompt subtests, Q8 rounded-reference and unrounded-F32 comparisons, all graph/feed/quantization setup, normal RoPE, errors, context.WithoutCancel and worker cleanup. Retained numerical owner: maxAbsDifference; retained invalid-result test: TestNumericalComparisonsRejectNaN. No unique numerical case moves. Both source files are Windows-only in the same package; the CUDA fixture still owns device admission. Absolute float32 subtraction then float64 Abs is unchanged. Equal infinities retain the shared helper's equality contract; an unexpected infinity against a finite value still exceeds the finite bound. math remains imported for q8CellStep. No public API, configuration, data or confidentiality behavior changes.",
+      "impact": "A kernel regression producing NaN can currently earn numerical acceptance before served K/V adoption. Reusing the existing owner restores refusal and removes duplicated test logic; it does not establish all Q8 geometries or model quality.",
+      "expected_benefit": {
+        "outcome": "Production delta0. Complete changed test1340->1310 (-30AST); combined changed plus retained comparison files4424->4394. Fresh primary test sample6263->6233. Existing helper/test3084 unchanged. No new wrappers, imports, fixtures, exports, schemas or maintenance owner.",
+        "uncertainty": "One worker/executor, two subtests, two host-reference executions and four CUDA executions remain. Two helper scans replace one interleaved loop with the same two comparisons and added NaN checks; no elapsed/allocation/peak-memory saving claimed. All counts include replacement call cost. Hypothetical complete test was parsed, not compiled or executed; only the two original stdlib-only functions were typechecked."
+      },
+      "likely_effort": "Small two-call substitution in the existing test; no new test needed because the shared failure case already has an owner.",
+      "plan_references": [
+        "strata-port/kv"
+      ],
+      "plan_coverage": "The current kv step consumes this kernel acceptance. Repair the check in its existing owner before relying on it for served adoption. The completed sqa-oracle/do implementation response describes the correctly repaired shared functions; preserve that historical response and distinguish this newly bypassing caller.",
+      "closure_criteria": [
+        "The new Q8 test obtains both differences from maxAbsDifference and its duplicate accumulation loop disappears; both numerical bounds, diagnostics, nonempty/shape checks and two subtests remain.",
+        "Existing TestNumericalComparisonsRejectNaN continues to own NaN refusal. A substituted NaN result cannot earn the Q8 acceptance. Count the full replacement without adding a framework or extra model/device fixture."
+      ],
+      "comparison": "Smallest deciding implementation comparison: inspect that both Q8 paths use the already-tested maxAbsDifference and retain their bounds; use the existing TestNumericalComparisonsRejectNaN and normal CUDA package validation when implementing. No extra permanent Q8-specific NaN test, confidence run or SQA execution. Existing arithmetic and retained fault-injection evidence decide this source-level defect; numerical acceptance stays independent of timing."
+    },
+    {
       "id": "SQA-215",
       "status": "open",
       "severity": "P3",
@@ -125,9 +178,10 @@
       },
       "likely_effort": "Small evidence correction; bounded amendment to the existing served acceptance, preserving its unique cases.",
       "plan_references": [
-        "strata-port/kv"
+        "strata-port/kv",
+        "strata-port/kv-ring"
       ],
-      "plan_coverage": "Pinned64f0fcc46 retains strata-port/kv. Rechecked source and changed arena context; filing is not implementation or closure. Preserve the named behavioral owners and complete migration/setup cost.",
+      "plan_coverage": "Pinned cc72070ff splits served cells,ring and indexer. Both kv and kv-ring consume the same long-context acceptance; source remains unchanged and the237290-token retained pass still does not prove262144. No additional model run or parallel acceptance is recommended.",
       "closure_criteria": [
         "Retained result names actual input/output/model/template identity and does not present 237290 as 262144 boundary evidence.",
         "Same existing test exercises an actual working context at the 262144 boundary after accounting for output/history and justified token granularity; returned usage agrees with independent pre-count and no silent truncation.",
@@ -209,7 +263,7 @@
       "plan_references": [
         "strata-port/load-costs"
       ],
-      "plan_coverage": "Pinned d4d30c93 retains strata-port/load-costs after promotion. Completed map explicitly says Strata has no load calibration,so derivation is Overgo's. kv-kernels precedes served kv;failed16K acceptance still depends on kv. Media/accepted/library verifiers repaired. Growing-arena granule,pool share,chunk/promotion derivation remain open;14 peak plan retirements are distinct from full post-arena measurement.",
+      "plan_coverage": "Pinned cc72070ff retains load-costs after promotion; kv-kernels landed but served kv,ring,indexer remain open. Q8_0 group32vsStrata64 is explicitly provisional and costs include F32 gather/page staging. No load calibration or derived8192/promotion policy is established by this kernel support.14prior peak retirements remain distinct from a full post-change model cycle.",
       "closure_criteria": [
         "Keep best-tested-point and optimum distinct; state hardware, memory, prompt, decode and routing domain. Retire the pre-loan crossover as current evidence.",
         "Derivation uses units and exposed costs, actual geometry and evolving residency; overlapping CPU/copy work cannot be summed as serial latency or assumed free; charge the run cost with-copy minus without-copy under matching conditions. Do not equate output maximum with expected horizon.",
@@ -965,7 +1019,7 @@
       "plan_references": [
         "strata-port/kv"
       ],
-      "plan_coverage": "Pinned64f0fcc46 retains strata-port/kv consolidation. The former release/flashnext-attention is now flashnext-tensor-cores/do: architecture profile, schema/provenance and activation republication are required. It remains unimplemented; preserve default-off, explicit numerical rows and the separate dense-prompt-precision/do quality obligation.",
+      "plan_coverage": "Pinned cc72070ff retains consolidation under strata-port/kv after kv-kernels landed. Existing F32/Flash/Tiled/BF16 tables are unchanged; new Q8 staging does not replace their numerical/admission owners. The new Q8 test is a different storage contract;189 removes its duplicate comparator without dropping either Q8 comparison.",
       "closure_criteria": [
         "All26 cases preserve exact inputs,tolerances,mask29,capacity,past/positions,sequences,causal key-bias,flash replay and F32 needBlas. Noncausal encoder staging guard remains. Two displaced declarations are deleted without forwarding tests.",
         "Net test AST decreases including all rows/conditions/diagnostics; fixtures4->2. One supported Windows/CUDA invocation confirms intended cases ran. Existing BF16 fusion and independent model-encoder oracle remain.",
@@ -2142,85 +2196,106 @@
   ],
   "gate_test_assessment": {
       "ast_analysis": {
-        "revision": "85f0d5c2b7e6f19b1ebc97723077781b2d5800c9",
-        "method": "Existing external Go parser/ast including comments on8 committed files. In-memory device-test replacement parsed without writing repository code. Original statusRecorder type/methods go/types with standard-library importer,no stubs.",
+        "revision": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+        "method": "Existing external Go parser/ast including comments on8 pinned files; supplemental comparator and in-memory two-call replacement parsed. Original maxAbsDifference/q8CellBound typechecked using go/types standard-library importer,no stubs; no repository package built or test executed.",
         "files": [
-          "internal/modeldevice/device_tensor_store.go",
-          "internal/modeldevice/device_weights_windows_test.go",
-          "internal/overgodb/checkpoint_families.go",
-          "internal/overgodb/checkpoint_families_record_test.go",
-          "internal/server/event_hub.go",
-          "internal/server/event_hub_test.go",
-          "internal/landing/quiet.go",
-          "internal/landing/quiet_test.go"
+          "internal/cuda/executor/launch_cache_q8.go",
+          "internal/cuda/executor/executor_windows_q8_cells_test.go",
+          "internal/overgodb/blob_pack.go",
+          "internal/overgodb/blob_pack_test.go",
+          "internal/server/stream_events.go",
+          "internal/server/one_event_stream_test.go",
+          "internal/landing/lanes.go",
+          "internal/landing/lanes_test.go"
         ],
-        "production_nodes": 3756,
-        "test_nodes": 3840,
-        "functions": 40,
-        "parser_local_bindings": 1591,
-        "type_resolution": "statusRecorder plus WriteHeader/Unwrap/Flush:23uses,12definitions,27expressions,6selections. No full CUDA/server package or hypothetical device-test typecheck.",
+        "production_nodes": 5301,
+        "test_nodes": 6263,
+        "functions": 47,
+        "parser_local_bindings": 2519,
+        "type_resolution": "Two original functions:60uses,14definitions,94expressions,3selections. No full executor/CUDA linkage or hypothetical full-test typecheck.",
         "duplicates": [
-          "226: manual GGUF wire serialization already owned by gguf.Write; full test486->374,all replacement setup counted."
+          "189: Q8 max-difference loop duplicates the existing comparator but omits NaN refusal. Full changed file1340->1310; retained owner3084 unchanged.",
+          "172/157/223 remain source-identical and retain their previously counted complete replacement costs; no new savings are added to them."
         ]
       },
       "test_decisions": [
         {
           "tests": [
-            "TestDeviceWeightsIntegration"
+            "TestInt8KVAttentionMatchesTheF32Reference"
           ],
           "classification": "simplify",
-          "requirements": "Retain actual CUDA load/Lookup/bit-exact16-byte readback/Close and Windows/device guards. Delete only weightFixture and inline existing writer call plus exact payload construction.486->374; one setup/load/readback unchanged."
+          "requirements": "Replace only its local max-difference loop with two existing maxAbsDifference calls. Retain nonempty/length checks,rounded-reference bound,unrounded-F32 bound,logs,both subtests and all six executions. -30test AST,0production; no fixture/setup reduction."
         },
         {
           "tests": [
-            "weightFixture"
-          ],
-          "classification": "remove",
-          "requirements": "Move exact little-endian uint32{1,2,3,4} payload into the retained integration test. gguf.Write owns header,directory,alignment and final16zero padding. No random values,filesystem fixture or new helper."
-        },
-        {
-          "tests": [
-            "TestCheckpointFamiliesRecordIsWhole"
+            "TestNumericalComparisonsRejectNaN"
           ],
           "classification": "retain",
-          "requirements": "1497file AST validates the single retained record's projection order,byte accounting,writer/reader table and estimate arithmetic. It does not run a live census or prove the estimates. No safe removal owner established."
+          "requirements": "Established shared owner tests NaN in got/reference,within and beyond tolerance,and equal infinities. Reuse it; no duplicate Q8-specific oracle suite."
         },
         {
           "tests": [
-            "TestEventHubFansOutOnce"
+            "TestSmallBlobsArePacked",
+            "TestBlobVerificationStopsWhenCancelled"
           ],
-          "classification": "retain",
-          "requirements": "628file AST protects ordered fanout,coalesced session work,settled-record notification and overflow marker. HTTP snapshot recovery and218 inventory invalidation are distinct requirements."
+          "classification": "merge",
+          "requirements": "223 remains valid at the identical1807-node file: move empty-store,damaged-pack and loose-blob cancellation into existing mixed-kind/repack/backup fixture,then delete410-node separate test with110-node migration included (net-300). Keep all byte/corruption/reopen contracts."
         },
         {
           "tests": [
-            "TestATimedMeasurementAndALandingNeverRunTogether",
-            "TestAMeasurementUnderALandingDoesNotWaitForIt",
-            "TestTimedWorkExcludesCompetingWork"
+            "TestPackIndexRejectsImpossibleCounts",
+            "TestPackStreamsItsMembers"
           ],
           "classification": "retain",
-          "requirements": "1229file AST covers both lock directions,parent-held admission,own/foreign process ancestry,unreadable process list,endpoint contention union,error propagation and wait separation. Existing injected fixtures avoid live-machine dependence. No new timing threshold or test run."
+          "requirements": "File-derived index-count refusal and serial bounded-allocation behavior are distinct from content correctness.256members/64KiB and volume/8 discriminate whole-payload allocation in this fixture; not a runtime policy or timing target."
+        },
+        {
+          "tests": [
+            "TestOneWorkbenchEventStream"
+          ],
+          "classification": "retain",
+          "requirements": "One handler covers per-file/whole-percent progress,initial empty snapshot,admission and cancellation. Connection-body close owns stream release. No repeated independent fixture to delete."
+        },
+        {
+          "tests": [
+            "TestLaneSelectionUsesTheLaneBuildContext",
+            "TestCUDATestsNeedALane"
+          ],
+          "classification": "simplify",
+          "requirements": "172 remains: keep lane-specific descriptor assertions,run each distinct build context once,reuse writeModule. Preserve tagged/untagged/neighbour/missing-dependency and unlaned-package cases; no new selector."
+        },
+        {
+          "tests": [
+            "TestLandingRunKeepsEachStreamOwned",
+            "TestReachInvariants",
+            "TestCPULanesOverlapTheDeviceLane",
+            "TestLanesMeasurementLine",
+            "TestAudioLaneOptsIntoTheStoreAcceptance"
+          ],
+          "classification": "retain",
+          "requirements": "Subprocess streams,real dependency boundaries,CPU/device scheduling,executed/cached reporting and cycle opt-in are distinct contracts. Existing native Go caching owns repeat avoidance."
         }
       ],
-      "inference_memory": "Raw and converted DeviceWeights share deviceTensorStore and workerMemory. place allocates/writes before locked publication and uses noncancelled cleanup on write/duplicate/closed failure; Close clears publication and frees all pointers on the worker. Keep this existing shared owner; do not duplicate it to shorten calls.226 changes test serialization only.",
-      "database_storage": "Checkpoint members reuse registered projections and keyedBy for artifact/content/lineage/location/alias/commit families. Counts require compact JSON framing and map content ownership through artifact identity. This is retained-record attribution,not authority to delete blobs or metadata. Full-array census allocation remains secondary absent a measured need; no recurring census/framework recommended.",
-      "gui_responsiveness": "eventHub publishes under one last lock,coalesces sessions outside operation manager lock,drains full queues to resync and joins pump on close. Handler validates positive stored-response limit. Preserve fanout/resource lifetime; prior runtime snapshots still omit inventory invalidation,so218 remains open.",
-      "gate_efficiency": "Measuring inherits a landing-held quiet machine or awaits exclusive measurement admission; release errors join work errors,wait duration stays separate,process observations at both endpoints are sorted/compacted. Existing native caching and cycle resume remain credited. No production gate was run to publish SQA.",
+      "inference_memory": "d30ea8316 adds kernel support only; served caches at this pin remain F32. copyQ8Cells serves ordinary and fused RoPE append, q8CellBytes delegates to dtype storage geometry, and existing BLAS state owns staging. Selected gather stores queryTokens*selected F32 rows plus the chosen kernel's partial/F16 regions; prompt dequantizes the whole page to F32. Compressed cell size alone does not establish lower peak memory or faster decode. Keep alias/output validation and worker lifetime; no extra staging abstraction proposed.",
+      "database_storage": "PackSmallBlobs/precheck and VerifyBlobs/check share blobStore.copyVerified for loose/member reads. One buffer streams payloads; verified index size is bounded by actual file length; publish/sync precedes loose removal. Retention excludes released content from the next pack and requires explicit roots/admission. Preserve independent integrity/cancellation and historical-content limits;157/223 remain the established small reductions.",
+      "gui_responsiveness": "runtimeActivityStream snapshots sessions/activity/operations/downloads and observes cancellation/unsubscribe. downloadRegistry.observe uses changed file/whole-percent as UI coalescing and owns latest bytes even without publication. This does not replace eventHub overflow/reconnect recovery;218 remains unchanged because snapshots still omit inventory invalidation.",
+      "gate_efficiency": "lanes.discover uses declared build contexts; shared-device lanes run serially beside host-only work and cancellation joins all workers. Existing measurement lines distinguish discovery,turn/admission,executed and cached packages. Reuse native caching and cycle resume; no production gate was run for SQA.",
       "retained_results": [
-        "No new committed implementation or execution evidence since85f0d5c2b. Prior30227a2c6 journey verification4m9.055s and selected device/webui/CUDA lanes passed; +92production/0test AST. This remains a selected protocol result,not full-cycle success.",
-        "30227a2c6 held/warm FlashNext probe remains limited to few short resident greedy requests. Qwen0.5 slice output-identical at1294.6MiB is a different model/protocol; no intake-latency claim.",
-        "checkpoint-families.txt is a2026-10-13 retained record,9repeats at0.05percent display floor on its named code/state. No command was rerun. Byte/restore proportional estimates are not newly measured elapsed or memory savings."
+        "d30ea8316 retained gate: +2079production AST,+1345test AST,+238CUDA lines/+6entrypoints,0fixtures/record-schema growth. New Q8 test itself is1340AST; growth supplies new behavior and is not a reduction.",
+        "Same landing: invariants8.584s/2packages; host tests2m54.986s/130packages; lanes12m14.252s (device6m35.184s,webui2m46.336s,CUDA5m38.357s,16executed/0cached); verify1.447s. Lane wall is not the sum of concurrent durations.",
+        "Qwen0.5 scorecard slice remains output-identical at1294.6MiB,101ms first output,502tok/s,1142ms load. This served path does not use Q8 caches, so it proves no Q8 memory/latency gain. cc72070ff plan-only verify63ms.",
+        "Historical sqa-oracle/do repair retained NaN fault-injection and passed device tests.189 reopens for a new bypassing caller,not failure of that helper repair. No new complete model-cycle or Q8 model-quality evidence was acquired."
       ],
-      "plan_assessment": "Committed plan unchanged:33items/46steps,blob6b1b859de0e26ecd41b1432501560cba0e0755c3.226 is optional within reductions/inference; SQA changes no row. Dirty implementation plan is excluded.",
+      "plan_assessment": "Committed plan35items/49steps. kv-kernels is landed; kv now adopts cells,kv-ring and kv-indexer are separate open steps,window awaits ring and parity awaits all three. Existing load-costs owns provisional values; SQA changes no plan row.215 also applies to the new ring step's named context acceptance.",
       "assumptions_audit": [
-        "226 preserves F32 shape[4],four-byte elements,uint32 bit patterns1..4 and32-byte GGUF alignment. These are fixture/format facts,not tuning values. The original16-byte tail is exactly canonical payload padding. gguf.Write validates geometry and propagates errors.",
-        "Device allocation size is actual uploaded bytes; worker-affine calls and noncancelled failure cleanup retain resource lifetime. No new branch for impossible closed-state assumptions proposed.",
-        "Event queue bound comes from validated positive MaxStoredResponses. Test capacities3/64 and overflow cap+1 are explicit fixtures; coalescing channel1 encodes one pending notice. No universal optimal capacity inferred.",
-        "Checkpoint attribution groups text keys by two components and ignores digit-bearing second components as a documented naming heuristic. Byte accounting is exact; grouping and byte-proportional decode savings are not causal proofs or retention authority. Existing upper-middle order-statistic contract stays; no new statistical framework.",
-        "Quiet-machine start/end observations can miss intervening work; retained records explicitly name this observation scope. Lock exclusion applies to registered landings. Numerical correctness remains separate from timing contention."
+        "Q8_0 uses32codes plus f16 scale,34bytes per32values; signed code range127 and warp32 follow representation/kernel geometry.32versus Strata64 is explicitly provisional.256-byte staging alignment is a device-load layout requirement. Keep these distinct from universal tuning defaults.",
+        "Builder/Shape/StorageBytes reject zero extents and partial quantization blocks; output-target ByteOffset sizes writes in cache dtype. Selected gather remaps per-query slots and applies causal/out-of-range rules before reusing F32 attention. Checked32-bit row/count admission remains; no impossible-state branch proposed.",
+        "The Q8 fixture is bounded uniform[-1,1),width64,2KV/4queryheads,256capacity,8added/32selected,normal RoPE. Its step/softmax formula and one selected dispatch do not establish outlier behavior,all kernels,NeoX,model quality,or a memory/speed optimum.189 concerns invalid result acceptance independently of that bound.",
+        "Packing entry sizes and file-count bounds are format/extent facts. Test allocation fraction is a regression discriminator on a known volume,not a probabilistic tail or timing claim. Cancellation wins independently of a damaged payload.",
+        "Download percent publication is explicit UI granularity; event queue bound is validated configuration. Gate test times are scoped retained observations,not new thresholds. No independence,normality or stationarity premise is added."
       ]
     },
-  "hygiene_assessment": "No cleanup census, new dependency, registry, selector, telemetry, confidence suite or policy framework proposed.",
+  "hygiene_assessment": "No cleanup census,dependency,registry,selector,telemetry,confidence suite or policy framework proposed.",
   "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
@@ -2591,10 +2666,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded AST parsing covers8 files; extra source/caller reads do not imply whole-package review. Type resolution is limited to original statusRecorder declarations. The proposed device test is syntax-only and has not been compiled or executed.",
-      "Fixture-byte equivalence is source reasoning: same uint32 encoding,header,default alignment and padding. The smallest implementation comparison is retained in226; no SQA confidence run was added.",
-      "AST reduction does not imply faster setup or less memory. Canonical writer preparation and a separate payload buffer add work relative to manual writes; all device executions remain.",
-      "Retained numerical/timing evidence has its original model,request and machine scope. No new performance acceptance,normality/independence claim or threshold."
+      "Primary AST scope is8files; supplemental caller/source reads do not imply a full audit. Original two-function typecheck has no CUDA/package linkage. Hypothetical test replacement is syntax-only.",
+      "NaN counterexample follows the current comparisons and existing retained failure-injection contract; SQA did not execute a fault or reproduce device failure.",
+      "No measured runtime or memory saving for comparator reuse; two helper scans replace one interleaved loop. Q8 storage/staging counts are source proxies,not end-to-end measurements.",
+      "Concurrent served-KV work is excluded. Retained numerical/timing results keep their model,request,build and machine scope; no full cycle success or third-party independence is claimed."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -2666,14 +2741,15 @@
   },
   "next_finding_number": 227,
   "publication_context": {
-      "checked_head": "85f0d5c2b7e6f19b1ebc97723077781b2d5800c9",
-      "committed_plan_git_blob": "6b1b859de0e26ecd41b1432501560cba0e0755c3",
-      "assessment": "Substantive new fixture consolidation,with full replacement cost and unchanged retained findings.",
-      "newer_commit_note": "Only committed master reviewed; dirty implementation/generated/plan files excluded. Re-read HEAD/report and reconcile before write.",
-      "publication": "Only docs/sqa_findings.json committed under existing landing/gate locks. All owner fields and unrelated index/worktree preserved; no hook/security/gate changes."
+      "checked_head": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+      "committed_plan_git_blob": "417d80733b19775e3f2e93af9c95a1c6cf97dd19",
+      "assessment": "Substantive reopened acceptance regression with a30-node test reduction; reconcile new Q8 kernel landing and split plan.",
+      "newer_commit_note": "Pinned committed master only; re-read HEAD/report immediately before publication and preserve concurrent implementation fields/work.",
+      "publication": "Only docs/sqa_findings.json committed under existing landing/gate locks. Unrelated index/worktree and raw implementation fields preserved; no hook/security/gate changes."
     },
   "ranked_active_finding_ids": [
     "SQA-218",
+    "SQA-189",
     "SQA-215",
     "SQA-213",
     "SQA-197",
@@ -2715,37 +2791,40 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "226 removes manual GGUF serialization from one Windows test while retaining exact payload bits and all device checks. Prefer gguf.Write directly over a random fixture or filesystem wrapper because it preserves this in-memory fixture without a new dependency or test helper.",
-      "Fresh source confirms positive MaxStoredResponses admission before event subscription; do not add defensive zero-capacity branches for an unadmitted stream. The established218 inventory-resync issue remains.",
-      "Checkpoint-family figures are historical retained evidence. Their byte-proportional decode/open savings are estimates; arithmetic validation is not measurement of causal savings. No new census or test was run.",
-      "Quiet-machine coordination excludes registered landings; start/end process observations do not prove continuous absence of unrelated work. Preserve current scoped observation/error contract; no new telemetry prescribed.",
-      "Committed production and plan are unchanged since the prior report. Concurrent KV/kernel/plan and generated-file edits remain outside this review."
+      "189 reopens at a newly introduced caller. maxAbsDifference already owns NaN rejection and is used by multiple executor tests; the smallest complete repair also reduces test surface.",
+      "Q8 kernel support adds2079production/1345test nodes before served adoption. No displaced F32 path or whole-request memory gain has landed yet; do not count compressed storage alone as savings.",
+      "176of182 prior cited paths are unchanged. Changed executor code adds Q8 staging/admission; the graph serial,driver.Bytes reuse opportunity,arena tests,Q8 pair indexing and existing F32 prompt test targets remain. Compatibility changes only refresh unrelated identities.",
+      "Current owner responses are historical; preserve the correctly implemented original189 response and all deferred110/124/120 ownership. Deferrals have no new admitted counterexample in this sample.",
+      "172/157/223 were rechecked in fresh AST/caller scope; their retained reductions remain optional and must include complete migration/setup costs."
     ],
-  "reviewed_at": "2026-10-25T22:10:48Z",
-  "reviewed_master": "85f0d5c2b7e6f19b1ebc97723077781b2d5800c9",
+  "reviewed_at": "2026-10-26T00:18:08Z",
+  "reviewed_master": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
   "schema_version": 1,
   "scope": [
-      "Pinned master 85f0d5c2b7e6f19b1ebc97723077781b2d5800c9; committed instruction blob a81b403c183378ba9a3aa11ca0328acfffd7c531 and plan blob6b1b859de0e26ecd41b1432501560cba0e0755c3 are unchanged and were checked first. Worker edits are excluded.",
-      "Rotated8-file AST sample:3756 production/3840 test nodes,40 functions,1591 parser-local bindings. Original statusRecorder type and WriteHeader/Unwrap/Flush typecheck with standard-library imports,no stubs:23uses/12defs/27expressions/6selections.",
-      "Reviewed shared raw/converted tensor allocation/upload/publication/cleanup; retained checkpoint attribution and its consumers; event fanout/stream recovery; quiet measurement/gate coordination. Read GGUF writer/fixture callers for226. No recurring census was run.",
-      "Fresh provisional conclusions preceded the prior report. All179 cited paths are byte-identical to its reviewed revision; master differs only by the prior report commit. Existing findings/rankings were reconciled without new runtime evidence.",
-      "This chat previously implemented changes; this is not independent third-party review. Only the report may change; no agents,implementation,tests,gates,model workloads,services,benchmarks or profiles."
+      "Pinned master cc72070ff924c7c567fb1f24249a8b1dd3f720b8; instruction blob a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan blob 417d80733b19775e3f2e93af9c95a1c6cf97dd19 checked first. Dirty served-KV implementation files excluded.",
+      "Rotated8-file Go AST sample:5301 production/6263 test nodes,47 functions,2519 parser-local bindings. Supplemental comparator file3084 nodes. Original maxAbsDifference/q8CellBound typecheck with standard-library imports and no stubs:60uses/14defs/94expressions/3selections.",
+      "Reviewed Q8 append/gather/dequantization, shapes/staging/alias lifetime and callers; blob pack/read/verify/release ownership; shared GUI stream/download progress; lane reach/scheduling/caching and retained gate results. No full recurring census.",
+      "Provisional source conclusions preceded reading the report. Of182 prior cited paths,176 are byte-identical. Six changed paths were reconciled: plan,executor,attention launch,BF16 fusion guard,and two generated compatibility documents. Existing reduction targets are not removed by Q8 staging.",
+      "This chat previously implemented changes; this is not independent third-party review. Only the report changes; no agents,implementation,tests,gates,services,model workloads,benchmarks or profiles."
     ],
   "sqa_response": {
-      "reviewed_master": "85f0d5c2b7e6f19b1ebc97723077781b2d5800c9",
-      "assessment": "38 active,3 deferred; no closure or priority change.226 is a small source-proven serialization consolidation,not a runtime optimization.",
-      "evidence": "Eight-file AST3756 production/3840 test. Complete hypothetical test486->374(-112),including+84 retained-test setup and-196 deleted helper. Original statusRecorder methods typecheck. All179 prior cited paths unchanged.",
+      "reviewed_master": "cc72070ff924c7c567fb1f24249a8b1dd3f720b8",
+      "assessment": "39active,3deferred. Reopen189 as a newly bypassing Q8 acceptance caller;218 stays first. No other closure or priority change.",
+      "evidence": "Eight-file AST5301production/6263test; complete hypothetical Q8 test1340->1310,retained comparator3084 unchanged. Original comparator/bound typecheck. Six changed cited paths reconciled;176unchanged.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
+      "reopened_findings": [
+        "SQA-189"
+      ],
       "implementation_response_context": {
         "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "status": "Historical implementation_review,master_lead_triage and all implementation-owned finding fields preserved byte-for-byte. Recent commits are acknowledged as separate retained evidence."
+        "status": "Historical implementation_review,master_lead_triage and all implementation-owned fields preserved byte-for-byte. Original189 repair remains correct; this report scopes its recurrence to d30ea8316's new local loop."
       },
-      "recommendation": "Keep recovery/context/cost work first. Use the existing GGUF serializer for226 without changing bit patterns,padding,device test scope or fixtures.",
-      "next_action": "Implementation owners decide adoption and use existing native gates/cycle resume. No new SQA workload,framework,selector or telemetry.",
-      "uncertainty": "No elapsed/memory gain; new payload buffer/writer preparation may add setup cost. No new successful complete model cycle or independent model validation.",
+      "recommendation": "Reuse maxAbsDifference for both Q8 comparisons before relying on kernel acceptance for served adoption. Retain all numerical executions and existing invalid-result tests. Continue actual-token context and scoped cost derivation through existing owners.",
+      "next_action": "Implementation owner decides adoption. Existing native validation/cycle resume suffice; no new SQA workload,framework,selector or telemetry.",
+      "uncertainty": "No observed CUDA NaN or runtime improvement; source-proven acceptance hole. No new model quality/full-cycle measurement. Compressed cache geometry is distinct from peak staging.",
       "user_findings": [
         "SQA-110"
       ],

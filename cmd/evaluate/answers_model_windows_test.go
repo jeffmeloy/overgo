@@ -66,6 +66,12 @@ var knownAnswerDifferences = map[string]struct {
 	"gemma-4-12B-it-fp8-native": {0.3, 2.5, "over a prompt of 32 tokens or more this build rounds what goes into each feed-forward product to fp8, " +
 		"a scale to a token, as the checkpoint's quantization declares; the reference and the bf16 build round the weights alone. Measured: " +
 		"0.223 a token on one answer, and one of 24 second tokens other than the reference's, which held it 1.86 above its next (finding 170f2bfa)"},
+	"Qwen3.8-Flash-Next": {0.2, 0.6, "its reference is Strata on the same IQ4_XS file, not the model's own code: both compute the experts a token " +
+		"routes to on the card or, where their cache does not hold them, on the CPU, the two rounding otherwise, and which experts sit where is " +
+		"each engine's own and moves between runs, so near ties fall either way (Strata's greedy run and its teacher-forced rerun part at 6% of " +
+		"positions, its docs/UNSLOTH_Q4.md; two of its runs here answer 2 of the 24 letters otherwise). Measured against either run: 19 of 24 " +
+		"answers the reference's token for token, 0.176 a token on the furthest, and answer letters other than the reference's where it held " +
+		"them up to 0.538 above their next"},
 }
 
 // answerReference is one model's fixture: for each case of its prompt
@@ -239,8 +245,9 @@ func TestModelsAnswerAsTransformersDoes(t *testing.T) {
 				if err != nil || len(ids) != len(given.IDs)+reference.NewTokens {
 					t.Fatalf("%s: %d tokens came back for %d given and %d asked: %v", own.Name, len(ids), len(given.IDs), reference.NewTokens, err)
 				}
+				// A reference may end its answer at the end of turn, where a served request stops.
 				generated := ids[len(given.IDs):]
-				if slices.Equal(generated, own.Generated) {
+				if slices.Equal(generated[:len(own.Generated)], own.Generated) {
 					same++
 					continue
 				}

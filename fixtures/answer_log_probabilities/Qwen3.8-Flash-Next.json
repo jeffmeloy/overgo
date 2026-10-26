@@ -1,0 +1,480 @@
+{
+ "file": "Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
+ "model": "Qwen3.8 Flash Next",
+ "new_tokens": 8,
+ "prompts": "fixtures/prompt_ids/Qwen3.8-Flash-Next.json",
+ "prompts_sha256": "f8052ffd329820edc3a049557031982e8d1cb4202d3db40c76cedd21d9e0a6f9",
+ "protocol": "chat",
+ "schema": "answer_log_probabilities/v1",
+ "source": "Strata 0.1.44.1 (release build, source 296b59d2) on the same GGUF, its serve mode with the configuration of strata-unsloth-ud-iq4_xs.json less --vision, with --short-read 2048 so each prompt is read through the verify windows, as decode reads (STRATA_HC_Q8=1, STRATA_ROUTE_TAIL_SKIP=0): each token the one its prompt read finds likeliest after the case's tokens and the answer so far, a one-shot GEN 1 a token, with its teacher-forced log-probability and its margin over the next likeliest from STRATA_LOGPOS and STRATA_LOGPOS_TOPK=2, each answer kept through its first end of turn, where a served request stops; overgo_data/references/strata/strataref.go",
+ "cases": [
+  {
+   "name": "mmlu-pro/default/test/0",
+   "generated": [
+    353,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.42712126,
+    -0.524917349,
+    -0.208817738
+   ],
+   "margins": [
+    1.572781,
+    0.391953,
+    1.7279740000000001
+   ],
+   "log_probability": -1.160856347
+  },
+  {
+   "name": "mmlu-pro/default/test/481",
+   "generated": [
+    357,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -1.919536649,
+    -0.522566026,
+    -0.134617517
+   ],
+   "margins": [
+    0.11977499999999974,
+    0.417767,
+    2.3925549999999998
+   ],
+   "log_probability": -2.5767201920000002
+  },
+  {
+   "name": "mmlu-pro/default/test/962",
+   "generated": [
+    351,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.716758825,
+    -0.778585455,
+    -0.351889186
+   ],
+   "margins": [
+    0.995691,
+    -0.144285455,
+    1.0352350000000001
+   ],
+   "log_probability": -1.8472334659999998
+  },
+  {
+   "name": "mmlu-pro/default/test/1443",
+   "generated": [
+    357,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.440607383,
+    -0.330417721,
+    -0.159923249
+   ],
+   "margins": [
+    1.013997,
+    0.9862780000000001,
+    1.966284
+   ],
+   "log_probability": -0.930948353
+  },
+  {
+   "name": "mmlu-pro/default/test/1925",
+   "generated": [
+    2972,
+    37,
+    159034,
+    271,
+    332,
+    24342,
+    286,
+    64700
+   ],
+   "log_probabilities": [
+    -1.130225896,
+    -0.978748616,
+    -0.759979623,
+    -0.658700359,
+    -0.298555909,
+    -0.375770432,
+    -0.000768232,
+    -0.002923477
+   ],
+   "margins": [
+    0.5996780000000002,
+    0.11406100000000008,
+    0.255451,
+    0.11124800000000001,
+    2.35165,
+    1.030554,
+    7.306114,
+    6.957793
+   ],
+   "log_probability": -4.205672544000001
+  },
+  {
+   "name": "mmlu-pro/default/test/2406",
+   "generated": [
+    417,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.667578137,
+    -0.636988527,
+    -0.26592322
+   ],
+   "margins": [
+    0.815436,
+    0.13607899999999995,
+    1.8568609999999999
+   ],
+   "log_probability": -1.5704898840000001
+  },
+  {
+   "name": "mmlu-pro/default/test/2887",
+   "generated": [
+    351,
+    248046
+   ],
+   "log_probabilities": [
+    -0.37250363,
+    -0.680558673
+   ],
+   "margins": [
+    1.4994690000000002,
+    0.03623199999999993
+   ],
+   "log_probability": -1.053062303
+  },
+  {
+   "name": "mmlu-pro/default/test/3368",
+   "generated": [
+    353,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.21010784,
+    -0.276005924,
+    -0.093716155
+   ],
+   "margins": [
+    2.426517,
+    1.182865,
+    2.8622229999999997
+   ],
+   "log_probability": -0.579829919
+  },
+  {
+   "name": "mmlu-pro/default/test/3850",
+   "generated": [
+    414,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.324896597,
+    -0.588593625,
+    -0.06224572
+   ],
+   "margins": [
+    1.414838,
+    0.23073200000000005,
+    3.359142
+   ],
+   "log_probability": -0.975735942
+  },
+  {
+   "name": "mmlu-pro/default/test/4331",
+   "generated": [
+    2972,
+    33,
+    159034,
+    248046
+   ],
+   "log_probabilities": [
+    -0.906008459,
+    -1.122751329,
+    -0.088788962,
+    -0.359372635
+   ],
+   "margins": [
+    1.1523189999999999,
+    0.6426429999999999,
+    2.554041,
+    0.8613930000000001
+   ],
+   "log_probability": -2.4769213850000003
+  },
+  {
+   "name": "mmlu-pro/default/test/4812",
+   "generated": [
+    426,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.31093636,
+    -0.337803964,
+    -0.310351064
+   ],
+   "margins": [
+    1.8459720000000002,
+    0.9568859999999999,
+    1.714876
+   ],
+   "log_probability": -0.959091388
+  },
+  {
+   "name": "mmlu-pro/default/test/5294",
+   "generated": [
+    417,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -1.331752754,
+    -0.171727703,
+    -0.480126851
+   ],
+   "margins": [
+    0.06775599999999993,
+    1.801513,
+    1.2422250000000001
+   ],
+   "log_probability": -1.983607308
+  },
+  {
+   "name": "mmlu-pro/default/test/5775",
+   "generated": [
+    458,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.378817583,
+    -0.411020801,
+    -0.317013694
+   ],
+   "margins": [
+    1.600587,
+    0.7357099999999999,
+    1.607599
+   ],
+   "log_probability": -1.1068520780000002
+  },
+  {
+   "name": "mmlu-pro/default/test/6256",
+   "generated": [
+    2972,
+    39,
+    159034,
+    248046
+   ],
+   "log_probabilities": [
+    -0.913926613,
+    -0.651339671,
+    -0.038786332,
+    -0.602379932
+   ],
+   "margins": [
+    0.565092,
+    0.7873699999999999,
+    3.854634,
+    0.21977999999999998
+   ],
+   "log_probability": -2.206432548
+  },
+  {
+   "name": "mmlu-pro/default/test/6737",
+   "generated": [
+    357,
+    248046
+   ],
+   "log_probabilities": [
+    -0.555774511,
+    -0.751817654
+   ],
+   "margins": [
+    1.100364,
+    -0.09509465400000006
+   ],
+   "log_probability": -1.307592165
+  },
+  {
+   "name": "mmlu-pro/default/test/7219",
+   "generated": [
+    357,
+    248046
+   ],
+   "log_probabilities": [
+    -1.431123113,
+    -0.662201706
+   ],
+   "margins": [
+    0.06620800000000004,
+    0.07577500000000004
+   ],
+   "log_probability": -2.093324819
+  },
+  {
+   "name": "mmlu-pro/default/test/7700",
+   "generated": [
+    2972,
+    32,
+    159034,
+    248046
+   ],
+   "log_probabilities": [
+    -0.646588557,
+    -0.799275624,
+    -0.059252074,
+    -0.60743058
+   ],
+   "margins": [
+    1.62038,
+    0.8219120000000001,
+    3.062132,
+    0.19824599999999992
+   ],
+   "log_probability": -2.112546835
+  },
+  {
+   "name": "mmlu-pro/default/test/8181",
+   "generated": [
+    357,
+    248046
+   ],
+   "log_probabilities": [
+    -0.849181713,
+    -0.341534646
+   ],
+   "margins": [
+    0.7331500000000001,
+    0.9171790000000002
+   ],
+   "log_probability": -1.190716359
+  },
+  {
+   "name": "mmlu-pro/default/test/8663",
+   "generated": [
+    2972,
+    40,
+    159034,
+    248046
+   ],
+   "log_probabilities": [
+    -1.31153802,
+    -1.082279763,
+    -0.188860192,
+    -0.24962922
+   ],
+   "margins": [
+    0.5059149999999999,
+    0.0811980000000001,
+    1.752146,
+    1.27421
+   ],
+   "log_probability": -2.8323071950000003
+  },
+  {
+   "name": "mmlu-pro/default/test/9144",
+   "generated": [
+    357,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.652329685,
+    -0.658556175,
+    -0.038575125
+   ],
+   "margins": [
+    1.277132,
+    0.077021,
+    3.611923
+   ],
+   "log_probability": -1.349460985
+  },
+  {
+   "name": "mmlu-pro/default/test/9625",
+   "generated": [
+    357,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.299876716,
+    -0.380709499,
+    -0.05522469
+   ],
+   "margins": [
+    1.8213780000000002,
+    0.7849809999999999,
+    3.301916
+   ],
+   "log_probability": -0.7358109049999999
+  },
+  {
+   "name": "mmlu-pro/default/test/10106",
+   "generated": [
+    458,
+    248046
+   ],
+   "log_probabilities": [
+    -0.473979375,
+    -0.713147627
+   ],
+   "margins": [
+    1.451105,
+    -0.030254627000000034
+   ],
+   "log_probability": -1.187127002
+  },
+  {
+   "name": "mmlu-pro/default/test/10588",
+   "generated": [
+    357,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.891113407,
+    -0.61299126,
+    -0.195371741
+   ],
+   "margins": [
+    0.849667,
+    0.208905,
+    1.978548
+   ],
+   "log_probability": -1.699476408
+  },
+  {
+   "name": "mmlu-pro/default/test/11069",
+   "generated": [
+    469,
+    13,
+    248046
+   ],
+   "log_probabilities": [
+    -0.710303283,
+    -0.429327374,
+    -0.091925493
+   ],
+   "margins": [
+    0.9069599999999999,
+    0.6437839999999999,
+    2.665734
+   ],
+   "log_probability": -1.23155615
+  }
+ ]
+}

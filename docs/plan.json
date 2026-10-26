@@ -215,12 +215,16 @@
       "id": "cells-heldout",
       "title": "Hold gemma-4's int8 attention cells to its held-out quality: BBH and IFEval with the cells against the F32 cache, the cells kept only where they hold",
       "status": "open",
+      "budget": {
+        "nodes": 12,
+        "reason": "inference.OpenOptions.F32Cache opens a runner whose attention layers keep the F32 cache where their geometry would take Strata's int8 cells, the path TestAttentionCellsHoldHeldOut holds gemma-4-12B's cells to on BBH and IFEval; the field and the one guard on the cell layers are the growth"
+      },
       "steps": [
         {
           "id": "do",
           "title": "Hold gemma-4's int8 attention cells to its held-out quality: BBH and IFEval with the cells against the F32 cache, the cells kept only where they hold",
           "status": "open",
-          "verify": "go test -tags modeltest ./internal/evaluation -run '^TestAttentionCellsHoldHeldOut$' -count=1 -timeout 120m"
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestAttentionCellsHoldHeldOut$' -count=1 -timeout 120m"
         }
       ]
     },

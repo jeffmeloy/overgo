@@ -702,21 +702,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-3da6a23271347f6e",
-      "title": "Restore Qwen2.5-0.5B inference held-out-quality to 0.236363636 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference held-out-quality to 0.236363636 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-3da6a23271347f6e -target 0.23636363636363636",
-          "rationale": "- Qwen2.5-0.5B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.236363636 to 0.218181818 (-0.0181818182, -7.7%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-449cbf9f2f0134fe",
       "title": "Restore Bonsai-27B-Q1_0 inference load-time to 2846.4165 ms",
       "owner": "master-lead",

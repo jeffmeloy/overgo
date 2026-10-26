@@ -234,6 +234,10 @@ type runnerState struct {
 	spanSlots [spanSlotCount]*spanSlot
 	// qsaRope is the QSA layers' rotation table, built at the first QSA step.
 	qsaRope *qsaRope
+	// qsaStage is the QSA layers' staging pool for a streamed prompt read, built at the first one.
+	qsaStage *qsaStage
+	// qsaRing is the cells a QSA layer keeps on the card once its sequence streams; zero for qsaRingCells.
+	qsaRing uint32
 }
 
 // Runner: prepared assets + mutable request state.

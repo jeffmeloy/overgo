@@ -2075,9 +2075,9 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "71797f006f90edb6b2a3dfb03f2d613def503d6778f0b4576c1bc9ccda613a38",
+      "sourceSha256": "dfa916da253473b9194a6eb35973104ce0d6afca7e0351faf775796681b1f0c3",
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "f9290f24441f5328e38e06717ed77985c3f428544651d2ab9ec698ea93c82bcf",
+      "assetSha256": "749068622dc8dd739dd280a7ff2713d70c8e1a94b6372fcf17730e58c5890c1b",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2099,9 +2099,13 @@
         "strata_kv_append_f16",
         "strata_kv_append_q8",
         "strata_kv_append_q8_steps",
+        "strata_kv_stream_copy",
+        "strata_kv_stream_reset",
+        "strata_kv_stream_resolve",
         "strata_kv_gather_f16",
         "strata_kv_gather_q8",
         "strata_prompt_attn_i8",
+        "strata_prefill_kv_append_q8",
         "strata_prompt_attn_i8_smem"
       ],
       "argumentLayouts": [
@@ -2218,7 +2222,8 @@
             ".u64"
           ],
           "functions": [
-            "strata_block_scores_tc"
+            "strata_block_scores_tc",
+            "strata_kv_stream_reset"
           ]
         },
         {
@@ -2326,6 +2331,48 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_kv_stream_copy"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_kv_stream_resolve"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
             ".u32",
             ".u32",
             ".u32",
@@ -2373,6 +2420,30 @@
           ],
           "functions": [
             "strata_prompt_attn_i8"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_prefill_kv_append_q8"
           ]
         },
         {

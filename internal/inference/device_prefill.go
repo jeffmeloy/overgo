@@ -215,5 +215,8 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 	if plan.qsaCapacity > 0 && r.qsaRope == nil {
 		capacities = append(capacities, qsaRopeBytes(r.qsaRopeRows()))
 	}
+	if streams := r.qsaSlots(plan.qsaCapacity) > 0; streams && (r.qsaStage == nil || r.qsaStage.capacity < plan.qsaCapacity) {
+		capacities = append(capacities, qsaStageBytes(plan.qsaCapacity))
+	}
 	return r.cuda.CheckRetainedMemory(ctx, execution.Graph, execution.Inputs, slots, capacities)
 }

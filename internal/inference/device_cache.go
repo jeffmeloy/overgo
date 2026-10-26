@@ -1661,7 +1661,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if r.holdsQSA(layerIndex) {
 			state, nodes := qsaStateInputs(builder, func(suffix string) string {
 				return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
-			}, qsaCapacity)
+			}, qsaCapacity, r.qsaSlots(qsaCapacity))
 			qsaInputs[layerIndex] = nodes
 			qsa = &model.QSABinding{State: state, Capacity: qsaCapacity, FirstCell: pastTokens}
 		}

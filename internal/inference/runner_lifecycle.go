@@ -450,6 +450,7 @@ func (r *Runner) Close() error {
 		r.releaseSpanSlots(context.Background()),
 		r.releaseHyperDraftHistory(context.Background()),
 		r.releaseQSARope(context.Background()),
+		r.releaseQSAStage(context.Background()),
 		resources.close(),
 	)
 }

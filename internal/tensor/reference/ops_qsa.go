@@ -18,7 +18,8 @@ import (
 // fixed state it read as it was. Its arithmetic is the reference's: the scores and the attention in float64, so a
 // selection on a near tie may differ from the device's.
 func qsaAttention(shape tensor.Shape, inputs []Value, attributes tensor.QSAAttentionAttributes) (Value, error) {
-	if len(inputs) != tensor.QSAAttentionInputs || len(attributes.Cells) == 0 {
+	streamed := len(inputs) == tensor.QSAAttentionInputs+tensor.QSAStreamInputs
+	if len(inputs) != tensor.QSAAttentionInputs && !streamed || len(attributes.Cells) == 0 {
 		return Value{}, errors.New("QSA attention inputs are invalid")
 	}
 	query, key, value := inputs[qsaQuery], inputs[qsaKey], inputs[qsaValue]
@@ -35,6 +36,16 @@ func qsaAttention(shape tensor.Shape, inputs []Value, attributes tensor.QSAAtten
 		keyScales: inputs[qsaKeyScales].Data, valueScales: inputs[qsaValueScales].Data,
 		table: inputs[qsaPageTable].Data, pooled: inputs[qsaPooled].Data, blockPosition: inputs[qsaBlockPosition].Data,
 		positions: inputs[qsaPositions].Data, cos: inputs[qsaRopeCos].Data, sin: inputs[qsaRopeSin].Data,
+	}
+	if streamed {
+		// A streamed state's cells are its host copy's, at the identity layout; its slots and map are the device's cache
+		// of them, which the reference does not hold.
+		state.keyCodes, state.valueCodes = inputs[qsaHostKeyCodes].Data, inputs[qsaHostValueCodes].Data
+		state.keyScales, state.valueScales = inputs[qsaHostKeyScales].Data, inputs[qsaHostValueScales].Data
+		state.table = make([]float32, len(state.table))
+		for page := range state.table {
+			state.table[page] = float32(page)
+		}
 	}
 	kvWidth := tensor.QSAKeyValueHeads * tensor.QSAHeadWidth
 	for token, cell := range attributes.Cells {
@@ -280,6 +291,10 @@ const (
 	qsaPositions
 	qsaRopeCos
 	qsaRopeSin
+	qsaHostKeyCodes
+	qsaHostValueCodes
+	qsaHostKeyScales
+	qsaHostValueScales
 )
 
 // selectCells is qsa_block_scores and qsa_block_topk for a query that sees held cells: each block's score the sum

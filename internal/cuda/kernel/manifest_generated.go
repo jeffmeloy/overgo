@@ -10,7 +10,7 @@ const (
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
 	OpsF32SHA256         = "04d1e9b8cc7c8a451be683da9393a1b124cbdda941dbbb05ab5997114db376e2"
-	StrataQsaSHA256      = "f9290f24441f5328e38e06717ed77985c3f428544651d2ab9ec698ea93c82bcf"
+	StrataQsaSHA256      = "749068622dc8dd739dd280a7ff2713d70c8e1a94b6372fcf17730e58c5890c1b"
 )
 
 var bundleAssets = [...]bundleAsset{

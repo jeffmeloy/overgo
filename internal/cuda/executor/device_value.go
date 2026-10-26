@@ -259,6 +259,66 @@ func (e *Executor) WriteDeviceBytes(ctx context.Context, writes []DeviceBytes) e
 	})
 }
 
+// ReadDeviceBytes copies device bytes into host ranges in one worker transaction, each read filling its Data from its
+// Pointer; a zero pointer or an empty range is refused before any copy.
+func (e *Executor) ReadDeviceBytes(ctx context.Context, reads []DeviceBytes) error {
+	for index, read := range reads {
+		if read.Pointer == 0 || len(read.Data) == 0 {
+			return fmt.Errorf("CUDA device byte read %d is empty", index)
+		}
+	}
+	return e.transfer(ctx, func(state *device.State) error {
+		for _, read := range reads {
+			if err := state.Driver.MemcpyDtoH(read.Data, read.Pointer); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// PinnedHostBuffer is pinned host memory mapped into the device: the host reads and writes Host, kernels read and
+// write Device over the bus, as a streamed QSA layer's host copy is (Strata's kv_stream.hpp).
+type PinnedHostBuffer struct {
+	executor *Executor
+	Host     []byte
+	Device   driver.DevicePtr
+}
+
+// AllocatePinnedHost pins bytes of host memory mapped into the device.
+func (e *Executor) AllocatePinnedHost(ctx context.Context, bytes uint64) (*PinnedHostBuffer, error) {
+	if bytes == 0 {
+		return nil, errors.New("CUDA pinned host request is empty")
+	}
+	buffer := &PinnedHostBuffer{executor: e}
+	err := e.transfer(ctx, func(state *device.State) error {
+		var err error
+		buffer.Host, buffer.Device, err = state.Driver.MemHostAlloc(bytes)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return buffer, nil
+}
+
+// Release unpins the buffer once the device is done with it; a released buffer releases nothing again.
+func (b *PinnedHostBuffer) Release(ctx context.Context) error {
+	if b == nil || b.Host == nil {
+		return nil
+	}
+	err := b.executor.transfer(ctx, func(state *device.State) error {
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		return state.Driver.MemFreeHost(b.Host)
+	})
+	if err == nil {
+		b.Host, b.Device = nil, 0
+	}
+	return err
+}
+
 // DeviceRangeCopy is a device-to-device copy of Bytes from Source to Target.
 type DeviceRangeCopy struct {
 	Target, Source driver.DevicePtr

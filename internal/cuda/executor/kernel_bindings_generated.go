@@ -270,9 +270,13 @@ const (
 	kernelStrataKvAppendF16
 	kernelStrataKvAppendQ8
 	kernelStrataKvAppendQ8Steps
+	kernelStrataKvStreamCopy
+	kernelStrataKvStreamReset
+	kernelStrataKvStreamResolve
 	kernelStrataKvGatherF16
 	kernelStrataKvGatherQ8
 	kernelStrataPromptAttnI8
+	kernelStrataPrefillKvAppendQ8
 	kernelStrataPromptAttnI8Smem
 	kernelFunctionCount
 )
@@ -541,9 +545,13 @@ var kernelFunctionNames = [...]string{
 	"strata_kv_append_f16",
 	"strata_kv_append_q8",
 	"strata_kv_append_q8_steps",
+	"strata_kv_stream_copy",
+	"strata_kv_stream_reset",
+	"strata_kv_stream_resolve",
 	"strata_kv_gather_f16",
 	"strata_kv_gather_q8",
 	"strata_prompt_attn_i8",
+	"strata_prefill_kv_append_q8",
 	"strata_prompt_attn_i8_smem",
 }
 
@@ -811,9 +819,13 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	11,
 	15,
 	17,
+	15,
+	7,
+	13,
 	10,
 	12,
 	13,
+	17,
 	1,
 }
 
@@ -1070,6 +1082,10 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
+	1,
+	1,
+	1,
 	1,
 	1,
 	1,

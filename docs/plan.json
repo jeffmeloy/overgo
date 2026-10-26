@@ -285,20 +285,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 68,
-        "reason": "qsa-layer adopts Strata's QSA layer as the served structure for Flash-Next's attention layers: Strata's launches move from beside their tests into production as the operation's steps, the QSA operation and its reference, the model's QSA block and cache schema, and the runtime's QSA cells (allocation, prefix fork, image positions, binding on fresh and replayed steps); it deletes the kv-kernels step's Q8_0 cells mechanism, which no served path read"
+        "nodes": 55,
+        "reason": "kv-ring adopts Strata's resident ring for Flash-Next's attention cells: the stream kernels' launches (resolve, copy, the prompt read's append and staging), the streamed operation's inputs and their reference, the runtime's streamed cells (slots, residency maps, pinned host copies, the runner's staging pool, forks into a host copy) and the executor's pinned host buffers and byte reads; the gate measured the growth"
       },
       "steps": [
-        {
-          "id": "kv-ring",
-          "title": "Hold K/V in a resident ring of fixed size, the cells beyond it streamed from host pools",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestInt8KVDecodingMatchesPlainDecoding$' -count=1 \u0026\u0026 go test -tags modeltest ./internal/evaluation -run '^TestFlashNextLongContextAcceptance$' -count=1 -timeout 60m",
-          "rationale": "Serves: decode at context on a card whose K/V bytes stay fixed past the ring (a verify at 4K tokens costs 22 to 25 ms against Strata's 13 at 16K; the 16K first token 6.69 s against 4.89), and the fixed K/V the window step keys its graphs over, so a window's graph is one a size, not one a cache capacity.\nPort: Strata's resident ring (src/core/layer.cpp kv_plan: max(--kv-resident, qsa_kv_resident_min() = 20,480) cells of each attention layer on the card in page-sized slots, mode 1) and the streaming of the cells beyond it (src/kernels/cuda/kv_stream.cu: kv_ring_table maps blocks to slots, kv_stream_resolve resolves the blocks a step reads, copy_kernel and kv_ring_restore move them, kv_stage_from_host and kv_unstage_to_host move staged pages), over the Q8_0 cells the kv step stores: a pool of a fixed cell count a layer (32,768 as benched, floor 20,480, both provisional) in place of the power-of-two page (cachePageCapacity), the cells beyond it kept in host pools and resolved into the pool's slots by the step's selected indices before the attention reads them. Each value it brings from Strata lands named in its comment as provisional (Provisional: the load-costs step) and as a row of load-costs' table, never as a derived constant. The recurrent layers' states are unaffected.\nDisappears: cachePageCapacity's growth for attention layers past the ring, and the card's K/V bytes growing with the conversation.\nEvidence: TestInt8KVDecodingMatchesPlainDecoding extended past the ring (greedy output on the hermetic Flash-Next fixture with a ring smaller than the sequence, equal to plain decoding's over the whole sequence); TestFlashNextLongContextAcceptance, passing as it does on HEAD (retrieval at 262,144 tokens, follow-ups, cancellation, the image beside the context, the peak no higher); the bench suite's 4K, 16K and agent cells against Strata over three alternating rounds.\nBatch: inference and cuda/executor device lanes and the models lane.\nFiled 2026-10-25 from the kv step's design (tmp/strata-port/kv-design.txt, landing B): the kv step lands the Q8_0 cells on Flash-Next's attention caches alone, so the ring lands on cells that already decode, each unit held to greedy output on its own.",
-          "depends_on": [
-            "strata-port/qsa-layer"
-          ]
-        },
         {
           "id": "window",
           "title": "Key verify graphs by the window's size, verify sampled windows by Strata's rule and replay the commit",

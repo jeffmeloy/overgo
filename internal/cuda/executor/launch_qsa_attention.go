@@ -31,6 +31,17 @@ const (
 	qsaInputPositions
 	qsaInputRopeCos
 	qsaInputRopeSin
+	// A streamed state's inputs follow (tensor.QSAStream): its host copy, its map, its staging pool.
+	qsaInputHostKeyCodes
+	qsaInputHostValueCodes
+	qsaInputHostKeyScales
+	qsaInputHostValueScales
+	qsaInputStreamMap
+	qsaInputStageKeyCodes
+	qsaInputStageValueCodes
+	qsaInputStageKeyScales
+	qsaInputStageValueScales
+	qsaInputStageTable
 )
 
 // qsaPositionBase is the indexer's position base, zero as generate.cpp passes it: a cell's positions arrive through
@@ -70,6 +81,31 @@ func qsaScratchLayout(node *tensor.Tensor) (qsaScratch, error) {
 	return layout, nil
 }
 
+// qsaStreamMap is a streamed state's residency map: its page table, and the map input's per-slot arrays then its
+// control ints (tensor.QSAStream.Map), the slots the pools' pages.
+func qsaStreamMap(node *tensor.Tensor, table, words driver.DevicePtr, capacity int64) strataKVStreamMap {
+	pageCells := int64(tensor.QSAKeyValueHeads * tensor.QSABlockCells)
+	slots := int64(node.Inputs[qsaInputKeyCodes].Shape.Dims[1]) / pageCells
+	array := func(index int64) driver.DevicePtr { return words + driver.DevicePtr(index*slots*i32Bytes) }
+	return strataKVStreamMap{
+		table: table, slotBlock: array(qsaMapSlotBlock), slotStamp: array(qsaMapSlotStamp), slotRef: array(qsaMapSlotRef),
+		missBlock: array(qsaMapMissBlock), missSlot: array(qsaMapMissSlot),
+		ctl: array(tensor.QSAStreamSlotArrays), blocks: capacity / tensor.QSABlockCells, slots: slots,
+	}
+}
+
+// The stream map's per-slot arrays, in tensor.QSAStream.Map's order.
+const (
+	qsaMapSlotBlock = iota
+	qsaMapSlotStamp
+	qsaMapSlotRef
+	qsaMapMissBlock
+	qsaMapMissSlot
+)
+
+// i32Bytes is an int32's bytes, the stream map's element.
+const i32Bytes = int64(4)
+
 // qsaScratchAlignment keeps each scratch region at a boundary the kernels' vector loads accept.
 const qsaScratchAlignment = uint64(256)
 
@@ -84,7 +120,8 @@ func launchQSAAttention(
 	pointers launchPointerFrame,
 ) error {
 	attributes, ok := runtimeAttributes.(tensor.QSAAttentionAttributes)
-	if !ok || len(attributes.Cells) == 0 || len(node.Inputs) != tensor.QSAAttentionInputs {
+	streamed := len(node.Inputs) == tensor.QSAAttentionInputs+tensor.QSAStreamInputs
+	if !ok || len(attributes.Cells) == 0 || len(node.Inputs) != tensor.QSAAttentionInputs && !streamed {
 		return errors.New("QSA attention node is invalid")
 	}
 	layout, err := qsaScratchLayout(node)
@@ -131,11 +168,24 @@ func launchQSAAttention(
 	raw, gamma := pointers.input(qsaInputIndexerKey), pointers.input(qsaInputIndexerNorm)
 	indexerQueries, queries := pointers.input(qsaInputIndexerQuery), pointers.input(qsaInputQuery)
 	attention := strataAttentionPools{kv: pools, table: table}
+	var host, stage strataKVPools
+	var stream strataKVStreamMap
+	if streamed {
+		host = strataKVPools{
+			key: pointers.input(qsaInputHostKeyCodes), value: pointers.input(qsaInputHostValueCodes),
+			keyScale: pointers.input(qsaInputHostKeyScales), valueScale: pointers.input(qsaInputHostValueScales),
+		}
+		stage = strataKVPools{
+			key: pointers.input(qsaInputStageKeyCodes), value: pointers.input(qsaInputStageValueCodes),
+			keyScale: pointers.input(qsaInputStageKeyScales), valueScale: pointers.input(qsaInputStageValueScales),
+		}
+		stream = qsaStreamMap(node, table, pointers.input(qsaInputStreamMap), int64(attributes.Capacity))
+	}
 	positionBase := int32(qsaPositionBase)
 	if tokens == 1 {
 		// layer.cpp qsa_layer, steps 5 and 8: the cell, the indexer's key, the block scores, the selection, the
 		// attention over the selected cells read in place.
-		if err := launchStrataKVAppend(state, functions, pools, strataKVPools{}, table, steps, keys, values, geometry, true); err != nil {
+		if err := launchStrataKVAppend(state, functions, pools, host, table, steps, keys, values, geometry, true); err != nil {
 			return err
 		}
 		if err := launchStrataIndexerKeyAppend(state, functions, raw, steps, positionBase, gamma, attributes.Epsilon, indexer,
@@ -149,6 +199,12 @@ func launchQSAAttention(
 		if err := launchStrataBlockTopK(state, functions, scores, steps, 1, maxBlocks, qsaSelectionCapacity, ids, -1); err != nil {
 			return err
 		}
+		// A streamed state makes the selected blocks resident before the attention reads them (layer.cpp qsa_kv_resolve).
+		if streamed {
+			if err := launchStrataKVStreamResolve(state, functions, stream, pools, host, ids, steps, 1, qsaSelectionCapacity, geometry); err != nil {
+				return err
+			}
+		}
 		return launchStrataDecodeAttention(state, functions, queries, attention, ids, steps, qsaSelectionCapacity,
 			tensor.QSAKeyValueHeads, tensor.QSABlockCells, partials, output, 1, true)
 	}
@@ -156,7 +212,18 @@ func launchQSAAttention(
 	// selection a batch of queries at a time (the active blocks the batch's last query's), then the tensor-core
 	// prompt attention over every query's selection.
 	stepBytes := int64(tensor.QSAStepWords) * f32Bytes
-	if err := launchStrataKVAppendSteps(state, functions, pools, strataKVPools{}, table, steps, keys, values, geometry,
+	if streamed {
+		// prefill.cpp 2727-2790: the layer's cells before the chunk staged from the host copy, then the chunk's cells
+		// into the host copy, the staging pool and the resident slots in one launch; the chunk reads the staging pool.
+		firstCell := int64(attributes.Cells[0])
+		if err := launchStrataKVStage(state, functions, host, stage, (firstCell+strataIndexerBlockCells-1)/strataIndexerBlockCells, geometry); err != nil {
+			return err
+		}
+		if err := launchStrataPrefillKVAppend(state, functions, keys, values, firstCell, tokens, table, pools, host, stage, geometry); err != nil {
+			return err
+		}
+		attention = strataAttentionPools{kv: stage, table: pointers.input(qsaInputStageTable)}
+	} else if err := launchStrataKVAppendSteps(state, functions, pools, strataKVPools{}, table, steps, keys, values, geometry,
 		int32(tokens), tensor.QSAStepWords, tensor.QSAKeyValueHeads*tensor.QSAHeadWidth); err != nil {
 		return err
 	}

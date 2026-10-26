@@ -4,7 +4,8 @@
 // Copyright (c) 2026 Niko1221 and the Strata contributors; the license text is licenses/Strata-MIT.txt.
 // Sources: include/strata/kernels/f16_bits.hpp, include/strata/kernels/qsa.hpp, include/strata/kernels/kv_q8.hpp,
 // src/kernels/cuda/qsa.cu, src/kernels/cuda/kv_q8.cu, src/kernels/cuda/qsa_select.cu,
-// src/kernels/cuda/qsa_decode_attn.cu, src/kernels/cuda/qsa_prompt_attn.cu.
+// src/kernels/cuda/qsa_decode_attn.cu, src/kernels/cuda/qsa_prompt_attn.cu, src/kernels/cuda/kv_stream.cu, and
+// src/prefill/kernels.cu (kv_append_kernel).
 //
 // This module compiles WITHOUT -use_fast_math, as Strata compiles these files: its parity checks are bitwise
 // (codes, scales, gathered fp16), and fast math would turn the quantizer's division approximate. Each kernel
@@ -1347,4 +1348,200 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
 // compiler's size of the layout rather than a transcription of it.
 extern "C" __global__ void strata_prompt_attn_i8_smem(uint32_t * bytes) {
     if (threadIdx.x == 0 && blockIdx.x == 0) *bytes = (uint32_t) sizeof(StrataSmem2);
+}
+
+// ---- kv_stream.cu: KV streaming for a QSA layer whose cells outgrow its VRAM slots (kv_stream.hpp). The layer's
+// authoritative cells sit in pinned, device-mapped host memory at the identity layout; VRAM holds n_slots pages and
+// the page table is a residency map, block -> slot or -1. After the selection and before the attention, the resolve
+// makes every block the selection names resident: hits take the call's epoch and their clock bit, a missing block is
+// claimed once (-1 -> -2) into the miss list, one victim slot a miss is taken by a clock sweep that never takes a slot
+// the call uses, and the copy reads the missed blocks from the host copy into their slots. The map's ints: ctl[0]
+// epoch, ctl[1] hand, ctl[2] misses of the last call, ctl[3] overflow, u64 counters at ctl[4] misses, ctl[6] lookups,
+// ctl[8] calls (kKvCtlInts = 16).
+#define STRATA_KV_RESOLVE_THREADS 1024
+#define STRATA_KV_CTL_INTS 16
+
+// Block-wide exclusive prefix sum of one int per thread (1,024 threads); total is the sum over the block.
+__device__ int strata_kv_block_scan(int v, int * warp_sums, int & total) {
+    const int lane = threadIdx.x & 31, w = threadIdx.x >> 5;
+    int x = v;
+    for (int o = 1; o < 32; o <<= 1) {
+        const int y = __shfl_up_sync(0xffffffffu, x, o);
+        if (lane >= o) x += y;
+    }
+    if (lane == 31) warp_sums[w] = x;
+    __syncthreads();
+    if (w == 0) {
+        int t = warp_sums[lane];
+        for (int o = 1; o < 32; o <<= 1) {
+            const int y = __shfl_up_sync(0xffffffffu, t, o);
+            if (lane >= o) t += y;
+        }
+        warp_sums[lane] = t;
+    }
+    __syncthreads();
+    total = warp_sums[31];
+    const int excl = x - v + (w > 0 ? warp_sums[w - 1] : 0);
+    __syncthreads();
+    return excl;
+}
+
+// resolve_kernel: KvStreamMap's arrays as its pointers. Launch: 1 block of 1,024 threads.
+extern "C" __global__ void __launch_bounds__(STRATA_KV_RESOLVE_THREADS) strata_kv_stream_resolve(
+        int32_t * page_table, int32_t * slot_block, int32_t * slot_stamp, int32_t * slot_ref, int32_t * ctl,
+        int32_t * miss_block, int32_t * miss_slot, long long n_slots,
+        const int32_t * __restrict__ ids, const int32_t * __restrict__ steps, int n_q, int cap, int page_size) {
+    const int RT = STRATA_KV_RESOLVE_THREADS;
+    __shared__ int s_nmiss, s_lookups, s_cut;
+    __shared__ int warp_sums[32];
+    const int epoch = ctl[0] + 1;
+    if (threadIdx.x == 0) { s_nmiss = 0; s_lookups = 0; }
+    __syncthreads();
+    // 1. hits take this epoch and their reference bit; a missing block is claimed exactly once (-1 -> -2)
+    int lookups = 0;
+    for (int q = 0; q < n_q; ++q) {
+        const int width = steps[q * 4 + STRATA_STEP_WIDTH];
+        const int32_t * qi = ids + (long long) q * cap;
+        for (int i = threadIdx.x; i < width; i += RT) {
+            const int b = qi[i] / page_size;
+            if (i > 0 && qi[i - 1] / page_size == b) continue;   // ids are ascending: one lookup per block
+            ++lookups;
+            const int sl = page_table[b];
+            if (sl >= 0) {
+                slot_stamp[sl] = epoch;
+                slot_ref[sl] = 1;
+            } else if (sl == -1 && atomicCAS(&page_table[b], -1, -2) == -1) {
+                miss_block[atomicAdd(&s_nmiss, 1)] = b;
+            }
+        }
+    }
+    if (lookups > 0) atomicAdd(&s_lookups, lookups);
+    __syncthreads();
+    // 2. one victim per miss: a clock sweep from the hand. A slot this call uses (stamp == epoch) is never taken;
+    //    a referenced one loses its bit as the hand passes it and is taken on the next pass.
+    const int need = s_nmiss, n = (int) n_slots;
+    int hand = ctl[1], got = 0;
+    for (int scanned = 0; got < need && scanned < 3 * n; scanned += RT) {
+        const int j = (int) (((long long) hand + threadIdx.x) % n);
+        const bool mine = slot_stamp[j] == epoch;
+        const bool cand = !mine && (slot_block[j] < 0 || slot_ref[j] == 0);
+        int total = 0;
+        const int rank = strata_kv_block_scan(cand ? 1 : 0, warp_sums, total);
+        const int want = need - got;
+        if (threadIdx.x == 0) s_cut = RT;
+        __syncthreads();
+        if (cand && rank == want - 1) s_cut = threadIdx.x + 1;   // the hand stops just past the last slot taken
+        __syncthreads();
+        const int cut = s_cut;
+        if (cand && rank < want) {
+            miss_slot[got + rank] = j;
+            slot_stamp[j] = epoch;   // taken: a sweep that wraps around must not take it twice
+        } else if (threadIdx.x < cut && !mine) {
+            slot_ref[j] = 0;
+        }
+        got += total < want ? total : want;
+        hand = (int) (((long long) hand + cut) % n);
+        __syncthreads();
+    }
+    // 3. re-point the table; the copy kernel fills the slots
+    const int placed = got < need ? got : need;
+    for (int k = threadIdx.x; k < need; k += RT) {
+        const int b = miss_block[k];
+        if (k >= placed) { page_table[b] = -1; continue; }   // overflow: never happens with a legal n_slots
+        const int sl = miss_slot[k];
+        const int old = slot_block[sl];
+        if (old >= 0) page_table[old] = -1;
+        slot_block[sl] = b;
+        slot_stamp[sl] = epoch;
+        slot_ref[sl] = 1;
+        page_table[b] = sl;
+    }
+    if (threadIdx.x == 0) {
+        ctl[0] = epoch;
+        ctl[1] = hand;
+        ctl[2] = placed;
+        if (placed < need) ctl[3] = 1;
+        unsigned long long * c = reinterpret_cast<unsigned long long *>(ctl + 4);
+        c[0] += (unsigned long long) placed;
+        c[1] += (unsigned long long) s_lookups;
+        c[2] += 1ull;
+    }
+}
+
+// copy_kernel: one block per missed block (grid-stride), its int8 runs (codes K, codes V, scales K, scales V) from the
+// host copy into its slot, 16 B a thread. Runs as its pointers and lengths. Launch: 96 blocks of 128 threads.
+extern "C" __global__ void strata_kv_stream_copy(
+        const int32_t * ctl, const int32_t * miss_block, const int32_t * miss_slot,
+        const uint8_t * src0, const uint8_t * src1, const uint8_t * src2, const uint8_t * src3,
+        uint8_t * dst0, uint8_t * dst1, uint8_t * dst2, uint8_t * dst3, int len0, int len1, int len2, int len3) {
+    const uint8_t * src[4] = {src0, src1, src2, src3};
+    uint8_t * dst[4] = {dst0, dst1, dst2, dst3};
+    const int len[4] = {len0, len1, len2, len3};
+    const int need = ctl[2];
+    for (int k = blockIdx.x; k < need; k += gridDim.x) {
+        const long long b = miss_block[k], sl = miss_slot[k];
+        for (int a = 0; a < 4; ++a) {
+            const uint4 * s = reinterpret_cast<const uint4 *>(src[a] + b * len[a]);
+            uint4 * d = reinterpret_cast<uint4 *>(dst[a] + sl * len[a]);
+            for (int i = threadIdx.x; i < len[a] / 16; i += blockDim.x) d[i] = s[i];
+        }
+    }
+}
+
+// reset_kernel: every block evicted, every slot free, the control ints zero. Launch: 128 blocks of 256 threads.
+extern "C" __global__ void strata_kv_stream_reset(
+        int32_t * page_table, int32_t * slot_block, int32_t * slot_stamp, int32_t * slot_ref, int32_t * ctl,
+        long long n_blocks, long long n_slots) {
+    const long long i0 = (long long) blockIdx.x * blockDim.x + threadIdx.x, st = (long long) gridDim.x * blockDim.x;
+    for (long long i = i0; i < n_blocks; i += st) page_table[i] = -1;
+    for (long long i = i0; i < n_slots; i += st) {
+        slot_block[i] = -1;
+        slot_stamp[i] = -1;
+        slot_ref[i] = 0;
+    }
+    if (i0 < STRATA_KV_CTL_INTS) ctl[i0] = 0;
+}
+
+// ---- prefill/kernels.cu kv_append_kernel, its int8 path (an int8 state never takes the fp16 one): a chunk's T
+// cells from pos0 into the resident slots through the page table, the host copy and the prompt read's staging pool
+// (both at the identity layout), one value a thread, the scale fp16(max|x| / 127) by __float2half_rn as prefill's
+// hf writes it and the codes against the stored scale. Its geometry is the one prefill.cpp compiles for: 2 K/V heads
+// of 256 values, 4 groups of 64. Launch: grid (T, 2, 8), 64 threads.
+extern "C" __global__ void strata_prefill_kv_append_q8(
+        const float * __restrict__ K, const float * __restrict__ V, long long pos0,
+        const int32_t * __restrict__ table, long long page_size,
+        int8_t * k_q, int8_t * v_q, uint16_t * k_scale, uint16_t * v_scale,
+        int8_t * host_k_q, int8_t * host_v_q, uint16_t * host_k_scale, uint16_t * host_v_scale,
+        int8_t * stage_k_q, int8_t * stage_v_q, uint16_t * stage_k_scale, uint16_t * stage_v_scale) {
+    const long long t = blockIdx.x;
+    const int kvh = blockIdx.y, g = blockIdx.z >> 1;
+    const bool is_v = (blockIdx.z & 1) != 0;
+    const int d = g * 64 + threadIdx.x;
+    const float x = (is_v ? V : K)[t * 512 + kvh * 256 + d];
+    const long long pos = pos0 + t;
+    const long long page = table[pos / page_size];
+    const long long row = (page * 2 + kvh) * page_size + pos % page_size;
+    const long long row_id = ((pos / page_size) * 2 + kvh) * page_size + pos % page_size;
+    float a = fabsf(x);
+    for (int o = 16; o > 0; o >>= 1) a = fmaxf(a, __shfl_xor_sync(0xffffffffu, a, o));
+    __shared__ float wm[2];
+    if ((threadIdx.x & 31) == 0) wm[threadIdx.x >> 5] = a;
+    __syncthreads();
+    const float amax = fmaxf(wm[0], wm[1]);
+    const uint16_t sb = __half_as_ushort(__float2half_rn(amax / 127.0f));
+    const float sf = __half2float(__ushort_as_half(sb));
+    int q = 0;
+    if (sf > 0.0f) { q = __float2int_rn(x / sf); q = q < -127 ? -127 : (q > 127 ? 127 : q); }
+    if (page >= 0) {
+        (is_v ? v_q : k_q)[row * 256 + d] = (int8_t) q;
+        if (threadIdx.x == 0) (is_v ? v_scale : k_scale)[row * 4 + g] = sb;
+    }
+    if (host_k_q != nullptr) {
+        (is_v ? host_v_q : host_k_q)[row_id * 256 + d] = (int8_t) q;
+        if (threadIdx.x == 0) (is_v ? host_v_scale : host_k_scale)[row_id * 4 + g] = sb;
+    }
+    if (stage_k_q != nullptr) {
+        (is_v ? stage_v_q : stage_k_q)[row_id * 256 + d] = (int8_t) q;
+        if (threadIdx.x == 0) (is_v ? stage_v_scale : stage_k_scale)[row_id * 4 + g] = sb;
+    }
 }

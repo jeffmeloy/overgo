@@ -68,7 +68,36 @@ type QSAState struct {
 	// positions, the cell's index three times for text, which the pooling rotates a block's key by.
 	Positions        *Tensor // I32 (3, capacity)
 	RopeCos, RopeSin *Tensor // F32 (32, capacity): the angles of positions 0 .. capacity - 1
+	// Stream is a streamed state's residency, nil for a state whose cells are all on the card: its K/V codes and scales
+	// are then its VRAM slots, the page table its residency map.
+	Stream *QSAStream
 }
+
+// QSAStream is a streamed state's cells past its VRAM slots (Strata's kv_stream.hpp, kv_plan's mode 1): the host
+// copy at the identity layout in pinned, device-mapped memory, which holds every cell; the residency map's per-slot
+// arrays and its control ints; and the prompt read's staging pool with its identity table, into which a chunk stages
+// the cells before it, one layer at a time. The state's KeyCodes, ValueCodes, KeyScales and ValueScales hold Slots
+// pages, and its PageTable names a block's slot, or -1 for a block not on the card.
+type QSAStream struct {
+	Slots                          uint32
+	HostKeyCodes, HostValueCodes   *Tensor // I8 (256, 2 x capacity)
+	HostKeyScales, HostValueScales *Tensor // F16 (4, 2 x capacity)
+	// Map is slot_block, slot_stamp, slot_ref, miss_block and miss_slot, Slots ints each, then 16 control ints.
+	Map                              *Tensor // I32 (5 x Slots + 16)
+	StageKeyCodes, StageValueCodes   *Tensor // I8 (256, 2 x capacity)
+	StageKeyScales, StageValueScales *Tensor // F16 (4, 2 x capacity)
+	StageTable                       *Tensor // I32 (capacity / 4): the identity
+}
+
+// The stream map's layout and the resolve's floor.
+const (
+	// QSAStreamSlotArrays is the map's per-slot arrays: slot_block, slot_stamp, slot_ref, miss_block, miss_slot.
+	QSAStreamSlotArrays = 5
+	// QSAStreamControlInts is the map's control ints after them (kKvCtlInts).
+	QSAStreamControlInts = 16
+	// qsaStreamMinimumSlots is the resolve's threads: its clock sweep would take a slot twice with fewer slots.
+	qsaStreamMinimumSlots = 1024
+)
 
 // QSAAttentionAttributes are a QSA step's tokens: the cells they occupy (consecutive, from the state's first cell),
 // the state's capacity and the indexer key norm's epsilon. Each token's step record - its cell, the cells then held,
@@ -120,9 +149,15 @@ func (a QSAAttentionAttributes) steps() []uint32 {
 	return words
 }
 
-// QSAAttentionInputs is the operation's input count: the six step inputs, the fixed state's two and the state's
-// ten tensors, in QSAAttention's order.
-const QSAAttentionInputs = 18
+// QSAAttentionInputs is the operation's input count over a state on the card: the six step inputs, the fixed state's
+// two and the state's ten tensors, in QSAAttention's order; a streamed state adds QSAStreamInputs: its host copy's
+// four, its map and its staging pool's five.
+const (
+	// QSAAttentionInputs is the inputs over a state on the card.
+	QSAAttentionInputs = 18
+	// QSAStreamInputs is the inputs a streamed state adds.
+	QSAStreamInputs = 10
+)
 
 // QSAAttentionOutputValues is the packed output's values for tokens tokens: the attention, then the tail's rows and
 // the spare after the step.
@@ -151,11 +186,17 @@ func (b *Builder) QSAAttention(
 		return nil
 	}
 	attributes.Cells = slices.Clone(attributes.Cells)
-	return b.add("", dtype.F32, shape, OpQSAAttention, []*Tensor{
+	inputs := []*Tensor{
 		query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare,
 		state.KeyCodes, state.ValueCodes, state.KeyScales, state.ValueScales, state.PageTable,
 		state.IndexerPooled, state.BlockPosition, state.Positions, state.RopeCos, state.RopeSin,
-	}, attributes)
+	}
+	if stream := state.Stream; stream != nil {
+		inputs = append(inputs, stream.HostKeyCodes, stream.HostValueCodes, stream.HostKeyScales, stream.HostValueScales,
+			stream.Map, stream.StageKeyCodes, stream.StageValueCodes, stream.StageKeyScales, stream.StageValueScales,
+			stream.StageTable)
+	}
+	return b.add("", dtype.F32, shape, OpQSAAttention, inputs, attributes)
 }
 
 // QSAAttentionParts are a QSA step's packed output's parts: the attention (256, 24, tokens), the tail (128, 3) and
@@ -186,6 +227,14 @@ func validateQSAAttention(
 		return errors.New("QSA attention cells or epsilon are outside the state")
 	}
 	pages := capacity / QSABlockCells
+	// The pools hold every page of a state on the card, its slots of a streamed one.
+	pooled := capacity
+	if stream := state.Stream; stream != nil {
+		if stream.Slots < qsaStreamMinimumSlots || uint64(stream.Slots) >= pages {
+			return errors.New("QSA attention streams a state of more pages than its slots, which number at least the resolve's threads")
+		}
+		pooled = uint64(stream.Slots) * QSABlockCells
+	}
 	want := []struct {
 		tensor *Tensor
 		kind   dtype.Type
@@ -199,16 +248,32 @@ func validateQSAAttention(
 		{indexerNorm, dtype.F32, MustShape(QSAIndexerWidth)},
 		{tail, dtype.F32, MustShape(QSAIndexerWidth, QSATailRows)},
 		{spare, dtype.F32, MustShape(QSAIndexerWidth)},
-		{state.KeyCodes, dtype.I8, MustShape(QSAHeadWidth, QSAKeyValueHeads*capacity)},
-		{state.ValueCodes, dtype.I8, MustShape(QSAHeadWidth, QSAKeyValueHeads*capacity)},
-		{state.KeyScales, dtype.F16, MustShape(QSAHeadWidth/QSAScaleGroup, QSAKeyValueHeads*capacity)},
-		{state.ValueScales, dtype.F16, MustShape(QSAHeadWidth/QSAScaleGroup, QSAKeyValueHeads*capacity)},
+		{state.KeyCodes, dtype.I8, MustShape(QSAHeadWidth, QSAKeyValueHeads*pooled)},
+		{state.ValueCodes, dtype.I8, MustShape(QSAHeadWidth, QSAKeyValueHeads*pooled)},
+		{state.KeyScales, dtype.F16, MustShape(QSAHeadWidth/QSAScaleGroup, QSAKeyValueHeads*pooled)},
+		{state.ValueScales, dtype.F16, MustShape(QSAHeadWidth/QSAScaleGroup, QSAKeyValueHeads*pooled)},
 		{state.PageTable, dtype.I32, MustShape(pages)},
 		{state.IndexerPooled, dtype.F32, MustShape(QSAIndexerWidth, pages+QSAPooledSpare)},
 		{state.BlockPosition, dtype.I32, MustShape(SingletonExtent)},
 		{state.Positions, dtype.I32, MustShape(QSAPositionAxes, capacity)},
 		{state.RopeCos, dtype.F32, MustShape(QSARotated/PairedExtent, capacity)},
 		{state.RopeSin, dtype.F32, MustShape(QSARotated/PairedExtent, capacity)},
+	}
+	if stream := state.Stream; stream != nil {
+		codes := MustShape(QSAHeadWidth, QSAKeyValueHeads*capacity)
+		scales := MustShape(QSAHeadWidth/QSAScaleGroup, QSAKeyValueHeads*capacity)
+		want = append(want, []struct {
+			tensor *Tensor
+			kind   dtype.Type
+			shape  Shape
+		}{
+			{stream.HostKeyCodes, dtype.I8, codes}, {stream.HostValueCodes, dtype.I8, codes},
+			{stream.HostKeyScales, dtype.F16, scales}, {stream.HostValueScales, dtype.F16, scales},
+			{stream.Map, dtype.I32, MustShape(QSAStreamSlotArrays*uint64(stream.Slots) + QSAStreamControlInts)},
+			{stream.StageKeyCodes, dtype.I8, codes}, {stream.StageValueCodes, dtype.I8, codes},
+			{stream.StageKeyScales, dtype.F16, scales}, {stream.StageValueScales, dtype.F16, scales},
+			{stream.StageTable, dtype.I32, MustShape(pages)},
+		}...)
 	}
 	for _, input := range want {
 		if input.tensor == nil || input.tensor.Type != input.kind || !input.tensor.Shape.Equal(input.shape) {

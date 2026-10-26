@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -80,188 +79,7 @@ func qsaCapacity(tokens uint32) uint32 {
 	return (tokens + tensor.QSABlockCells - 1) / tensor.QSABlockCells * tensor.QSABlockCells
 }
 
-// qsaCells is one sequence's QSA cells at a capacity, in one device buffer.
-type qsaCells struct {
-	buffer    *executor.DeviceBuffer
-	capacity  uint32
-	layers    []qsaLayerCells
-	pageTable executor.DeviceValue
-	positions executor.DeviceValue
-	// mirror is the image position table as the device holds it: a cell's temporal, height and width positions.
-	mirror []int32
-}
-
-// qsaLayerCells is one QSA layer's cells; zero for a layer that is not one.
-type qsaLayerCells struct {
-	keyCodes, valueCodes, keyScales, valueScales, pooled, blockPosition executor.DeviceValue
-}
-
-// qsaRegionAlignment keeps each region of the cells at a boundary the kernels' vector loads accept.
-const qsaRegionAlignment = uint64(256)
-
-// qsaPoolHalves is a layer's pools of each kind: its keys' and its values'.
-const qsaPoolHalves = 2
-
-// qsaCodePageBytes and qsaScalePageBytes are a 4-cell page's codes and scales over the K/V heads.
-const (
-	qsaCodePageBytes  = tensor.QSAKeyValueHeads * tensor.QSABlockCells * tensor.QSAHeadWidth
-	qsaScalePageBytes = tensor.QSAKeyValueHeads * tensor.QSABlockCells * tensor.QSAHeadWidth / tensor.QSAScaleGroup * f16Bytes
-	qsaPooledRowBytes = tensor.QSAIndexerWidth * f32Bytes
-	qsaPositionBytes  = tensor.QSAPositionAxes * i32Bytes
-	f16Bytes          = 2
-	f32Bytes          = 4
-	i32Bytes          = 4
-)
-
-// qsaCellLayout is the cells' regions at a capacity: a QSA layer's codes, scales, pooled rows and block position, then
-// the page table and the image position table, each aligned; and their total.
-type qsaCellLayout struct {
-	codes, scales, pooled, blockPosition, layer uint64
-	pageTable, positions, total                 uint64
-}
-
-func newQSACellLayout(capacity uint32, layers int) qsaCellLayout {
-	align := func(bytes uint64) uint64 {
-		return (bytes + qsaRegionAlignment - 1) / qsaRegionAlignment * qsaRegionAlignment
-	}
-	pages := uint64(capacity) / tensor.QSABlockCells
-	layout := qsaCellLayout{
-		codes: align(pages * qsaCodePageBytes), scales: align(pages * qsaScalePageBytes),
-		pooled: align((pages + tensor.QSAPooledSpare) * qsaPooledRowBytes), blockPosition: qsaRegionAlignment,
-	}
-	layout.layer = qsaPoolHalves*layout.codes + qsaPoolHalves*layout.scales + layout.pooled + layout.blockPosition
-	layout.pageTable = align(pages * i32Bytes)
-	layout.positions = align(uint64(capacity) * qsaPositionBytes)
-	layout.total = uint64(layers)*layout.layer + layout.pageTable + layout.positions
-	return layout
-}
-
-// qsaCellBytes is the device bytes a sequence's QSA cells take at a capacity.
-func (r *Runner) qsaCellBytes(capacity uint32) uint64 {
-	count := 0
-	for _, holds := range r.qsaLayers {
-		if holds {
-			count++
-		}
-	}
-	return newQSACellLayout(capacity, count).total
-}
-
-// newQSACells allocates a sequence's cells at a capacity and writes its page table and image position table, both the
-// identity, as qsa_state_init and generate.cpp's vision setup do.
-func (r *Runner) newQSACells(ctx context.Context, capacity uint32) (*qsaCells, error) {
-	if capacity == 0 || capacity%tensor.QSABlockCells != 0 || uint64(capacity) > uint64(math.MaxInt32) {
-		return nil, fmt.Errorf("inference: QSA capacity %d is not whole pages", capacity)
-	}
-	count := 0
-	for _, holds := range r.qsaLayers {
-		if holds {
-			count++
-		}
-	}
-	layout := newQSACellLayout(capacity, count)
-	buffer, err := r.cuda.AllocateDeviceBuffer(ctx, layout.total)
-	if err != nil {
-		return nil, err
-	}
-	whole, err := buffer.Value(tensor.MustShape(layout.total / f32Bytes))
-	if err != nil {
-		return nil, errors.Join(err, buffer.Release(context.WithoutCancel(ctx)))
-	}
-	capacityCells := uint64(capacity)
-	pages := capacityCells / tensor.QSABlockCells
-	region := func(offset, bytes uint64, shape tensor.Shape) executor.DeviceValue {
-		return executor.DeviceValue{Pointer: whole.Pointer + driver.DevicePtr(offset), Shape: shape, CapacityBytes: bytes}
-	}
-	cells := &qsaCells{buffer: buffer, capacity: capacity, layers: make([]qsaLayerCells, len(r.qsaLayers))}
-	offset := uint64(0)
-	for layer, holds := range r.qsaLayers {
-		if !holds {
-			continue
-		}
-		codes := tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAKeyValueHeads*capacityCells)
-		scales := tensor.MustShape(tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*capacityCells)
-		cells.layers[layer] = qsaLayerCells{
-			keyCodes:      region(offset, layout.codes, codes),
-			valueCodes:    region(offset+layout.codes, layout.codes, codes),
-			keyScales:     region(offset+qsaPoolHalves*layout.codes, layout.scales, scales),
-			valueScales:   region(offset+qsaPoolHalves*layout.codes+layout.scales, layout.scales, scales),
-			pooled:        region(offset+qsaPoolHalves*layout.codes+qsaPoolHalves*layout.scales, layout.pooled, tensor.MustShape(tensor.QSAIndexerWidth, pages+tensor.QSAPooledSpare)),
-			blockPosition: region(offset+qsaPoolHalves*layout.codes+qsaPoolHalves*layout.scales+layout.pooled, layout.blockPosition, tensor.MustShape(tensor.SingletonExtent)),
-		}
-		offset += layout.layer
-	}
-	cells.pageTable = region(offset, layout.pageTable, tensor.MustShape(pages))
-	cells.positions = region(offset+layout.pageTable, layout.positions, tensor.MustShape(tensor.QSAPositionAxes, capacityCells))
-	table := make([]byte, pages*i32Bytes)
-	for page := range pages {
-		binary.LittleEndian.PutUint32(table[page*i32Bytes:], uint32(page))
-	}
-	cells.mirror = make([]int32, tensor.QSAPositionAxes*capacityCells)
-	for cell := range capacityCells {
-		for axis := range uint64(tensor.QSAPositionAxes) {
-			cells.mirror[cell*tensor.QSAPositionAxes+axis] = int32(cell)
-		}
-	}
-	err = r.cuda.WriteDeviceBytes(ctx, []executor.DeviceBytes{
-		{Pointer: cells.pageTable.Pointer, Data: table},
-		{Pointer: cells.positions.Pointer, Data: int32Bytes(cells.mirror)},
-	})
-	if err != nil {
-		return nil, errors.Join(err, cells.release(context.WithoutCancel(ctx)))
-	}
-	return cells, nil
-}
-
-// forkQSACells allocates cells at a capacity holding the source's first count cells: each layer's pages and pooled
-// rows of them, its block position and the image position table's rows, as a fork or a growth keeps a prefix.
-func (r *Runner) forkQSACells(ctx context.Context, source *qsaCells, count, capacity uint32) (*qsaCells, error) {
-	if source == nil || count > source.capacity || count > capacity {
-		return nil, errors.New("inference: QSA cells fork exceeds its source")
-	}
-	cells, err := r.newQSACells(ctx, capacity)
-	if err != nil || count == 0 {
-		return cells, err
-	}
-	pages := uint64(count+tensor.QSABlockCells-1) / tensor.QSABlockCells
-	pooled := min(uint64(count)/tensor.QSABlockCells+tensor.QSAPooledSpare, uint64(source.capacity)/tensor.QSABlockCells+tensor.QSAPooledSpare)
-	var copies []executor.DeviceRangeCopy
-	add := func(target, origin executor.DeviceValue, bytes uint64) {
-		copies = append(copies, executor.DeviceRangeCopy{Target: target.Pointer, Source: origin.Pointer, Bytes: bytes})
-	}
-	for layer, holds := range r.qsaLayers {
-		if !holds {
-			continue
-		}
-		to, from := cells.layers[layer], source.layers[layer]
-		add(to.keyCodes, from.keyCodes, pages*qsaCodePageBytes)
-		add(to.valueCodes, from.valueCodes, pages*qsaCodePageBytes)
-		add(to.keyScales, from.keyScales, pages*qsaScalePageBytes)
-		add(to.valueScales, from.valueScales, pages*qsaScalePageBytes)
-		add(to.pooled, from.pooled, pooled*qsaPooledRowBytes)
-		add(to.blockPosition, from.blockPosition, i32Bytes)
-	}
-	rows := min(source.capacity, capacity)
-	add(cells.positions, source.positions, uint64(rows)*qsaPositionBytes)
-	copy(cells.mirror, source.mirror[:uint64(rows)*tensor.QSAPositionAxes])
-	if err := r.cuda.CopyDeviceRanges(ctx, copies); err != nil {
-		return nil, errors.Join(err, cells.release(context.WithoutCancel(ctx)))
-	}
-	return cells, nil
-}
-
-func (c *qsaCells) release(ctx context.Context) error {
-	if c == nil || c.buffer == nil {
-		return nil
-	}
-	err := c.buffer.Release(ctx)
-	if err == nil {
-		c.buffer = nil
-	}
-	return err
-}
-
-// syncPositions writes the image position table's rows for the cells a step appends from first, a row its tokens'
+// syncQSAPositions writes the image position table's rows for the cells a step appends from first, a row its tokens'
 // temporal, height and width positions, where they differ from the table's, and the rows after them as the text that
 // follows continues from after, as generate.cpp lays out a picture request's cells: nothing for text whose positions
 // are its cells.
@@ -381,14 +199,21 @@ func (r *Runner) prepareQSACells(
 			return err
 		}
 	}
-	if storage.qsa.capacity != capacity {
+	if storage.qsa.capacity != capacity || storage.qsa.slots != r.qsaSlots(capacity) {
 		return errors.New("inference: a QSA step's cells differ from its capacity")
 	}
 	rope, err := r.qsaRopeTable(ctx)
 	if err != nil {
 		return err
 	}
-	if err := bindQSAInputs(compiled, inputs, graph.qsaInputs, storage.qsa, rope); err != nil {
+	// A streamed step stages a chunk's earlier cells into the runner's staging pool.
+	var stage *qsaStage
+	if storage.qsa.slots > 0 {
+		if stage, err = r.qsaStagePool(ctx, capacity); err != nil {
+			return err
+		}
+	}
+	if err := bindQSAInputs(compiled, inputs, graph.qsaInputs, storage.qsa, rope, stage); err != nil {
 		return err
 	}
 	rows := graph.qsaPositions
@@ -408,17 +233,22 @@ func (r *Runner) prepareQSACells(
 
 // qsaStateInputs builds a QSA layer's cells as the step's inputs, in tensor.QSAState's order, which the step binds to
 // the sequence's cells once its storage is chosen (bindQSAInputs).
-func qsaStateInputs(builder *tensor.Builder, name func(string) string, capacity uint32) (tensor.QSAState, []*tensor.Tensor) {
+func qsaStateInputs(builder *tensor.Builder, name func(string) string, capacity, slots uint32) (tensor.QSAState, []*tensor.Tensor) {
 	cells := uint64(capacity)
 	pages := cells / tensor.QSABlockCells
+	// A streamed state's pools hold its slots.
+	pooled := cells
+	if slots > 0 {
+		pooled = uint64(slots) * tensor.QSABlockCells
+	}
 	input := func(suffix string, kind dtype.Type, dimensions ...uint64) *tensor.Tensor {
 		return builder.Input(name(suffix), kind, tensor.MustShape(dimensions...))
 	}
 	state := tensor.QSAState{
-		KeyCodes:      input("qsa_key_codes", dtype.I8, tensor.QSAHeadWidth, tensor.QSAKeyValueHeads*cells),
-		ValueCodes:    input("qsa_value_codes", dtype.I8, tensor.QSAHeadWidth, tensor.QSAKeyValueHeads*cells),
-		KeyScales:     input("qsa_key_scales", dtype.F16, tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*cells),
-		ValueScales:   input("qsa_value_scales", dtype.F16, tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*cells),
+		KeyCodes:      input("qsa_key_codes", dtype.I8, tensor.QSAHeadWidth, tensor.QSAKeyValueHeads*pooled),
+		ValueCodes:    input("qsa_value_codes", dtype.I8, tensor.QSAHeadWidth, tensor.QSAKeyValueHeads*pooled),
+		KeyScales:     input("qsa_key_scales", dtype.F16, tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*pooled),
+		ValueScales:   input("qsa_value_scales", dtype.F16, tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*pooled),
 		PageTable:     input("qsa_page_table", dtype.I32, pages),
 		IndexerPooled: input("qsa_indexer_pooled", dtype.F32, tensor.QSAIndexerWidth, pages+tensor.QSAPooledSpare),
 		BlockPosition: input("qsa_block_position", dtype.I32, tensor.SingletonExtent),
@@ -426,14 +256,37 @@ func qsaStateInputs(builder *tensor.Builder, name func(string) string, capacity 
 		RopeCos:       input("qsa_rope_cos", dtype.F32, tensor.QSARotated/tensor.PairedExtent, cells),
 		RopeSin:       input("qsa_rope_sin", dtype.F32, tensor.QSARotated/tensor.PairedExtent, cells),
 	}
-	return state, []*tensor.Tensor{
+	nodes := []*tensor.Tensor{
 		state.KeyCodes, state.ValueCodes, state.KeyScales, state.ValueScales, state.PageTable,
 		state.IndexerPooled, state.BlockPosition, state.Positions, state.RopeCos, state.RopeSin,
 	}
+	if slots == 0 {
+		return state, nodes
+	}
+	codes := []uint64{tensor.QSAHeadWidth, tensor.QSAKeyValueHeads * cells}
+	scales := []uint64{tensor.QSAHeadWidth / tensor.QSAScaleGroup, tensor.QSAKeyValueHeads * cells}
+	stream := &tensor.QSAStream{
+		Slots:            slots,
+		HostKeyCodes:     input("qsa_host_key_codes", dtype.I8, codes...),
+		HostValueCodes:   input("qsa_host_value_codes", dtype.I8, codes...),
+		HostKeyScales:    input("qsa_host_key_scales", dtype.F16, scales...),
+		HostValueScales:  input("qsa_host_value_scales", dtype.F16, scales...),
+		Map:              input("qsa_stream_map", dtype.I32, tensor.QSAStreamSlotArrays*uint64(slots)+tensor.QSAStreamControlInts),
+		StageKeyCodes:    input("qsa_stage_key_codes", dtype.I8, codes...),
+		StageValueCodes:  input("qsa_stage_value_codes", dtype.I8, codes...),
+		StageKeyScales:   input("qsa_stage_key_scales", dtype.F16, scales...),
+		StageValueScales: input("qsa_stage_value_scales", dtype.F16, scales...),
+		StageTable:       input("qsa_stage_table", dtype.I32, pages),
+	}
+	state.Stream = stream
+	return state, append(nodes, stream.HostKeyCodes, stream.HostValueCodes, stream.HostKeyScales, stream.HostValueScales,
+		stream.Map, stream.StageKeyCodes, stream.StageValueCodes, stream.StageKeyScales, stream.StageValueScales, stream.StageTable)
 }
 
 // bindQSAInputs points a step's QSA layers' inputs at the sequence's cells and the runner's rotation table.
-func bindQSAInputs(compiled *executor.CompiledGraph, inputs *executor.DeviceInputs, nodes [][]*tensor.Tensor, cells *qsaCells, rope *qsaRope) error {
+func bindQSAInputs(
+	compiled *executor.CompiledGraph, inputs *executor.DeviceInputs, nodes [][]*tensor.Tensor, cells *qsaCells, rope *qsaRope, stage *qsaStage,
+) error {
 	for layer, layerNodes := range nodes {
 		if len(layerNodes) == 0 {
 			continue
@@ -442,9 +295,26 @@ func bindQSAInputs(compiled *executor.CompiledGraph, inputs *executor.DeviceInpu
 			return errors.New("inference: QSA step has no cells to bind")
 		}
 		held := cells.layers[layer]
+		table := cells.pageTable.Pointer
+		if cells.slots > 0 {
+			table = held.pageTable.Pointer
+		}
 		pointers := []driver.DevicePtr{
 			held.keyCodes.Pointer, held.valueCodes.Pointer, held.keyScales.Pointer, held.valueScales.Pointer,
-			cells.pageTable.Pointer, held.pooled.Pointer, held.blockPosition.Pointer, cells.positions.Pointer, rope.cos, rope.sin,
+			table, held.pooled.Pointer, held.blockPosition.Pointer, cells.positions.Pointer, rope.cos, rope.sin,
+		}
+		if cells.slots > 0 {
+			if stage == nil || stage.capacity < cells.capacity {
+				return errors.New("inference: a streamed QSA step has no staging pool to bind")
+			}
+			for _, region := range held.host {
+				pointers = append(pointers, region.Pointer)
+			}
+			pointers = append(pointers, held.streamMap.Pointer)
+			for _, pool := range stage.pools {
+				pointers = append(pointers, pool.Pointer)
+			}
+			pointers = append(pointers, stage.table.Pointer)
 		}
 		if len(layerNodes) != len(pointers) {
 			return errors.New("inference: QSA step inputs differ from the cells")

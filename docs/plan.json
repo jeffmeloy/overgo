@@ -212,6 +212,19 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "cells-heldout",
+      "title": "Hold gemma-4's int8 attention cells to its held-out quality: BBH and IFEval with the cells against the F32 cache, the cells kept only where they hold",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold gemma-4's int8 attention cells to its held-out quality: BBH and IFEval with the cells against the F32 cache, the cells kept only where they hold",
+          "status": "open",
+          "verify": "go test -tags modeltest ./internal/evaluation -run '^TestAttentionCellsHoldHeldOut$' -count=1 -timeout 120m"
+        }
+      ]
+    },
+    {
       "id": "flashnext-tensor-cores",
       "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
       "status": "open",
@@ -379,7 +392,8 @@
             "readme-scorecard/do",
             "readme-models/do",
             "readme-models/do",
-            "run-rows-20261025/do"
+            "run-rows-20261025/do",
+            "cells-heldout/do"
           ]
         }
       ]

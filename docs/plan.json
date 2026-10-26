@@ -702,21 +702,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-7d8cc7a9001cffd0",
-      "title": "Restore Qwen3.8-27B inference held-out-quality to 0.781818182 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference held-out-quality to 0.781818182 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-7d8cc7a9001cffd0 -target 0.7818181818181819",
-          "rationale": "- Qwen3.8-27B held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.781818182 to 0.763636364 (-0.0181818182, -2.3%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-eeab4788f8674aab",
       "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
       "owner": "master-lead",

@@ -36,7 +36,7 @@ type Executor struct {
 
 type executorResources struct {
 	experts   ExpertBanks
-	module    driver.Module
+	modules   [kernelModuleCount]driver.Module
 	functions functionSet
 	blas      *blasState
 	q8Input   q8InputState
@@ -2710,24 +2710,27 @@ func (e *Executor) ensureResources(
 	attentionScoreBytes uint64,
 	matmulStagingBytes uint64,
 ) (*executorResources, error) {
-	if e.resources.module == 0 {
+	if e.resources.modules[0] == 0 {
 		if err := kernel.ValidateAssets(); err != nil {
 			return nil, err
 		}
-		module, err := state.Driver.ModuleLoadData(kernel.OpsF32PTX)
+		// The modules in kernelModuleCount's order: the operation module, then Strata's QSA kernels.
+		var modules [kernelModuleCount]driver.Module
+		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.StrataQsaPTX} {
+			module, err := state.Driver.ModuleLoadData(ptx)
+			if err != nil {
+				return nil, errors.Join(err, unloadModules(state.Driver, modules[:index]))
+			}
+			modules[index] = module
+		}
+		functions, err := loadFunctions(state.Driver, modules)
+		if err == nil {
+			err = configureLargeSharedKernels(state.Driver, functions)
+		}
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, unloadModules(state.Driver, modules[:]))
 		}
-		functions, err := loadFunctions(state.Driver, module)
-		if err != nil {
-			_ = state.Driver.ModuleUnload(module)
-			return nil, err
-		}
-		if err := configureLargeSharedKernels(state.Driver, functions); err != nil {
-			_ = state.Driver.ModuleUnload(module)
-			return nil, err
-		}
-		e.resources.module = module
+		e.resources.modules = modules
 		e.resources.functions = functions
 	}
 	if needBlas && e.resources.blas == nil {
@@ -3047,11 +3050,9 @@ func (e *Executor) closeResources(state *device.State) error {
 		errs = append(errs, state.Driver.MemFree(e.resources.q8Input.staging))
 		e.resources.q8Input = q8InputState{}
 	}
-	if e.resources.module != 0 {
-		if err := state.Driver.ModuleUnload(e.resources.module); err != nil {
-			errs = append(errs, err)
-		}
-		e.resources.module = 0
+	if e.resources.modules[0] != 0 {
+		errs = append(errs, unloadModules(state.Driver, e.resources.modules[:]))
+		e.resources.modules = [kernelModuleCount]driver.Module{}
 		e.resources.functions = functionSet{}
 	}
 	return errors.Join(errs...)

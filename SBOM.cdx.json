@@ -39,6 +39,17 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:internal/cuda/kernel/strata_qsa.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f9290f24441f5328e38e06717ed77985c3f428544651d2ab9ec698ea93c82bcf"
+        }
+      ],
+      "name": "internal/cuda/kernel/strata_qsa.ptx",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:internal/cuda/kernel/torch_cuda_randn.ptx",
       "hashes": [
         {
@@ -108,6 +119,17 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:kernels/cuda/strata_qsa.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "71797f006f90edb6b2a3dfb03f2d613def503d6778f0b4576c1bc9ccda613a38"
+        }
+      ],
+      "name": "kernels/cuda/strata_qsa.cu",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:kernels/cuda/torch_cuda_randn.cu",
       "hashes": [
         {
@@ -134,7 +156,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7102c7ed80c250b594df55ec66989b53072ddc6357dc205e62773bfa1f8a90e1"
+          "content": "2b909728d2872adca6d189d611b4102d27eccb7d5995208af3e32ba401bafbf7"
         }
       ],
       "name": "kernels/manifest.json",
@@ -273,11 +295,13 @@
         "component:nvidia-cuda-driver-api",
         "component:nvidia-cuda-toolkit",
         "file:internal/cuda/kernel/ops_f32.ptx",
+        "file:internal/cuda/kernel/strata_qsa.ptx",
         "file:internal/cuda/kernel/torch_cuda_randn.ptx",
         "file:internal/cuda/kernel/vector_add.ptx",
         "file:internal/quant/iq_tables_generated.go",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/strata_qsa.cu",
         "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",

@@ -285,17 +285,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 41,
-        "reason": "kv-kernels adds the Q8_0 cell launches (the quantizing appends, the selected-slot gather, the page dequantization, their staging layouts and the reference's rounding) beside the F32 kernels, which stay for the caches the kv step has not moved; its landing measured the growth, and the kv step raises the count by what it measures when it adopts the cells."
+        "nodes": 12,
+        "reason": "qsa-kernels adds the executor's second kernel module (the bindings across modules, its loading and unloading, the tensor-core scorer's shared-memory opt-in, the manifest's pin) beside Strata's QSA kernels, whose launches stand beside their tests until qsa-layer calls them; its landing measured the growth, and qsa-layer raises the count by what it measures when it adopts the layer."
       },
       "steps": [
-        {
-          "id": "qsa-kernels",
-          "title": "Port Strata's QSA kernels with their parity programs as tests",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestQSAKernelsMatchStrata$' -count=1",
-          "rationale": "Serves: qsa-layer's first half, landing alone: Strata's QSA kernels ported literally with their own parity programs as our tests, before any served path reads them, so the layer's adoption lands on kernels already held to Strata's specification.\nPort: from C:/Users/jeffm/Strata at 296b59d2, MIT (licenses/Strata-MIT.txt, attribution on each ported file): the step state (qsa.hpp's device-resident pos, n_kv, n_bid and width, written once a token, so every launch's arguments stay fixed under capture); the int8 cells (kv_q8.cu: kv_append_q8_kernel, single and multi-token, and kv_gather_q8_kernel; 64-value groups behind an f16 scale, codes taken against the stored scale, `[page][kv_head][page_size][head_dim]` behind a page table); the indexer's key append and pooling (native_qsa_indexer.cu, native_qsa.cu, adapted by Strata from llama.cpp under MIT); the block selection (qsa_select.cu: block scores, their tensor-core and multi-query forms, block top-k with its register and wide variants); the decode attention over the selected ids reading the pools in place (qsa_decode_attn.cu: attn_chunk_kernel, attn_merge_kernel, step and batch); the prompt attention over the cells (qsa_prompt_attn.cu). The __global__ kernels move into kernels/cuda as one module with extern \"C\" instantiations of Strata's templates, and Strata's host launch functions become Go launches in internal/cuda/executor with the same grids, blocks and shared memory. Strata's constants arrive as Strata's (the 64-value group, the 4-cell page, the 2,048-cell budget's geometry from the model), each named in its comment as provisional for the load-costs step.\nEvidence: TestQSAKernelsMatchStrata, Strata's parity programs ported (src/kernels/kv_q8_parity.cpp, qsa_parity.cpp with qsa_oracle_vectors.inc, qsa_topk_parity.cpp, qsa_prompt_attn_parity.cpp): their CPU references, their rival readings required to differ before the kernel is judged, and their tolerances with the reasons they state.\nDisappears: nothing yet; qsa-layer adopts the kernels on Flash-Next's path and deletes what they replace.\nBatch: the cuda/executor device lane."
-        },
         {
           "id": "qsa-layer",
           "title": "Port Strata's QSA attention layer for Flash-Next over its own int8 K/V state",

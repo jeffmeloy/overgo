@@ -9,6 +9,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -152,11 +153,13 @@ func generateBindings(document []byte) ([]byte, error) {
 		return nil, errors.New("CUDA kernel manifest contains no modules")
 	}
 	var functions []string
+	functionModules := make(map[string]int)
 	argumentCounts := make(map[string]int)
 	seenNames := make(map[string]struct{})
 	seenIDs := make(map[string]string)
 	for _, module := range manifest.Modules {
-		if !strings.HasSuffix(filepath.ToSlash(module.Asset), "/ops_f32.ptx") {
+		moduleIndex := slices.Index(executorModules, filepath.Base(filepath.ToSlash(module.Asset)))
+		if moduleIndex < 0 {
 			continue
 		}
 		for _, name := range module.Functions {
@@ -176,6 +179,7 @@ func generateBindings(document []byte) ([]byte, error) {
 			seenNames[name] = struct{}{}
 			seenIDs[identifier] = name
 			functions = append(functions, name)
+			functionModules[name] = moduleIndex
 		}
 		for _, layout := range module.ArgumentLayouts {
 			for _, name := range layout.Functions {
@@ -227,6 +231,16 @@ func generateBindings(document []byte) ([]byte, error) {
 	}
 	fmt.Fprintln(&output, "}")
 	fmt.Fprintln(&output)
+	fmt.Fprintln(&output, "// kernelModuleCount is the executor's kernel modules, each function's module its index in that order:")
+	fmt.Fprintf(&output, "// %s.\n", strings.Join(executorModules, ", "))
+	fmt.Fprintf(&output, "const kernelModuleCount = %d\n", len(executorModules))
+	fmt.Fprintln(&output)
+	fmt.Fprintln(&output, "var kernelFunctionModules = [...]uint8{")
+	for _, name := range functions {
+		fmt.Fprintf(&output, "\t%d,\n", functionModules[name])
+	}
+	fmt.Fprintln(&output, "}")
+	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "type boundKernel struct {")
 	fmt.Fprintln(&output, "\tfunction driver.Function")
 	fmt.Fprintln(&output, "\tid kernelFunctionID")
@@ -235,10 +249,10 @@ func generateBindings(document []byte) ([]byte, error) {
 	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "type functionSet [kernelFunctionCount]boundKernel")
 	fmt.Fprintln(&output)
-	fmt.Fprintln(&output, "func loadFunctions(lib *driver.Library, module driver.Module) (functionSet, error) {")
+	fmt.Fprintln(&output, "func loadFunctions(lib *driver.Library, modules [kernelModuleCount]driver.Module) (functionSet, error) {")
 	fmt.Fprintln(&output, "\tvar result functionSet")
 	fmt.Fprintln(&output, "\tfor id, name := range kernelFunctionNames {")
-	fmt.Fprintln(&output, "\t\tfunction, err := lib.ModuleFunction(module, name)")
+	fmt.Fprintln(&output, "\t\tfunction, err := lib.ModuleFunction(modules[kernelFunctionModules[id]], name)")
 	fmt.Fprintln(&output, "\t\tif err != nil {")
 	fmt.Fprintln(&output, "\t\t\treturn functionSet{}, err")
 	fmt.Fprintln(&output, "\t\t}")
@@ -253,10 +267,14 @@ func generateBindings(document []byte) ([]byte, error) {
 	return format.Source(output.Bytes())
 }
 
+// executorModules are the PTX modules whose functions the executor binds, in the order it loads them: the operation
+// module, then Strata's QSA kernels, compiled apart without fast math.
+var executorModules = []string{"ops_f32.ptx", "strata_qsa.ptx"}
+
 func kernelIdentifier(name string) string {
 	var result strings.Builder
 	result.WriteString("kernel")
-	for _, part := range strings.Split(name, "_") {
+	for part := range strings.SplitSeq(name, "_") {
 		if part == "" {
 			continue
 		}

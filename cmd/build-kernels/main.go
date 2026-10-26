@@ -21,7 +21,9 @@ type kernel struct {
 	// noFastMath omits -use_fast_math for this module. torch_cuda_randn draws
 	// normals through logf/sqrtf/sincospif; the fast-math intrinsics change
 	// those last bits and break byte-parity with PyTorch's standard-precision
-	// curand. Bit-exact RNG is an ABI requirement, not a knob.
+	// curand. Bit-exact RNG is an ABI requirement, not a knob. strata_qsa is
+	// compiled as Strata compiles its QSA files, without fast math, since its
+	// parity checks are bitwise.
 	noFastMath bool
 }
 
@@ -29,6 +31,7 @@ var kernels = []kernel{
 	{source: "kernels/cuda/vector_add.cu", output: "internal/cuda/kernel/vector_add.ptx"},
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
 	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
+	{source: "kernels/cuda/strata_qsa.cu", output: "internal/cuda/kernel/strata_qsa.ptx", noFastMath: true},
 }
 
 func main() {

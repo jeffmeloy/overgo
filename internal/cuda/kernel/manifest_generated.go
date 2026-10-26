@@ -10,10 +10,12 @@ const (
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
 	OpsF32SHA256         = "03a68ec0980364d8b48cd826ffb46a6af6dc63747ab665a33e780e9ab99b932b"
+	StrataQsaSHA256      = "f9290f24441f5328e38e06717ed77985c3f428544651d2ab9ec698ea93c82bcf"
 )
 
 var bundleAssets = [...]bundleAsset{
 	{name: "vector_add.ptx", data: VectorAddPTX, sha256: VectorAddSHA256},
 	{name: "torch_cuda_randn.ptx", data: TorchCUDARandnPTX, sha256: TorchCUDARandnSHA256},
 	{name: "ops_f32.ptx", data: OpsF32PTX, sha256: OpsF32SHA256},
+	{name: "strata_qsa.ptx", data: StrataQsaPTX, sha256: StrataQsaSHA256},
 }

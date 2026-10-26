@@ -40,7 +40,10 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 	); err != nil {
 		return err
 	}
-	return lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes)
+	if err := lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes); err != nil {
+		return err
+	}
+	return lib.FuncSetMaxDynamicShared(functions[kernelStrataBlockScoresTc].function, strataScoresTCSharedBytes)
 }
 
 // blasBF16AttentionStagingBytes: per-node BF16 K/V pack staging (the

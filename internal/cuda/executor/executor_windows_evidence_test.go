@@ -70,27 +70,42 @@ func TestArenaMetrics(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	large := compileScaleFixture(t, tensor.MustShape(1024))
 	small := compileScaleFixture(t, tensor.MustShape(4))
+	// The run's graph holds its scaled input in the arena, its sum retained.
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1<<16))
+	huge, err := Compile(builder.Add(builder.Scale(input, 2), input))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if large.memory.ArenaSize <= small.memory.ArenaSize {
 		t.Fatalf("fixture arena sizes = %d and %d", large.memory.ArenaSize, small.memory.ArenaSize)
 	}
-	// A first arena takes its need exactly; the larger run that follows grows it, and a growth rounds up to the granule.
-	if err := cuda.PrepareCompiled(ctx, small); err != nil {
+	// A first arena takes its need exactly, and so does a prepared graph's growth, its need planned; a run that grows it
+	// after rounds its need up to the granule.
+	for growths, prepared := range []*CompiledGraph{small, large} {
+		if err := cuda.PrepareCompiled(ctx, prepared); err != nil {
+			t.Fatal(err)
+		}
+		metrics, err := cuda.Metrics(ctx)
+		if err != nil || metrics.ArenaCommittedBytes != prepared.memory.ArenaSize || metrics.ArenaGrowths != uint64(growths+1) {
+			t.Fatalf("a prepared arena committed %d bytes over %d growths (%v), want the graph's need %d exactly", metrics.ArenaCommittedBytes, metrics.ArenaGrowths, err, prepared.memory.ArenaSize)
+		}
+	}
+	retained, err := cuda.ExecuteRetainedCompiledOnce(ctx, huge, map[*tensor.Tensor]reference.Value{
+		input: {Shape: input.Shape, Data: make([]float32, input.Shape.Dims[0])},
+	}, nil, nil, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := cuda.Metrics(ctx)
-	if err != nil || first.ArenaCommittedBytes != small.memory.ArenaSize || first.ArenaGrowths != 1 {
-		t.Fatalf("the first arena committed %d bytes over %d growths (%v), want the run's need %d exactly in one", first.ArenaCommittedBytes, first.ArenaGrowths, err, small.memory.ArenaSize)
-	}
-	if err := cuda.PrepareCompiled(ctx, large); err != nil {
+	if err := retained.Release(ctx); err != nil {
 		t.Fatal(err)
 	}
 	metrics, err := cuda.Metrics(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if metrics.ArenaRequiredBytes != large.memory.ArenaSize ||
-		metrics.ArenaPeakRequiredBytes != large.memory.ArenaSize ||
-		metrics.ArenaCommittedBytes != arenaBytes(large.memory.ArenaSize) || metrics.ArenaGrowths != 2 {
+	if metrics.ArenaRequiredBytes <= large.memory.ArenaSize || metrics.ArenaPeakRequiredBytes != metrics.ArenaRequiredBytes ||
+		metrics.ArenaCommittedBytes != arenaBytes(metrics.ArenaRequiredBytes) || metrics.ArenaGrowths != 3 {
 		t.Fatalf("arena byte evidence is invalid: %+v", metrics)
 	}
 	if metrics.ArenaUnusedBytes != metrics.ArenaCommittedBytes-metrics.ArenaRequiredBytes {

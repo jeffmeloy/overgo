@@ -700,21 +700,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "scorecard-regressed-eeab4788f8674aab",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen peak-device-memory to 1.65914647e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-eeab4788f8674aab -target 1.6591464708e+10",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65914647e+10 to 1.66008934e+10 (+9428736, +0.1%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T194250Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
     }
   ],
   "decisions": [

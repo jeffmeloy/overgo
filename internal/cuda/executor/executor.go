@@ -1790,7 +1790,9 @@ func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph)
 		if err != nil {
 			return err
 		}
-		_, err = resources.ensureArena(state, compiled.memory.ArenaSize)
+		// A prepared graph's need is planned, not a prompt a token longer than the last, so it grows the arena to it
+		// exactly: rounded, SenseNova-U1's 55 MiB took 64.
+		_, err = resources.growArena(state, compiled.memory.ArenaSize, false)
 		return err
 	})
 }
@@ -2864,6 +2866,11 @@ func (e *Executor) ensureResources(
 }
 
 func (r *executorResources) ensureArena(state *device.State, size uint64) (driver.DevicePtr, error) {
+	return r.growArena(state, size, r.arena != 0)
+}
+
+// growArena gives the arena size bytes at least, a growth rounded up to the granule where rounded.
+func (r *executorResources) growArena(state *device.State, size uint64, rounded bool) (driver.DevicePtr, error) {
 	r.arenaUse.requiredBytes = size
 	r.arenaUse.peakRequiredBytes = max(r.arenaUse.peakRequiredBytes, size)
 	if size == 0 {
@@ -2873,14 +2880,13 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 		return r.arena, nil
 	}
 	// A first arena takes its need exactly, since the rounding below paid nothing on the one arena most models hold yet
-	// held 64 MiB idle on each (17 peak rows of the run of 2026-10-24); a growing arena rounds its need up (arenaGranule),
-	// and takes its need alone where the card has no room for the rest.
-	growing := r.arena != 0
+	// held 64 MiB idle on each (17 peak rows of the run of 2026-10-24); a run's growing arena rounds its need up
+	// (arenaGranule), and takes its need alone where the card has no room for the rest.
 	if err := r.releaseArena(state); err != nil {
 		return 0, err
 	}
 	grown := size
-	if growing {
+	if rounded {
 		grown = arenaBytes(size)
 	}
 	next, err := r.allocate(state, grown)

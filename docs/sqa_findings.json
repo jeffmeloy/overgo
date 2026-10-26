@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "One new P2 finding, SQA-MOSS-001, from the bounded MOSS import/cancellation sample. All 34 inherited findings are preserved without new closure claims. Totals are 32 open and 3 deferred.",
-    "declined_candidates": "No proven session leak, fixture-provenance defect or net test deletion in the sampled paths. Repeated inspection is not sufficient evidence to replace content verification with a metadata cache. No inference/training optimization is claimed without measurements.",
-    "priority": "The new finding is the actionable result of this MOSS review. The inherited ranked list keeps its relative order; cross-campaign reprioritization was not attempted."
+    "assessment": "One new P3 exact-comparison acceptance gap, SQA-MOSS-002. Earlier P2 SQA-MOSS-001 remains open. All 35 earlier findings and owner responses are preserved. Totals are 33 open and 3 deferred.",
+    "declined_candidates": "No new defect found in sampled scheduler provenance, UI cancellation acknowledgement or progress lifetime. Similar portable and native comparisons are not redundant tests. No speed, memory or test-cost reduction is established.",
+    "priority": "MOSS cancellation remains higher priority than the verifier's signed-zero gap. Existing inherited relative ordering is retained; no cross-campaign reprioritization."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "aee9365b9b56a7828317f818d56430c938da3407",
+    "revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -1888,6 +1888,70 @@
       ],
       "status": "open",
       "title": "Propagate cancellation through generation source inventory"
+    },
+    {
+      "category": "native-parity-contract",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "The production acceptance path rejects both +0/-0 directions for exact boundaries even when both actual passes have identical hashes. Equal finite bits still pass.",
+        "Approximate boundaries retain frozen tolerance behavior and may have nonzero unequal counts. Nonfinite values, missing payload, changed provenance and failed repeats remain refusals.",
+        "Extend existing lightweight verifier coverage with controlled values through the real acceptance policy, not a test-only copy. Keep the portable contract and distinct native model cases; report any production/test growth."
+      ],
+      "comparison": "Use the existing host-side contract/verifier tests for equal bits, signed zeros, nonfinite values and an approximate in-tolerance unequal pair. The minimal deciding case is a single exact +0 reference versus -0 actual with repeat_equal=true. Retained tmp/moss-import-reuse/generation-v1.jsonl hashes to 2618a739ca7dba5d7c5ed65795976750bfc8ca9d4ad9878c75b242b1c8bd4283, matching the plan's comparison artifact; its summary binds implementation 22e14fff9007a7c585427ed210ad7ffa2ad0570a. A read-only aggregation found zero unequal values in all 42 exact-policy records. Do not rerun released-model generation solely for this guard decision.",
+      "displaced_surface": "Replace the incomplete exact-boundary acceptance in the two existing verifier callbacks. No existing test or fixture is shown redundant; portable contract behavior, executable policy and native model behavior remain distinct requirements. Reuse their current comparison result rather than introducing another float loop. Expected cost is small correctness/test growth, with no measured net AST reduction or runtime speed/memory benefit.",
+      "evidence": "Source counterexample: at an exact schedule or initial-latent boundary, replace a reference +0 with actual -0 and repeat that actual result in both passes. compareMOSSValues with zero tolerance returns failed=0, unequal=1 and max_abs=0. Generation and sampling record unequal but check only failed and the hash of actual against its own previous pass, so this drift can pass. The portable oracle contract explicitly rejects the same signed-zero mismatch, and existing conditioning verification already checks unequal for its exact paths. No model output was synthesized or run to demonstrate the counterexample; it follows directly from the inspected arithmetic and guards.",
+      "evidence_commit": "736d167ded3793a45fa27733ce1c8d33f3d22da7",
+      "expected_benefit": {
+        "outcome": "Makes the real native verification command enforce its declared exactness and prevents future signed-zero drift from being accepted as bit-identical. Current frozen approximate tolerances and recorded pass results remain valid for this finding.",
+        "uncertainty": "No new runtime experiment was performed. Existing internal/gosyntax parsed six focused files: 3,483 production nodes and 2,312 test nodes, including comments. These are bounded structure counts, not a full migration estimate. Actual after-count and execution cost are unmeasured. A changed exact guard must not apply bitwise rejection to approximate boundaries, whose unequal counts are expected."
+      },
+      "id": "SQA-MOSS-002",
+      "impact": "The executable verifier can certify numerical equality where the pinned contract requires bit equality. This is an acceptance gap, not an observed image-quality, inference, training or resource regression. Retained released-model evidence is unaffected by this specific gap: the matching JSONL has 1,254 records, including 1,248 boundary records and 6 images; all 42 zero-tolerance generation boundary records have unequal=0, and no failed comparison or repeat check is recorded.",
+      "likely_effort": "Small coordinated verifier-guard change and an extension of existing lightweight comparison coverage. No GPU workload is required to decide the signed-zero case.",
+      "plan_coverage": "Advisory finding only. MOSS implementation remains paused and docs/plan.json is unchanged; no plan adoption or completed-step claim.",
+      "plan_references": [],
+      "recommended_change": "Enforce the existing unequal result in the generation and sampling acceptance guards when the boundary requires exact comparison, following the existing conditioning guards. Share each boundary's exact-policy decision with its tolerance selection rather than duplicating name predicates. Keep approximate F32/BF16 boundaries on their frozen dtype tolerances, and keep nonfinite, length, provenance and repeatability refusals. Reuse compareMOSSValues; no new comparator, model fixture, numerical tolerance or runtime mechanism is needed.",
+      "severity": "P3",
+      "sources": [
+        {
+          "path": "fixtures/moss/oracle-contract.json",
+          "symbol": "full-english/full-chinese-rectangle/full-layout initial_latents and schedule tensors declare comparison=exact"
+        },
+        {
+          "path": "internal/latentimage/moss_contract_test.go",
+          "symbol": "mossOracleContract.compare at 138 enforces Float32bits equality for exact; TestMOSSGoldenContract at 275 rejects a signed-zero mismatch"
+        },
+        {
+          "path": "internal/latentimage/refinement_verify_windows.go",
+          "symbol": "compareMOSSValues at 29 separates numerical failures from bitwise unequal; VerifyMOSSTransformer at 53 routes real native generation/sampling verification"
+        },
+        {
+          "path": "internal/latentimage/generation_verify_windows.go",
+          "symbol": "compareGeneration at 41 selects zero tolerance at 90-91, records unequal at 98, but acceptance at 101 checks failed and repeat only"
+        },
+        {
+          "path": "internal/latentimage/sampling_verify_windows.go",
+          "symbol": "verifyMOSSTrajectory at 35 sets zero tolerance for initial_latents at 113-114; acceptance at 128 also ignores unequal"
+        },
+        {
+          "path": "internal/latentimage/conditioning_model_verify_windows.go",
+          "symbol": "existing exact guards at 106, 164 and 181 already combine failed, unequal and repeat results"
+        },
+        {
+          "path": "cmd/validate/parity_moss_windows.go",
+          "symbol": "parity command calls VerifyMOSSTransformer at 24"
+        },
+        {
+          "path": "internal/latentimage/moss_rotary_refinement_windows_model_test.go",
+          "symbol": "TestMOSSSamplingCheckpoint and verifyMOSSModelStage consume the same executable verifier"
+        },
+        {
+          "path": "internal/latentimage/refinement_verify_windows_test.go",
+          "symbol": "TestMOSSRefinementVerificationRejectsChangedContract provides existing lightweight pre-device verification coverage"
+        }
+      ],
+      "status": "open",
+      "title": "Fail bit mismatches at exact boundaries in the native generation verifier"
     }
   ],
   "gate_test_assessment": {
@@ -2435,8 +2499,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive MOSS report update only. New cancellation finding; implementation and MOSS plan remain untouched.",
-    "checked_head": "aee9365b9b56a7828317f818d56430c938da3407",
+    "assessment": "Substantive SQA report update for P3 SQA-MOSS-002. Prior P2 finding and all owner fields preserved. MOSS implementation and plan remain untouched.",
+    "checked_head": "736d167ded3793a45fa27733ce1c8d33f3d22da7",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2473,7 +2537,8 @@
     "SQA-154",
     "SQA-161",
     "SQA-170",
-    "SQA-MOSS-001"
+    "SQA-MOSS-001",
+    "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
   "review_author": "Scheduled MOSS SQA in the chat that implemented this integration. This is not an independent review.",
@@ -2483,22 +2548,25 @@
     "Retained merge checks in tmp/moss-merge/native-v2.log and browser-v2.log passed their selected native and browser cases. The diffusionimage line reports no tests to run and is not validation credit. Source inspection of session_director, MOSS session/lifetime tests and generationProgressRepository found no new defect in sampled retirement/release or progress-after-commit behavior. Nothing was rerun on device.",
     "Released full-model parity evidence belongs to implementation 22e14fff9007a7c585427ed210ad7ffa2ad0570a. This merge review does not establish a new released-model comparison or performance result.",
     "The merge baseline retains TestDoctrineNamesNoPerson and TestTuningValuesNameTheirCost as master-plan scope mismatches. TestAcceptedImageVideoEvidence lacks the active MOSS entry in the retained live-store catalog. These are accepted baseline limitations, not new failures; neither the plan nor catalog was changed to hide them. The pin is unchanged and no repeat run was needed.",
-    "Existing golden, registration, session and browser cases exercise different numerical, database and lifecycle boundaries. Retain them. The new cancellation coverage belongs in the existing compact registration case and requires no new fixture or suite."
+    "Existing golden, registration, session and browser cases exercise different numerical, database and lifecycle boundaries. Retain them. The new cancellation coverage belongs in the existing compact registration case and requires no new fixture or suite.",
+    "At 736d167de, new SQA-MOSS-002 distinguishes exact-policy signed-zero rejection from approximate dtype comparison. The real verifier records bit inequality but does not reject it on generation/sampling exact paths. Existing portable contract checks do reject it.",
+    "Read-only audit of the hash-matched released comparison at implementation 22e14fff found 42 exact-policy boundary records with no unequal values, out of 1,248 boundaries and 6 images. This specific verifier gap does not invalidate that retained result. No inference quality or performance measurement was added.",
+    "Nearest-grid schedule's exact native fixtures retain the deduplicated-count and float32 arithmetic contract. Composer tracks accepted operations through the shared wait/cancel owners; retained browser coverage includes staged progress, cancellation without an output and retry. No additional finding arose from those bounded samples."
   ],
-  "reviewed_at": "2026-10-26T06:39:45Z",
+  "reviewed_at": "2026-10-26T08:36:57Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review of codex/overgo_moss at aee9365b9b56a7828317f818d56430c938da3407. Read skill.md and the preserved MOSS plan. Implementation remains paused. Initial worktree/index were clean.",
-    "Rotate through declared generation import and database preparation, request cancellation, native fixture provenance, shared session retirement/release and durable image progress. Trace real server and recipe CLI callers. No full repository census.",
-    "Existing internal/gosyntax parsed 11 selected files, totaling 15,489 production and 1,102 test AST nodes including comments. Evidence is retained in tmp/moss-sqa/ast-20261026.json. Call tracing is source/AST based, without whole-program type resolution.",
-    "One existing focused CPU cancellation check was run to verify the proposed shared inventory owner. No model generation, training, device run, benchmark, broad validation, service, production landing gate or code change.",
-    "reviewed_master and the inherited gate_test_assessment remain historical master-review provenance at 841006c7836ba9a503b1ee25c8831c797dc58674. They are not this MOSS review's pin or fresh validation. All inherited findings and implementation-owned responses remain unchanged."
+    "SQA-only review at 736d167ded3793a45fa27733ce1c8d33f3d22da7 on codex/overgo_moss. Only the prior report commit differs from the reviewed merge; production code, tests and MOSS plan are unchanged. Worktree/index started clean. Read repository instructions and MOSS plan; implementation remains paused.",
+    "Rotated sample covers portable oracle comparison, native generation/sampling verification and actual CLI/model-test callers, nearest-grid schedule, composer operation acknowledgement/cancellation and retained progress/browser evidence. No full census.",
+    "Existing Go AST analysis parsed six verifier/caller/test files: 3,483 production and 2,312 test nodes including comments. Source tracing found the exact-boundary mismatch. Existing released-model JSONL was hashed and aggregated without model execution.",
+    "No new test, model generation, training, performance run, broad validation, service or landing gate. The prior focused inventory-cancellation result remains retained evidence rather than a fresh run.",
+    "This chat implemented MOSS; review is not independent. Historical reviewed_master, inherited gate_test_assessment and implementation-owned responses retain their original scope and are not fresh validation at this pin."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-001: declared generation source hashing loses request cancellation. All 34 inherited findings remain unchanged; none resolved or newly adopted. Implementation remains paused.",
-      "evidence": "Server/CLI caller tracing and 11-file AST sample identify the context-discarding route. Existing TestPipelineInventoryCancellationDuringHashing passed in 0.584 seconds; log tmp/moss-sqa/inventory-cancel-20261026.log. Retained native/browser checks were inspected without rerunning model workloads.",
+      "assessment": "New P3 SQA-MOSS-002 concerns bit-exact acceptance in native generation/sampling verification. P2 SQA-MOSS-001 remains open. No finding closed or adopted; implementation remains paused.",
+      "evidence": "Source and Go AST caller review show signed-zero drift can pass the executable exact-boundary guard. Retained released-model JSONL identity matches the recorded comparison; all 42 exact-policy records have unequal=0. No new tests or model runs.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2507,14 +2575,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, propagate context through the existing Capability.Resolve contract to FromHFPathContext and extend current compact registration cancellation coverage. Reuse inventoryReader; preserve hashes, identities, validation and activation boundaries.",
+      "recommendation": "When implementation resumes, keep P2 cancellation ahead of P3 verification strictness. Enforce the existing bit-inequality result for declared exact boundaries and extend current lightweight verifier coverage; preserve approximate tolerances and native parity evidence.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "The canceled request's extra I/O and elapsed delay are source-based consequences, not measured performance results. Existing implementation_response_context, user_findings and reviewed_master are historical inherited records, not fresh MOSS dispositions.",
+      "uncertainty": "The verifier counterexample is source-based; no current model result is claimed wrong. The retained comparison predates this merge and has no exact-policy bit mismatch. Full migration cost, speed and memory effects are unmeasured; inherited master/implementation responses keep their historical scope.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "aee9365b9b56a7828317f818d56430c938da3407"
+      "reviewed_revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7"
     },
-  "reviewed_revision": "aee9365b9b56a7828317f818d56430c938da3407"
+  "reviewed_revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7"
 }

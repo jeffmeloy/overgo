@@ -102,7 +102,7 @@ func (d ProfileDocument) validate() error {
 		return errors.New("model recipe: invalid profile envelope")
 	}
 	provenance := slices.Clone(d.Provenance)
-	if err := canonicalizeProfileProvenance(&provenance); err != nil || !slices.Equal(provenance, d.Provenance) {
+	if err := canonicalizeProfileProvenance(&provenance, documentProfileFacts(d.Policy, d.Provenance)); err != nil || !slices.Equal(provenance, d.Provenance) {
 		if err != nil {
 			return err
 		}

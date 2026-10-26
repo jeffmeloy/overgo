@@ -662,10 +662,10 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	query = builder.Scale(query, attentionScale)
 	if p.plan.Sliding {
 		attention = builder.AttentionWithOptions(
-			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow})
+			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow, TensorCores: spec.Profile().Runtime.PromptTensorCores})
 
 	} else {
-		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart})
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart, TensorCores: spec.Profile().Runtime.PromptTensorCores})
 	}
 	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
@@ -856,7 +856,7 @@ func buildGatedProjectionMixCached(
 	if indices != nil {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, indices, attentionScale, true, queryStart)
 	} else {
-		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart, TensorCores: spec.Profile().Runtime.PromptTensorCores})
 	}
 
 	attention = builder.Reshape(

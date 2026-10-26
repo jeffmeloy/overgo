@@ -46,6 +46,11 @@ type runtimePolicy struct {
 	NormalizationBias       NormalizationBiasPolicy
 	Recurrent               recurrentRuntimePolicy
 	ActivationResidualScale float32
+	// PromptTensorCores admits the architecture's dense causal attention to the half-precision tensor-core prompt
+	// kernel, for an architecture whose held-out quality held with it (Flash-Next's MMLU-Pro); off, the F32 paths, where
+	// gemma-4-12B-it-fp8's BBH fell under the kernel. Omitted when off, so a profile document written before it encodes
+	// as it was written.
+	PromptTensorCores bool `json:",omitempty"`
 }
 
 // recurrentRuntimePolicy: recurrent scalar contract.

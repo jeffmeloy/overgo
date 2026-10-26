@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -58,13 +59,41 @@ func CatalogProfileProvenance(profile model.ArchitectureProfile) ([]ProfileFactP
 	return provenance, nil
 }
 
-func canonicalizeProfileProvenance(provenance *[]ProfileFactProvenance) error {
-	if provenance == nil || len(*provenance) != len(architectureProfileFacts) {
+// laterProfileFacts are the facts the v3 profile schema gained after documents under it were published. A document
+// derived before one holds it at its zero value, the value its program was compiled with, and records no provenance for
+// it; a document holding any other value records its provenance as it does every fact's.
+var laterProfileFacts = []ProfileFactID{"Runtime.PromptTensorCores"}
+
+// documentProfileFacts are the facts a stored document's provenance covers, and the fact schema its catalog derivation
+// was made under: every fact, but a later one its policy holds at zero and its provenance does not record.
+func documentProfileFacts(policy model.ArchitectureProfile, provenance []ProfileFactProvenance) []ProfileFactSpec {
+	recorded := make(map[ProfileFactID]bool, len(provenance))
+	for _, item := range provenance {
+		recorded[item.Fact] = true
+	}
+	return slices.DeleteFunc(slices.Clone(architectureProfileFactSpecs), func(spec ProfileFactSpec) bool {
+		return slices.Contains(laterProfileFacts, spec.Fact) && !recorded[spec.Fact] && profileFactZero(policy, spec.Fact)
+	})
+}
+
+// profileFactZero reports whether the policy holds the fact, a dotted path of its fields, at its zero value.
+func profileFactZero(policy model.ArchitectureProfile, fact ProfileFactID) bool {
+	value := reflect.ValueOf(policy)
+	for name := range strings.SplitSeq(string(fact), ".") {
+		if value = value.FieldByName(name); !value.IsValid() {
+			return false
+		}
+	}
+	return value.IsZero()
+}
+
+func canonicalizeProfileProvenance(provenance *[]ProfileFactProvenance, facts []ProfileFactSpec) error {
+	if provenance == nil || len(*provenance) != len(facts) {
 		return errors.New("model recipe: profile provenance coverage differs")
 	}
 	sort.Slice(*provenance, func(i, j int) bool { return (*provenance)[i].Fact < (*provenance)[j].Fact })
 	for index, item := range *provenance {
-		if item.Fact != architectureProfileFacts[index] || !validProfileFactOrigin(item.Origin) ||
+		if item.Fact != facts[index].Fact || !validProfileFactOrigin(item.Origin) ||
 			item.SourceField == "" || strings.TrimSpace(item.SourceField) != item.SourceField ||
 			strings.ContainsAny(item.SourceField, "\r\n") || !item.DerivationID.Valid() {
 			return errors.New("model recipe: invalid profile fact provenance")

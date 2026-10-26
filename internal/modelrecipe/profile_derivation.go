@@ -55,11 +55,17 @@ type CatalogProfileDerivation struct {
 }
 
 func NewCatalogProfileDerivation(profile model.ArchitectureProfile) (CatalogProfileDerivation, error) {
+	return catalogProfileDerivation(profile, architectureProfileFactSpecs)
+}
+
+// catalogProfileDerivation is the catalog derivation of a profile under a fact schema: the current one, or the one a
+// stored document was derived under (documentProfileFacts).
+func catalogProfileDerivation(profile model.ArchitectureProfile, facts []ProfileFactSpec) (CatalogProfileDerivation, error) {
 	policy, err := json.Marshal(profile)
 	if err != nil {
 		return CatalogProfileDerivation{}, fmt.Errorf("model recipe: encode catalog profile policy: %w", err)
 	}
-	schema, err := json.Marshal(architectureProfileFactSpecs)
+	schema, err := json.Marshal(facts)
 	if err != nil {
 		return CatalogProfileDerivation{}, fmt.Errorf("model recipe: encode profile fact schema: %w", err)
 	}
@@ -161,7 +167,7 @@ func validateStoredProfileProvenance(
 			derivedFrom[parent.Parent] = struct{}{}
 		}
 	}
-	catalog, err := NewCatalogProfileDerivation(document.Policy)
+	catalog, err := catalogProfileDerivation(document.Policy, documentProfileFacts(document.Policy, document.Provenance))
 	if err != nil {
 		return err
 	}

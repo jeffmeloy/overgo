@@ -215,13 +215,17 @@
       "id": "flashnext-tensor-cores",
       "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "PromptTensorCores is the runtime policy's choice of the tensor-core prompt attention, set for qwen4exp in the catalog and given to the three dense causal attention sites; a later fact of the v3 profile schema leaves stored documents covered by the facts they were written with (documentProfileFacts, profileFactZero, the derivation under a document's fact schema), where republishing every definition would have moved the definitions retained evidence pins"
+      },
       "steps": [
         {
-          "id": "do",
-          "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
+          "id": "activate",
+          "title": "Activate Flash-Next over the profile that admits the tensor-core prompt attention",
           "status": "open",
-          "verify": "go test ./internal/model -run '^TestPromptTensorCoresAdmittedPerArchitecture$' -count=1 \u0026\u0026 go test ./internal/modelrecipe ./internal/inferencesurface -count=1 \u0026\u0026 go test ./internal/evaluation -run '^TestQwenSmallRetainedTextAcceptance$' -count=1",
-          "rationale": "Serves: Flash-Next's first output at length, 6 to 10 percent slower in the record of 2026-10-25 with the tensor-core prompt attention off (4K 1.50 to 1.66 s, 16K 5.23 to 5.54 s, against Strata's 2.2 and 5.0) although its MMLU-Pro held 0.6245 with the kernel on and without (the records of 2026-10-19 and 10-24), where gemma-4-12B-it-fp8's BBH fell under it.\nBuild: the architecture profile's runtime policy gains PromptTensorCores, set for qwen4exp alone in architecture_profiles.json, and the block builder passes it to each dense causal attention node as its TensorCores attribute (three sites in block.go). The gate holds serving code to selecting nothing by an architecture name (TestServingCodeNamesNoArchitecture refused a spec constant, 2026-10-25), and a profile field moves the catalog, fact and fact-schema digests TestProfileProvenanceHasExactTypedCoverage and TestRegisteredProfileSemanticDigest pin, and the provenance coverage of every stored profile document, which TestQwenSmallRetainedTextAcceptance reads from the store: the registered models' definitions are republished with the new profile documents before the field lands, through the activation path, never by hand-editing records.\nDisappears: nothing; every other architecture keeps the f32 paths.\nEvidence: TestPromptTensorCoresAdmittedPerArchitecture (the catalog admits qwen4exp alone); the modelrecipe and inferencesurface suites; the retained Qwen acceptance resolving against the republished documents; the next record's Flash-Next first-output cells. The constant form that the gate refused is kept at tmp/release/flashnext-tensorcores-constant.patch.\nBatch: model, modelrecipe, inferencesurface and evaluation host tests; a store republication."
+          "verify": "go test -tags modeltest ./internal/modelcli -run '^TestFlashNextServesPromptTensorCores$' -count=1",
+          "rationale": "Activate Flash-Next's inference recipe over the profile the catalog now derives for qwen4exp, from a clean tree at the commit that admits it: the program a served request compiles reads the stored profile document its definition names, so the admission reaches Flash-Next's requests only then. recipe verify -task inference over its verification suite, then recipe activate with the gate and run it records; the census and smoke-oracle records the activation drifts regenerated (go test ./cmd/validate); then the measured first output at 4K and 16K tokens against the record of 2026-10-25 (1.66 and 5.54 s off), and its MMLU-Pro reading, which held 0.6245 with the kernel on and off.\nServes: Flash-Next's first output at length, 6 to 10 percent faster with the tensor-core prompt attention than without (the record of 2026-10-25), its held-out MMLU-Pro held."
         }
       ]
     },

@@ -16,9 +16,9 @@ import (
 )
 
 // Catalog identity pins registered policies and their typed provenance.
-const profileCatalogSemanticDigest = "14ea2159b5a7eb2e4ef88203ceffd774b601fe2e56be4ade486c0ad983795e45"
-const architectureProfileFactDigest = "132c449f200e154bc934021d297b8dcfbbd8ccfc76fdde47a5f9843d4257f1f2"
-const architectureProfileFactSchemaDigest = "11960eada0141704aa80b8fa009834e9f40e9b0d5da2e3ef744da3b0269815dc"
+const profileCatalogSemanticDigest = "c567aed4eb047f75623914f406a48dd9b6eda53dbbff50c2bbefdcdd84175b94"
+const architectureProfileFactDigest = "fa78e7fd8737c57deafd0591459f703238950c524a451ae9a1f879a670ee7100"
+const architectureProfileFactSchemaDigest = "f3bebb73d6be5f610ea0d4befb4b40a16a7c6b80c144b0ed68543400bd4be5eb"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 

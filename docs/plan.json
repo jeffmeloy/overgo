@@ -666,21 +666,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-bb68e1e58205bdab",
-      "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb68e1e58205bdab -target 0.8909090909090909",
-          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.890909091 to 0.872727273 (-0.0181818182, -2.0%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-uncompared-inference",
       "title": "Compare the path a inference request takes with a reference output for each model it is scored on",
       "owner": "master-lead",

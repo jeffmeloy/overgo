@@ -665,21 +665,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-53dd0e6a7ae9ad60",
-      "title": "Restore gemma-4-12B-it-fp8 inference peak-device-memory to 2.38366082e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8 inference peak-device-memory to 2.38366082e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-53dd0e6a7ae9ad60 -target 2.3836608192e+10",
-          "rationale": "- gemma-4-12B-it-fp8 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4}: 2.38366082e+10 to 2.39756305e+10 (+139022336, +0.6%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-6c8d4a845f501259",
       "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
       "owner": "master-lead",

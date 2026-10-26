@@ -1773,7 +1773,9 @@ func (e *Executor) ExecuteRetainedCompiledOnce(
 	}, nil
 }
 
-// PrepareCompiled loads modules and sizes persistent execution storage.
+// PrepareCompiled loads modules and sizes persistent execution storage. The weight staging a run takes is not
+// persistent: the run reserves it and a one-shot run gives it back at its end, so it is not reserved here, where it
+// stood under every weight a load uploads after (SenseNova-U1's 6 MiB under its 16.6 GB, at its peak).
 func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph) error {
 	if e == nil || compiled == nil {
 		return errors.New("CUDA executor or compiled graph absent")
@@ -1784,10 +1786,7 @@ func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph)
 		return errors.New("CUDA executor is closed")
 	}
 	return e.worker.Do(ctx, func(state *device.State) error {
-		resources, err := e.ensureResources(
-			state, compiled.needBlas, compiled.q8InputBytes,
-			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
-		)
+		resources, err := e.ensureResources(state, compiled.needBlas, compiled.q8InputBytes, compiled.attentionScoreBytes, 0)
 		if err != nil {
 			return err
 		}

@@ -715,21 +715,6 @@
           "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 1.65914647e+10 to 1.66008934e+10 (+9428736, +0.1%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T194250Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
-    },
-    {
-      "id": "scorecard-regressed-f720274acf031e2f",
-      "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Krea-2-Turbo image-gen peak-device-memory to 2.69252724e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f720274acf031e2f -target 2.6925272444e+10",
-          "rationale": "- Krea-2-Turbo peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9}: 2.69252724e+10 to 2.69732407e+10 (+47968256, +0.2%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T194250Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
     }
   ],
   "decisions": [

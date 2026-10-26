@@ -32,8 +32,8 @@ func (c *CompiledGraph) ReserveExactWeightStaging() error {
 		if weightType != dtype.F16 && weightType != dtype.BF16 && weightType != dtype.F8E4M3 {
 			continue
 		}
-		if node.Inputs[1].Shape.Dims[1] == 1 {
-			// Single-token decode reads the native weight directly; no staging.
+		if node.Inputs[1].Shape.Dims[1] == 1 || nativeDecodeServes(node) {
+			// Single-token decode, and a span it serves, reads the native weight directly; no staging.
 			continue
 		}
 		if tensorCoreMulMat(node) || fp8TensorCoreMulMat(node) {

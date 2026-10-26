@@ -665,21 +665,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-0d6c925abf0b1e14",
-      "title": "Restore gemma-4-12B-it-fp8-native inference peak-device-memory to 1.53707484e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8-native inference peak-device-memory to 1.53707484e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-0d6c925abf0b1e14 -target 1.5370748352e+10",
-          "rationale": "- gemma-4-12B-it-fp8-native peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254}: 1.53707484e+10 to 1.54888004e+10 (+118052096, +0.8%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-514c2975ce629429",
       "title": "Restore webssl-dino300m-full2b-224 image-embedding load-time to 230.6077 ms",
       "owner": "master-lead",

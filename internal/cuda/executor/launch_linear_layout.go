@@ -166,7 +166,7 @@ func launchLinearLayout(
 				decodeKernel = kernelMulMatBf16F32
 				upconvertKernel = kernelBf16ToF32
 			}
-			if nativeDecodeSpanFits(weightScalarBytes, rightRows) && inner%2 == 0 && rightNode.Type == dtype.F32 {
+			if nativeDecodeServes(node) {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
 				if err != nil {
 					return err
@@ -211,7 +211,7 @@ func launchLinearLayout(
 			traits, _ := leftNode.Type.Traits()
 			scaleOffset := uint64(inner) * uint64(leftRows) * traits.TypeSize
 			scale := left + driver.DevicePtr(scaleOffset)
-			if nativeDecodeSpanFits(traits.TypeSize, rightRows) {
+			if nativeDecodeServes(node) {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
 				if err != nil {
 					return err
@@ -802,6 +802,19 @@ func nativeDecodeSpanFits(weightScalarBytes uint64, rightRows uint32) bool {
 	}
 	stagedTraffic := weightScalarBytes + 2*f32ScalarBytes
 	return uint64(rightRows)*weightScalarBytes < stagedTraffic
+}
+
+// halfDecodePairWidth: elements a 2-byte weight's decode kernel reads together; its inner dimension is their multiple.
+const halfDecodePairWidth = 2
+
+// nativeDecodeServes reports whether a native-dtype mul_mat launches the decode kernel, which reads the resident weight
+// as stored: a span nativeDecodeSpanFits admits, of an F32 input, over an fp8 weight or a 2-byte weight whose inner
+// dimension pairs. Its node stages no weight, and its graph reserves no staging for it.
+func nativeDecodeServes(node *tensor.Tensor) bool {
+	weight, input := node.Inputs[0], node.Inputs[1]
+	traits, _ := weight.Type.Traits()
+	paired := weight.Type == dtype.F8E4M3 || weight.Shape.Dims[0]%halfDecodePairWidth == 0
+	return input.Type == dtype.F32 && paired && nativeDecodeSpanFits(traits.TypeSize, uint32(input.Shape.Dims[1]))
 }
 
 func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {

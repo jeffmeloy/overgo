@@ -1308,11 +1308,12 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			(node.Inputs[0].Type == dtype.F16 || node.Inputs[0].Type == dtype.BF16 ||
 				node.Inputs[0].Type == dtype.F8E4M3) {
 			// Multi-token exact paths stage F32 weights. Explicit BF16 tensor-core
-			// paths stage BF16 activations. Decode reads native weights directly.
+			// paths stage BF16 activations. Decode reads native weights directly,
+			// and so does a span it serves: a short prompt stages nothing.
 			inner := node.Inputs[0].Shape.Dims[0]
 			leftRows := node.Inputs[0].Shape.Dims[1]
 			rightRows := node.Inputs[1].Shape.Dims[1]
-			if rightRows != 1 {
+			if rightRows != 1 && !nativeDecodeServes(node) {
 				compiled.needBlas = true
 				stagingRows, stagingWidth := leftRows, f32ScalarBytes
 				if tensorCoreMulMat(node) {

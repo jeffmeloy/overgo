@@ -61,3 +61,27 @@ func TestReserveExactWeightStagingLeavesDecodeAndTensorCoreAlone(t *testing.T) {
 		t.Fatal("nil compiled graph accepted")
 	}
 }
+
+// TestDecodeServedSpanReservesNoStaging holds a graph's weight staging to its launches: a span the decode kernel serves,
+// four columns of a 2-byte weight or eight of fp8, reads the weight as stored and reserves nothing, as a 6-token prompt
+// over gemma-4-12B-it-fp8 does; a column more stages the weight.
+func TestDecodeServedSpanReservesNoStaging(t *testing.T) {
+	const inner, rows = 4096, 4096
+	for _, served := range []struct {
+		weight  dtype.Type
+		columns uint64
+	}{{dtype.BF16, 4}, {dtype.F16, 4}, {dtype.F8E4M3, 8}} {
+		for _, columns := range []uint64{served.columns, served.columns + 1} {
+			builder := tensor.NewBuilder()
+			weight := builder.Input("weight", served.weight, tensor.MustShape(inner, rows))
+			right := builder.Input("right", dtype.F32, tensor.MustShape(inner, columns))
+			compiled, err := Compile(builder.MulMat(weight, right))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if staged := compiled.matmulStagingBytes != 0; staged != (columns > served.columns) {
+				t.Fatalf("%s over %d columns reserves %d staging bytes", served.weight, columns, compiled.matmulStagingBytes)
+			}
+		}
+	}
+}

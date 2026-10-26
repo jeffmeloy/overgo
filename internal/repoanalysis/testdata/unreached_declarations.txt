@@ -204,7 +204,6 @@ test-held internal/overgodb/causality.go causalityFacet.descendants
 test-held internal/overgodb/causality.go causalityFacet.selectIDs
 test-held internal/overgodb/causality.go validateCausalityQuery
 test-held internal/overgodb/commit_delta.go Store.CommitDeltaAt
-test-held internal/overgodb/storage_classes.go DocumentStorageClass
 test-held internal/overgodb/storage_classes.go LayoutStorageClass
 test-held internal/projector/gemma4tower_audio.go Gemma4TowerRunner.EncodeAudioFeaturesTrace
 test-held internal/projector/gemma4tower_audio_frontend.go Gemma4TowerRunner.EncodeAudioTrace

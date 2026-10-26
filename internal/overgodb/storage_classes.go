@@ -41,20 +41,6 @@ var operationalSignalMarkers = []string{
 	"heartbeat", "wakeup", "poll", "partial-output", "liveness",
 }
 
-// DocumentStorageClass derives, from the descriptor alone, where an
-// artifact's state belongs: a typed document is a canonical fact whose
-// bytes ride the blob layout; schemaless raw bytes are immutable blob
-// content referenced by facts.
-func DocumentStorageClass(descriptor artifact.Descriptor) StorageClass {
-	if IsOperationalSignalSchema(descriptor.Schema) {
-		return ClassOperationalSignal
-	}
-	if descriptor.Schema != "" {
-		return ClassCanonicalFact
-	}
-	return ClassImmutableBlob
-}
-
 // legacyOperationalExceptions grandfathers signal-shaped schemas that
 // predate the boundary, each with the row that retires it. The list
 // only shrinks: a new coordination-shaped schema is refused outright.

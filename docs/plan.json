@@ -216,20 +216,10 @@
       "title": "Land the review's reductions once the port has begun",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 161,
         "reason": "Reductions only: each step deletes more production code than it adds."
       },
       "steps": [
-        {
-          "id": "storage",
-          "title": "Drop the store's repeated work (SQA-157, SQA-154, SQA-161, SQA-182, SQA-153)",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/artifact ./internal/runrecord -count=1 \u0026\u0026 grep -q 'artifact.CompareID' internal/overgodb/blob_pack.go \u0026\u0026 grep -A4 'func (c DocumentContract) ContentBytes' internal/artifact/document.go | grep -q 'OwnedContentBytes' \u0026\u0026 ! grep -rq 'func DocumentStorageClass' internal/overgodb \u0026\u0026 ! grep -q 'func compactLineage' internal/overgodb/query.go \u0026\u0026 ! test -e internal/artifact/identity_boundary_test.go",
-          "rationale": "Serves: the store's upkeep: the blob pack sorts by artifact.CompareID (SQA-157), ContentBytes hashes once through OwnedContentBytes (SQA-182), the two lineage sorts share one (SQA-154), and the test-only DocumentStorageClass goes with its wrapper checks (SQA-161).\nDisappears: compactLineage, DocumentStorageClass, the blob-pack key formatting inside the sort, ContentBytes' second hash pass, and internal/artifact/identity_boundary_test.go, its two checks moved into TestCanonicalLocalLocationContract and the clone test (SQA-153).\nEvidence: the packages' tests, unchanged in what they hold.\nBatch: overgodb, artifact and runrecord tests; no measured cell moves; never beside a measurement run.",
-          "depends_on": [
-            "strata-port/map"
-          ]
-        },
         {
           "id": "serving",
           "title": "Drop serving's copies and timed waits and fold its duplicated tests (SQA-170, SQA-191, SQA-196, SQA-197, SQA-184, SQA-162, SQA-194)",

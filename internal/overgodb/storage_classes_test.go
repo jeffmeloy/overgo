@@ -3,32 +3,20 @@ package overgodb
 import (
 	"path/filepath"
 	"testing"
-
-	"overgo/internal/artifact"
 )
 
 // TestRSIStorageClassContract holds the ownership rules to their
-// definitions: typed documents are canonical facts, schemaless bytes
-// are immutable blobs, coordination-shaped schemas are operational
-// signals, and every path in the store layout classifies to exactly
-// the class its directory owns.
+// definitions: coordination-shaped schemas are operational signals,
+// and every path in the store layout classifies to exactly the class
+// its directory owns.
 func TestRSIStorageClassContract(t *testing.T) {
 	t.Parallel()
-	document := artifact.Descriptor{Schema: "overgo/attempt/v1", MediaType: "application/json"}
-	if class := DocumentStorageClass(document); class != ClassCanonicalFact {
-		t.Fatalf("typed document classifies %s", class)
-	}
-	raw := artifact.Descriptor{MediaType: "application/octet-stream"}
-	if class := DocumentStorageClass(raw); class != ClassImmutableBlob {
-		t.Fatalf("raw bytes classify %s", class)
-	}
 	for _, schema := range []string{
 		"overgo/agent-heartbeat/v1", "overgo/session-wakeup/v1",
 		"overgo/queue-poll/v1", "overgo/partial-output/v1", "overgo/liveness-probe/v1",
 	} {
-		signal := artifact.Descriptor{Schema: schema}
-		if class := DocumentStorageClass(signal); class != ClassOperationalSignal {
-			t.Fatalf("signal schema %q classifies %s", schema, class)
+		if !IsOperationalSignalSchema(schema) {
+			t.Fatalf("signal schema %q is not an operational signal", schema)
 		}
 	}
 	layout := map[string]StorageClass{

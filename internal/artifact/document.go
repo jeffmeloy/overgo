@@ -192,11 +192,7 @@ func (c DocumentContract) ContentJSON(id ID, value any) (Content, error) {
 
 // ContentBytes binds raw document bytes to their derived identity.
 func (c DocumentContract) ContentBytes(data []byte) (Content, error) {
-	id, err := c.Identify(data)
-	if err != nil {
-		return Content{}, err
-	}
-	return c.Content(id, data)
+	return c.OwnedContentBytes(slices.Clone(data))
 }
 
 // OwnedContentBytes binds bytes without a clone. Caller must not mutate them.

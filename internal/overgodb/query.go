@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -554,17 +555,21 @@ func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, rel
 	if direction == FollowChildren || direction == FollowBoth {
 		appendIndex(s.lineage.childrenOf(id))
 	}
-	sort.Slice(edges, func(i, j int) bool {
-		left, right := edges[i], edges[j]
-		if left.Relation != right.Relation {
-			return left.Relation < right.Relation
+	sortLineage(edges)
+	return edges
+}
+
+// sortLineage orders edges by relation, then child, then parent, an identity by its spelling.
+func sortLineage(edges []artifact.Lineage) {
+	slices.SortFunc(edges, func(left, right artifact.Lineage) int {
+		if order := cmp.Compare(left.Relation, right.Relation); order != 0 {
+			return order
 		}
 		if left.Child != right.Child {
-			return left.Child.String() < right.Child.String()
+			return strings.Compare(left.Child.String(), right.Child.String())
 		}
-		return left.Parent.String() < right.Parent.String()
+		return strings.Compare(left.Parent.String(), right.Parent.String())
 	})
-	return edges
 }
 
 func (s catalogState) lineageWithin(selected map[artifact.ID]struct{}, relation artifact.Relation) []artifact.Lineage {
@@ -616,22 +621,8 @@ func (s catalogState) queryAliases(query Query, selected map[artifact.ID]struct{
 }
 
 func sortedQueryLineage(edges []artifact.Lineage, limit int, truncated *bool) []artifact.Lineage {
-	sort.Slice(edges, func(i, j int) bool {
-		left, right := edges[i], edges[j]
-		if left.Relation != right.Relation {
-			return left.Relation < right.Relation
-		}
-		if left.Child != right.Child {
-			return left.Child.String() < right.Child.String()
-		}
-		return left.Parent.String() < right.Parent.String()
-	})
-	edges = compactLineage(edges)
-	return truncateQuery(edges, limit, truncated)
-}
-
-func compactLineage(edges []artifact.Lineage) []artifact.Lineage {
-	return slices.Compact(edges)
+	sortLineage(edges)
+	return truncateQuery(slices.Compact(edges), limit, truncated)
 }
 
 func (s catalogState) queryCommits(query Query, truncated *bool) []CommitView {

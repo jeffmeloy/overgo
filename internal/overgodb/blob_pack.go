@@ -258,11 +258,8 @@ func packBlobsUnder(ctx context.Context, store *Store, limit int64) (PackReport,
 				small = append(small, id)
 			}
 		}
-		slices.SortFunc(small, func(left, right artifact.ID) int {
-			leftKey, _ := packKey(left)
-			rightKey, _ := packKey(right)
-			return bytes.Compare(leftKey, rightKey)
-		})
+		// Kind, then digest: the order of the packed index's keys.
+		slices.SortFunc(small, artifact.CompareID)
 		// The index is laid out from the committed sizes, so the payloads
 		// stream into the pack one at a time; a member whose bytes differ
 		// from its size or identity refuses the pack.

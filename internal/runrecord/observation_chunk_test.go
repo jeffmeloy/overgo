@@ -133,13 +133,11 @@ func TestObservationChunkPublication(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("summary content = (%+v, %v, %v)", storedSummary.Descriptor, found, err)
 	}
-	if storedRaw.Descriptor.Schema != "" || storedRaw.Descriptor.MediaType != observationChunkMediaType ||
-		overgodb.DocumentStorageClass(storedRaw.Descriptor) != overgodb.ClassImmutableBlob {
-		t.Fatalf("raw storage contract = %+v class=%s", storedRaw.Descriptor, overgodb.DocumentStorageClass(storedRaw.Descriptor))
+	if storedRaw.Descriptor.Schema != "" || storedRaw.Descriptor.MediaType != observationChunkMediaType {
+		t.Fatalf("raw storage contract = %+v", storedRaw.Descriptor)
 	}
-	if storedSummary.Descriptor.Schema != observationChunkSummarySchema || storedSummary.Descriptor.MediaType != observationChunkSummaryMediaType ||
-		overgodb.DocumentStorageClass(storedSummary.Descriptor) != overgodb.ClassCanonicalFact {
-		t.Fatalf("summary storage contract = %+v class=%s", storedSummary.Descriptor, overgodb.DocumentStorageClass(storedSummary.Descriptor))
+	if storedSummary.Descriptor.Schema != observationChunkSummarySchema || storedSummary.Descriptor.MediaType != observationChunkSummaryMediaType {
+		t.Fatalf("summary storage contract = %+v", storedSummary.Descriptor)
 	}
 	digest, err := artifact.IdentifyBytes(artifact.KindFile, storedRaw.Data)
 	if err != nil || digest != firstSummary.Chunk || firstSummary.Chunk != raw.Descriptor.ID || firstSummary.Stats.Bytes != uint64(len(storedRaw.Data)) {

@@ -94,25 +94,13 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantPrevious := previous
-	source := []AliasBinding{{Name: "model", Target: target, Previous: &previous}}
-	cloned := CloneAliasBindings(source)
-	*source[0].Previous = target
-	if cloned[0].Previous == source[0].Previous || *cloned[0].Previous != wantPrevious {
-		t.Fatal("alias clone retained caller pointer")
-	}
-}
-
-func TestPublicPointerHelpersHaveConsumers(t *testing.T) {
-	var id ID
-	pointer := IDPointer(id)
-	switch pointer {
-	case nil:
-		t.Fatal("IDPointer returned nil")
-	default:
-	}
-	if *pointer != id {
-		t.Fatal("IDPointer changed its input")
+	for _, wantPrevious := range []ID{previous, {}} {
+		source := []AliasBinding{{Name: "model", Target: target, Previous: IDPointer(wantPrevious)}}
+		cloned := CloneAliasBindings(source)
+		*source[0].Previous = target
+		if cloned[0].Previous == source[0].Previous || *cloned[0].Previous != wantPrevious {
+			t.Fatalf("alias clone of previous %s retained caller pointer", wantPrevious)
+		}
 	}
 }
 

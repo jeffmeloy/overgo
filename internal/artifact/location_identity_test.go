@@ -24,6 +24,9 @@ func TestCanonicalLocalLocationContract(t *testing.T) {
 	if first.Value != second.Value || !filepath.IsAbs(first.Value) {
 		t.Fatalf("canonical locations = (%+v, %+v)", first, second)
 	}
+	if first.Artifact != id || first.Value == id.String() {
+		t.Fatalf("physical location replaced content identity: %+v", first)
+	}
 	if _, err := CanonicalLocalLocation(id, LocationDirectory, file); err == nil {
 		t.Fatal("file admitted as a directory location")
 	}

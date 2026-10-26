@@ -366,8 +366,8 @@ reason: No command opens an activity stream and nothing but a test publishes its
 group store-test-observers
 class: test-held
 surface: outside
-declarations: 8
-lines: 129
+declarations: 7
+lines: 116
 members: internal/overgodb/causality.go
 members: internal/overgodb/commit_delta.go
 members: internal/overgodb/storage_classes.go

@@ -665,24 +665,6 @@
       ]
     },
     {
-      "id": "scorecard-failing-inference",
-      "title": "Fix the inference attempts that failed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fix the inference attempts that failed",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
-          "rationale": "- gemma-4-12B-it-fp8 failure-rate: 1 failed and 0 cancelled since the last success\n\nRead 2026-10-24 from the runs' logs: gemma-4-12B-it-fp8's one failed attempt is its 16,384-token prompt, refused by the card's memory admission for 25,769,803,776 bytes, which is its K/V storage in F32 at the 32,768-token page the capacity rounds up to (cachePageCapacity: the page is the prompt's highest power of two, so 16,384 tokens plus the output's reserve take a 32,768-token page): 48 layers × 2 × 32,768 × 2,048 (4 K/V heads × 512) × 4 bytes, beside 24 GB of weights on a 49 GB card; its long-form guard's 8,192 rung, lost to the second arena in the first run, is back in the second. The kv step's int8 K/V takes that storage to 6.4 GB, and a page at the prompt's length rather than its power of two would halve it before that; the failing-attempt row stands until one of them lands.\n\nHeld to strata-port/kv (2026-10-25): the port's int8 K/V resident cells take the 16,384-token prompt's 25.8 GB of F32 storage at a 32,768-token page to 6.4 GB, which admits the attempt beside the 24 GB of weights; a page at the prompt's length instead of its power of two would be an interim mechanism the port replaces, so this row waits on the kv step rather than adding one, and the record after the port judges it.\n\nHeld to strata-port/recipe-widen (2026-10-25): the port now adopts Strata's int8 K/V state literally for Flash-Next first (qsa-layer) and widens it model by model by recipe property after; gemma-4-12B-it-fp8 is a dense attention model, so its 16,384-token attempt is admitted when the widening brings it the int8 cells, with its bench cells and its held-out check, and the record after that judges this row.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
-          "depends_on": [
-            "strata-port/widen-kv"
-          ]
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-0d6c925abf0b1e14",
       "title": "Restore gemma-4-12B-it-fp8-native inference peak-device-memory to 1.53707484e+10 bytes",
       "owner": "master-lead",

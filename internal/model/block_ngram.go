@@ -52,6 +52,16 @@ func buildNGramInjection(options blockDispatchOptions, input *tensor.Tensor) (De
 		}
 	}
 	output := b.Add(input, b.Add(gated, b.Reshape(b.SiLU(conv), width, streams, tokens)))
+	if c.Window != nil {
+		// verify.cpp record_window's lexical section: the history stays where it sits, the window keeping its rows after
+		// it, from which the commit copies the history after its kept tokens (copy_indexed); a one-token window copies
+		// its own.
+		window := LayerWindow{Full: full}
+		if tokens == tensor.SingletonExtent {
+			window.Kept = b.CopyIndexed(nil, past, full, c.Window.One, wide)
+		}
+		return DenseBlockResult{Output: output, Window: window}, b.Err()
+	}
 	states := CacheStates[*tensor.Tensor]{
 		CacheStateNGramHistory:     {Mode: CacheStateFixed, Value: c.NGramHistory},
 		cacheStateNGramConvolution: {Mode: CacheStateFixed, Value: b.FlatSlice(full, tokens*wide, wide, history)},

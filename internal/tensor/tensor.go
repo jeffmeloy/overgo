@@ -92,6 +92,18 @@ const (
 	OpGatedDeltaGates
 	// OpQSAAttention is Strata's QSA layer between its projections over a per-sequence state (Builder.QSAAttention).
 	OpQSAAttention
+	// OpGatedDeltaWindowConv is Strata's gdn_conv_l2_multi over a window, the history left
+	// (Builder.GatedDeltaWindowConv).
+	OpGatedDeltaWindowConv
+	// OpGatedDeltaWindowStep is Strata's gdn_step_norm_multi over a window, the state left (Builder.GatedDeltaWindowStep).
+	OpGatedDeltaWindowStep
+	// OpGatedDeltaCommit is Strata's gdn_conv_commit and gdn_step_commit, in place over a kept count
+	// (Builder.GatedDeltaCommit).
+	OpGatedDeltaCommit
+	// OpQSACommit is Strata's commit of a QSA layer's indexer, in place (Builder.QSACommit).
+	OpQSACommit
+	// OpCopyIndexed is Strata's copy_indexed, in place (Builder.CopyIndexed).
+	OpCopyIndexed
 )
 
 // GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its

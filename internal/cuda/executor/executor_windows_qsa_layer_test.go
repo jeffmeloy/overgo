@@ -282,6 +282,57 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 	}
 }
 
+// TestQSAWindowStepIsCaptured holds a verify window's QSA step to a captured graph, as verify.cpp record_window
+// captures each window: its rows read their staged step records, so its next cells reach no kernel as launch
+// arguments, while a step of several tokens over a copy of the fixed state passes its first cell and active blocks as
+// launch arguments, which keeps its graph from being captured.
+func TestQSAWindowStepIsCaptured(t *testing.T) {
+	const capacity = 1024
+	for _, inPlace := range []bool{false, true} {
+		builder := tensor.NewBuilder()
+		input := func(name string, shape tensor.Shape) *tensor.Tensor { return builder.Input(name, dtype.F32, shape) }
+		query := input("query", tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAQueryHeads, 2))
+		key := input("key", tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAKeyValueHeads, 2))
+		value := input("value", tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAKeyValueHeads, 2))
+		indexerKey := input("indexer_key", tensor.MustShape(tensor.QSAIndexerWidth, 1, 2))
+		indexerQuery := input("indexer_query", tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSAIndexerHeads, 2))
+		indexerNorm := input("indexer_norm", tensor.MustShape(tensor.QSAIndexerWidth))
+		tail := input("indexer_tail", tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSATailRows))
+		spare := input("indexer_spare", tensor.MustShape(tensor.QSAIndexerWidth))
+		var state []*tensor.Tensor
+		for _, shape := range qsaStateShapes(capacity) {
+			state = append(state, builder.Input(shape.name, shape.kind, shape.shape))
+		}
+		qsaState := tensor.QSAState{
+			KeyCodes: state[0], ValueCodes: state[1], KeyScales: state[2], ValueScales: state[3], PageTable: state[4],
+			IndexerPooled: state[5], BlockPosition: state[6], Positions: state[7], RopeCos: state[8], RopeSin: state[9],
+		}
+		attributes := tensor.QSAAttentionAttributes{Cells: []uint32{5, 6}, Capacity: capacity, Epsilon: strataRMSEpsilon}
+		output := builder.QSAAttention(query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, qsaState, attributes)
+		if inPlace {
+			snapshot := input("indexer_snapshot", tail.Shape)
+			output = builder.QSAAttentionInPlace(query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, snapshot,
+				qsaState, attributes)
+		}
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := Compile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := compiled.NewRuntimeAttributes()
+		next := output.Attrs.(tensor.QSAAttentionAttributes)
+		next.Cells = []uint32{7, 8}
+		if err := runtime.Set(output, next); err != nil {
+			t.Fatal(err)
+		}
+		if runtime.launchArguments == inPlace {
+			t.Fatalf("in place %t: the step's next cells reach its kernels as launch arguments: %t", inPlace, runtime.launchArguments)
+		}
+	}
+}
+
 // qsaStateShape is one state tensor's name, type and shape, in tensor.QSAState's order (the operation's inputs from
 // its key codes).
 type qsaStateShape struct {

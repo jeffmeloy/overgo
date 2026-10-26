@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -212,6 +213,19 @@ func (r *Runner) generateDeviceSpeculative(
 		return ids, boundary, false, "", err
 	}
 	pending := []tokenizer.TokenID{first}
+	// A QSA runner's windows read its sequence's live state, into which the prompt read's state moves first.
+	if r.windowsDecode() {
+		live, err := r.liveDeviceCache(ctx, boundary)
+		if err != nil {
+			return ids, boundary, false, "", err
+		}
+		if live != boundary && !r.ownsDevicePromptCache(boundary) {
+			if err := boundary.Release(ctx); err != nil {
+				return ids, boundary, false, "", errors.Join(err, live.Release(context.Background()))
+			}
+		}
+		boundary = live
+	}
 	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
 	if r.hyperDraft != nil {
@@ -235,6 +249,8 @@ func (r *Runner) generateDeviceSpeculative(
 			return ids, boundary, false, "", err
 		}
 	}
+	// deferred is the last window's commit, which runs after the next draft.
+	var deferred func() error
 	for !stopped {
 		var drafts []tokenizer.TokenID
 		// A long pending run means the last drafts were rejected past the
@@ -268,6 +284,12 @@ func (r *Runner) generateDeviceSpeculative(
 				drafts = append(drafts, token)
 			}
 		}
+		if deferred != nil {
+			if err := deferred(); err != nil {
+				return ids, boundary, false, "", err
+			}
+			deferred = nil
+		}
 		spanTokens := append(append([]tokenizer.TokenID(nil), pending...), drafts...)
 		// A window with drafts keeps its layers' state after its pending tokens and after each prefix of its drafts
 		// but the whole, so a window that keeps part of them commits to it without reading them again.
@@ -279,7 +301,14 @@ func (r *Runner) generateDeviceSpeculative(
 		if drawing {
 			mode = deviceOutputLogitsSpan
 		}
-		span, err := r.forwardDeviceCachedModeLocked(ctx, mode, spanTokens, boundary, nil, checkpoints...)
+		var span *deviceKVCache
+		var err error
+		if r.windowsDecode() {
+			// Strata's verifier: the window reads the live state where it sits; its commit keeps what it accepts.
+			span, err = r.forwardDeviceWindowLocked(ctx, mode, spanTokens, boundary)
+		} else {
+			span, err = r.forwardDeviceCachedModeLocked(ctx, mode, spanTokens, boundary, nil, checkpoints...)
+		}
 		if err != nil {
 			return ids, boundary, false, "", err
 		}
@@ -358,7 +387,23 @@ func (r *Runner) generateDeviceSpeculative(
 		// A window whose drafts were all accepted is the next boundary; one that rejected a draft keeps the span at its
 		// checkpoint after the pending tokens and the drafts accepted, so the correction is all that is pending.
 		committed := accepted == len(drafts)
-		if !committed && len(span.checkpoints) != 0 {
+		if r.windowsDecode() {
+			// verify.cpp commit: the window's pending token and accepted drafts advance the live state; a one-token
+			// window advanced it itself.
+			kept := len(pending) + accepted
+			if len(spanTokens) > tensor.SingletonExtent {
+				// The commit waits for the next draft, which reads only the window's rows and its own cache, so the
+				// experts' advance runs behind the draft as before; the next window, or the request's end, runs it first.
+				cells, pastTokens, tokens := boundary.storage.qsa, boundary.Tokens, len(spanTokens)
+				deferred = func() error { return r.commitWindowLocked(ctx, cells, pastTokens, tokens, kept) }
+			}
+			if err := r.followNGramHistory(ctx, span, boundary, spanTokens[:kept]); err != nil {
+				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
+			}
+			span.Tokens, span.Position = boundary.Tokens+uint32(kept), boundary.Position+uint32(kept)
+			span.Selection = executor.DeviceValue{}
+			committed = true
+		} else if !committed && len(span.checkpoints) != 0 {
 			kept := append(slices.Clone(pending), drafts[:accepted]...)
 			if err := r.commitSpanCheckpoint(ctx, span, boundary, kept); err != nil {
 				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))
@@ -380,6 +425,11 @@ func (r *Runner) generateDeviceSpeculative(
 				return ids, boundary, false, "", err
 			}
 			pending = append(append(pending, drafts[:accepted]...), correction)
+		}
+	}
+	if deferred != nil {
+		if err := deferred(); err != nil {
+			return ids, boundary, false, "", err
 		}
 	}
 	text, err := r.vocab.Decode(ids, false)

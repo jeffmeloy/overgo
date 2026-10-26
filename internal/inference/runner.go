@@ -238,6 +238,15 @@ type runnerState struct {
 	qsaStage *qsaStage
 	// qsaRing is the cells a QSA layer keeps on the card once its sequence streams; zero for qsaRingCells.
 	qsaRing uint32
+	// qsaWindow is the rows a verify window keeps for its commit and the window's control, allocated at the first
+	// window (qsa_window.go); qsaCommits are the compiled commits, a window size and cell layout each.
+	qsaWindow  *qsaWindowScratch
+	qsaCommits map[qsaCommitKey]*qsaCommitGraph
+	// qsaWindows holds whether the runner decodes through Strata's verifier (qsaWindowSet).
+	qsaWindows bool
+	// qsaWindowLayouts are the rows a window of each size keeps a layer, recorded as its graph is built, which its commit
+	// reads.
+	qsaWindowLayouts map[int][]model.LayerWindow
 }
 
 // Runner: prepared assets + mutable request state.

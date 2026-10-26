@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:89f740c34dae3fe842965bea4b52c3c79b3523f464dddb358a8d4d1bdaf23ca7"
+     "identity": "file:sha256:942666411a5df86b3dd85d7d659f1e0214a5849e4307748c81ad2019d9fff1e5"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:2d62e751b9edf884c1aed6539b2828306a67a53601b257c480cfb8d33eccfb9e"
+     "identity": "file:sha256:14e15f6cc614c6d2773e20f01948c24e585879038760f125000d1a2e32eac88b"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -886,7 +886,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:ab2313c28d94348ab80b4d1ca2f9c21b14118a6ca32467ef164cf1322c1b3d4f"
+     "identity": "file:sha256:f9e0197b0501b5d40101999d586d616ef4ca54d20170cf6c42b9def466788bff"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:86cd67255065298f128e1d8f094f514858dc8f17e4c7fa6c55126e802b99c98d"
+     "identity": "file:sha256:f884d2e6f953c90ceaf06d3ca2e9ad467104d48b0ea5ad6016d9e333837fd96d"
     },
     {
      "contains": "func ReadWeights(",

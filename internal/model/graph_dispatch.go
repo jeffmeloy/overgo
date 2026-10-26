@@ -33,6 +33,9 @@ type CachedBlockContext struct {
 	// state (DenseBlockResult.Checkpoints), for a verify span that may keep only its first tokens: its pending tokens and
 	// each prefix of its drafts.
 	Checkpoints []uint32
+	// Window is a verify window's binding in Strata's verifier, nil for a step that writes its fixed state out
+	// (WindowBinding).
+	Window *WindowBinding
 }
 
 type blockDispatchOptions struct {
@@ -130,6 +133,18 @@ type layerExecution struct {
 
 func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
 	destination.Output = result.Output
+	window := &destination.Window
+	for _, part := range []struct {
+		to   **tensor.Tensor
+		from *tensor.Tensor
+	}{
+		{&window.QKV, result.Window.QKV}, {&window.Rows, result.Window.Rows}, {&window.Gates, result.Window.Gates},
+		{&window.Raw, result.Window.Raw}, {&window.Full, result.Window.Full}, {&window.Kept, result.Window.Kept},
+	} {
+		if part.from != nil {
+			*part.to = part.from
+		}
+	}
 	if result.Key != nil || result.Value != nil {
 		destination.Key, destination.Value = result.Key, result.Value
 	}
@@ -299,7 +314,7 @@ func executeRecurrentOperator(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.Sequences,
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue],
-			plan.AttentionGraph.deltaProjection, c.Checkpoints,
+			plan.AttentionGraph.deltaProjection, c.Checkpoints, c.Window,
 		)
 	case recurrentMixerShortConvolution:
 		return buildShortConvolutionMixCached(

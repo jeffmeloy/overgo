@@ -349,6 +349,16 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return cacheAppend(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.CacheAppendAttributes))
 	case tensor.OpQSAAttention:
 		return qsaAttention(node.Shape, inputs, node.Attrs.(tensor.QSAAttentionAttributes))
+	case tensor.OpGatedDeltaWindowConv:
+		return gatedDeltaWindowConv(node, inputs)
+	case tensor.OpGatedDeltaWindowStep:
+		return gatedDeltaWindowStep(node, inputs)
+	case tensor.OpGatedDeltaCommit:
+		return gatedDeltaCommit(node, inputs)
+	case tensor.OpQSACommit:
+		return qsaCommit(node, inputs)
+	case tensor.OpCopyIndexed:
+		return copyIndexed(node, inputs)
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}

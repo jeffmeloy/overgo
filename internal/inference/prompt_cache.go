@@ -186,7 +186,7 @@ func (r *Runner) selectPromptCache(
 		if candidate == nil ||
 			candidate.HasProjection ||
 			candidate.LoRASignature != signature ||
-			(device && candidate.Device == nil) ||
+			(device && (candidate.Device == nil || candidate.Device.staleLive())) ||
 			(!device && candidate.Cache == nil) {
 			continue
 		}

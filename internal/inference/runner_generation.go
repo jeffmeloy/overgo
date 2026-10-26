@@ -393,6 +393,20 @@ func (r *Runner) Generate(
 		}
 	}
 
+	// A QSA runner decodes through Strata's verifier: its steps are one-token windows over its sequence's live state,
+	// into which the prompt read's state moves first.
+	if r.windowsDecode() && deviceCache != nil && start < options.MaxNewTokens-1 {
+		live, liveErr := r.liveDeviceCache(ctx, deviceCache)
+		if liveErr != nil {
+			return ids, "", liveErr
+		}
+		if live != deviceCache && !r.ownsDevicePromptCache(deviceCache) {
+			if err := deviceCache.Release(ctx); err != nil {
+				return ids, "", errors.Join(err, live.Release(context.Background()))
+			}
+		}
+		deviceCache = live
+	}
 	var generatedText strings.Builder
 	// loopErr: a failed step ends the loop with the ids decoded so far.
 	var loopErr error
@@ -424,7 +438,13 @@ func (r *Runner) Generate(
 				}
 			}
 			var nextDeviceCache *deviceKVCache
-			if deviceGreedy {
+			if r.windowsDecode() {
+				mode := deviceOutputLogits
+				if deviceGreedy {
+					mode = deviceOutputGreedy
+				}
+				nextDeviceCache, err = r.forwardDeviceWindowLocked(ctx, mode, []tokenizer.TokenID{ids[len(ids)-1]}, deviceCache)
+			} else if deviceGreedy {
 				nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
 					ctx,
 					[]tokenizer.TokenID{ids[len(ids)-1]},

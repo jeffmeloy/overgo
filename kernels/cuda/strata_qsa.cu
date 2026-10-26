@@ -266,6 +266,8 @@ extern "C" __global__ void strata_indexer_key_append(
     extern __shared__ double s_mean[];
     const int d = threadIdx.x;
     const int pos = (int) __ldg(pos_dev);
+    // native_qsa_indexer.cu append_body's skip: a commit names a row it does not keep by a negative cell.
+    if (pos < 0) return;
     const int slot = pos % r;
     if (slot < r - 1) tail[(size_t) slot * idx_dim + d] = raw[d];
     if (pos == 0) {

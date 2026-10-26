@@ -2075,15 +2075,15 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "3928c89aef47c693bc19904c870cff9da0c31b54de99b19d8fac1bab42baf9cb",
+      "sourceSha256": "6ae4e3c189a3b6592db2fd72fbbe31b90354e3cb096fa0a6437ef2ab0135e90a",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/strata_gdn.cuh",
-          "sha256": "7d96b291a8886d06dabdd6f958a47f4cc03de5902456389bc7d9cd86e5719214"
+          "sha256": "f2352df2014b36e2723a177fa35b54d7efd86c42e84700d5b40325af6b706704"
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "e37b681366f72c396594a40090d5881221a2961a13582a7b1a50e091d0162b4b",
+      "assetSha256": "0677d675cef7c8e4428e7ecf44e92b874041ca2ebaf2379602f8891d3faffb1e",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2100,6 +2100,7 @@
         "strata_block_topk_ref",
         "strata_block_topk_reg",
         "strata_block_topk_wide",
+        "strata_copy_indexed",
         "strata_gate_apply_f32",
         "strata_gdn_conv_commit",
         "strata_gdn_conv_l2_multi",
@@ -2219,7 +2220,8 @@
             "strata_block_scores_tail",
             "strata_block_topk_ref",
             "strata_block_topk_reg",
-            "strata_block_topk_wide"
+            "strata_block_topk_wide",
+            "strata_copy_indexed"
           ]
         },
         {

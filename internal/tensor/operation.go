@@ -162,6 +162,11 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpGatedDeltaConv, "gated_delta_conv", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
 	{OpGatedDeltaGates, "gated_delta_gates", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
 	{OpQSAAttention, "qsa_attention", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpGatedDeltaWindowConv, "gated_delta_window_conv", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpGatedDeltaWindowStep, "gated_delta_window_step", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpGatedDeltaCommit, "gated_delta_commit", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpQSACommit, "qsa_commit", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpCopyIndexed, "copy_indexed", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
 }
 
 // DescribeOperation: typed operation lookup.

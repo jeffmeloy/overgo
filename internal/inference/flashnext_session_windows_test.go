@@ -30,7 +30,6 @@ const (
 	flashNextHeads       = uint64(2)
 	flashNextHeadWidth   = uint64(4)
 	flashNextConv        = uint64(4)
-	flashNextInner       = uint64(8)
 	flashNextState       = uint64(4)
 	flashNextGroups      = uint64(2)
 	flashNextTimeRank    = uint64(2)
@@ -67,6 +66,18 @@ type flashNextGeometry struct {
 	// decaying negates the gated-delta layers' ssm_a, as a served file holds it (-exp(A_log)), so their states decay over a
 	// long prompt instead of growing past F32 near 80 tokens.
 	decaying bool
+	// ssmState, ssmGroups and ssmValueHeads are the gated-delta layers' state width, key heads and value heads; zero for
+	// the hermetic scale's.
+	ssmState, ssmGroups, ssmValueHeads uint64
+}
+
+// gatedDelta is the fixture's gated-delta geometry: its state width, key heads, value heads and inner width.
+func (g flashNextGeometry) gatedDelta() (state, groups, valueHeads, inner uint64) {
+	state, groups, valueHeads = flashNextState, flashNextGroups, flashNextTimeRank
+	if g.ssmState != 0 {
+		state, groups, valueHeads = g.ssmState, g.ssmGroups, g.ssmValueHeads
+	}
+	return state, groups, valueHeads, state * valueHeads
 }
 
 // hermeticFlashNext is the hermetic scale: a dozen decode steps cross the indexer budget and two capacity pages.
@@ -86,6 +97,7 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 	t.Helper()
 	architecture := "qwen4exp."
+	state, groups, valueHeads, inner := geometry.gatedDelta()
 	u32 := func(key string, value uint32) gguf.Metadata {
 		return testutil.GGUFScalar(architecture+key, gguf.ValueTypeUint32, value)
 	}
@@ -114,10 +126,10 @@ func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 		testutil.GGUFArray(architecture+"rope.dimension_sections", gguf.ValueTypeInt32, geometry.sections),
 		testutil.GGUFScalar(architecture+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, flashNextEpsilon),
 		u32("ssm.conv_kernel", uint32(flashNextConv)),
-		u32("ssm.inner_size", uint32(flashNextInner)),
-		u32("ssm.state_size", uint32(flashNextState)),
-		u32("ssm.time_step_rank", uint32(flashNextTimeRank)),
-		u32("ssm.group_count", uint32(flashNextGroups)),
+		u32("ssm.inner_size", uint32(inner)),
+		u32("ssm.state_size", uint32(state)),
+		u32("ssm.time_step_rank", uint32(valueHeads)),
+		u32("ssm.group_count", uint32(groups)),
 		u32("full_attention_interval", flashNextBlocks),
 		u32("expert_count", uint32(flashNextExperts)),
 		u32("expert_used_count", flashNextUsed),
@@ -145,7 +157,7 @@ func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 		testutil.GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
 		testutil.GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
 	}
-	wide, keyWidth := flashNextEmbedding*flashNextStreams, flashNextState*flashNextGroups
+	wide, keyWidth := flashNextEmbedding*flashNextStreams, state*groups
 	var tensors []gguf.TensorData
 	seed := 1
 	tensor := func(name string, shape ...uint64) {
@@ -192,19 +204,19 @@ func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 			tensor(block+"indexer.q_norm.weight", indexWidth)
 			tensor(block+"indexer.k_norm.weight", indexWidth)
 		} else {
-			tensor(block+"attn_qkv.weight", flashNextEmbedding, 2*keyWidth+flashNextInner)
-			tensor(block+"attn_gate.weight", flashNextEmbedding, flashNextInner)
-			tensor(block+"ssm_beta.weight", flashNextEmbedding, flashNextTimeRank)
-			tensor(block+"ssm_alpha.weight", flashNextEmbedding, flashNextTimeRank)
-			tensor(block+"ssm_conv1d.weight", flashNextConv, 2*keyWidth+flashNextInner)
-			tensor(block+"ssm_dt.bias", flashNextTimeRank)
+			tensor(block+"attn_qkv.weight", flashNextEmbedding, 2*keyWidth+inner)
+			tensor(block+"attn_gate.weight", flashNextEmbedding, inner)
+			tensor(block+"ssm_beta.weight", flashNextEmbedding, valueHeads)
+			tensor(block+"ssm_alpha.weight", flashNextEmbedding, valueHeads)
+			tensor(block+"ssm_conv1d.weight", flashNextConv, 2*keyWidth+inner)
+			tensor(block+"ssm_dt.bias", valueHeads)
 			if geometry.decaying {
-				scaled(-1, block+"ssm_a", flashNextTimeRank)
+				scaled(-1, block+"ssm_a", valueHeads)
 			} else {
-				tensor(block+"ssm_a", flashNextTimeRank)
+				tensor(block+"ssm_a", valueHeads)
 			}
-			tensor(block+"ssm_norm.weight", flashNextState)
-			tensor(block+"ssm_out.weight", flashNextInner, flashNextEmbedding)
+			tensor(block+"ssm_norm.weight", state)
+			tensor(block+"ssm_out.weight", inner, flashNextEmbedding)
 		}
 		if layer == int(flashNextLexical) {
 			tensor(block+"ple_key.weight", flashNextEmbedding, wide)

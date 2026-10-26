@@ -197,6 +197,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens, promptChunkTokens: devicePromptChunkTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}
 	runner.qsaLayers = runner.qsaLayerSet()
+	runner.qsaWindows = runner.qsaWindowSet()
 	return runner, nil
 }
 
@@ -451,6 +452,7 @@ func (r *Runner) Close() error {
 		r.releaseHyperDraftHistory(context.Background()),
 		r.releaseQSARope(context.Background()),
 		r.releaseQSAStage(context.Background()),
+		r.qsaWindow.release(context.Background()),
 		resources.close(),
 	)
 }

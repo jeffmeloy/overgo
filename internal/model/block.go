@@ -49,6 +49,9 @@ type DenseBlockResult struct {
 	AttentionScale float32
 	// Checkpoints are the layer's fixed cache states after each of CachedBlockContext.Checkpoints' token counts.
 	Checkpoints []LayerCheckpoint
+	// Window is the rows a verify window keeps for its commit (CachedBlockContext.Window); its fixed state stays where
+	// it sits, so Key, Value and States are nil for it.
+	Window LayerWindow
 }
 
 // LayerCheckpoint is a layer's fixed cache state at a checkpoint inside its block: the recurrent pair and the fixed
@@ -870,9 +873,13 @@ func buildGatedDeltaMixCached(
 	convState, ssmState *tensor.Tensor,
 	deltaPolicy gatedDeltaPolicy,
 	checkpointTokens []uint32,
+	verifyWindow *WindowBinding,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
+	}
+	if verifyWindow != nil {
+		return buildGatedDeltaWindow(builder, normalized, spec, weights, uint64(len(positions)), convState, ssmState, deltaPolicy, verifyWindow)
 	}
 	required := graphWeights{
 		weights.AttentionQKV,

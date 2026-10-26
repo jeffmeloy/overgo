@@ -232,6 +232,14 @@ func launchRecurrentSelection(
 		return launchGatedDeltaConv(state, functions, node, pointers)
 	case tensor.OpGatedDeltaGates:
 		return launchGatedDeltaGates(state, functions, node, pointers)
+	case tensor.OpGatedDeltaWindowConv:
+		return launchGatedDeltaWindowConv(state, functions, node, pointers)
+	case tensor.OpGatedDeltaWindowStep:
+		return launchGatedDeltaWindowStep(state, functions, node, pointers)
+	case tensor.OpGatedDeltaCommit:
+		return launchGatedDeltaCommit(state, functions, node, pointers)
+	case tensor.OpCopyIndexed:
+		return launchCopyIndexed(state, functions, node, pointers)
 	case tensor.OpSSMConv:
 		count := shapeCount32(node.Shape)
 		window := uint32(node.Inputs[0].Shape.Dims[0])

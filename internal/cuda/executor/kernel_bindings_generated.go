@@ -265,6 +265,7 @@ const (
 	kernelStrataBlockTopkRef
 	kernelStrataBlockTopkReg
 	kernelStrataBlockTopkWide
+	kernelStrataCopyIndexed
 	kernelStrataGateApplyF32
 	kernelStrataGdnConvCommit
 	kernelStrataGdnConvL2Multi
@@ -545,6 +546,7 @@ var kernelFunctionNames = [...]string{
 	"strata_block_topk_ref",
 	"strata_block_topk_reg",
 	"strata_block_topk_wide",
+	"strata_copy_indexed",
 	"strata_gate_apply_f32",
 	"strata_gdn_conv_commit",
 	"strata_gdn_conv_l2_multi",
@@ -825,6 +827,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	5,
+	5,
 	4,
 	9,
 	8,
@@ -1097,6 +1100,7 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
 	1,
 	1,
 	1,

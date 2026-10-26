@@ -77,7 +77,12 @@ func qsaScratchLayout(node *tensor.Tensor) (qsaScratch, error) {
 	layout.ids = 0
 	layout.scores = alignQSAScratch(uint64(tokens * qsaSelectionCapacity * f32Bytes))
 	layout.partials = alignQSAScratch(layout.scores + uint64(min(tokens, qsaSelectionBatch)*maxBlocks*f32Bytes))
-	layout.total = alignQSAScratch(layout.partials + uint64(strataAttentionScratchFloats(qsaSelectionCapacity, tensor.QSAQueryHeads)*f32Bytes))
+	// An in-place window's rows attend as a decode batch, each with partials of its own.
+	attending := int64(1)
+	if attributes.InPlace {
+		attending = tokens
+	}
+	layout.total = alignQSAScratch(layout.partials + uint64(attending*strataAttentionScratchFloats(qsaSelectionCapacity, tensor.QSAQueryHeads)*f32Bytes))
 	return layout, nil
 }
 
@@ -113,6 +118,36 @@ func alignQSAScratch(bytes uint64) uint64 {
 	return (bytes + qsaScratchAlignment - 1) / qsaScratchAlignment * qsaScratchAlignment
 }
 
+// launchQSACommit runs a QSA layer's commit (tensor.Builder.QSACommit), verify.cpp capture_commit's QSA part: the tail
+// restored from the window's snapshot, then each kept row's raw key appended at its cell, a row named by a negative cell
+// skipped by the kernel; then the first cell's word to the output.
+func launchQSACommit(state *device.State, functions functionSet, node *tensor.Tensor, pointers launchPointerFrame) error {
+	attributes, ok := node.Attrs.(tensor.QSACommitAttributes)
+	if !ok || len(node.Inputs) < tensor.QSACommitOperands {
+		return errors.New("QSA commit node is invalid")
+	}
+	tail, snapshot := pointers.input(tensor.QSACommitTail), pointers.input(tensor.QSACommitSnapshot)
+	count := uint32(tensor.QSATailRows * tensor.QSAIndexerWidth)
+	if err := launch1DABI(state, functions[kernelCopyF32], count, &snapshot, &tail, &count); err != nil {
+		return err
+	}
+	indexer := strataIndexerBuffers{
+		tail: tail, dead: pointers.input(tensor.QSACommitSpare),
+		pooled: pointers.input(tensor.QSACommitPooled), blockPos: pointers.input(tensor.QSACommitBlockPosition),
+	}
+	geometry := strataIndexerGeometry{keyWidth: tensor.QSAIndexerWidth, block: tensor.QSABlockCells, rotated: tensor.QSARotated}
+	raw, cells := pointers.input(tensor.QSACommitRaw), pointers.input(tensor.QSACommitCells)
+	for row := range int64(node.Inputs[tensor.QSACommitCells].Shape.Dims[0]) {
+		if err := launchStrataIndexerKeyAppend(state, functions, raw+driver.DevicePtr(row*tensor.QSAIndexerWidth*f32Bytes),
+			cells+driver.DevicePtr(row*i32Bytes), int32(qsaPositionBase), pointers.input(tensor.QSACommitNorm), attributes.Epsilon,
+			indexer, geometry, pointers.input(tensor.QSACommitRopeCos), pointers.input(tensor.QSACommitRopeSin),
+			pointers.input(tensor.QSACommitPositions)); err != nil {
+			return err
+		}
+	}
+	return launchCommitWord(state, functions, cells, pointers.output())
+}
+
 // launchQSAAttention runs one QSA step: a token as Strata's decode layer, several consecutive tokens as its prompt
 // read.
 func launchQSAAttention(
@@ -120,8 +155,13 @@ func launchQSAAttention(
 	pointers launchPointerFrame,
 ) error {
 	attributes, ok := runtimeAttributes.(tensor.QSAAttentionAttributes)
-	streamed := len(node.Inputs) == tensor.QSAAttentionInputs+tensor.QSAStreamInputs
-	if !ok || len(attributes.Cells) == 0 || len(node.Inputs) != tensor.QSAAttentionInputs && !streamed {
+	// An in-place step's snapshot follows every other input.
+	inputs := len(node.Inputs)
+	if attributes.InPlace {
+		inputs--
+	}
+	streamed := inputs == tensor.QSAAttentionInputs+tensor.QSAStreamInputs
+	if !ok || len(attributes.Cells) == 0 || inputs != tensor.QSAAttentionInputs && !streamed {
 		return errors.New("QSA attention node is invalid")
 	}
 	layout, err := qsaScratchLayout(node)
@@ -146,13 +186,20 @@ func launchQSAAttention(
 	output := pointers.output()
 	tail := output + driver.DevicePtr(tokens*tensor.QSAQueryHeads*tensor.QSAHeadWidth*f32Bytes)
 	dead := tail + driver.DevicePtr(tensor.QSATailRows*tensor.QSAIndexerWidth*f32Bytes)
-	for _, part := range []struct {
+	copies := []struct {
 		source, target driver.DevicePtr
 		count          uint32
 	}{
 		{pointers.input(qsaInputIndexerTail), tail, tensor.QSATailRows * tensor.QSAIndexerWidth},
 		{pointers.input(qsaInputIndexerSpare), dead, tensor.QSAIndexerWidth},
-	} {
+	}
+	if attributes.InPlace {
+		// verify.cpp record_window: the tail's snapshot, then the step's appends to the fixed state where it sits.
+		tail, dead = pointers.input(qsaInputIndexerTail), pointers.input(qsaInputIndexerSpare)
+		copies = copies[:1]
+		copies[0].target = pointers.input(len(node.Inputs) - 1)
+	}
+	for _, part := range copies {
 		if err := launch1DABI(state, functions[kernelCopyF32], part.count, &part.source, &part.target, &part.count); err != nil {
 			return err
 		}
@@ -182,6 +229,37 @@ func launchQSAAttention(
 		stream = qsaStreamMap(node, table, pointers.input(qsaInputStreamMap), int64(attributes.Capacity))
 	}
 	positionBase := int32(qsaPositionBase)
+	if tokens > 1 && attributes.InPlace {
+		// verify.cpp record_window's QSA section: a window's rows through the decode kernels - its cells in one launch
+		// over their steps (the host copy too when streamed), its indexer keys a row at a time, then each row's scores,
+		// selection and attention over the cells up to its own, batched.
+		if err := launchStrataKVAppendSteps(state, functions, pools, host, table, steps, keys, values, geometry,
+			int32(tokens), tensor.QSAStepWords, tensor.QSAKeyValueHeads*tensor.QSAHeadWidth); err != nil {
+			return err
+		}
+		stepBytes := int64(tensor.QSAStepWords) * f32Bytes
+		for row := range tokens {
+			if err := launchStrataIndexerKeyAppend(state, functions, raw+driver.DevicePtr(row*tensor.QSAIndexerWidth*f32Bytes),
+				steps+driver.DevicePtr(row*stepBytes), positionBase, gamma, attributes.Epsilon, indexer,
+				strataIndexerGeometry{keyWidth: tensor.QSAIndexerWidth, block: tensor.QSABlockCells, rotated: tensor.QSARotated},
+				pointers.input(qsaInputRopeCos), pointers.input(qsaInputRopeSin), positions); err != nil {
+				return err
+			}
+		}
+		if err := launchStrataBlockScores(state, functions, indexer.pooled, indexer.dead, indexerQueries, steps, tokens, maxBlocks, scores, -1); err != nil {
+			return err
+		}
+		if err := launchStrataBlockTopK(state, functions, scores, steps, tokens, maxBlocks, qsaSelectionCapacity, ids, -1); err != nil {
+			return err
+		}
+		if streamed {
+			if err := launchStrataKVStreamResolve(state, functions, stream, pools, host, ids, steps, tokens, qsaSelectionCapacity, geometry); err != nil {
+				return err
+			}
+		}
+		return launchStrataDecodeAttention(state, functions, queries, attention, ids, steps, qsaSelectionCapacity,
+			tensor.QSAKeyValueHeads, tensor.QSABlockCells, partials, output, tokens, true)
+	}
 	if tokens == 1 {
 		// layer.cpp qsa_layer, steps 5 and 8: the cell, the indexer's key, the block scores, the selection, the
 		// attention over the selected cells read in place.

@@ -115,6 +115,26 @@ func buildQSAAttentionMix(options blockDispatchOptions, normalized *tensor.Tenso
 	indexerQuery = builder.WeightedRMSNorm(indexerQuery, weights.IndexerQNorm, spec.RMSNormEpsilon)
 	indexerQuery = rotary.ApplyOne(builder, indexerQuery, c.Positions, c.MultiPositions, nil)
 
+	if c.Window != nil {
+		// verify.cpp record_window's QSA section: one step over the window's cells, appending to the indexer's fixed
+		// state where it sits after its tail's snapshot, the raw keys kept for the commit.
+		if c.Window.Snapshot == nil {
+			return DenseBlockResult{}, errors.New("a QSA window takes its tail's snapshot")
+		}
+		cells := make([]uint32, tokens)
+		for index := range cells {
+			cells[index] = c.QSA.FirstCell + uint32(index)
+		}
+		packed := builder.QSAAttentionInPlace(query, key, value, raw, indexerQuery, weights.IndexerKNorm, c.PastKey, c.PastValue,
+			c.Window.Snapshot, c.QSA.State, tensor.QSAAttentionAttributes{Cells: cells, Capacity: c.QSA.Capacity, Epsilon: spec.RMSNormEpsilon})
+		attention, _, _ := builder.QSAAttentionParts(packed, tokens)
+		output := qsaGatedOutput(builder, attention, gate, weights.AttentionOutput, tokens)
+		if err := builder.Err(); err != nil {
+			return DenseBlockResult{}, err
+		}
+		// The raw keys are kept as their projection writes them, (128, tokens), where a target holds a node's own output.
+		return DenseBlockResult{Output: output, Window: LayerWindow{Raw: raw.Inputs[0]}}, nil
+	}
 	ends := []uint64{tokens}
 	if spanCheckpoints(c.Checkpoints, tokens) {
 		ends = ends[:0]
@@ -153,12 +173,17 @@ func buildQSAAttentionMix(options blockDispatchOptions, normalized *tensor.Tenso
 		}
 		start = end
 	}
-	width := uint64(tensor.QSAQueryHeads) * tensor.QSAHeadWidth
-	attention = builder.Reshape(attention, width, tokens)
-	attention = builder.Multiply(attention, builder.Sigmoid(builder.Reshape(gate, width, tokens)))
-	attention = builder.MulMat(weights.AttentionOutput, attention)
+	attention = qsaGatedOutput(builder, attention, gate, weights.AttentionOutput, tokens)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
 	return DenseBlockResult{Output: attention, Key: tail, Value: spare, Checkpoints: slices.Clip(checkpoints)}, nil
+}
+
+// qsaGatedOutput is the QSA layer's attention gated by sigmoid of its gate rows, through the output projection.
+func qsaGatedOutput(builder *tensor.Builder, attention, gate, projection *tensor.Tensor, tokens uint64) *tensor.Tensor {
+	width := uint64(tensor.QSAQueryHeads) * tensor.QSAHeadWidth
+	attention = builder.Reshape(attention, width, tokens)
+	attention = builder.Multiply(attention, builder.Sigmoid(builder.Reshape(gate, width, tokens)))
+	return builder.MulMat(projection, attention)
 }

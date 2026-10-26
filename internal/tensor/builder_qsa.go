@@ -107,6 +107,9 @@ type QSAAttentionAttributes struct {
 	Cells    []uint32
 	Capacity uint32
 	Epsilon  float32
+	// InPlace has the step append to its tail and spare where they sit, after copying the tail to its last input, the
+	// snapshot a commit restores (Builder.QSAAttentionInPlace).
+	InPlace bool
 }
 
 func (QSAAttentionAttributes) validFor(op Op) bool { return sameOp(op, OpQSAAttention) }
@@ -172,6 +175,34 @@ func (b *Builder) QSAAttention(
 	query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare *Tensor, state QSAState,
 	attributes QSAAttentionAttributes,
 ) *Tensor {
+	attributes.InPlace = false
+	return b.qsaAttention(query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, nil, state, attributes)
+}
+
+// QSAAttentionInPlace is QSAAttention over the fixed state where it sits, as Strata's verifier steps a window
+// (src/core/verify.cpp record_window): the step copies tail to snapshot (128, 3), then appends to tail and spare in
+// place; the packed output's attention is the step's and its tail and spare are not written. A commit restores the
+// tail from the snapshot and appends the kept tokens' keys again (Builder.QSACommit).
+func (b *Builder) QSAAttentionInPlace(
+	query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, snapshot *Tensor, state QSAState,
+	attributes QSAAttentionAttributes,
+) *Tensor {
+	if b == nil || b.err != nil {
+		return nil
+	}
+	if snapshot == nil || snapshot.Type != dtype.F32 || tail == nil || snapshot.Shape != tail.Shape {
+		b.setError(errors.New("QSA step snapshot is invalid"))
+		return nil
+	}
+	attributes.InPlace = true
+	return b.qsaAttention(query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, snapshot, state, attributes)
+}
+
+// qsaAttention builds a QSA step, its snapshot the last input of an in-place step.
+func (b *Builder) qsaAttention(
+	query, key, value, indexerKey, indexerQuery, indexerNorm, tail, spare, snapshot *Tensor, state QSAState,
+	attributes QSAAttentionAttributes,
+) *Tensor {
 	if b == nil || b.err != nil {
 		return nil
 	}
@@ -196,6 +227,9 @@ func (b *Builder) QSAAttention(
 			stream.Map, stream.StageKeyCodes, stream.StageValueCodes, stream.StageKeyScales, stream.StageValueScales,
 			stream.StageTable)
 	}
+	if snapshot != nil {
+		inputs = append(inputs, snapshot)
+	}
 	return b.add("", dtype.F32, shape, OpQSAAttention, inputs, attributes)
 }
 
@@ -207,6 +241,70 @@ func (b *Builder) QSAAttentionParts(packed *Tensor, tokens uint64) (attention, t
 	tail = b.FlatSlice(packed, values, QSAIndexerWidth, QSATailRows)
 	spare = b.FlatSlice(packed, values+QSATailRows*QSAIndexerWidth, QSAIndexerWidth)
 	return attention, tail, spare
+}
+
+// QSACommit's operands, in order; an earlier commit's word follows them when it is given.
+const (
+	// QSACommitTail is the indexer's tail, restored and appended to in place.
+	QSACommitTail = iota
+	// QSACommitSpare is the indexer's spare key.
+	QSACommitSpare
+	// QSACommitSnapshot is the tail the window found, (128, 3).
+	QSACommitSnapshot
+	// QSACommitRaw is the window's raw indexer keys, (128, 1, tokens).
+	QSACommitRaw
+	// QSACommitCells is each window row's cell, an I32 [tokens], -1 for a row not kept.
+	QSACommitCells
+	// QSACommitNorm is the indexer key norm's weights, (128).
+	QSACommitNorm
+	// QSACommitPooled is the state's pooled rows.
+	QSACommitPooled
+	// QSACommitBlockPosition is the state's last completed block's position.
+	QSACommitBlockPosition
+	// QSACommitPositions is the state's image position table.
+	QSACommitPositions
+	// QSACommitRopeCos is the rotation table's cosines.
+	QSACommitRopeCos
+	// QSACommitRopeSin is the rotation table's sines.
+	QSACommitRopeSin
+	// QSACommitOperands is the operand count without an earlier commit's word.
+	QSACommitOperands
+)
+
+// QSACommitAttributes are a QSA commit's indexer key norm epsilon.
+type QSACommitAttributes struct {
+	Epsilon float32
+}
+
+func (QSACommitAttributes) validFor(op Op) bool { return sameOp(op, OpQSACommit) }
+
+// QSACommit is Strata's commit of a QSA layer's indexer (src/core/verify.cpp capture_commit): the tail restored from
+// the snapshot an in-place step took (Builder.QSAAttentionInPlace), then each kept row's raw key appended again at its
+// cell, in order, in place on the tail, the spare, the pooled rows and the block position; the window's cells keep
+// what it appended. The output is an F32 [1] word holding the first row's cell's bits, written last, which a later
+// commit may take as after (nil for none) so the commits run in order.
+func (b *Builder) QSACommit(after, tail, spare, snapshot, raw, cells, indexerNorm *Tensor, state QSAState, epsilon float32) *Tensor {
+	if b == nil || b.err != nil {
+		return nil
+	}
+	tailShape := MustShape(QSAIndexerWidth, QSATailRows)
+	if tail == nil || spare == nil || snapshot == nil || raw == nil || cells == nil || indexerNorm == nil ||
+		tail.Shape != tailShape || snapshot.Shape != tailShape || spare.Shape != MustShape(QSAIndexerWidth) ||
+		cells.Type != dtype.I32 || cells.Shape.Rank != SingletonExtent ||
+		raw.Shape != MustShape(QSAIndexerWidth, SingletonExtent, cells.Shape.Dims[0]) || indexerNorm.Shape != MustShape(QSAIndexerWidth) ||
+		state.IndexerPooled == nil || state.BlockPosition == nil || state.Positions == nil || state.RopeCos == nil || state.RopeSin == nil ||
+		after != nil && (after.Type != dtype.F32 || after.Shape != MustShape(SingletonExtent)) {
+		b.setError(errors.New("QSA commit operands are invalid"))
+		return nil
+	}
+	inputs := []*Tensor{
+		tail, spare, snapshot, raw, cells, indexerNorm,
+		state.IndexerPooled, state.BlockPosition, state.Positions, state.RopeCos, state.RopeSin,
+	}
+	if after != nil {
+		inputs = append(inputs, after)
+	}
+	return b.add("", dtype.F32, MustShape(SingletonExtent), OpQSACommit, inputs, QSACommitAttributes{Epsilon: epsilon})
 }
 
 func validateQSAAttention(

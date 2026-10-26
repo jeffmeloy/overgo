@@ -597,10 +597,11 @@ func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attribute
 	a.values[index] = attributes
 	attention, isAttention := resolved.(tensor.AttentionAttributes)
 	a.launchArguments = a.launchArguments || isAttention && !decodeAttention(node, attention)
-	// A QSA step of several tokens passes its first cell and active blocks as launch arguments; a token's step reads
-	// only its staged step record.
+	// A QSA step of several tokens passes its first cell and active blocks as launch arguments; a token's step and a
+	// verify window's rows read only their staged step records, so a window's graph is captured as verify.cpp
+	// record_window's is.
 	qsa, isQSA := resolved.(tensor.QSAAttentionAttributes)
-	a.launchArguments = a.launchArguments || isQSA && len(qsa.Cells) > 1
+	a.launchArguments = a.launchArguments || isQSA && len(qsa.Cells) > 1 && !qsa.InPlace
 	return nil
 }
 
@@ -701,7 +702,8 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		// A replayed QSA step takes the next tokens' cells over the same state: the token count, the capacity and the
 		// epsilon are compiled, the cells consecutive and inside the state.
 		initial, next := node.Attrs.(tensor.QSAAttentionAttributes), attributes.(tensor.QSAAttentionAttributes)
-		if len(next.Cells) != len(initial.Cells) || next.Capacity != initial.Capacity || next.Epsilon != initial.Epsilon {
+		if len(next.Cells) != len(initial.Cells) || next.Capacity != initial.Capacity || next.Epsilon != initial.Epsilon ||
+			next.InPlace != initial.InPlace {
 			return errors.New("CUDA runtime QSA override changes compiled policy")
 		}
 		for index, cell := range next.Cells {

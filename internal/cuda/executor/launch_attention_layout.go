@@ -505,6 +505,8 @@ func launchAttentionLayout(
 	switch node.Op {
 	case tensor.OpQSAAttention:
 		return launchQSAAttention(state, functions, blas, node, runtimeAttributes, pointers)
+	case tensor.OpQSACommit:
+		return launchQSACommit(state, functions, node, pointers)
 	case tensor.OpReshape:
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)

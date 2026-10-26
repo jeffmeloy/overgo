@@ -35,6 +35,8 @@ type qsaCells struct {
 	positions executor.DeviceValue
 	// mirror is the image position table as the device holds it: a cell's temporal, height and width positions.
 	mirror []int32
+	// live is the sequence's fixed state where its verify windows read it, nil before its first (qsa_window.go).
+	live *qsaLive
 }
 
 // qsaLayerCells is one QSA layer's cells; zero for a layer that is not one. A streamed layer adds its own page table,
@@ -332,6 +334,9 @@ func (c *qsaCells) release(ctx context.Context) error {
 		errs = append(errs, err)
 	} else {
 		c.host = nil
+	}
+	if err := c.live.release(ctx); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }

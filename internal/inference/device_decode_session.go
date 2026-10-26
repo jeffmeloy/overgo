@@ -54,6 +54,8 @@ type decodeSessionIdentity struct {
 	// checkpoints are the span's token counts after which its layers keep their fixed state, each adding a scan and
 	// outputs.
 	checkpoints [maxSpanCheckpoints]uint32
+	// window holds whether the step is a verify window over its sequence's live state (deviceBatchAppend.Window).
+	window bool
 }
 
 func (i decodeSessionIdentity) matches(
@@ -233,9 +235,21 @@ func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tens
 	seen := make(map[*tensor.Tensor]struct{})
 	// Collect state before later layers keep its full history live.
 	for layer := range graph.keys {
-		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(
-			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},
-		)...)
+		// A verify window's layers keep their fixed state where it sits and output none.
+		for _, node := range graph.states[layer].AppendValues([]*tensor.Tensor{graph.keys[layer], graph.values[layer]}) {
+			if node != nil {
+				result = appendUniqueGraphOutputs(result, seen, node)
+			}
+		}
+	}
+	// A verify window's rows for its commit, and a one-token window's commits of state no other output reads.
+	for _, window := range graph.window {
+		parts := windowParts(window)
+		for _, node := range append(parts[:], window.Kept) {
+			if node != nil {
+				result = appendUniqueGraphOutputs(result, seen, node)
+			}
+		}
 	}
 	// A span's checkpoints follow every layer's state, so the states keep their places in a span slot.
 	for _, checkpoints := range graph.checkpoints {

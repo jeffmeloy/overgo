@@ -85,11 +85,24 @@ __device__ __forceinline__ void strata_gdn_step_norm_body(
     }
     const float gam = (rg == 0) ? gamma[col] : 0.0f;
     float s[STRATA_GDN_RPG];
-    // Our layout: value column `col` of value head `head` holds its 128 keys contiguous; this thread's 32 from rg * 32.
-    float * base = state + ((size_t) head * S + col) * S + (size_t) rg * RPG;
-    const size_t row_stride = 1;
+    // Our layout holds value column c's 128 keys contiguous at the head's state + c * 128, where a thread holds 32 keys
+    // of one column: each row group's 32 keys of every column pass through shared memory, read as whole lines, and each
+    // thread of the group takes its column's - the values Strata's thread holds, the traffic coalesced.
+    __shared__ float tile[STRATA_GDN_S][STRATA_GDN_RPG + 1];
+    float * head_state = state + (size_t) head * S * S;
+    const int tid = rg * S + col;
+    for (int group = 0; group < RG; ++group) {
+        for (int index = tid; index < S * RPG; index += S * RG) {
+            const int c = index / RPG, r = index % RPG;
+            tile[c][r] = head_state[(size_t) c * S + group * RPG + r];
+        }
+        __syncthreads();
+        if (rg == group) {
 #pragma unroll
-    for (int r = 0; r < RPG; ++r) s[r] = ALL_OUT ? __ldg(&base[r * row_stride]) : base[r * row_stride];
+            for (int r = 0; r < RPG; ++r) s[r] = tile[col][r];
+        }
+        __syncthreads();
+    }
     for (int t = 0; t < n; ++t) {
         const int cur = t & 1, nxt = (t + 1) & 1;
         const float * ht = hbuf + (size_t) t * C;
@@ -139,10 +152,20 @@ __device__ __forceinline__ void strata_gdn_step_norm_body(
         }
     }
     if (!ALL_OUT && n_keep != nullptr && n > 0) {
+        // The state goes back as it came: a row group's keys through shared memory, written as whole lines.
+        for (int group = 0; group < RG; ++group) {
+            __syncthreads();
+            if (rg == group) {
 #pragma unroll
-        for (int r = 0; r < RPG; ++r) base[r * row_stride] = s[r];
+                for (int r = 0; r < RPG; ++r) tile[col][r] = s[r];
+            }
+            __syncthreads();
+            for (int index = tid; index < S * RPG; index += S * RG) {
+                const int c = index / RPG, r = index % RPG;
+                head_state[(size_t) c * S + group * RPG + r] = tile[c][r];
+            }
+        }
     }
-    (void) RG;
 }
 
 extern "C" __global__ void __launch_bounds__(STRATA_GDN_S * STRATA_GDN_RG) strata_gdn_step_norm_multi_all(
@@ -196,10 +219,17 @@ extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step
     const int qh = head % h_k;
     const int qk = S * h_k;
     float s[STRATA_GDN_RPG];
-    float * base = state + ((size_t) head * S + col) * S + (size_t) rg * RPG;
-    const size_t row_stride = 1;
+    // The block's 32 value columns' 128 keys pass through shared memory as whole lines, each thread taking its column's
+    // 32 keys of its row group - the values Strata's thread holds, the traffic coalesced in our layout.
+    __shared__ float tile[32][STRATA_GDN_S + 1];
+    float * columns = state + ((size_t) head * S + blockIdx.y * 32) * S;
+    for (int index = tid; index < 32 * S; index += 32 * STRATA_GDN_RG) {
+        const int c = index / S, k = index % S;
+        tile[c][k] = columns[(size_t) c * S + k];
+    }
+    __syncthreads();
 #pragma unroll
-    for (int r = 0; r < RPG; ++r) s[r] = base[r * row_stride];
+    for (int r = 0; r < RPG; ++r) s[r] = tile[col_local][rg * RPG + r];
     for (int t = 0; t < n; ++t) {
         const float * ht = hbuf + (size_t) t * C;
         __syncthreads();
@@ -216,6 +246,23 @@ extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step
 #pragma unroll
         for (int r = 0; r < RPG; ++r) s[r] = fmaf(g, s[r], sk[rg * RPG + r] * delta);
     }
+    __syncthreads();
 #pragma unroll
-    for (int r = 0; r < RPG; ++r) base[r * row_stride] = s[r];
+    for (int r = 0; r < RPG; ++r) tile[col_local][rg * RPG + r] = s[r];
+    __syncthreads();
+    for (int index = tid; index < 32 * S; index += 32 * STRATA_GDN_RG) {
+        const int c = index / S, k = index % S;
+        columns[(size_t) c * S + k] = tile[c][k];
+    }
+}
+
+// ---- copy_indexed_kernel: dst's n values become src's from row index (read from device memory) on, rows of stride
+// values; nothing when the index is negative. The commit's copy of a window's history after its kept tokens.
+// Launch: min(ceil(n / 256), 64) blocks of 256 threads.
+extern "C" __global__ void strata_copy_indexed(float * __restrict__ dst, const float * __restrict__ src, long long stride,
+                                               const int32_t * __restrict__ index, long long n) {
+    const int idx = *index;
+    if (idx < 0) return;
+    for (long long i = (long long) blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (long long) gridDim.x * blockDim.x)
+        dst[i] = src[(size_t) idx * stride + i];
 }

@@ -450,6 +450,46 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, nil, 0)
 }
 
+// forwardDeviceWindowLocked steps a verify window of tokens over a past whose fixed state is its sequence's live state
+// (Strata's verifier, qsa_window.go): the window reads that state where it sits and keeps its rows for its commit
+// (commitWindowLocked); a one-token window commits itself.
+func (r *Runner) forwardDeviceWindowLocked(
+	ctx context.Context, mode deviceOutputMode, tokenIDs []tokenizer.TokenID, past *deviceKVCache,
+) (*deviceKVCache, error) {
+	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
+	if err != nil {
+		return nil, err
+	}
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokenIDs, Past: past, Window: true}}, plan)
+	if err != nil {
+		return nil, err
+	}
+	if len(tokenIDs) == tensor.SingletonExtent {
+		if err := r.commitWindowLocked(ctx, past.storage.qsa, past.Tokens, len(tokenIDs), len(tokenIDs)); err != nil {
+			return nil, errors.Join(err, next[0].Release(context.Background()))
+		}
+	}
+	return next[0], nil
+}
+
+// windowsDecode reports whether the runner decodes through Strata's verifier: a QSA runner whose every recurrent layer
+// steps a window by Strata's verify kernels (qsaWindowSet).
+func (r *Runner) windowsDecode() bool { return r.qsaWindows }
+
+// qsaWindowSet reports whether a QSA runner's every recurrent layer steps a verify window by Strata's verify kernels
+// (model.Spec.HoldsGatedDeltaWindow), so the runner decodes through Strata's verifier.
+func (r *Runner) qsaWindowSet() bool {
+	if r.qsaLayers == nil {
+		return false
+	}
+	for layer, weights := range r.weights.Layers {
+		if plan := r.layerProgram(layer).Layer(); plan.Recurrent && !r.spec.HoldsGatedDeltaWindow(plan, weights) {
+			return false
+		}
+	}
+	return true
+}
+
 // forwardDeviceCachedModeLocked: single-branch forward under a chosen output
 // plan. With deviceOutputGreedySpan every appended position stays in the
 // output head and selects greedily — the MTP verify batch; the result cache
@@ -491,6 +531,9 @@ type deviceBatchAppend struct {
 	Reserve uint32
 	// Projected is the media rows, multi-axis positions and deepstack streams of the append's own tokens; nil for text.
 	Projected *ProjectedInputs
+	// Window steps the append as a verify window in Strata's verifier over a past whose fixed state is its sequence's
+	// live state (qsa_window.go): the layers read it where it sits and keep their rows for the window's commit.
+	Window bool
 }
 
 // cacheCapacity is the tokens an append's cache storage holds: its past storage's capacity where that holds the
@@ -554,6 +597,9 @@ type deviceBatchGraph struct {
 	positionAfter uint32
 	tokenCount    uint32
 	sequences     uint32
+	// window is a verify window's rows by layer, which it keeps for its commit (qsa_window.go); nil for a step that writes
+	// its fixed state out.
+	window []model.LayerWindow
 }
 
 type deviceCacheTargetLayer struct {
@@ -779,6 +825,9 @@ func (r *Runner) executeParameterizedDecodeSession(
 		return errors.Join(errs...)
 	}
 	slot, err := r.bindSpanSlot(ctx, session.execution.Graph, graphs, appends, plans, targets, session.program.identity.output)
+	if err == nil {
+		err = r.bindWindowRows(ctx, targets, graphs)
+	}
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}
@@ -950,6 +999,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			blockSelection: r.program.Model.SelectsAttentionBlocks(appendPlan.ActiveTokens + tokenCount),
 			lora:           r.currentLoRASignature(),
 			checkpoints:    spanCheckpointIdentity(appends[0].Checkpoints),
+			window:         appends[0].Window,
 		}
 		if session := r.keptDecodeSession(identity, appends); session != nil {
 			return r.executeParameterizedDecodeSession(ctx, session, appends)
@@ -980,7 +1030,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected, cells,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected, cells, appendInput.Window,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -1074,6 +1124,9 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 	}
 	slot, err := r.bindSpanSlot(ctx, execution.Graph, graphs, appends, targetPlans, targets, plan)
+	if err == nil {
+		err = r.bindWindowRows(ctx, targets, graphs)
+	}
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}
@@ -1156,6 +1209,15 @@ func (r *Runner) assembleDeviceBatchCaches(
 				cache.Values[layer] = cache.Values[layerPlan.KVSource]
 				continue
 			}
+			// A verify window's layers keep their fixed state where its past names it, the sequence's live state.
+			if graph.window != nil {
+				past := appends[index].Past
+				cache.Keys[layer], cache.Values[layer] = past.Keys[layer], past.Values[layer]
+				if layer < len(past.States) && len(past.States[layer]) != 0 {
+					cache.States[layer] = past.States[layer].Clone()
+				}
+				continue
+			}
 			cache.Keys[layer], ok = retained.Value(graph.keys[layer])
 			if !ok {
 				return fail(fmt.Errorf("inference: missing retained key for branch %d layer %d", index, layer))
@@ -1221,7 +1283,7 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 			plan.qsaCapacity = qsaCapacity(uint32(capacity))
 		}
 		target := func(node *tensor.Tensor, schema model.CacheState[model.CacheValueSchema]) (deviceCacheTargetValue, error) {
-			if !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
+			if node == nil || !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
 				return deviceCacheTargetValue{}, nil
 			}
 			slot, ok := compiled.OutputSlot(node)
@@ -1318,6 +1380,10 @@ func (r *Runner) prepareDeviceCacheTargets(
 			}
 		}
 		var group executor.DeviceValue
+		if storage == nil && appends[branch].Window {
+			// A verify window appends to its sequence's cells beside the live state it reads; it never forks them.
+			return fail(errors.New("inference: a verify window's past does not hold its sequence's storage alone"))
+		}
 		if storage == nil {
 			storage = &deviceCacheStorage{refs: 1, keys: make([]executor.DeviceValue, len(graph.keys)), values: make([]executor.DeviceValue, len(graph.values)), states: make([]deviceLayerStates, len(graph.states))}
 			storages[branch] = storage
@@ -1439,12 +1505,16 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	checkpoints []uint32,
 	projected *ProjectedInputs,
 	qsaCapacity uint32,
+	window bool,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
 	}
 	if projected == nil {
 		projected = &ProjectedInputs{}
+	}
+	if past.staleLive() {
+		return fail(errQSAStaleLive)
 	}
 	if r.spec.NonCausalAttention {
 		return fail(errors.New("non-causal models do not support a device KV cache"))
@@ -1604,6 +1674,22 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			}
 		}
 	}
+	// A verify window reads its layers' fixed state where it sits and keeps their rows for its commit; its one-token
+	// form's kept count and its QSA layers' tail snapshots are the runner's (qsa_window.go).
+	var windowRows []model.LayerWindow
+	var windowOne *tensor.Tensor
+	if window {
+		if r.qsaLayers == nil || sequences != tensor.SingletonExtent || len(checkpoints) != 0 || tokensPerSequence > tensor.GatedDeltaWindowTokens {
+			return fail(errors.New("a verify window takes a QSA runner's one sequence of at most its most tokens, without checkpoints"))
+		}
+		control, controlErr := r.qsaWindowControl(ctx)
+		if controlErr != nil {
+			return fail(controlErr)
+		}
+		windowRows = make([]model.LayerWindow, len(r.weights.Layers))
+		windowOne = builder.Input(prefix+"window_one", dtype.I32, control.one.Shape)
+		*deviceFeeds = append(*deviceFeeds, tensor.InputBinding[driver.DevicePtr]{Node: windowOne, Value: control.one.Pointer})
+	}
 	var positionFeeds []*tensor.Tensor
 	var ngramEmbedding, ngramHistory *tensor.Tensor
 	decodeCatalog := plan.is(deviceOutputGreedy) && tokensPerSequence == 1 && r.decodeWeights != nil
@@ -1671,6 +1757,15 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			qsaInputs[layerIndex] = nodes
 			qsa = &model.QSABinding{State: state, Capacity: qsaCapacity, FirstCell: pastTokens}
 		}
+		var windowBinding *model.WindowBinding
+		if window {
+			windowBinding = &model.WindowBinding{One: windowOne}
+			if r.holdsQSA(layerIndex) {
+				snapshot := r.qsaWindow.snapshots[layerIndex]
+				windowBinding.Snapshot = builder.Input(prefix+fmt.Sprintf("blk.%d.window_snapshot", layerIndex), dtype.F32, snapshot.Shape)
+				*deviceFeeds = append(*deviceFeeds, tensor.InputBinding[driver.DevicePtr]{Node: windowBinding.Snapshot, Value: snapshot.Pointer})
+			}
+		}
 		result, buildErr := program.Build(model.CachedBlockContext{
 			NGramHistory: layerHistory, MultiPositions: multiPositions,
 			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
@@ -1680,7 +1775,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			PerLayerInput:    graphWeights.PerLayerInput,
 			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
 			CacheWrite: cacheWrite, Sequences: sequences, Checkpoints: checkpoints,
-			QSA: qsa,
+			QSA: qsa, Window: windowBinding,
 		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
@@ -1690,6 +1785,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
 		layerCheckpoints[layerIndex] = result.Checkpoints
+		if window {
+			windowRows[layerIndex] = result.Window
+		}
 	}
 	// Span plans retain the pre-output-norm hidden rows: the NextN draft
 	// head normalizes the trunk hidden itself, so speculation seeds from
@@ -1747,6 +1845,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if plan.span() || plan.streams {
 		spanHidden = preNormHidden
 	}
+	if window {
+		if r.qsaWindowLayouts == nil {
+			r.qsaWindowLayouts = make(map[int][]model.LayerWindow)
+		}
+		r.qsaWindowLayouts[tokensPerSequence] = windowRows
+	}
 	return deviceBatchGraph{
 		loadInputs: loadInputs,
 		logits:     logits, selection: selection, candidates: candidates, feedback: feedback,
@@ -1756,7 +1860,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		qsaInputs: qsaInputs, qsaPositions: qsaPositions,
 		checkpointTokens: checkpoints, checkpoints: layerCheckpoints,
 		pastTokens: pastTokens, nextPosition: nextPosition, positionAfter: positionAfter,
-		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
+		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences), window: windowRows,
 	}, nil
 }
 

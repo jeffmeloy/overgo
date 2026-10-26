@@ -153,37 +153,45 @@ func (r *Runner) commitSpanCheckpoint(ctx context.Context, span, boundary *devic
 			span.Keys[layer], span.Values[layer] = span.Keys[plan.KVSource], span.Values[plan.KVSource]
 		}
 	}
-	if r.spec.NGram != nil {
-		past, err := r.deviceNGramHistory(ctx, boundary)
-		if err != nil {
-			return err
-		}
-		previous := make([]uint32, len(past))
-		for index, value := range past {
-			previous[index] = uint32(value)
-		}
-		tokens := make([]uint32, len(kept))
-		for index, token := range kept {
-			tokens[index] = uint32(token)
-		}
-		_, next, err := r.spec.NGramRows(tokens, previous)
-		if err != nil {
-			return err
-		}
-		span.ngramHistory = make([]float32, len(next))
-		for index, token := range next {
-			span.ngramHistory[index] = float32(token)
-		}
-		// The card's copy follows, for a cache the prompt cache later reads back.
-		if layer := int(r.spec.NGram.Layer); layer < len(span.States) {
-			if state, ok := span.States[layer][model.CacheStateNGramHistory]; ok {
-				if err := r.cuda.WriteDeviceValues(ctx, []executor.DeviceValue{state.Value}, [][]float32{span.ngramHistory}); err != nil {
-					return err
-				}
-			}
-		}
+	if err := r.followNGramHistory(ctx, span, boundary, kept); err != nil {
+		return err
 	}
 	span.Tokens, span.Position = checkpoint.tokens, checkpoint.position
 	span.Selection, span.session, span.checkpoints = executor.DeviceValue{}, nil, nil
 	return rebuildDeviceCachePages(span, r.program.Decode.Session)
+}
+
+// followNGramHistory gives a span that keeps only its first tokens the lexical history of those tokens after its
+// boundary's, on the host and in the card's copy, which a cache the prompt cache later reads back holds; nothing for a
+// model without the lexical injection.
+func (r *Runner) followNGramHistory(ctx context.Context, span, boundary *deviceKVCache, kept []tokenizer.TokenID) error {
+	if r.spec.NGram == nil {
+		return nil
+	}
+	past, err := r.deviceNGramHistory(ctx, boundary)
+	if err != nil {
+		return err
+	}
+	previous := make([]uint32, len(past))
+	for index, value := range past {
+		previous[index] = uint32(value)
+	}
+	tokens := make([]uint32, len(kept))
+	for index, token := range kept {
+		tokens[index] = uint32(token)
+	}
+	_, next, err := r.spec.NGramRows(tokens, previous)
+	if err != nil {
+		return err
+	}
+	span.ngramHistory = make([]float32, len(next))
+	for index, token := range next {
+		span.ngramHistory[index] = float32(token)
+	}
+	if layer := int(r.spec.NGram.Layer); layer < len(span.States) {
+		if state, ok := span.States[layer][model.CacheStateNGramHistory]; ok {
+			return r.cuda.WriteDeviceValues(ctx, []executor.DeviceValue{state.Value}, [][]float32{span.ngramHistory})
+		}
+	}
+	return nil
 }

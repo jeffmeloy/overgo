@@ -18,6 +18,11 @@ import (
 // fixed state it read as it was. Its arithmetic is the reference's: the scores and the attention in float64, so a
 // selection on a near tie may differ from the device's.
 func qsaAttention(shape tensor.Shape, inputs []Value, attributes tensor.QSAAttentionAttributes) (Value, error) {
+	// An in-place step's snapshot follows every other input.
+	var snapshot Value
+	if attributes.InPlace && len(inputs) > 0 {
+		snapshot, inputs = inputs[len(inputs)-1], inputs[:len(inputs)-1]
+	}
 	streamed := len(inputs) == tensor.QSAAttentionInputs+tensor.QSAStreamInputs
 	if len(inputs) != tensor.QSAAttentionInputs && !streamed || len(attributes.Cells) == 0 {
 		return Value{}, errors.New("QSA attention inputs are invalid")
@@ -36,6 +41,13 @@ func qsaAttention(shape tensor.Shape, inputs []Value, attributes tensor.QSAAtten
 		keyScales: inputs[qsaKeyScales].Data, valueScales: inputs[qsaValueScales].Data,
 		table: inputs[qsaPageTable].Data, pooled: inputs[qsaPooled].Data, blockPosition: inputs[qsaBlockPosition].Data,
 		positions: inputs[qsaPositions].Data, cos: inputs[qsaRopeCos].Data, sin: inputs[qsaRopeSin].Data,
+	}
+	if attributes.InPlace {
+		// The step appends to the fixed state where it sits, its tail copied to the snapshot first; the packed output's
+		// tail and spare stay unwritten.
+		copy(snapshot.Data, inputs[qsaTail].Data)
+		clear(fixed)
+		state.tail, state.spare = inputs[qsaTail].Data, inputs[qsaSpare].Data
 	}
 	if streamed {
 		// A streamed state's cells are its host copy's, at the identity layout; its slots and map are the device's cache
@@ -394,4 +406,28 @@ func (s qsaHostState) attend(cells []int, query, output []float32) {
 			output[head*tensor.QSAHeadWidth+d] = float32(accumulated / sum)
 		}
 	}
+}
+
+// qsaCommit is capture_commit's QSA part: the tail restored from the snapshot, then each kept row's raw key appended
+// again at its cell by qsa.cu's indexer_key_append, in place on the state.
+func qsaCommit(node *tensor.Tensor, inputs []Value) (Value, error) {
+	attributes, ok := node.Attrs.(tensor.QSACommitAttributes)
+	if !ok || len(inputs) < tensor.QSACommitOperands {
+		return Value{}, errors.New("QSA commit inputs are invalid")
+	}
+	state := qsaHostState{
+		tail: inputs[tensor.QSACommitTail].Data, spare: inputs[tensor.QSACommitSpare].Data,
+		pooled: inputs[tensor.QSACommitPooled].Data, blockPosition: inputs[tensor.QSACommitBlockPosition].Data,
+		positions: inputs[tensor.QSACommitPositions].Data, cos: inputs[tensor.QSACommitRopeCos].Data,
+		sin: inputs[tensor.QSACommitRopeSin].Data,
+	}
+	copy(state.tail, inputs[tensor.QSACommitSnapshot].Data)
+	raw, cells, norm := inputs[tensor.QSACommitRaw].Data, inputs[tensor.QSACommitCells].Data, inputs[tensor.QSACommitNorm].Data
+	width := tensor.QSAIndexerWidth
+	for row, cell := range cells {
+		if cell >= 0 {
+			state.appendIndexerTable(int(cell), raw[row*width:(row+1)*width], norm, attributes.Epsilon)
+		}
+	}
+	return Value{Shape: node.Shape, Data: []float32{math.Float32frombits(uint32(int32(cells[0])))}}, nil
 }

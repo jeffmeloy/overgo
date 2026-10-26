@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "One new P3 exact-comparison acceptance gap, SQA-MOSS-002. Earlier P2 SQA-MOSS-001 remains open. All 35 earlier findings and owner responses are preserved. Totals are 33 open and 3 deferred.",
-    "declined_candidates": "No new defect found in sampled scheduler provenance, UI cancellation acknowledgement or progress lifetime. Similar portable and native comparisons are not redundant tests. No speed, memory or test-cost reduction is established.",
-    "priority": "MOSS cancellation remains higher priority than the verifier's signed-zero gap. Existing inherited relative ordering is retained; no cross-campaign reprioritization."
+    "assessment": "New P2 SQA-MOSS-003 concerns silent integer rounding in generation controls. P2 SQA-MOSS-001 and P3 SQA-MOSS-002 remain open. All 36 earlier findings and owner responses are preserved. Totals are 34 open and 3 deferred.",
+    "declined_candidates": "No additional issue found in sampled prompt/layout validation, zero-guidance transport or profile-derived controls. Existing shared controls and native/browser fixtures cover distinct requirements and should be reused. No performance claim or new framework proposed.",
+    "priority": "MOSS import cancellation and UI request fidelity precede the P3 exact-comparison acceptance gap. Earlier inherited relative ranks remain unchanged; no cross-campaign reprioritization."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7",
+    "revision": "b2db6d9c63d21a8dfef30326c9d1649c169e4015",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -1952,6 +1952,74 @@
       ],
       "status": "open",
       "title": "Fail bit mismatches at exact boundaries in the native generation verifier"
+    },
+    {
+      "category": "generation-ui-input-precision",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "Typing 9007199254740993 or its negative into the MOSS seed control produces a clear field refusal before a generation request is sent; the typed string is not silently rounded or clamped.",
+        "Safe positive/negative integer boundaries, zero and seed 42 preserve their exact submitted values. Fractional integer inputs are refused. Fractional number controls and explicit zero guidance retain their current semantics.",
+        "Composer, workflow run, preview and command generation surface invalid integers without uncaught promise errors or disabled controls left behind. A corrected safe seed can be submitted immediately. Existing cancellation, prompt-byte and output-publication checks remain."
+      ],
+      "comparison": "Extend TestWebUIBrowserMOSSGeneration's existing hermetic server/browser fixture: enter the large seed string, submit, assert no additional recorded request and visible validation, then correct it and assert exact receipt and working controls. Exercise the shared reader through workflow command/run callers in the same fixture or their existing browser cases. Keep native int64 seed golden coverage unchanged. A browser request/receipt comparison decides this issue without GPU or full-model execution.",
+      "displaced_surface": "Replace the unchecked integer arm of the existing shared control reader. Migrate its composer, preview, command-preview and workflow submission error paths together. Existing rememberedControls already stores raw strings and needs no second precision mechanism. No existing fixture or test is redundant; extend the current MOSS browser fixture rather than creating a model run or new suite. Small validation/error-path/test growth is expected, with no proven net code or memory reduction.",
+      "evidence": "Source counterexample: type the valid int64 seed 9007199254740993 (2^53+1) into the MOSS seed field. controlValues converts the string to a JavaScript Number, which is 9007199254740992, and the submitted JSON therefore contains the rounded integer. The Go request accepts that changed value. MOSS seeds its native CPU generator from the low word, so the intended low word 1 becomes 0. The original string can remain in the field and remembered preset while the request carries another seed. No browser or model run was launched for this review; the counterexample follows from the shared converter, IEEE-754 representation and traced native consumer.",
+      "evidence_commit": "b2db6d9c63d21a8dfef30326c9d1649c169e4015",
+      "expected_benefit": {
+        "outcome": "Prevents silent seed substitution and keeps the displayed request aligned with the submitted request through shared form handling.",
+        "uncertainty": "This is a source-based input-fidelity defect. Frequency and image consequences were not measured. The current browser fixture's seed 42 and retained native comparisons are unaffected. No production/test AST reduction or runtime improvement is claimed; complete cost includes every controlValues caller and its browser error path."
+      },
+      "id": "SQA-MOSS-003",
+      "impact": "The UI can execute a different deterministic request from the one displayed or pasted from a native run. This also affects other shared integer controls, but the confirmed meaningful consumer is the MOSS seed. The smallest fix intentionally refuses integers beyond plus/minus Number.MAX_SAFE_INTEGER in this Number-based form; API/CLI callers retain the full int64 range. No current frozen model result is shown wrong and no image quality or performance change was measured.",
+      "likely_effort": "Small shared reader validation with coordinated error handling and existing browser-case extensions; no native inference change.",
+      "plan_coverage": "New branch-local advisory finding only. The implementation campaign remains paused and the MOSS plan is unchanged.",
+      "plan_references": [],
+      "recommended_change": "Validate integer controls in the existing controlValues owner with Number.isSafeInteger after conversion and refuse values outside the exact browser integer range with a field-specific explanation. Carry that validation through all actual callers before submitting a run, preview or generated command. Reuse current field focus and error/status displays. In workflow.js, submission() is called before the command/run handlers' try blocks, so throwing from the reader alone is incomplete; handle the refusal there as well. Keep the API/CLI int64 contract and native seed behavior unchanged. Avoid a MOSS-only seed reader, a second form validator, BigInt JSON workaround or silent clamping.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/server/webui/workflow.js",
+          "symbol": "controlInputs creates numeric inputs at 115; controlValues at 248 converts all integer controls with Number(value); preview/command/submission consumers at 389, 395 and 447"
+        },
+        {
+          "path": "internal/server/webui/composer.js",
+          "symbol": "generation at 148 uses shared controlValues then run submits /generation/run"
+        },
+        {
+          "path": "internal/server/webui/mod/chat.js",
+          "symbol": "generation controls use controlInputs; retainGenerationValues and rememberedControls preserve the originally typed strings"
+        },
+        {
+          "path": "internal/mediacapability/controls.go",
+          "symbol": "describe at 169 maps int64 to ControlInteger at 200-202 without a browser precision limit"
+        },
+        {
+          "path": "internal/mediacapability/controls_cuda_windows.go",
+          "symbol": "imageControls exposes MOSS seed as an optional advanced integer with no precision bound"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "Request.Seed at 32 is int64; ValidateRequest at 54 permits the example seed"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "integrateRotary calls torchrng.CPUNormal(g.request.Seed, count) at 201"
+        },
+        {
+          "path": "internal/torchrng/cpu.go",
+          "symbol": "newMersenne at 61 takes the seed's low uint32 word; the example changes it from 1 to 0"
+        },
+        {
+          "path": "internal/torchrng/cpu_test.go",
+          "symbol": "TestCPUNormalGolden covers native int64 seeds including math.MaxInt64"
+        },
+        {
+          "path": "internal/server/webui_browser_moss_generation_windows_test.go",
+          "symbol": "TestWebUIBrowserMOSSGeneration at 23 verifies exact request transport only with seed 42"
+        }
+      ],
+      "status": "open",
+      "title": "Refuse integer controls that the browser cannot submit exactly"
     }
   ],
   "gate_test_assessment": {
@@ -2499,8 +2567,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive SQA report update for P3 SQA-MOSS-002. Prior P2 finding and all owner fields preserved. MOSS implementation and plan remain untouched.",
-    "checked_head": "736d167ded3793a45fa27733ce1c8d33f3d22da7",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-003. Prior findings and all implementation-owned fields preserved. No implementation or MOSS plan changes.",
+    "checked_head": "b2db6d9c63d21a8dfef30326c9d1649c169e4015",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2538,6 +2606,7 @@
     "SQA-161",
     "SQA-170",
     "SQA-MOSS-001",
+    "SQA-MOSS-003",
     "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
@@ -2551,22 +2620,24 @@
     "Existing golden, registration, session and browser cases exercise different numerical, database and lifecycle boundaries. Retain them. The new cancellation coverage belongs in the existing compact registration case and requires no new fixture or suite.",
     "At 736d167de, new SQA-MOSS-002 distinguishes exact-policy signed-zero rejection from approximate dtype comparison. The real verifier records bit inequality but does not reject it on generation/sampling exact paths. Existing portable contract checks do reject it.",
     "Read-only audit of the hash-matched released comparison at implementation 22e14fff found 42 exact-policy boundary records with no unequal values, out of 1,248 boundaries and 6 images. This specific verifier gap does not invalidate that retained result. No inference quality or performance measurement was added.",
-    "Nearest-grid schedule's exact native fixtures retain the deduplicated-count and float32 arithmetic contract. Composer tracks accepted operations through the shared wait/cancel owners; retained browser coverage includes staged progress, cancellation without an output and retry. No additional finding arose from those bounded samples."
+    "Nearest-grid schedule's exact native fixtures retain the deduplicated-count and float32 arithmetic contract. Composer tracks accepted operations through the shared wait/cancel owners; retained browser coverage includes staged progress, cancellation without an output and retry. No additional finding arose from those bounded samples.",
+    "At b2db6d9c6, SQA-MOSS-003 traces a valid int64 seed through the shared Number conversion to MOSS's CPU noise generator. Existing presets preserve the typed string, making the silent request substitution visible only in the actual receipt. Native seed support must not be narrowed to conceal the UI limitation.",
+    "Retained browser MOSS evidence covers seed 42, source defaults, exact Unicode/layout prompts, zero guidance, invalid extent, progress, cancellation and retry. Those cases remain valid but do not exercise integer precision. Layout validation remains optional and does not rewrite the prompt.",
+    "Code and plan remain unchanged, so the documented master-plan checks and live-store MOSS acceptance-catalog omission remain baseline scope mismatches. No new broad check or live-store mutation was used to hide them."
   ],
-  "reviewed_at": "2026-10-26T08:36:57Z",
+  "reviewed_at": "2026-10-26T14:39:21Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 736d167ded3793a45fa27733ce1c8d33f3d22da7 on codex/overgo_moss. Only the prior report commit differs from the reviewed merge; production code, tests and MOSS plan are unchanged. Worktree/index started clean. Read repository instructions and MOSS plan; implementation remains paused.",
-    "Rotated sample covers portable oracle comparison, native generation/sampling verification and actual CLI/model-test callers, nearest-grid schedule, composer operation acknowledgement/cancellation and retained progress/browser evidence. No full census.",
-    "Existing Go AST analysis parsed six verifier/caller/test files: 3,483 production and 2,312 test nodes including comments. Source tracing found the exact-boundary mismatch. Existing released-model JSONL was hashed and aggregated without model execution.",
-    "No new test, model generation, training, performance run, broad validation, service or landing gate. The prior focused inventory-cancellation result remains retained evidence rather than a fresh run.",
-    "This chat implemented MOSS; review is not independent. Historical reviewed_master, inherited gate_test_assessment and implementation-owned responses retain their original scope and are not fresh validation at this pin."
+    "SQA-only review at b2db6d9c63d21a8dfef30326c9d1649c169e4015 on codex/overgo_moss. Production code, tests and MOSS plan remain at the prior merge baseline; only SQA reports changed. Initial worktree/index clean. Read repository instructions and the focused MOSS plan; implementation remains paused.",
+    "Rotated sample covers declared request/control types, optional layout validation, source defaults, prompt bytes and zero guidance, shared form conversion, composer/workflow submission and the native seed consumer. Actual callers and existing browser/native test cases were source-traced. No broad census.",
+    "The new integer-precision counterexample is source-based. Retained native/browser evidence was reused with its original scope; no browser, focused test, model generation, training, benchmark, service or production gate was run.",
+    "This chat implemented the integration; the review is not independent. Historical reviewed_master, gate_test_assessment and all implementation-owned responses retain their original scope."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P3 SQA-MOSS-002 concerns bit-exact acceptance in native generation/sampling verification. P2 SQA-MOSS-001 remains open. No finding closed or adopted; implementation remains paused.",
-      "evidence": "Source and Go AST caller review show signed-zero drift can pass the executable exact-boundary guard. Retained released-model JSONL identity matches the recorded comparison; all 42 exact-policy records have unequal=0. No new tests or model runs.",
+      "assessment": "New P2 SQA-MOSS-003: the shared integer form reader can round a valid MOSS seed before submission. Prior P2 cancellation and P3 verifier findings remain open; none adopted or closed.",
+      "evidence": "Source traces controlValues, real composer/workflow callers, reflected int64 seed controls and the native low-word RNG consumer. The example 2^53+1 rounds to 2^53, changing low word 1 to 0. Existing seed-42 browser evidence is outside that case. No test or model run added.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2575,14 +2646,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, keep P2 cancellation ahead of P3 verification strictness. Enforce the existing bit-inequality result for declared exact boundaries and extend current lightweight verifier coverage; preserve approximate tolerances and native parity evidence.",
+      "recommendation": "When implementation resumes, refuse unsafe integers in the existing shared reader and handle field validation in every caller before submission. Keep full native/API int64 support, existing error displays and the current browser fixture. Address the two MOSS P2 findings before the P3 verifier gap.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "The verifier counterexample is source-based; no current model result is claimed wrong. The retained comparison predates this merge and has no exact-policy bit mismatch. Full migration cost, speed and memory effects are unmeasured; inherited master/implementation responses keep their historical scope.",
+      "uncertainty": "No actual image consequence, frequency or performance effect was measured. This is a source-proven input substitution. Existing retained native/browser results keep their original revision and scope; historical implementation responses remain untouched.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7"
+      "reviewed_revision": "b2db6d9c63d21a8dfef30326c9d1649c169e4015"
     },
-  "reviewed_revision": "736d167ded3793a45fa27733ce1c8d33f3d22da7"
+  "reviewed_revision": "b2db6d9c63d21a8dfef30326c9d1649c169e4015"
 }

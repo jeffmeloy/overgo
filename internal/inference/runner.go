@@ -304,6 +304,9 @@ type OpenOptions struct {
 	// tokens: a library validation records and replays under it, where host and card products differ by
 	// a rounding that flips a near tie.
 	HoldExperts bool
+	// F32Cache keeps every attention layer's K/V in the F32 cache, where a layer whose geometry Strata's cells hold
+	// would keep int8 cells: the path a held-out check holds the cells to.
+	F32Cache bool
 }
 
 func (r *Runner) Spec() model.Spec {

@@ -197,7 +197,9 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens, promptChunkTokens: devicePromptChunkTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}
 	runner.qsaLayers = runner.qsaLayerSet()
-	runner.cellLayers = runner.cellLayerSet()
+	if !options.F32Cache {
+		runner.cellLayers = runner.cellLayerSet()
+	}
 	runner.qsaWindows = runner.qsaWindowSet()
 	return runner, nil
 }

@@ -702,21 +702,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-449cbf9f2f0134fe",
-      "title": "Restore Bonsai-27B-Q1_0 inference load-time to 2846.4165 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Bonsai-27B-Q1_0 inference load-time to 2846.4165 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-449cbf9f2f0134fe -target 2846.4165000000003",
-          "rationale": "- Bonsai-27B-Q1_0 load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 2256.4425 to 2901.6322 (+645.1897, +28.6%, allowed 589.974; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261025T021213Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-590291ee3f36bb5b",
       "title": "Restore Unlimited-OCR-bf16 inference load-time to 3387.6021 ms",
       "owner": "master-lead",

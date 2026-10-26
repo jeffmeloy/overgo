@@ -57,6 +57,13 @@
       "holds": "image, audio, several-image, video and mixed requests over the three served protocols, from the request to the complete output, to captures of transformers running the model"
     },
     {
+      "model": "Qwen3.8 Flash Next",
+      "task": "projection",
+      "package": "cmd/evaluate",
+      "test": "TestPicturesAnswerAsTheirReferenceDoes",
+      "holds": "for 16 of its reading's 64 frames, every fourth, from the picture file through the projector's resize and encoding and the prompt it builds, by the digest of the prompt's tokens, to the first 16 tokens of the description the model generates greedily, to Strata, the engine this path ports (0.1.44.1, source 296b59d2), reading the same GGUF and projector and the same prompt: token for token while the answers agree, and where they part only at a near tie, and the log-probability of each of Strata's tokens within the band the file's text answers are held to (0.2 a token and a margin of 0.6, for the reason that entry gives); measured, 12 of 16 descriptions are Strata's token for token, the others part where Strata held its token at most 0.36 above its next, and the furthest stands 0.097 a token off. The frames are written at the size the projector resizes them to (1280 by 704), so both encoders read the same pixels: the resize itself is not compared, and llama.cpp's encoder inside Strata would round a 720-pixel side to 23 rows of patches where the model's own processor rounds it half to even, to 22 (overgo_data/references/strata/strataimage.go, frames-projected). The matching of a description to its captions and the description past 16 tokens are not compared"
+    },
+    {
       "model": "Qwen3.8-27B",
       "task": "projection",
       "deferred": "no test runs the current code against a reference: the comparison on record is of an earlier commit's twenty image and video answers with native results stored then, which internal/evaluation TestRetainedProjectionResults reads back without executing a model",

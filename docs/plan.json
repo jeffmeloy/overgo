@@ -666,21 +666,6 @@
       ]
     },
     {
-      "id": "scorecard-uncompared-projection",
-      "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compare the path a projection request takes with a reference output for each model it is scored on",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-uncompared-projection",
-          "rationale": "- Qwen3.8 Flash Next held-out-quality: no comparison of the path a request takes with a reference output is named for this reading, so a fault in that path would read as the model's score; name the test that makes the comparison in internal/scorecard/path_comparisons.json, write it where none exists, or record there why none is made and what would reopen it\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-image-gen",
       "title": "Measure image-gen's unmeasured cells",
       "owner": "master-lead",

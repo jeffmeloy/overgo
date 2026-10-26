@@ -181,11 +181,11 @@
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:81d75bcb8e4a3bb7df4a696bca72d0c1eea22173c31005807ae436e284ec7def",
+          "Recipe": "recipe:sha256:c45e957c883507b6b824eaeb2372b2af18cc1e402a83acd94339b67df35ad0e0",
           "Proofs": [
             "verification/flashnext-capacity-protocol#candidate-execution"
           ],
-          "Scope": "Qwen3.8-Flash-Next UD-IQ4_XS under its capacity session: the eight protocol cases of fixtures/protocol_acceptance.json (arithmetic, grounding, history, reasoning, a required tool call, a stream, a cancelled stream and the request after it) answered through the chat, responses and messages handlers, and its first chat case bound as the exact plan recipe measure replays. Vision, long context and speculation are not claimed here; no benchmark or quality claim."
+          "Scope": "Qwen3.8-Flash-Next UD-IQ4_XS under its capacity session, its prompts' dense attention on the tensor-core kernel its qwen4exp profile admits: the eight protocol cases of fixtures/protocol_acceptance.json (arithmetic, grounding, history, reasoning, a required tool call, a stream, a cancelled stream and the request after it) answered through the chat, responses and messages handlers, and its first chat case bound as the exact plan recipe measure replays. Vision, long context and speculation are not claimed here; no benchmark or quality claim."
         },
         {
           "Task": "projection",
@@ -292,9 +292,9 @@
     },
     {
       "Reference": "verification/flashnext-capacity-protocol",
-      "Commit": "fe2ec7ad774a3a83080c17d3b58c2f14e18a5785",
+      "Commit": "4984bf668ac1d9a33a363cb8dd1a9556ac876466",
       "Verify": "go run ./cmd/recipe verify -task inference -protocol -input-file fixtures/protocol_acceptance.json C:/Users/jeffm/overgo_data/models/Qwen3.8-Flash-Next/unsloth-UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
-      "Result": "evidence:sha256:cd79c6c8f1f8002d39d1e260ed06c256b8a732de5d39271b52722e2b0298f5bd",
+      "Result": "evidence:sha256:96de04700becac7dc2c7cf3a617d8ddfb88f8c3c100d0a5e90e9f0167cdd1c1c",
       "Check": "candidate-execution"
     },
     {

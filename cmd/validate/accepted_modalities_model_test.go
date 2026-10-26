@@ -117,7 +117,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "03c355cab2d73e0d3d26dafc3d877b1fbcb83527e27d335ea921987d66ea4ded", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "face124e37ef1cc70b495792f1af68f1886752da6c47a65ceaafb02aafc72cce", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskInference, recipe.TaskProjection, recipe.TaskVQA, recipe.TaskEmbedding, recipe.TaskRerank)
 }
 

@@ -212,24 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-tensor-cores",
-      "title": "Admit the tensor-core prompt attention for Flash-Next through its architecture profile",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "PromptTensorCores is the runtime policy's choice of the tensor-core prompt attention, set for qwen4exp in the catalog and given to the three dense causal attention sites; a later fact of the v3 profile schema leaves stored documents covered by the facts they were written with (documentProfileFacts, profileFactZero, the derivation under a document's fact schema), where republishing every definition would have moved the definitions retained evidence pins"
-      },
-      "steps": [
-        {
-          "id": "activate",
-          "title": "Activate Flash-Next over the profile that admits the tensor-core prompt attention",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/modelcli -run '^TestFlashNextServesPromptTensorCores$' -count=1",
-          "rationale": "Activate Flash-Next's inference recipe over the profile the catalog now derives for qwen4exp, from a clean tree at the commit that admits it: the program a served request compiles reads the stored profile document its definition names, so the admission reaches Flash-Next's requests only then. recipe verify -task inference over its verification suite, then recipe activate with the gate and run it records; the census and smoke-oracle records the activation drifts regenerated (go test ./cmd/validate); then the measured first output at 4K and 16K tokens against the record of 2026-10-25 (1.66 and 5.54 s off), and its MMLU-Pro reading, which held 0.6245 with the kernel on and off.\nServes: Flash-Next's first output at length, 6 to 10 percent faster with the tensor-core prompt attention than without (the record of 2026-10-25), its held-out MMLU-Pro held."
-        }
-      ]
-    },
-    {
       "id": "dense-prompt-precision",
       "title": "Give the tensor-core prompt attention products that hold held-out quality, then admit it again",
       "status": "open",

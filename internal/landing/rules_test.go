@@ -55,15 +55,7 @@ func TestExportUseCountsConsumers(t *testing.T) {
 	} {
 		repo := t.TempDir()
 		test.files["internal/p/p.go"] = exported
-		for name, content := range test.files {
-			full := filepath.Join(repo, filepath.FromSlash(name))
-			if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-				t.Fatal(err)
-			}
-		}
+		writeModule(t, repo, test.files)
 		l := &landing{Options: Options{Repo: repo}}
 		findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported))
 		if err != nil || (len(findings) == 0) != test.consumed {

@@ -398,57 +398,34 @@ func TestT5CacheValidation(t *testing.T) {
 	}
 }
 
-func TestJambaHybridCacheValidation(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "jamba", BlockCount: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 2,
-		HeadCountKV: 1}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
-		SSMInnerSize: 8, SSMStateSize: 2,
-		RecurrentLayers: []bool{true, false}}},
-		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
-	}
-	runner = attachFixtureProgram(runner)
-	conv, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
-	if err := runner.validateCache(cache); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestGraniteHybridCacheValidation(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "granitehybrid", BlockCount: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 2,
-		HeadCountKV: 1, LayerKVHeadCounts: []uint32{0, 1}}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
-		SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: 2,
-		RecurrentLayers: []bool{true, false}}},
-		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
-	}
-	runner = attachFixtureProgram(runner)
-	conv, _ := reference.NewValue(tensor.MustShape(2, 16), make([]float32, 32))
-	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
-	if err := runner.validateCache(cache); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestPLaMo2HybridCacheValidation(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "plamo2", BlockCount: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 2,
-		HeadCountKV: 1, LayerKVHeadCounts: []uint32{0, 1}}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
-		SSMInnerSize: 8, SSMStateSize: 2,
-		RecurrentLayers: []bool{true, false}}},
-		weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
-	}
-	runner = attachFixtureProgram(runner)
-	conv, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
-	key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
-	cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
-	if err := runner.validateCache(cache); err != nil {
-		t.Fatal(err)
+func TestHybridCacheValidation(t *testing.T) {
+	for _, test := range []struct {
+		architecture string
+		layerKVHeads []uint32
+		groups       uint32
+		convolution  uint64
+	}{
+		{architecture: "jamba", convolution: 8},
+		{architecture: "granitehybrid", layerKVHeads: []uint32{0, 1}, groups: 2, convolution: 16},
+		{architecture: "plamo2", layerKVHeads: []uint32{0, 1}, convolution: 8},
+	} {
+		t.Run(test.architecture, func(t *testing.T) {
+			runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: test.architecture, BlockCount: 2}, AttentionSpec: model.AttentionSpec{KeyLength: 2, ValueLength: 2,
+				HeadCountKV: 1, LayerKVHeadCounts: test.layerKVHeads}, RecurrentSpec: model.RecurrentSpec{SSMConvKernel: 3,
+				SSMInnerSize: 8, SSMStateSize: 2, SSMGroupCount: test.groups,
+				RecurrentLayers: []bool{true, false}}},
+				weights: model.Weights{Layers: []model.LayerWeights{{Recurrent: true}, {}}}},
+			}
+			runner = attachFixtureProgram(runner)
+			conv, _ := reference.NewValue(tensor.MustShape(2, test.convolution), make([]float32, 2*test.convolution))
+			ssm, _ := reference.NewValue(tensor.MustShape(2, 8), make([]float32, 16))
+			key, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+			value, _ := reference.NewValue(tensor.MustShape(2, 1, 2), make([]float32, 4))
+			cache := &KVCache{Layers: []LayerCache{{Key: conv, Value: ssm}, {Key: key, Value: value}}, Tokens: 2, Position: 2}
+			if err := runner.validateCache(cache); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 

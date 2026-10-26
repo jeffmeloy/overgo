@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
@@ -196,36 +195,5 @@ func clearPromptCaches(t *testing.T, runner *Runner) {
 		runner.promptCaches = append(runner.promptCaches, failed...)
 		runner.mu.Unlock()
 		t.Fatal(err)
-	}
-}
-
-func TestPromptCacheTotalTurnCostHost(t *testing.T) {
-	// Keep cost observations separate from the CUDA/host numerical acceptance.
-	// A matched ABBA observation includes prefill, four decoded tokens,
-	// callbacks and text decoding. It describes this tiny fixture only; no
-	// statistical or production-model speed claim follows from these samples.
-	runner := openPromptCacheHostRunner(t)
-	prompt := []tokenizer.TokenID{1, 4, 5}
-	runner.promptCacheCapacity = 1
-	generatePromptCacheFixture(t, runner, prompt, false, false) // warm executor
-	generatePromptCacheFixture(t, runner, prompt, true, false)  // establish cache
-	var oracle []tokenizer.TokenID
-	for index, cached := range []bool{false, true, true, false} {
-		started, err := processmeasure.Counter()
-		if err != nil {
-			t.Fatal(err)
-		}
-		observed := generatePromptCacheFixture(t, runner, prompt, cached, false)
-		finished, err := processmeasure.Counter()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if index == 0 {
-			oracle = observed.ids
-		}
-		if !slices.Equal(observed.ids, oracle) {
-			t.Fatal("paired timing changed output")
-		}
-		t.Logf("paired host total-turn sample=%d cache=%t prompt=%v output=%v cached_tokens=%d wall=%s", index, cached, prompt, observed.ids[len(prompt):], observed.evaluation.Cached, finished-started)
 	}
 }

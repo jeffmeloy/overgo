@@ -475,10 +475,6 @@ func scaleFactorFor(node *tensor.Tensor) (float32, bool) {
 // The later product in the graph's order launches both, so the earlier one's output already holds its place.
 func applyQ8PairRewrite(context *rewriteContext) {
 	compiled := context.compiled
-	position := make(map[*tensor.Tensor]int, len(context.order))
-	for index, node := range context.order {
-		position[node] = index
-	}
 	for _, node := range context.order {
 		descriptor := compiled.fusions[node]
 		if descriptor == nil || descriptor.kind != compiledFusionActivatedGate {
@@ -490,7 +486,7 @@ func applyQ8PairRewrite(context *rewriteContext) {
 			continue
 		}
 		earlier, later := gate, up
-		if position[later] < position[earlier] {
+		if compiled.orderIndexes[later] < compiled.orderIndexes[earlier] {
 			earlier, later = later, earlier
 		}
 		operands := []*tensor.Tensor{gate.Inputs[0], up.Inputs[0], gate.Inputs[1], earlier}

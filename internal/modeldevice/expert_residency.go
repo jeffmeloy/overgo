@@ -249,8 +249,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		if !ok {
 			return nil, fmt.Errorf("expert bank %q slot size overflows", info.Name)
 		}
-		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags,
-			pointers: make([]driver.DevicePtr, experts), hosted: make([][]byte, experts),
+		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags, hosted: make([][]byte, experts),
 			entries: make([]*list.Element, experts), home: make([]expertSlot, experts), moving: make([]bool, experts),
 			usage: make([]float32, experts), decodeRuns: make([]uint64, experts)}
 		if c.classes[stride] == nil {
@@ -273,7 +272,7 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 	c.tables, c.bytes = pointer, c.tableBytes
 	first := 0
 	for _, bank := range c.ordered {
-		last := first + len(bank.pointers)
+		last := first + len(bank.hosted)
 		bank.table, bank.pointers, bank.first = pointer+driver.DevicePtr(uint64(first)*pointerBytes), c.pointers[first:last:last], first
 		first = last
 	}

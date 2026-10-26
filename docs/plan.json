@@ -212,27 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "reductions",
-      "title": "Land the review's reductions once the port has begun",
-      "status": "open",
-      "budget": {
-        "nodes": 206,
-        "reason": "Reductions only: each step deletes more production code than it adds."
-      },
-      "steps": [
-        {
-          "id": "inference",
-          "title": "Drop the compiler's and the residency's discarded work and fold the duplicated host tests (SQA-185, SQA-183, SQA-160, SQA-175, SQA-198, SQA-210, SQA-172)",
-          "status": "open",
-          "verify": "go test ./internal/tensor/reference ./internal/landing ./internal/modeldevice -count=1 \u0026\u0026 go test ./internal/inference -run 'CacheValidation|CacheState' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestSharedExpertFusionsMatchTheComposedKernels$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestDeviceBoundedPrefill$' -count=1 \u0026\u0026 ! grep -q 'position := make(map\\[\\*tensor.Tensor\\]int' internal/cuda/executor/fusion_rewrites.go \u0026\u0026 ! grep -q 'pointers: make(\\[\\]driver.DevicePtr, experts)' internal/modeldevice/expert_residency.go \u0026\u0026 ! grep -q 'func TestPromptCacheTotalTurnCostHost' internal/inference/prompt_cache_generation_test.go \u0026\u0026 ! grep -q 'func TestGraniteHybridCacheValidation' internal/inference/cache_state_test.go",
-          "rationale": "Serves: compilation and load: Q8 pairing reads the compiled graph's order index instead of rebuilding a graph-sized map each compilation (SQA-185), and a residency's construction stops allocating the pointer array each bank discards (SQA-183); duplicated host and fixture tests fold into the owners that already hold their requirements.\nDisappears: the position map in fusion_rewrites.go; each bank's discarded pointers array; TestPromptCacheTotalTurnCostHost (SQA-160); the three hybrid cache-shape bodies, one table (SQA-175); the bounded-prefill test's second prompt read (SQA-198); the prompt convolution test, a row of the gated-delta preparation table (SQA-210); the landing tests' three writer copies and their equal build contexts (SQA-172).\nEvidence: the owners' tests, unchanged in what they hold; TestDeviceBoundedPrefill and the Q8 pairing test on the device.\nBatch: tensor/reference, landing, modeldevice and inference host tests, one cuda/executor and one inference device test; never beside a measurement run.",
-          "depends_on": [
-            "strata-port/map"
-          ]
-        }
-      ]
-    },
-    {
       "id": "strata-port",
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",

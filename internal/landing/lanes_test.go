@@ -93,34 +93,35 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 	}
 }
 
-// TestLaneSelectionUsesTheLaneBuildContext selects each tagged lane of the
-// gate's and the cycle's tables in the build context its command runs in.
-// In a fixture module the lane's package imports a dependency only from a
-// test file behind the lane's tags, and the dependency's one file carries
-// them too: a change to either selects the lane, but neither the same
-// packages listed without the tags nor another lane sharing the tagged
-// listing. Unrelated documentation selects nothing, and a dependency the
-// tagged build cannot load refuses the selection while the untagged one,
-// which never compiles it, still lists. No lane's command names tags of its
-// own: the go command takes them from the descriptor.
+// TestLaneSelectionUsesTheLaneBuildContext selects lanes in the build
+// context their commands run in, once for each context the tagged lanes of
+// the gate's and the cycle's tables declare. In a fixture module the lane's
+// package imports a dependency only from a test file behind the lane's tags,
+// and the dependency's one file carries them too: a change to either selects
+// the lane, but neither the same packages listed without the tags nor
+// another lane sharing the tagged listing. Unrelated documentation selects
+// nothing, and a dependency the tagged build cannot load refuses the
+// selection while the untagged one, which never compiles it, still lists. No
+// lane's command names tags of its own: the go command takes them from the
+// descriptor.
 func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 	t.Parallel()
-	var tagged []lane
+	var tagged []string
 	for _, candidate := range slices.Concat(lanes, cycleLanes) {
 		if slices.Contains(candidate.command(""), "-tags") {
 			t.Errorf("lane %s's command names its own tags; its build context belongs in the descriptor", candidate.name)
 		}
-		if candidate.tags != "" {
-			tagged = append(tagged, candidate)
+		if candidate.tags != "" && !slices.Contains(tagged, candidate.tags) {
+			tagged = append(tagged, candidate.tags)
 		}
 	}
 	if len(tagged) == 0 {
 		t.Fatal("no lane builds with tags; the tagged suites would run nowhere")
 	}
-	for _, candidate := range tagged {
-		t.Run(candidate.name, func(t *testing.T) {
+	for _, tags := range tagged {
+		t.Run(tags, func(t *testing.T) {
 			t.Parallel()
-			constraint := "//go:build " + strings.ReplaceAll(candidate.tags, ",", " && ") + "\n\n"
+			constraint := "//go:build " + strings.ReplaceAll(tags, ",", " && ") + "\n\n"
 			repo := t.TempDir()
 			writeModule(t, repo, map[string]string{
 				"go.mod":           "module fixture\n\ngo 1.26\n",
@@ -130,9 +131,9 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 				"c/c.go":           "package c\n",
 				"docs/notes.md":    "notes\n",
 			})
-			own := lane{name: candidate.name, packages: []string{"./a"}, tags: candidate.tags}
+			own := lane{name: "tagged", packages: []string{"./a"}, tags: tags}
 			untagged := lane{name: "untagged", packages: own.packages}
-			neighbour := lane{name: "neighbour", packages: []string{"./c"}, tags: candidate.tags}
+			neighbour := lane{name: "neighbour", packages: []string{"./c"}, tags: tags}
 			reaches, err := discover(repo, own, untagged, neighbour)
 			if err != nil {
 				t.Fatal(err)
@@ -356,22 +357,14 @@ func TestCUDATestsNeedALane(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
 	gated := "package fixture\n\nfunc TestDevice(t *testing.T) { " + cudaRequirement + "t) }\n"
-	for name, content := range map[string]string{
+	writeModule(t, repo, map[string]string{
 		"internal/unlaned/a_test.go":      gated,
 		"internal/unlaned/b_test.go":      gated,
 		"internal/inference/c_test.go":    gated,
 		"internal/cuda/kernels/d_test.go": gated,
 		"internal/quoting/e.go":           gated,
 		"cmd/hostonly/f_test.go":          "package main\n",
-	} {
-		file := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	})
 	uncovered, err := uncoveredCUDATests(repo)
 	if err != nil {
 		t.Fatal(err)

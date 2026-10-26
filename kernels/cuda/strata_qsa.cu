@@ -904,9 +904,18 @@ extern "C" __global__ void __launch_bounds__(STRATA_TK_T) strata_block_topk_wide
 // p . V into partials; grid (n_head, n_q) merges the chunks with the usual log-sum-exp rescale. Compiled for
 // core/geometry.hpp: a 256-wide head and 12 query heads a KV head. This is attn_chunk_kernel's default branch
 // (warp scoring), the one the CUDA dispatch runs from sm_75 on, for fp16 pools (KV_MODE 0) and int8 (1).
+//
+// The bodies take the head width HD and the query heads a KV head G as template parameters, Strata's entries
+// instantiating its 256 and 12; the cell attention's entries (strata_cell_*) instantiate an attention layer's own
+// geometry, a width of whole 64-value groups up to 512 and up to 16 heads, the same arithmetic in the same order. A
+// lane scores HD / 256 runs of 8 dimensions (none for a lane past a narrower head), and a thread accumulates the values
+// of HD / 256 dimensions. With no selection (ids null) a query reads the cells [step[FIRST], step[FIRST] +
+// step[WIDTH]), its causal prefix or its sliding window.
 #define STRATA_HD 256
 #define STRATA_G 12
 #define STRATA_CHUNK 64
+// STRATA_STEP_FIRST is a cell step record's first cell where no selection names the cells (the QSA step's n_bid).
+#define STRATA_STEP_FIRST 2
 #define STRATA_ATTN_THREADS 256
 #define STRATA_ATTN_WARPS (STRATA_ATTN_THREADS / 32)
 
@@ -922,12 +931,12 @@ __device__ __forceinline__ float strata_warp_max(float v) {
 }
 
 // 8 consecutive values of one cell's key or value row, dimensions [d0, d0 + 8): load8_f16 and load8_q8.
-template <int KV_MODE>
+template <int KV_MODE, int HD = STRATA_HD>
 __device__ __forceinline__ void strata_load8(
         const uint16_t * k_pool, const uint16_t * v_pool, const int8_t * k_q, const int8_t * v_q,
         const uint16_t * k_scale, const uint16_t * v_scale, bool value, long long row, int d0, float * out) {
     if (KV_MODE == 0) {
-        const uint16_t * base = (value ? v_pool : k_pool) + row * STRATA_HD + d0;
+        const uint16_t * base = (value ? v_pool : k_pool) + row * HD + d0;
         const uint4 raw = *reinterpret_cast<const uint4 *>(base);
         const __half2 * h2 = reinterpret_cast<const __half2 *>(&raw);
 #pragma unroll
@@ -937,8 +946,8 @@ __device__ __forceinline__ void strata_load8(
             out[2 * j + 1] = f.y;
         }
     } else {
-        const int8_t * codes = (value ? v_q : k_q) + row * STRATA_HD + d0;
-        const uint16_t sbits = (value ? v_scale : k_scale)[row * (STRATA_HD / STRATA_KV_Q8_GROUP) + d0 / STRATA_KV_Q8_GROUP];
+        const int8_t * codes = (value ? v_q : k_q) + row * HD + d0;
+        const uint16_t sbits = (value ? v_scale : k_scale)[row * (HD / STRATA_KV_Q8_GROUP) + d0 / STRATA_KV_Q8_GROUP];
         const float sc = __half2float(__ushort_as_half(sbits));
         const uint2 raw = *reinterpret_cast<const uint2 *>(codes);
         const int8_t * c = reinterpret_cast<const int8_t *>(&raw);
@@ -949,21 +958,23 @@ __device__ __forceinline__ void strata_load8(
 
 // attn_chunk_kernel<KV_MODE> with Strata's QsaAttnPools arriving as its pointers. Single-query calls pass cap 0 and
 // stride 0 (blockIdx.z is 0). Launch: grid (ceil(cap / 64), n_head_kv, n_q), 256 threads.
-template <int KV_MODE>
+template <int KV_MODE, int HD, int G>
 __device__ __forceinline__ void strata_attn_chunk_body(
         const float * __restrict__ q, const uint16_t * k_pool, const uint16_t * v_pool, const int8_t * k_q,
         const int8_t * v_q, const uint16_t * k_scale, const uint16_t * v_scale, const int32_t * page_table,
         const int32_t * __restrict__ ids, const int32_t * __restrict__ step, int n_kv_heads, int page_size,
         float scale, float * __restrict__ part_acc, float * __restrict__ part_m, float * __restrict__ part_l,
         int n_chunks, int cap, long long scratch_stride) {
-    q += (size_t) blockIdx.z * (size_t) (n_kv_heads * STRATA_G) * STRATA_HD;
-    ids += (size_t) blockIdx.z * (size_t) cap;
+    // RUNS: the 8-dimension runs a lane scores; DIMS: the value dimensions a thread accumulates.
+    constexpr int RUNS = (HD / 8 + 31) / 32, DIMS = (HD + STRATA_ATTN_THREADS - 1) / STRATA_ATTN_THREADS;
+    q += (size_t) blockIdx.z * (size_t) (n_kv_heads * G) * HD;
+    if (ids != nullptr) ids += (size_t) blockIdx.z * (size_t) cap;
     step += (size_t) blockIdx.z * STRATA_STEP_COUNT;
     part_acc += (size_t) blockIdx.z * (size_t) scratch_stride;
     part_m += (size_t) blockIdx.z * (size_t) scratch_stride;
     part_l += (size_t) blockIdx.z * (size_t) scratch_stride;
-    __shared__ __align__(16) float sq[STRATA_G][STRATA_HD];
-    __shared__ float sp[STRATA_G][STRATA_CHUNK];
+    __shared__ __align__(16) float sq[G][HD];
+    __shared__ float sp[G][STRATA_CHUNK];
     __shared__ long long srow[STRATA_CHUNK];
     const int n_ids = __ldg(step + STRATA_STEP_WIDTH);
     const int chunk = blockIdx.x, kvh = blockIdx.y;
@@ -972,14 +983,14 @@ __device__ __forceinline__ void strata_attn_chunk_body(
     const int n_here = min(STRATA_CHUNK, n_ids - c0);
     const int slot = kvh * n_chunks + chunk;
     if (n_here <= 0) {
-        if (t < STRATA_G) { part_m[slot * STRATA_G + t] = -FLT_MAX; part_l[slot * STRATA_G + t] = 0.0f; }
+        if (t < G) { part_m[slot * G + t] = -FLT_MAX; part_l[slot * G + t] = 0.0f; }
         return;
     }
-    for (int i = t; i < STRATA_G * STRATA_HD; i += STRATA_ATTN_THREADS) sq[i / STRATA_HD][i % STRATA_HD] = q[(size_t) (kvh * STRATA_G) * STRATA_HD + i];
+    for (int i = t; i < G * HD; i += STRATA_ATTN_THREADS) sq[i / HD][i % HD] = q[(size_t) (kvh * G) * HD + i];
     if (t < STRATA_CHUNK) {
         long long r = -1;
         if (t < n_here) {
-            const int cell = ids[c0 + t];
+            const int cell = ids != nullptr ? ids[c0 + t] : __ldg(step + STRATA_STEP_FIRST) + c0 + t;
             const long long page = (long long) page_table[cell / page_size];
             // a block the K/V streaming could not make resident keeps page -1: its cells are masked
             if (page >= 0) r = (page * n_kv_heads + kvh) * page_size + (cell % page_size);
@@ -989,23 +1000,35 @@ __device__ __forceinline__ void strata_attn_chunk_body(
     __syncthreads();
     for (int c = warp; c < STRATA_CHUNK; c += STRATA_ATTN_WARPS) {
         if (c >= n_here || srow[c] < 0) {
-            if (lane < STRATA_G) sp[lane][c] = -FLT_MAX;
+            if (lane < G) sp[lane][c] = -FLT_MAX;
             continue;
         }
-        float k8[8];
-        strata_load8<KV_MODE>(k_pool, v_pool, k_q, v_q, k_scale, v_scale, false, srow[c], lane * 8, k8);
+        float k8[RUNS][8];
 #pragma unroll
-        for (int h = 0; h < STRATA_G; ++h) {
-            const float4 qa = *reinterpret_cast<const float4 *>(&sq[h][lane * 8]);
-            const float4 qb = *reinterpret_cast<const float4 *>(&sq[h][lane * 8 + 4]);
-            float s = k8[0] * qa.x + k8[1] * qa.y + k8[2] * qa.z + k8[3] * qa.w +
-                      k8[4] * qb.x + k8[5] * qb.y + k8[6] * qb.z + k8[7] * qb.w;
+        for (int run = 0; run < RUNS; ++run) {
+            if ((run * 32 + lane) * 8 < HD)
+                strata_load8<KV_MODE, HD>(k_pool, v_pool, k_q, v_q, k_scale, v_scale, false, srow[c], (run * 32 + lane) * 8,
+                                          k8[run]);
+        }
+#pragma unroll
+        for (int h = 0; h < G; ++h) {
+            float s = 0.0f;
+#pragma unroll
+            for (int run = 0; run < RUNS; ++run) {
+                const int d0 = (run * 32 + lane) * 8;
+                if (d0 >= HD) continue;
+                const float4 qa = *reinterpret_cast<const float4 *>(&sq[h][d0]);
+                const float4 qb = *reinterpret_cast<const float4 *>(&sq[h][d0 + 4]);
+                const float part = k8[run][0] * qa.x + k8[run][1] * qa.y + k8[run][2] * qa.z + k8[run][3] * qa.w +
+                                   k8[run][4] * qb.x + k8[run][5] * qb.y + k8[run][6] * qb.z + k8[run][7] * qb.w;
+                s = run == 0 ? part : s + part;
+            }
             s = strata_warp_sum(s);
             if (lane == 0) sp[h][c] = s * scale;
         }
     }
     __syncthreads();
-    for (int h = warp; h < STRATA_G; h += STRATA_ATTN_WARPS) {
+    for (int h = warp; h < G; h += STRATA_ATTN_WARPS) {
         const float a = sp[h][lane], b = sp[h][lane + 32];
         const float m = strata_warp_max(fmaxf(a, b));
         const float ea = (lane < n_here && srow[lane] >= 0) ? __expf(a - m) : 0.0f;
@@ -1013,26 +1036,39 @@ __device__ __forceinline__ void strata_attn_chunk_body(
         sp[h][lane] = ea;
         sp[h][lane + 32] = eb;
         const float l = strata_warp_sum(ea + eb);
-        if (lane == 0) { part_m[slot * STRATA_G + h] = m; part_l[slot * STRATA_G + h] = l; }
+        if (lane == 0) { part_m[slot * G + h] = m; part_l[slot * G + h] = l; }
     }
     __syncthreads();
-    float acc[STRATA_G];
+    float acc[DIMS][G];
 #pragma unroll
-    for (int h = 0; h < STRATA_G; ++h) acc[h] = 0.0f;
+    for (int dim = 0; dim < DIMS; ++dim) {
+#pragma unroll
+        for (int h = 0; h < G; ++h) acc[dim][h] = 0.0f;
+    }
     for (int c = 0; c < n_here; ++c) {
         if (srow[c] < 0) continue;
-        float v;
-        if (KV_MODE == 0) {
-            v = __half2float(__ushort_as_half(v_pool[srow[c] * STRATA_HD + t]));
-        } else {
-            const float sc = __half2float(__ushort_as_half(v_scale[srow[c] * (STRATA_HD / STRATA_KV_Q8_GROUP) + t / STRATA_KV_Q8_GROUP]));
-            v = (float) v_q[srow[c] * STRATA_HD + t] * sc;
-        }
 #pragma unroll
-        for (int h = 0; h < STRATA_G; ++h) acc[h] = fmaf(sp[h][c], v, acc[h]);
+        for (int dim = 0; dim < DIMS; ++dim) {
+            const int d = dim * STRATA_ATTN_THREADS + t;
+            if (d >= HD) continue;
+            float v;
+            if (KV_MODE == 0) {
+                v = __half2float(__ushort_as_half(v_pool[srow[c] * HD + d]));
+            } else {
+                const float sc = __half2float(__ushort_as_half(v_scale[srow[c] * (HD / STRATA_KV_Q8_GROUP) + d / STRATA_KV_Q8_GROUP]));
+                v = (float) v_q[srow[c] * HD + d] * sc;
+            }
+#pragma unroll
+            for (int h = 0; h < G; ++h) acc[dim][h] = fmaf(sp[h][c], v, acc[dim][h]);
+        }
     }
 #pragma unroll
-    for (int h = 0; h < STRATA_G; ++h) part_acc[((size_t) slot * STRATA_G + h) * STRATA_HD + t] = acc[h];
+    for (int dim = 0; dim < DIMS; ++dim) {
+        const int d = dim * STRATA_ATTN_THREADS + t;
+        if (d >= HD) continue;
+#pragma unroll
+        for (int h = 0; h < G; ++h) part_acc[((size_t) slot * G + h) * HD + d] = acc[dim][h];
+    }
 }
 
 extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_attn_chunk_f16(
@@ -1040,8 +1076,9 @@ extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_attn_ch
         const int32_t * page_table, const int32_t * __restrict__ ids, const int32_t * __restrict__ step,
         int n_kv_heads, int page_size, float scale, float * __restrict__ part_acc, float * __restrict__ part_m,
         float * __restrict__ part_l, int n_chunks, int cap, long long scratch_stride) {
-    strata_attn_chunk_body<0>(q, k_pool, v_pool, nullptr, nullptr, nullptr, nullptr, page_table, ids, step, n_kv_heads,
-                              page_size, scale, part_acc, part_m, part_l, n_chunks, cap, scratch_stride);
+    strata_attn_chunk_body<0, STRATA_HD, STRATA_G>(q, k_pool, v_pool, nullptr, nullptr, nullptr, nullptr, page_table, ids,
+                                                   step, n_kv_heads, page_size, scale, part_acc, part_m, part_l, n_chunks,
+                                                   cap, scratch_stride);
 }
 
 extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_attn_chunk_q8(
@@ -1050,34 +1087,42 @@ extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_attn_ch
         const int32_t * __restrict__ step, int n_kv_heads, int page_size, float scale,
         float * __restrict__ part_acc, float * __restrict__ part_m, float * __restrict__ part_l, int n_chunks,
         int cap, long long scratch_stride) {
-    strata_attn_chunk_body<1>(q, nullptr, nullptr, k_q, v_q, k_scale, v_scale, page_table, ids, step, n_kv_heads,
-                              page_size, scale, part_acc, part_m, part_l, n_chunks, cap, scratch_stride);
+    strata_attn_chunk_body<1, STRATA_HD, STRATA_G>(q, nullptr, nullptr, k_q, v_q, k_scale, v_scale, page_table, ids, step,
+                                                   n_kv_heads, page_size, scale, part_acc, part_m, part_l, n_chunks, cap,
+                                                   scratch_stride);
 }
 
 // attn_merge_kernel: the chunks of each query head merged with the log-sum-exp rescale, one thread a dimension.
-// Launch: grid (n_head, n_q), 256 threads.
-extern "C" __global__ void __launch_bounds__(STRATA_HD) strata_attn_merge(
+// Launch: grid (n_head, n_q), HD threads.
+template <int HD, int G>
+__device__ __forceinline__ void strata_attn_merge_body(
         const float * __restrict__ part_acc, const float * __restrict__ part_m, const float * __restrict__ part_l,
         int n_chunks, float * __restrict__ attn, long long scratch_stride) {
     part_acc += (size_t) blockIdx.y * (size_t) scratch_stride;
     part_m += (size_t) blockIdx.y * (size_t) scratch_stride;
     part_l += (size_t) blockIdx.y * (size_t) scratch_stride;
-    attn += (size_t) blockIdx.y * (size_t) gridDim.x * STRATA_HD;
+    attn += (size_t) blockIdx.y * (size_t) gridDim.x * HD;
     const int h = blockIdx.x;
-    const int kvh = h / STRATA_G, hl = h % STRATA_G;
+    const int kvh = h / G, hl = h % G;
     const int d = threadIdx.x;
     float M = -FLT_MAX;
-    for (int c = 0; c < n_chunks; ++c) M = fmaxf(M, part_m[(kvh * n_chunks + c) * STRATA_G + hl]);
+    for (int c = 0; c < n_chunks; ++c) M = fmaxf(M, part_m[(kvh * n_chunks + c) * G + hl]);
     float L = 0.0f, acc = 0.0f;
     for (int c = 0; c < n_chunks; ++c) {
         const int slot = kvh * n_chunks + c;
-        const float m = part_m[slot * STRATA_G + hl];
+        const float m = part_m[slot * G + hl];
         if (m == -FLT_MAX) continue;
         const float w = __expf(m - M);
-        L = fmaf(part_l[slot * STRATA_G + hl], w, L);
-        acc = fmaf(part_acc[((size_t) slot * STRATA_G + hl) * STRATA_HD + d], w, acc);
+        L = fmaf(part_l[slot * G + hl], w, L);
+        acc = fmaf(part_acc[((size_t) slot * G + hl) * HD + d], w, acc);
     }
-    attn[(size_t) h * STRATA_HD + d] = L > 0.0f ? acc / L : 0.0f;
+    attn[(size_t) h * HD + d] = L > 0.0f ? acc / L : 0.0f;
+}
+
+extern "C" __global__ void __launch_bounds__(STRATA_HD) strata_attn_merge(
+        const float * __restrict__ part_acc, const float * __restrict__ part_m, const float * __restrict__ part_l,
+        int n_chunks, float * __restrict__ attn, long long scratch_stride) {
+    strata_attn_merge_body<STRATA_HD, STRATA_G>(part_acc, part_m, part_l, n_chunks, attn, scratch_stride);
 }
 
 // ================= qsa_prompt_attn.cu: the prompt path's QSA attention on tensor cores =================
@@ -1111,18 +1156,21 @@ __device__ __forceinline__ uint32_t strata_pack_h2(float lo_k, float hi_k) {
     return *reinterpret_cast<uint32_t *>(&h);
 }
 
-// Smem2: the int8 kernel's shared memory, `sizeof(StrataSmem2)` bytes of it dynamic (45,584).
+// Smem2: the int8 kernel's shared memory, `sizeof(StrataSmem2)` bytes of it dynamic (45,584), for W warps of 64
+// dimensions each: Strata's four for its 256-wide head, a cell attention's HD / 64.
 #define STRATA_CH2 32
-struct StrataSmem2 {
-    int8_t kv[2][4][2][STRATA_CH2][64];
-    float sc[2][4][2][STRATA_CH2];
-    float part[4][16][STRATA_CH2 + 1];
+template <int W>
+struct StrataSmemCells {
+    int8_t kv[2][W][2][STRATA_CH2][64];
+    float sc[2][W][2][STRATA_CH2];
+    float part[W][16][STRATA_CH2 + 1];
     float p[16][STRATA_CH2 + 1];
-    float qmax[4];
+    float qmax[W];
     float alpha[16];
     float lsum[16];
     float mrow[16];
 };
+using StrataSmem2 = StrataSmemCells<4>;
 
 __device__ __forceinline__ int strata_swz(int cell, int byte) {
     return cell * 64 + ((((byte >> 4) ^ (cell >> 1)) & 3) << 4) + (byte & 15);
@@ -1135,32 +1183,40 @@ __device__ __forceinline__ void strata_cp_async_commit() { asm volatile("cp.asyn
 __device__ __forceinline__ void strata_cp_async_wait1() { asm volatile("cp.async.wait_group 1;\n" ::); }
 
 // prompt_attn_i8_kernel, Strata's QsaAttnPools arriving as its int8 pointers. Launch: grid (n_q (at most 65,535 a
-// launch), n_head_kv), 128 threads, sizeof(StrataSmem2) bytes of dynamic shared memory; scale_log2 = log2(e) / 16.
-extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_attn_i8(
+// launch), n_head_kv), HD / 2 threads (128 for Strata's 256), sizeof(StrataSmemCells<HD / 64>) bytes of dynamic shared
+// memory; scale_log2 = log2(e) / sqrt(HD). With no selection (ids null) a query reads the cells [steps[FIRST],
+// steps[FIRST] + steps[WIDTH]) of its own record.
+template <int HD, int G>
+__device__ __forceinline__ void strata_prompt_attn_body(
         const float * __restrict__ q, const int8_t * k_q, const int8_t * v_q, const uint16_t * k_scale,
         const uint16_t * v_scale, const int32_t * page_table, const int32_t * __restrict__ ids,
         const int32_t * __restrict__ steps, int n_kv_heads, int page_size, float scale_log2,
         float * __restrict__ attn, int cap) {
+    // W: the warps, each 64 dimensions of the head; THREADS: theirs.
+    constexpr int W = HD / 64, THREADS = W * 32;
     extern __shared__ __align__(16) unsigned char smem_raw[];
-    StrataSmem2 & S = *reinterpret_cast<StrataSmem2 *>(smem_raw);
+    StrataSmemCells<W> & S = *reinterpret_cast<StrataSmemCells<W> *>(smem_raw);
     const int qi = blockIdx.x, kvh = blockIdx.y;
-    const int n_head = n_kv_heads * STRATA_G;
-    q += (size_t) qi * n_head * STRATA_HD + (size_t) kvh * STRATA_G * STRATA_HD;
-    attn += (size_t) qi * n_head * STRATA_HD + (size_t) kvh * STRATA_G * STRATA_HD;
-    ids += (size_t) qi * cap;
+    const int n_head = n_kv_heads * G;
+    q += (size_t) qi * n_head * HD + (size_t) kvh * G * HD;
+    attn += (size_t) qi * n_head * HD + (size_t) kvh * G * HD;
+    if (ids != nullptr) ids += (size_t) qi * cap;
     const int n = __ldg(steps + (size_t) qi * STRATA_STEP_COUNT + STRATA_STEP_WIDTH);
+    const int first = ids != nullptr ? 0 : __ldg(steps + (size_t) qi * STRATA_STEP_COUNT + STRATA_STEP_FIRST);
     const int t = threadIdx.x, lane = t & 31, warp = t >> 5;
     const int gid = lane >> 2, tig = lane & 3;
     const int dim0 = warp * 64;
 
     float qm = 0.0f;
-    for (int i = t; i < STRATA_G * STRATA_HD; i += STRATA_PA_THREADS) qm = fmaxf(qm, fabsf(q[i]));
+    for (int i = t; i < G * HD; i += THREADS) qm = fmaxf(qm, fabsf(q[i]));
 #pragma unroll
     for (int o = 16; o > 0; o >>= 1) qm = fmaxf(qm, __shfl_xor_sync(0xffffffffu, qm, o));
     if (lane == 0) S.qmax[warp] = qm;
     if (t < 16) { S.mrow[t] = -INFINITY; S.lsum[t] = 0.0f; }
     __syncthreads();
-    qm = fmaxf(fmaxf(S.qmax[0], S.qmax[1]), fmaxf(S.qmax[2], S.qmax[3]));
+    qm = S.qmax[0];
+#pragma unroll
+    for (int w = 1; w < W; ++w) qm = fmaxf(qm, S.qmax[w]);
     int qe = 0;
     if (qm > 0.0f) frexpf(qm, &qe);
     const float qup = ldexpf(1.0f, 14 - qe), qdown = ldexpf(scale_log2, qe - 14);
@@ -1171,7 +1227,7 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
         for (int r = 0; r < 4; ++r) {
             const int row = gid + (r & 1) * 8, col = dim0 + kk * 16 + 2 * tig + (r >> 1) * 8;
             float2 x = make_float2(0.f, 0.f);
-            if (row < STRATA_G) x = *reinterpret_cast<const float2 *>(q + (size_t) row * STRATA_HD + col);
+            if (row < G) x = *reinterpret_cast<const float2 *>(q + (size_t) row * HD + col);
             x.x *= qup;
             x.y *= qup;
             const __half2 hi = __floats2half2_rn(x.x, x.y);
@@ -1183,7 +1239,7 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
     }
 
     const int n_chunks = (n + STRATA_CH2 - 1) / STRATA_CH2;
-    auto cell_of = [&](int c) -> int { return c < n ? __ldg(ids + c) : -1; };
+    auto cell_of = [&](int c) -> int { return c < n ? (ids != nullptr ? __ldg(ids + c) : first + c) : -1; };
     auto row_of = [&](int cell) -> long long {
         if (cell < 0) return -1;
         const long long page = (long long) __ldg(page_table + cell / page_size);
@@ -1195,12 +1251,12 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
             const int idx = lane + 32 * j, cell = idx >> 2, pc = idx & 3;
             const long long rr = __shfl_sync(0xffffffffu, r, cell);
             const bool ok = rr >= 0;
-            const size_t off = ok ? (size_t) rr * STRATA_HD + dim0 + pc * 16 : 0;
+            const size_t off = ok ? (size_t) rr * HD + dim0 + pc * 16 : 0;
             strata_cp_async16(&S.kv[st][warp][0][0][0] + strata_swz(cell, pc * 16), k_q + off, ok);
             strata_cp_async16(&S.kv[st][warp][1][0][0] + strata_swz(cell, pc * 16), v_q + off, ok);
         }
-        ksr = r >= 0 ? __half2float(__ushort_as_half(__ldg(k_scale + r * (STRATA_HD / STRATA_KV_Q8_GROUP) + warp))) : 0.0f;
-        vsr = r >= 0 ? __half2float(__ushort_as_half(__ldg(v_scale + r * (STRATA_HD / STRATA_KV_Q8_GROUP) + warp))) : 0.0f;
+        ksr = r >= 0 ? __half2float(__ushort_as_half(__ldg(k_scale + r * (HD / STRATA_KV_Q8_GROUP) + warp))) : 0.0f;
+        vsr = r >= 0 ? __half2float(__ushort_as_half(__ldg(v_scale + r * (HD / STRATA_KV_Q8_GROUP) + warp))) : 0.0f;
     };
     float ksn, vsn;
     issue(row_of(cell_of(lane)), 0, ksn, vsn);
@@ -1245,14 +1301,17 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
             S.part[warp][gid + 8][c + 1] = tg[3] * s1;
         }
         __syncthreads();
-        {
-            const int r = t >> 3, sub = t & 7;
+        // Eight threads a row of the 16: Strata's 128 threads take one row each, two warps two, eight warps' upper half none.
+        for (int r = t >> 3; r < 16; r += THREADS / 8) {
+            const int sub = t & 7;
             float x[4], mx = -INFINITY;
 #pragma unroll
             for (int j = 0; j < 4; ++j) {
                 const int c = sub * 4 + j;
-                x[j] = c0 + c < n ? (((S.part[0][r][c] + S.part[1][r][c]) + S.part[2][r][c]) + S.part[3][r][c]) * qdown
-                                  : -INFINITY;
+                float part = S.part[0][r][c];
+#pragma unroll
+                for (int w = 1; w < W; ++w) part = part + S.part[w][r][c];
+                x[j] = c0 + c < n ? part * qdown : -INFINITY;
                 mx = fmaxf(mx, x[j]);
             }
 #pragma unroll
@@ -1340,10 +1399,20 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
 #pragma unroll
     for (int j = 0; j < 8; ++j) {
         const int d = dim0 + j * 8 + 2 * tig;
-        *reinterpret_cast<float2 *>(attn + (size_t) gid * STRATA_HD + d) = make_float2(acc[j][0] * i0, acc[j][1] * i0);
-        if (gid + 8 < STRATA_G)
-            *reinterpret_cast<float2 *>(attn + (size_t) (gid + 8) * STRATA_HD + d) = make_float2(acc[j][2] * i1, acc[j][3] * i1);
+        if (gid < G)
+            *reinterpret_cast<float2 *>(attn + (size_t) gid * HD + d) = make_float2(acc[j][0] * i0, acc[j][1] * i0);
+        if (gid + 8 < G)
+            *reinterpret_cast<float2 *>(attn + (size_t) (gid + 8) * HD + d) = make_float2(acc[j][2] * i1, acc[j][3] * i1);
     }
+}
+
+extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_attn_i8(
+        const float * __restrict__ q, const int8_t * k_q, const int8_t * v_q, const uint16_t * k_scale,
+        const uint16_t * v_scale, const int32_t * page_table, const int32_t * __restrict__ ids,
+        const int32_t * __restrict__ steps, int n_kv_heads, int page_size, float scale_log2,
+        float * __restrict__ attn, int cap) {
+    strata_prompt_attn_body<STRATA_HD, STRATA_G>(q, k_q, v_q, k_scale, v_scale, page_table, ids, steps, n_kv_heads,
+                                                 page_size, scale_log2, attn, cap);
 }
 
 // strata_prompt_attn_i8_smem reports sizeof(StrataSmem2) to the host, so the launch's dynamic shared memory is the
@@ -1351,6 +1420,42 @@ extern "C" __global__ void __launch_bounds__(STRATA_PA_THREADS) strata_prompt_at
 extern "C" __global__ void strata_prompt_attn_i8_smem(uint32_t * bytes) {
     if (threadIdx.x == 0 && blockIdx.x == 0) *bytes = (uint32_t) sizeof(StrataSmem2);
 }
+
+// The cell attention's entries for an attention layer of HD-wide heads and G query heads a K/V head (widen-kv): the
+// int8 decode chunks and their merge, the int8 prompt attention and its shared memory's size, each Strata's body at
+// that geometry, reading a selection or a range of cells. Instantiated for gemma-4-12B's sliding (256, 2) and global
+// (512, 16) layers and a llama layer of 2 K/V heads of 128 (128, 8).
+#define STRATA_CELL_ENTRIES(HD, G)                                                                                     \
+    extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_cell_attn_chunk_q8_##HD##x##G(           \
+            const float * __restrict__ q, const int8_t * k_q, const int8_t * v_q, const uint16_t * k_scale,          \
+            const uint16_t * v_scale, const int32_t * page_table, const int32_t * __restrict__ ids,                  \
+            const int32_t * __restrict__ step, int n_kv_heads, int page_size, float scale,                           \
+            float * __restrict__ part_acc, float * __restrict__ part_m, float * __restrict__ part_l, int n_chunks,   \
+            int cap, long long scratch_stride) {                                                                     \
+        strata_attn_chunk_body<1, HD, G>(q, nullptr, nullptr, k_q, v_q, k_scale, v_scale, page_table, ids, step,     \
+                                         n_kv_heads, page_size, scale, part_acc, part_m, part_l, n_chunks, cap,      \
+                                         scratch_stride);                                                            \
+    }                                                                                                                \
+    extern "C" __global__ void __launch_bounds__(HD) strata_cell_attn_merge_##HD##x##G(                              \
+            const float * __restrict__ part_acc, const float * __restrict__ part_m, const float * __restrict__ part_l, \
+            int n_chunks, float * __restrict__ attn, long long scratch_stride) {                                     \
+        strata_attn_merge_body<HD, G>(part_acc, part_m, part_l, n_chunks, attn, scratch_stride);                     \
+    }                                                                                                                \
+    extern "C" __global__ void __launch_bounds__(HD / 2) strata_cell_prompt_attn_i8_##HD##x##G(                       \
+            const float * __restrict__ q, const int8_t * k_q, const int8_t * v_q, const uint16_t * k_scale,          \
+            const uint16_t * v_scale, const int32_t * page_table, const int32_t * __restrict__ ids,                  \
+            const int32_t * __restrict__ steps, int n_kv_heads, int page_size, float scale_log2,                     \
+            float * __restrict__ attn, int cap) {                                                                    \
+        strata_prompt_attn_body<HD, G>(q, k_q, v_q, k_scale, v_scale, page_table, ids, steps, n_kv_heads, page_size, \
+                                       scale_log2, attn, cap);                                                       \
+    }                                                                                                                \
+    extern "C" __global__ void strata_cell_prompt_attn_i8_smem_##HD##x##G(uint32_t * bytes) {                         \
+        if (threadIdx.x == 0 && blockIdx.x == 0) *bytes = (uint32_t) sizeof(StrataSmemCells<HD / 64>);               \
+    }
+
+STRATA_CELL_ENTRIES(128, 8)
+STRATA_CELL_ENTRIES(256, 2)
+STRATA_CELL_ENTRIES(512, 16)
 
 // ---- kv_stream.cu: KV streaming for a QSA layer whose cells outgrow its VRAM slots (kv_stream.hpp). The layer's
 // authoritative cells sit in pinned, device-mapped host memory at the identity layout; VRAM holds n_slots pages and

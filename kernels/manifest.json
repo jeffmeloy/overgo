@@ -2075,7 +2075,7 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "6ae4e3c189a3b6592db2fd72fbbe31b90354e3cb096fa0a6437ef2ab0135e90a",
+      "sourceSha256": "240afbc9d02cd311716d180483c706adb3c01a4a427cc18c5816684c0a6badc3",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/strata_gdn.cuh",
@@ -2083,7 +2083,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "0677d675cef7c8e4428e7ecf44e92b874041ca2ebaf2379602f8891d3faffb1e",
+      "assetSha256": "e7554320acaa44095ba78472d186f2d48c7a15e9c091dda00e6bc6b4945ca773",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2100,6 +2100,18 @@
         "strata_block_topk_ref",
         "strata_block_topk_reg",
         "strata_block_topk_wide",
+        "strata_cell_attn_chunk_q8_128x8",
+        "strata_cell_attn_chunk_q8_256x2",
+        "strata_cell_attn_chunk_q8_512x16",
+        "strata_cell_attn_merge_128x8",
+        "strata_cell_attn_merge_256x2",
+        "strata_cell_attn_merge_512x16",
+        "strata_cell_prompt_attn_i8_128x8",
+        "strata_cell_prompt_attn_i8_256x2",
+        "strata_cell_prompt_attn_i8_512x16",
+        "strata_cell_prompt_attn_i8_smem_128x8",
+        "strata_cell_prompt_attn_i8_smem_256x2",
+        "strata_cell_prompt_attn_i8_smem_512x16",
         "strata_copy_indexed",
         "strata_gate_apply_f32",
         "strata_gdn_conv_commit",
@@ -2164,7 +2176,10 @@
             ".u64"
           ],
           "functions": [
-            "strata_attn_chunk_q8"
+            "strata_attn_chunk_q8",
+            "strata_cell_attn_chunk_q8_128x8",
+            "strata_cell_attn_chunk_q8_256x2",
+            "strata_cell_attn_chunk_q8_512x16"
           ]
         },
         {
@@ -2177,7 +2192,10 @@
             ".u64"
           ],
           "functions": [
-            "strata_attn_merge"
+            "strata_attn_merge",
+            "strata_cell_attn_merge_128x8",
+            "strata_cell_attn_merge_256x2",
+            "strata_cell_attn_merge_512x16"
           ]
         },
         {
@@ -2237,6 +2255,40 @@
           "functions": [
             "strata_block_scores_tc",
             "strata_kv_stream_reset"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_cell_prompt_attn_i8_128x8",
+            "strata_cell_prompt_attn_i8_256x2",
+            "strata_cell_prompt_attn_i8_512x16",
+            "strata_prompt_attn_i8"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64"
+          ],
+          "functions": [
+            "strata_cell_prompt_attn_i8_smem_128x8",
+            "strata_cell_prompt_attn_i8_smem_256x2",
+            "strata_cell_prompt_attn_i8_smem_512x16",
+            "strata_prompt_attn_i8_smem"
           ]
         },
         {
@@ -2507,26 +2559,6 @@
             ".u64",
             ".u64",
             ".u64",
-            ".u32",
-            ".u32",
-            ".f32",
-            ".u64",
-            ".u32"
-          ],
-          "functions": [
-            "strata_prompt_attn_i8"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
             ".u64",
             ".u64",
             ".u64",
@@ -2539,14 +2571,6 @@
           ],
           "functions": [
             "strata_prefill_kv_append_q8"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64"
-          ],
-          "functions": [
-            "strata_prompt_attn_i8_smem"
           ]
         }
       ]

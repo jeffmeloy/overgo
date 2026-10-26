@@ -207,8 +207,8 @@ func (b *Builder) SparseAttentionWithOffset(
 		b.setError(errors.New("SparseAttention input is nil"))
 		return nil
 	}
-	if query.Type != dtype.F32 || !cacheReadTypes(key.Type, value.Type) || indices.Type != dtype.F32 {
-		b.setError(errors.New("SparseAttention requires F32 inputs, or Q8_0 keys and values"))
+	if query.Type != dtype.F32 || key.Type != dtype.F32 || value.Type != dtype.F32 || indices.Type != dtype.F32 {
+		b.setError(errors.New("SparseAttention requires F32 inputs"))
 		return nil
 	}
 	if query.Shape.Rank != 3 || key.Shape.Rank != 3 || value.Shape.Rank != 3 || indices.Shape.Rank != 2 {
@@ -350,7 +350,7 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention input is nil"))
 		return nil
 	}
-	if key.Type != value.Type || query.Type != key.Type && !(query.Type == dtype.F32 && key.Type == dtype.Q8_0) {
+	if query.Type != key.Type || query.Type != value.Type {
 		b.setError(errors.New("attention input types differ"))
 		return nil
 	}

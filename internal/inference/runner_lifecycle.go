@@ -185,7 +185,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
-	return &Runner{preparedModel: preparedModel{
+	runner := &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, evidenceTier: evidenceTier,
 		realizedResidency: realized,
 		weights:           weights, vocab: vocab,
@@ -195,7 +195,9 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		outputBias:          outputBias,
 		outputExclusions:    vocab.NonTextGenerationRanges(),
 		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens, promptChunkTokens: devicePromptChunkTokens,
-	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
+	}, runnerState: runnerState{loraAdapters: loraAdapters}}
+	runner.qsaLayers = runner.qsaLayerSet()
+	return runner, nil
 }
 
 type residencyBinding struct {
@@ -447,6 +449,7 @@ func (r *Runner) Close() error {
 		cacheErr,
 		r.releaseSpanSlots(context.Background()),
 		r.releaseHyperDraftHistory(context.Background()),
+		r.releaseQSARope(context.Background()),
 		resources.close(),
 	)
 }

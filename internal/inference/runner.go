@@ -212,6 +212,9 @@ type preparedModel struct {
 	// hyperDraft is the attached draft layer of a hyper-connection trunk, nil without one.
 	hyperDraft *hyperDraft
 
+	// qsaLayers answers, a layer each, whether the runner builds the layer as Strata's QSA layer (qsaLayerSet); nil for none.
+	qsaLayers []bool
+
 	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
 	grammarVocabularyMu sync.Mutex
 }
@@ -229,6 +232,8 @@ type runnerState struct {
 	speculating bool
 	// spanSlots are the buffers a speculating runner's verify spans write their non-token outputs into, and its prompt reads their layers' states.
 	spanSlots [spanSlotCount]*spanSlot
+	// qsaRope is the QSA layers' rotation table, built at the first QSA step.
+	qsaRope *qsaRope
 }
 
 // Runner: prepared assets + mutable request state.

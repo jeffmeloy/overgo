@@ -124,7 +124,7 @@ func TestDeviceSparseCacheTargets(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := past.storage.refs
-		targets, storages, err := r.prepareDeviceCacheTargets(t.Context(), execution.Graph, graphs, appends, plans)
+		targets, storages, err := r.prepareDeviceCacheTargets(t.Context(), execution.Graph, execution.Inputs, graphs, appends, plans)
 		if err != nil {
 			t.Fatal(err)
 		}

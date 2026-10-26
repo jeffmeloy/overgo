@@ -56,8 +56,34 @@ const (
 	flashNextAttentionGain = float32(30)
 )
 
+// flashNextGeometry is a Flash-Next fixture's attention layer: its context, heads, K/V heads and their width, its rotation's
+// dims, sections and base, and its indexer's heads, width, budget and block.
+type flashNextGeometry struct {
+	context, heads, kvHeads, headWidth, ropeDims uint32
+	sections                                     []int32
+	ropeBase                                     float32
+	indexHeads, indexWidth, budget               uint32
+	block                                        int32
+	// decaying negates the gated-delta layers' ssm_a, as a served file holds it (-exp(A_log)), so their states decay over a
+	// long prompt instead of growing past F32 near 80 tokens.
+	decaying bool
+}
+
+// hermeticFlashNext is the hermetic scale: a dozen decode steps cross the indexer budget and two capacity pages.
+var hermeticFlashNext = flashNextGeometry{
+	context: flashNextContext, heads: uint32(flashNextHeads), kvHeads: 1, headWidth: uint32(flashNextHeadWidth),
+	ropeDims: uint32(flashNextHeadWidth), sections: []int32{1, 1, 0, 0}, ropeBase: flashNextRopeBase,
+	indexHeads: uint32(flashNextIndexHeads), indexWidth: uint32(flashNextIndexWidth), budget: flashNextBudget, block: flashNextBlock,
+}
+
 // writeHermeticFlashNextGGUF emits a four-layer qwen4exp model with routed experts, hyper-connection streams, the lexical table and block-sparse attention.
 func writeHermeticFlashNextGGUF(t *testing.T) string {
+	t.Helper()
+	return writeFlashNextFixture(t, hermeticFlashNext)
+}
+
+// writeFlashNextFixture emits the four-layer qwen4exp fixture with its attention layer at a geometry.
+func writeFlashNextFixture(t *testing.T, geometry flashNextGeometry) string {
 	t.Helper()
 	architecture := "qwen4exp."
 	u32 := func(key string, value uint32) gguf.Metadata {
@@ -71,21 +97,21 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 	tokens[0], tokens[1], tokens[2] = "<unk>", "<s>", "</s>"
 	types[0], types[1], types[2] = 2, 3, 3
 	ratios := make([]int32, flashNextBlocks)
-	ratios[flashNextAttention] = flashNextBlock
+	ratios[flashNextAttention] = geometry.block
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen4exp"),
 		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-flash-next"),
 		u32("block_count", flashNextBlocks),
-		u32("context_length", flashNextContext),
+		u32("context_length", geometry.context),
 		u32("embedding_length", uint32(flashNextEmbedding)),
 		u32("vocab_size", uint32(flashNextVocab)),
-		u32("attention.head_count", uint32(flashNextHeads)),
-		u32("attention.head_count_kv", 1),
-		u32("attention.key_length", uint32(flashNextHeadWidth)),
-		u32("attention.value_length", uint32(flashNextHeadWidth)),
-		testutil.GGUFScalar(architecture+"rope.freq_base", gguf.ValueTypeFloat32, flashNextRopeBase),
-		u32("rope.dimension_count", uint32(flashNextHeadWidth)),
-		testutil.GGUFArray(architecture+"rope.dimension_sections", gguf.ValueTypeInt32, []int32{1, 1, 0, 0}),
+		u32("attention.head_count", geometry.heads),
+		u32("attention.head_count_kv", geometry.kvHeads),
+		u32("attention.key_length", geometry.headWidth),
+		u32("attention.value_length", geometry.headWidth),
+		testutil.GGUFScalar(architecture+"rope.freq_base", gguf.ValueTypeFloat32, geometry.ropeBase),
+		u32("rope.dimension_count", geometry.ropeDims),
+		testutil.GGUFArray(architecture+"rope.dimension_sections", gguf.ValueTypeInt32, geometry.sections),
 		testutil.GGUFScalar(architecture+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, flashNextEpsilon),
 		u32("ssm.conv_kernel", uint32(flashNextConv)),
 		u32("ssm.inner_size", uint32(flashNextInner)),
@@ -99,9 +125,9 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 		u32("expert_shared_feed_forward_length", uint32(flashNextShared)),
 		u32("hyper_connection.count", uint32(flashNextStreams)),
 		u32("hyper_connection.low_rank", uint32(flashNextRank)),
-		u32("attention.indexer.head_count", uint32(flashNextIndexHeads)),
-		u32("attention.indexer.key_length", uint32(flashNextIndexWidth)),
-		u32("attention.indexer.top_k", flashNextBudget),
+		u32("attention.indexer.head_count", geometry.indexHeads),
+		u32("attention.indexer.key_length", geometry.indexWidth),
+		u32("attention.indexer.top_k", geometry.budget),
 		testutil.GGUFArray(architecture+"attention.compress_ratios", gguf.ValueTypeInt32, ratios),
 		testutil.GGUFArray(architecture+"ple.layers", gguf.ValueTypeInt32, []int32{flashNextLexical}),
 		u32("ple.ngram_size", flashNextNGram),
@@ -126,8 +152,7 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 		tensors = append(tensors, testutil.GGUFTensorF32(name, shape, seed))
 		seed++
 	}
-	// The attention layer's values and output projection are scaled up, so its block selection decides the selected token.
-	amplified := func(name string, shape ...uint64) {
+	scaled := func(factor float32, name string, shape ...uint64) {
 		tensor(name, shape...)
 		data := &tensors[len(tensors)-1]
 		values := make([]float32, data.Data.(*bytes.Reader).Len()/binary.Size(float32(0)))
@@ -135,14 +160,16 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 			t.Fatal(err)
 		}
 		for index := range values {
-			values[index] *= flashNextAttentionGain
+			values[index] *= factor
 		}
-		var scaled bytes.Buffer
-		if err := binary.Write(&scaled, binary.LittleEndian, values); err != nil {
+		var buffer bytes.Buffer
+		if err := binary.Write(&buffer, binary.LittleEndian, values); err != nil {
 			t.Fatal(err)
 		}
-		data.Data = bytes.NewReader(scaled.Bytes())
+		data.Data = bytes.NewReader(buffer.Bytes())
 	}
+	// The attention layer's values and output projection are scaled up, so its block selection decides the selected token.
+	amplified := func(name string, shape ...uint64) { scaled(flashNextAttentionGain, name, shape...) }
 	tensor("token_embd.weight", flashNextEmbedding, flashNextVocab)
 	tensor("output.weight", flashNextEmbedding, flashNextVocab)
 	tensor("output_hc_norm.weight", wide)
@@ -152,16 +179,18 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 	for layer := range flashNextBlocks {
 		block := fmt.Sprintf("blk.%d.", layer)
 		if layer == flashNextAttention {
-			tensor(block+"attn_q.weight", flashNextEmbedding, flashNextHeads*flashNextHeadWidth*2)
-			tensor(block+"attn_k.weight", flashNextEmbedding, flashNextHeadWidth)
-			amplified(block+"attn_v.weight", flashNextEmbedding, flashNextHeadWidth)
-			amplified(block+"attn_output.weight", flashNextHeads*flashNextHeadWidth, flashNextEmbedding)
-			tensor(block+"attn_q_norm.weight", flashNextHeadWidth)
-			tensor(block+"attn_k_norm.weight", flashNextHeadWidth)
-			tensor(block+"indexer.q_proj.weight", flashNextEmbedding, flashNextIndexHeads*flashNextIndexWidth)
-			tensor(block+"indexer.k_proj.weight", flashNextEmbedding, flashNextIndexWidth)
-			tensor(block+"indexer.q_norm.weight", flashNextIndexWidth)
-			tensor(block+"indexer.k_norm.weight", flashNextIndexWidth)
+			heads, kvHeads, width := uint64(geometry.heads), uint64(geometry.kvHeads), uint64(geometry.headWidth)
+			indexHeads, indexWidth := uint64(geometry.indexHeads), uint64(geometry.indexWidth)
+			tensor(block+"attn_q.weight", flashNextEmbedding, heads*width*2)
+			tensor(block+"attn_k.weight", flashNextEmbedding, kvHeads*width)
+			amplified(block+"attn_v.weight", flashNextEmbedding, kvHeads*width)
+			amplified(block+"attn_output.weight", heads*width, flashNextEmbedding)
+			tensor(block+"attn_q_norm.weight", width)
+			tensor(block+"attn_k_norm.weight", width)
+			tensor(block+"indexer.q_proj.weight", flashNextEmbedding, indexHeads*indexWidth)
+			tensor(block+"indexer.k_proj.weight", flashNextEmbedding, indexWidth)
+			tensor(block+"indexer.q_norm.weight", indexWidth)
+			tensor(block+"indexer.k_norm.weight", indexWidth)
 		} else {
 			tensor(block+"attn_qkv.weight", flashNextEmbedding, 2*keyWidth+flashNextInner)
 			tensor(block+"attn_gate.weight", flashNextEmbedding, flashNextInner)
@@ -169,7 +198,11 @@ func writeHermeticFlashNextGGUF(t *testing.T) string {
 			tensor(block+"ssm_alpha.weight", flashNextEmbedding, flashNextTimeRank)
 			tensor(block+"ssm_conv1d.weight", flashNextConv, 2*keyWidth+flashNextInner)
 			tensor(block+"ssm_dt.bias", flashNextTimeRank)
-			tensor(block+"ssm_a", flashNextTimeRank)
+			if geometry.decaying {
+				scaled(-1, block+"ssm_a", flashNextTimeRank)
+			} else {
+				tensor(block+"ssm_a", flashNextTimeRank)
+			}
 			tensor(block+"ssm_norm.weight", flashNextState)
 			tensor(block+"ssm_out.weight", flashNextInner, flashNextEmbedding)
 		}

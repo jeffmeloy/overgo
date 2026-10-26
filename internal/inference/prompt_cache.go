@@ -537,6 +537,10 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.Ses
 	if cache == nil || keep == 0 || keep >= cache.Tokens {
 		return errors.New("inference: invalid device prompt cache suffix trim")
 	}
+	// A QSA cache's fixed state is its last token's; a shorter prefix reads on from a boundary.
+	if cache.storage != nil && cache.storage.qsa != nil {
+		return errors.New("inference: a QSA cache keeps its fixed state at its last token")
+	}
 	for index := range cache.Keys {
 		values := [...]struct {
 			label string

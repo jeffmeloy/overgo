@@ -23,10 +23,12 @@ type CachedBlockContext struct {
 	CurrentPositions *tensor.Tensor
 	PerLayerInput    *tensor.Tensor
 	NGramHistory     *tensor.Tensor
-	Layer            uint32
-	Recurrent        bool
-	CacheWrite       tensor.CacheWriteMode
-	Sequences        uint64
+	// QSA is a QSA layer's cells for the step, nil where the layer is built otherwise (QSABinding).
+	QSA        *QSABinding
+	Layer      uint32
+	Recurrent  bool
+	CacheWrite tensor.CacheWriteMode
+	Sequences  uint64
 	// Checkpoints are the block's token counts, ascending, after which a recurrent or lexical layer also returns its fixed
 	// state (DenseBlockResult.Checkpoints), for a verify span that may keep only its first tokens: its pending tokens and
 	// each prefix of its drafts.
@@ -177,6 +179,9 @@ func executeAttentionOperator(
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], plan.Layer,
 		)
 	case layerOperatorAttentionGatedProjection:
+		if c.QSA != nil {
+			return buildQSAAttentionMix(options, execution.current, plan.Rotary)
+		}
 		var indices *tensor.Tensor
 		var states CacheStates[*tensor.Tensor]
 		if plan.AttentionGraph.BlockSize != 0 {

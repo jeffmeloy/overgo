@@ -120,7 +120,7 @@ func (r *Runner) commitSpanCheckpoint(ctx context.Context, span, boundary *devic
 		if r.layerProgram(layer).Layer().SharedKV {
 			continue
 		}
-		_, schema, err := r.cacheSchema(layer, checkpoint.tokens)
+		_, schema, err := r.deviceCacheSchema(layer, checkpoint.tokens)
 		if err != nil {
 			return err
 		}

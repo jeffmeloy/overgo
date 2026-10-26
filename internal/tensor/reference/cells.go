@@ -5,10 +5,9 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// holdsCells reports whether a node of a cell type is one the reference holds
-// as the values its cells round to: a cache of Q8_0 cells fed as an input, or
-// appended to, is float data to the reference, rounded as the device rounds it
-// (cacheAppend), so a graph reading such a cache runs here unchanged.
+// holdsCells reports whether a node of a cell type is one the reference holds as the values it encodes: a QSA state's
+// int8 codes, fp16 scales and integer tables fed as inputs (tensor.QSAState), which the QSA step reads and writes as
+// those values (qsaAttention).
 func holdsCells(node *tensor.Tensor) bool {
-	return node.Type == dtype.Q8_0 && (node.Op == tensor.OpInput || node.Op == tensor.OpCacheAppend)
+	return node.Op == tensor.OpInput && (node.Type == dtype.I8 || node.Type == dtype.F16 || node.Type == dtype.I32)
 }

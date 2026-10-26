@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
 )
 
 // TestQSAKernelsMatchStrata holds the ported QSA kernels (kernels/cuda/strata_qsa.cu) to Strata's own parity
@@ -21,6 +22,7 @@ func TestQSAKernelsMatchStrata(t *testing.T) {
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	t.Run("kv_q8", func(t *testing.T) { strataKVQ8Parity(t, cuda) })
 	t.Run("indexer_key_append", func(t *testing.T) { strataIndexerAppendParity(t, cuda) })
+	t.Run("native_indexer_batch", func(t *testing.T) { strataNativeIndexerBatchParity(t, cuda) })
 	t.Run("block_topk", func(t *testing.T) { strataBlockTopKParity(t, cuda) })
 	t.Run("block_scores", func(t *testing.T) { strataBlockScoresParity(t, cuda) })
 	t.Run("block_scores_tc", func(t *testing.T) { strataBlockScoresTCParity(t, cuda) })
@@ -446,12 +448,9 @@ func strataBlockScoresTCParity(t *testing.T, cuda *Executor) {
 // strataIdxHeads is qsa_real_shapes' idx_n_head.
 const strataIdxHeads = 4
 
-// strataTopKBudget is qsa_real_shapes' idx_top_k, and strataTopKMaxCells qsa.hpp's kTopkMaxCells: the capacity of a
-// query's ids is the selection width at that many cells, top_k + idx_block - 1.
-const (
-	strataTopKBudget   = 2048
-	strataTopKMaxCells = 32768
-)
+// strataTopKBudget is qsa_real_shapes' idx_top_k; a query's ids hold the selection width at strataTopKMaxCells cells,
+// top_k + idx_block - 1.
+const strataTopKBudget = 2048
 
 // strataSelectionWidth is qsa_selection_width: every cell up to the budget's whole blocks plus an incomplete tail.
 func strataSelectionWidth(cells int64) int64 {
@@ -671,7 +670,7 @@ func strataIndexerAppendParity(t *testing.T, cuda *Executor) {
 	for index := range weights {
 		weights[index] = 1 + float32(0.1*draws.NormFloat64())
 	}
-	cosines, sines := buildStrataRopeTable(strataIndexerRotated, strataFreqBase, tablePositions)
+	cosines, sines := tensor.QSARopeTable(tablePositions)
 
 	buffers := newStrataDevice(t, cuda)
 	defer buffers.release(t)
@@ -746,6 +745,82 @@ func strataIndexerAppendParity(t *testing.T, cuda *Executor) {
 	}
 	if share := strataRelativeL1(strataPooled(raw, flatPositions, weights, strataPoolingReading{}, nil), want); !(share > 0.05) {
 		t.Errorf("the rotation's position base differs by %.2f%%, too little for the fixture to see it", 100*share)
+	}
+}
+
+// strataNativeIndexerBatchParity is qsa_parity.cpp's "the native indexer's batched append vs the sequential one": eight
+// cells at positions 100..107 (exactly two completed blocks, so block_pos agrees too), appended one at a time, as one
+// batch, and as one per-step launch at position strides 1 and 5; every end state - pooled rows, the spare, the tail,
+// block_pos - BIT-IDENTICAL to the sequential appends' (compared as bits, so a NaN payload or a -0.0 cannot pass),
+// under no scaling, linear 2 and YaRN 2.
+func strataNativeIndexerBatchParity(t *testing.T, cuda *Executor) {
+	const (
+		cells    = 8
+		base     = 100
+		capacity = 1024
+	)
+	width := strataIndexerWidth
+	draws := rand.New(rand.NewPCG(23, 29))
+	raws := make([]float32, cells*width)
+	for cell := range cells {
+		for d := range width {
+			raws[cell*width+d] = float32(draws.NormFloat64() * math.Pow(4, float64(cell%4)))
+		}
+	}
+	gamma := make([]float32, width)
+	for index := range gamma {
+		gamma[index] = 1 + float32(0.1*draws.NormFloat64())
+	}
+	pooledBytes, tailBytes := 4*(capacity/strataIndexerBlock+1)*width, 4*(strataIndexerBlock-1)*width
+	for _, variant := range []struct {
+		name    string
+		scaling strataRopeScaling
+	}{
+		{"none", newStrataRopeScaling(0, 1, 0)}, {"linear 2", newStrataRopeScaling(1, 2, 0)}, {"yarn 2", newStrataRopeScaling(2, 2, 1)},
+	} {
+		buffers := newStrataDevice(t, cuda)
+		gammaBuffer, rawAll := buffers.upload(t, float32Bytes(gamma)), buffers.upload(t, float32Bytes(raws))
+		fresh := func() strataIndexerBuffers {
+			return strataIndexerBuffers{tail: buffers.zeros(t, tailBytes), dead: buffers.zeros(t, 4*width), pooled: buffers.zeros(t, pooledBytes), blockPos: buffers.zeros(t, 4)}
+		}
+		state := func(b strataIndexerBuffers) string {
+			return string(buffers.read(t, b.pooled, pooledBytes)) + string(buffers.read(t, b.dead, 4*width)) +
+				string(buffers.read(t, b.tail, tailBytes)) + string(buffers.read(t, b.blockPos, 4))
+		}
+		sequential, batch := fresh(), fresh()
+		row, position := buffers.zeros(t, 4*width), buffers.zeros(t, 4)
+		for cell := range cells {
+			buffers.write(t, row, float32Bytes(raws[cell*width:(cell+1)*width]))
+			buffers.write(t, position, int32Bytes([]int32{int32(cell)}))
+			buffers.run(t, func(s *device.State, functions functionSet) error {
+				return launchStrataNativeIndexerSteps(s, functions, row, position, 1, 1, base, gammaBuffer, strataRMSEpsilon, sequential, capacity, variant.scaling, 0)
+			})
+		}
+		buffers.run(t, func(s *device.State, functions functionSet) error {
+			return launchStrataNativeIndexerBatch(s, functions, rawAll, cells, 0, base, gammaBuffer, strataRMSEpsilon, batch, variant.scaling, 0)
+		})
+		want := state(sequential)
+		if state(batch) != want {
+			t.Errorf("%s: the batched append's end state differs from the sequential appends'", variant.name)
+		}
+		for _, stride := range []int32{1, 5} {
+			steps := fresh()
+			positions := make([]int32, cells*int(stride))
+			for index := range positions {
+				positions[index] = -1
+			}
+			for cell := range cells {
+				positions[cell*int(stride)] = int32(cell)
+			}
+			positionBuffer := buffers.upload(t, int32Bytes(positions))
+			buffers.run(t, func(s *device.State, functions functionSet) error {
+				return launchStrataNativeIndexerSteps(s, functions, rawAll, positionBuffer, stride, cells, base, gammaBuffer, strataRMSEpsilon, steps, capacity, variant.scaling, 0)
+			})
+			if state(steps) != want {
+				t.Errorf("%s: the per-step append at stride %d differs from the sequential appends'", variant.name, stride)
+			}
+		}
+		buffers.release(t)
 	}
 }
 

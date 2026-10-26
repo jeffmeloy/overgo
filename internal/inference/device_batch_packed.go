@@ -24,7 +24,8 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
-	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() {
+	// A QSA runner's cells are one sequence's each, so its appends run as branches.
+	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() || r.qsaLayers != nil {
 		return nil, false, nil
 	}
 	for _, item := range appends {
@@ -140,7 +141,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graph, err := r.buildDeviceCachedBatchBranch(
 		ctx, builder, 0, tokens, packedPast, uint64(len(appends)), plan,
-		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds, nil, nil,
+		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds, nil, nil, 0,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)

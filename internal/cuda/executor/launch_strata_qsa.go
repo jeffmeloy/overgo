@@ -6,13 +6,15 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
 )
 
 // Strata's QSA attention layer, ported literally (kernels/cuda/strata_qsa.cu; Strata at 296b59d2, MIT,
 // licenses/Strata-MIT.txt). These are Strata's host launch functions with its grids and blocks: kv_append_step and
 // kv_gather_step (src/kernels/cuda/qsa.cu), kv_append_q8_step, kv_append_q8_steps and kv_gather_q8_step
 // (src/kernels/cuda/kv_q8.cu). Every per-token count is read by the kernels from the device step state, so the
-// launches here are sized by capacities and stay constant across tokens.
+// launches here are sized by capacities and stay constant across tokens. Provisional: the load-costs step prices these
+// launch shapes, Strata's as tuned on its author's cards.
 const (
 	// strataAppendThreads is qsa.cu's THREADS, the fp16 append's block.
 	strataAppendThreads = uint32(128)
@@ -21,7 +23,7 @@ const (
 	strataGatherThreads = uint32(256)
 	strataGatherValues  = uint32(4)
 	// strataKVQ8Group is kv_q8.hpp's KV_Q8_GROUP, one fp16 scale a 64-value group of a cell's head, and the int8
-	// append's block. Provisional for the load-costs step: Strata's constant, tuned on its author's cards.
+	// append's block. Provisional: the load-costs step; Strata's constant, tuned on its author's cards.
 	strataKVQ8Group = uint32(64)
 	// strataKVHalves is the append grid's K and V planes.
 	strataKVHalves = uint32(2)
@@ -92,32 +94,6 @@ func launchStrataKVAppendSteps(
 		&heads, &width, &page, &host.key, &host.value, &host.keyScale, &host.valueScale, &stepStride, &rowStride)
 }
 
-// launchStrataKVGather gathers step[width] selected cells named by ids through the page table into fp16 scratch
-// `[id][kv_head][head_dim]`, dequantizing int8 cells: kv_gather_step or kv_gather_q8_step. The grid is sized by
-// maxIDs, the capacity; the kernels read the real count from the step state.
-func launchStrataKVGather(
-	state *device.State, functions functionSet, pools strataKVPools, table, ids, step driver.DevicePtr, maxIDs uint32,
-	geometry strataKVGeometry, keyScratch, valueScratch driver.DevicePtr, int8 bool,
-) error {
-	if err := geometry.validate(int8); err != nil {
-		return err
-	}
-	if maxIDs == 0 {
-		return nil
-	}
-	heads, width, page := geometry.kvHeads, geometry.headDim, geometry.pageSize
-	total := maxIDs * uint32(heads) * (uint32(width) / strataGatherValues)
-	grid := driver.Dim3{X: (total + strataGatherThreads - 1) / strataGatherThreads, Y: 1, Z: 1}
-	block := driver.Dim3{X: strataGatherThreads, Y: 1, Z: 1}
-	if !int8 {
-		return launchGridABI(state, functions[kernelStrataKvGatherF16], grid, block,
-			&pools.key, &pools.value, &table, &ids, &step, &heads, &width, &page, &keyScratch, &valueScratch)
-	}
-	return launchGridABI(state, functions[kernelStrataKvGatherQ8], grid, block,
-		&pools.key, &pools.value, &pools.keyScale, &pools.valueScale, &table, &ids, &step, &heads, &width, &page,
-		&keyScratch, &valueScratch)
-}
-
 // strataIndexerBuffers are qsa.hpp's QsaIndexerBuffers: the raw tail (idx_block - 1 rows), the spare key, the pooled
 // rows (one a completed block plus the spare slot) and the last completed block's rotation position.
 type strataIndexerBuffers struct {
@@ -137,7 +113,7 @@ func launchStrataIndexerKeyAppend(
 	normWeight driver.DevicePtr, epsilon float32, buffers strataIndexerBuffers, geometry strataIndexerGeometry,
 	cosines, sines, multiAxis driver.DevicePtr,
 ) error {
-	if geometry.keyWidth <= 0 || geometry.block < 2 || geometry.rotated <= 0 || geometry.rotated%2 != 0 ||
+	if geometry.keyWidth <= 0 || geometry.block < strataPairWidth || geometry.rotated <= 0 || geometry.rotated%strataPairWidth != 0 ||
 		geometry.rotated > geometry.keyWidth {
 		return errors.New("the Strata indexer geometry is not set up: a key width, a block of two cells or more, even rotated dims")
 	}
@@ -148,17 +124,11 @@ func launchStrataIndexerKeyAppend(
 		&buffers.blockPos, &width, &block, &rotated, &cosines, &sines, &multiAxis)
 }
 
-// launchStrataGateApply is qsa.cu's qsa_gate_apply_f32: attention times the sigmoid of the second half of each
-// head's query-and-gate block, in double, unrounded.
-func launchStrataGateApply(state *device.State, functions functionSet, attention, queryAndGate driver.DevicePtr, heads, width int32, output driver.DevicePtr) error {
-	return launch1DABI(state, functions[kernelStrataGateApplyF32], uint32(heads*width), &attention, &queryAndGate, &heads, &width, &output)
-}
-
 // qsa_select.cu's launch constants: 8 warps a block-scores CTA (SCORE_WARPS), the multi-query kernel for calls of at
 // most 8 queries (MQ) on a fixed grid of 256 CTAs, the reference top-k's 256 threads (TOPK_T), the register and wide
 // top-k's 1,024 threads (TK_T) holding up to 33 blocks' keys a thread in registers (TK_PER, Strata's CUDA value), and
 // the 4,608 blocks below which a counted prompt batch past the register reach takes the reference (kWideMinBlocks).
-// Provisional for the load-costs step: Strata's constants, tuned on its author's cards.
+// Provisional: the load-costs step prices them; Strata's constants, tuned on its author's cards.
 const (
 	strataScoreWarps      = uint32(8)
 	strataScoreThreads    = strataScoreWarps * 32
@@ -274,7 +244,13 @@ const (
 	strataAttentionThreads = uint32(256)
 	// strataAttentionScratchPad is qsa_decode_attn_scratch_floats' 64 floats past the partials.
 	strataAttentionScratchPad = int64(64)
+	// strataAttentionRunning is a chunk's running values beside its partial accumulators: its maximum and its sum.
+	strataAttentionRunning = int64(2)
 )
+
+// strataPairWidth is a rotation pair's values: a block of two cells at least, an even count of rotated dims, and the
+// 2 of the angles' 2i / n_rot and 2 pi.
+const strataPairWidth = 2
 
 // strataAttentionPools are qsa_decode_attn.hpp's QsaAttnPools for fp16 or int8 pools, behind the page table.
 type strataAttentionPools struct {
@@ -285,7 +261,7 @@ type strataAttentionPools struct {
 // strataAttentionScratchFloats is qsa_decode_attn_scratch_floats: a query's partial accumulators, maxima and sums.
 func strataAttentionScratchFloats(capacity int64, heads int64) int64 {
 	chunks := (capacity + strataAttentionChunk - 1) / strataAttentionChunk
-	return chunks*heads*(strataAttentionWidth+2) + strataAttentionScratchPad
+	return chunks*heads*(strataAttentionWidth+strataAttentionRunning) + strataAttentionScratchPad
 }
 
 // launchStrataDecodeAttention is qsa_decode_attn_batch: queryCount queries [n_q, n_head, 256], each with its own
@@ -378,18 +354,85 @@ const f32Bytes = int64(4)
 // f64ScalarBytes is a double's bytes, the indexer pooling's shared-memory element.
 const f64ScalarBytes = uint32(8)
 
-// buildStrataRopeTable is rope.cu's build_rope_table, unscaled: cos and sin of position p and pair i at
-// `[p][n_rot / 2]`, each angle p * theta^(-2i / n_rot) in float64 in the reference's order, then rounded to float32.
-func buildStrataRopeTable(rotated int, theta float64, positions int) (cosines, sines []float32) {
-	half := rotated / 2
-	cosines, sines = make([]float32, positions*half), make([]float32, positions*half)
-	for position := range positions {
-		for pair := range half {
-			inverse := math.Pow(theta, -2*float64(pair)/float64(rotated))
-			angle := float64(position) * inverse
-			cosines[position*half+pair] = float32(math.Cos(angle))
-			sines[position*half+pair] = float32(math.Sin(angle))
+// strataRopeScaling is rope_scaling.hpp's RopeScaling: none, linear or YaRN, with its defaults (the trained context
+// 262,144, beta fast 32 and slow 1).
+type strataRopeScaling struct {
+	kind               int // 0 none, 1 linear, 2 YaRN
+	freqBase, factor   float64
+	extFactor          float64
+	attnFactor         float64
+	originalContext    float64
+	betaFast, betaSlow float64
+}
+
+// strataFreqBaseDefault is RopeScaling's freq_base, qsa_freq_base.
+const strataFreqBaseDefault = 1e7
+
+// strataRopeKernelArgs is RopeKernelArgs: what the kernels take of a scaling.
+type strataRopeKernelArgs struct {
+	freqScale, corrLow, corrHigh, extFactor, attnFactor float32
+}
+
+// kernelArgs is RopeScaling::kernel_args: the identity for none; else 1/factor, the YaRN correction dims, ext_factor
+// and attn_factor.
+func (s strataRopeScaling) kernelArgs(rotated int) strataRopeKernelArgs {
+	if s.kind == 0 {
+		return strataRopeKernelArgs{freqScale: 1, attnFactor: 1}
+	}
+	corrDim := func(beta float64) float64 {
+		return float64(rotated) * math.Log(s.originalContext/(beta*strataPairWidth*math.Pi)) / (strataPairWidth * math.Log(s.freqBase))
+	}
+	low := max(math.Floor(corrDim(s.betaFast)), 0)
+	high := min(math.Ceil(corrDim(s.betaSlow)), float64(rotated-1))
+	return strataRopeKernelArgs{freqScale: float32(1 / s.factor), corrLow: float32(low), corrHigh: float32(high),
+		extFactor: float32(s.extFactor), attnFactor: float32(s.attnFactor)}
+}
+
+// strataNativeIndexerThreads is native_qsa_indexer.cu's THREADS, and strataNativeTailSlots its tail's R - 1 slots.
+const (
+	strataNativeIndexerThreads = uint32(256)
+	strataNativeTailSlots      = uint32(strataIndexerBlockCells - 1)
+	strataIndexerBlockCells    = 4
+)
+
+// launchStrataNativeIndexerBatch is native_qsa_indexer_append_batch: a chunk of count cells from first in one call -
+// the spare when the chunk starts the sequence, the pooled key of every block the chunk completes, then the tail.
+func launchStrataNativeIndexerBatch(
+	state *device.State, functions functionSet, raw driver.DevicePtr, count, first int64, positionBase int32,
+	gamma driver.DevicePtr, epsilon float32, buffers strataIndexerBuffers, scaling strataRopeScaling, multiAxis driver.DevicePtr,
+) error {
+	if count <= 0 {
+		return nil
+	}
+	thetaScale := float32(math.Pow(scaling.freqBase, -strataPairWidth/float64(tensor.QSARotated)))
+	args := scaling.kernelArgs(tensor.QSARotated)
+	block := driver.Dim3{X: strataNativeIndexerThreads, Y: 1, Z: 1}
+	if first == 0 {
+		if err := launchGridABI(state, functions[kernelStrataNativeIndexerAppendFirst], driver.Dim3{X: 1, Y: 1, Z: 1}, block,
+			&raw, &gamma, &epsilon, &buffers.dead, &buffers.pooled, &thetaScale, &args.freqScale, &args.corrLow,
+			&args.corrHigh, &args.extFactor, &args.attnFactor, &multiAxis); err != nil {
+			return err
 		}
 	}
-	return cosines, sines
+	const last = strataIndexerBlockCells - 1
+	lowest := int64(0)
+	if first > last {
+		lowest = (first - last + last) / strataIndexerBlockCells
+	}
+	highest := int64(-1)
+	if first+count-1 >= last {
+		highest = (first + count - 1 - last) / strataIndexerBlockCells
+	}
+	if highest >= lowest {
+		if err := launchGridABI(state, functions[kernelStrataNativeIndexerAppendBlocks],
+			driver.Dim3{X: uint32(highest - lowest + 1), Y: 1, Z: 1}, block,
+			&raw, &count, &first, &positionBase, &gamma, &epsilon, &buffers.tail, &buffers.dead, &buffers.pooled,
+			&buffers.blockPos, &lowest, &highest, &thetaScale, &args.freqScale, &args.corrLow, &args.corrHigh,
+			&args.extFactor, &args.attnFactor, &multiAxis); err != nil {
+			return err
+		}
+	}
+	return launchGridABI(state, functions[kernelStrataNativeIndexerAppendTail],
+		driver.Dim3{X: strataNativeTailSlots, Y: 1, Z: 1}, driver.Dim3{X: tensor.QSAIndexerWidth, Y: 1, Z: 1},
+		&raw, &count, &first, &buffers.tail)
 }

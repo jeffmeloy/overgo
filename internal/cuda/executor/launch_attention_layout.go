@@ -503,6 +503,8 @@ func launchAttentionLayout(
 ) error {
 	output := pointers.output()
 	switch node.Op {
+	case tensor.OpQSAAttention:
+		return launchQSAAttention(state, functions, blas, node, runtimeAttributes, pointers)
 	case tensor.OpReshape:
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)
@@ -533,14 +535,6 @@ func launchAttentionLayout(
 		query := pointers.input(0)
 		key := pointers.input(1)
 		value := pointers.input(2)
-		if keyNode.Type == dtype.Q8_0 {
-			// The page's cells are read as F32 rows from the score staging, past the kernels' own regions.
-			keys, values, err := dequantizeQ80Page(state, functions, blas, node, key, value)
-			if err != nil {
-				return err
-			}
-			key, value = keys, values
-		}
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
@@ -771,9 +765,6 @@ func launchAttentionLayout(
 		attributes := runtimeAttributes.(tensor.CacheAppendAttributes)
 		if attributes.Axis+1 != uint32(node.Shape.Rank) {
 			return errors.New("invalid cache append attributes")
-		}
-		if node.Type == dtype.Q8_0 {
-			return launchCacheAppendQ80(state, functions, node, attributes, pointers)
 		}
 		left := pointers.input(0)
 		right := pointers.input(1)

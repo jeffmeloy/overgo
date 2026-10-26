@@ -5,14 +5,12 @@ import (
 	"testing"
 
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 )
 
 func TestCacheAppendPreservesCapacityAndWritesLogicalOffset(t *testing.T) {
 	shape := tensor.MustShape(2, 1, 4)
 	result, err := cacheAppend(
 		shape,
-		dtype.F32,
 		Value{Shape: tensor.MustShape(2, 1, 2), Data: []float32{1, 2, 3, 4}},
 		Value{Shape: tensor.MustShape(2, 1, 1), Data: []float32{5, 6}},
 		tensor.CacheAppendAttributes{Axis: 2, Offset: 2},

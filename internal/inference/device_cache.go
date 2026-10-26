@@ -62,6 +62,8 @@ type deviceCacheStorage struct {
 	keys      []executor.DeviceValue
 	values    []executor.DeviceValue
 	states    []deviceLayerStates
+	// qsa is the sequence's QSA cells, a QSA runner's token-aligned storage (qsa_cells.go); nil elsewhere.
+	qsa *qsaCells
 }
 
 func (s *deviceCacheStorage) retain() bool {
@@ -130,18 +132,22 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		s.mu.Unlock()
 		return err
 	}
-	buffer, keys, values, states := s.buffer, s.keys, s.values, s.states
+	buffer, keys, values, states, qsa := s.buffer, s.keys, s.values, s.states, s.qsa
 	s.refs = 0
 	s.releasing = true
 	s.buffer = nil
 	s.keys = nil
 	s.values = nil
 	s.states = nil
+	s.qsa = nil
 	s.mu.Unlock()
 
 	var err error
 	if buffer != nil {
 		err = buffer.Release(context.Background())
+	}
+	if err == nil {
+		err = qsa.release(context.Background())
 	}
 
 	s.mu.Lock()
@@ -153,6 +159,7 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		s.keys = keys
 		s.values = values
 		s.states = states
+		s.qsa = qsa
 		return err
 	}
 	s.refs = 0
@@ -254,6 +261,9 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	if !needed {
 		return nil
 	}
+	if r.qsaLayers != nil {
+		return errQSAContextShift
+	}
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
@@ -321,6 +331,9 @@ func (r *Runner) compactDeviceCacheForAppend(
 	}
 	if !needed {
 		return cache, nil
+	}
+	if r.qsaLayers != nil {
+		return nil, errQSAContextShift
 	}
 	if keep == 0 && !forceCopy {
 		if err := r.shiftDeviceCacheForAppendPolicy(
@@ -486,11 +499,14 @@ func (r *Runner) cacheCapacity(past *deviceKVCache, tokens, reserve uint32) uint
 	return cachePageCapacity(max(tokens, reserve), r.spec.ContextLength, r.program.Decode.Session)
 }
 
-// storedCapacity is the tokens the cache's storage holds, the trailing extent of its first token-aligned key, or zero
-// without one.
+// storedCapacity is the tokens the cache's storage holds, its QSA cells' capacity or the trailing extent of its first
+// token-aligned key, or zero without one.
 func (c *deviceKVCache) storedCapacity() uint32 {
 	if c == nil || c.storage == nil {
 		return 0
+	}
+	if c.storage.qsa != nil {
+		return c.storage.qsa.capacity
 	}
 	for _, key := range c.storage.keys {
 		if key.Pointer != 0 && key.Shape.Rank > 0 {
@@ -522,8 +538,12 @@ type deviceBatchGraph struct {
 	checkpointTokens []uint32
 	checkpoints      [][]model.LayerCheckpoint
 	cacheInputs      []layerGraphCacheInputs
-	pastTokens       uint32
-	nextPosition     uint32
+	// qsaInputs are a QSA layer's cell inputs, a layer each (qsaStateInputs), bound once the step's storage is chosen; none
+	// for another layer. qsaPositions are a projected step's cells' temporal, height and width positions, nil for text.
+	qsaInputs    [][]*tensor.Tensor
+	qsaPositions [][tensor.QSAPositionAxes]uint32
+	pastTokens   uint32
+	nextPosition uint32
 	// positionAfter is the cache's next position past a projected prompt's largest; zero past one whose tokens follow it.
 	positionAfter uint32
 	tokenCount    uint32
@@ -545,6 +565,8 @@ type deviceCacheTargetValue struct {
 type deviceCacheTargetPlan struct {
 	layers   []deviceCacheTargetLayer
 	elements uint64
+	// qsaCapacity is the cells a QSA runner's step reads its cells at, zero for another runner.
+	qsaCapacity uint32
 }
 
 type deviceDecodeSession struct {
@@ -738,7 +760,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	}
 	plans := session.program.targets
 	targets, storages, err := r.prepareDeviceCacheTargets(
-		ctx, session.execution.Graph, graphs, appends, plans,
+		ctx, session.execution.Graph, session.execution.Inputs, graphs, appends, plans,
 	)
 	if err != nil {
 		return nil, err
@@ -941,9 +963,18 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	}
 	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
 	for index, appendInput := range appends {
+		// A QSA step reads its cells at the capacity its storage holds them at (compileDeviceCacheTargetPlans).
+		var cells uint32
+		if r.qsaLayers != nil {
+			var pastTokens uint32
+			if appendInput.Past != nil {
+				pastTokens = appendInput.Past.Tokens
+			}
+			cells = qsaCapacity(r.cacheCapacity(appendInput.Past, pastTokens+uint32(len(appendInput.Tokens)), appendInput.Reserve))
+		}
 		graph, err := r.buildDeviceCachedBatchBranch(
 			ctx, builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected,
+			cacheWrite, hostFeeds, &deviceFeeds, appendInput.Checkpoints, appendInput.Projected, cells,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -1015,7 +1046,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		sessions = session.owners
 	}
-	targets, storages, err := r.prepareDeviceCacheTargets(ctx, execution.Graph, graphs, appends, targetPlans)
+	targets, storages, err := r.prepareDeviceCacheTargets(ctx, execution.Graph, execution.Inputs, graphs, appends, targetPlans)
 	if err != nil {
 		return nil, err
 	}
@@ -1180,6 +1211,9 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 	for branch, graph := range graphs {
 		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
 		capacity := uint64(r.cacheCapacity(appends[branch].Past, graph.pastTokens+graph.tokenCount, appends[branch].Reserve))
+		if r.qsaLayers != nil {
+			plan.qsaCapacity = qsaCapacity(uint32(capacity))
+		}
 		target := func(node *tensor.Tensor, schema model.CacheState[model.CacheValueSchema]) (deviceCacheTargetValue, error) {
 			if !schema.Value.AcceptsTokenTarget(schema.Mode, node.Shape) {
 				return deviceCacheTargetValue{}, nil
@@ -1206,7 +1240,7 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 			if r.layerProgram(layer).Layer().SharedKV {
 				continue
 			}
-			_, schema, err := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)
+			_, schema, err := r.deviceCacheSchema(layer, graph.pastTokens+graph.tokenCount)
 			if err != nil {
 				return nil, err
 			}
@@ -1244,9 +1278,13 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 	return plans, nil
 }
 
+// prepareDeviceCacheTargets chooses each branch's storage - its past's where an append writes it in place, otherwise a
+// new one - and binds the graph's cache outputs to it; a QSA runner's storage holds the branch's QSA cells, its past's
+// or a fork of their prefix, which the graph's QSA inputs are bound to.
 func (r *Runner) prepareDeviceCacheTargets(
 	ctx context.Context,
 	compiled *executor.CompiledGraph,
+	inputs *executor.DeviceInputs,
 	graphs []deviceBatchGraph,
 	appends []deviceBatchAppend,
 	plans []deviceCacheTargetPlan,
@@ -1331,6 +1369,11 @@ func (r *Runner) prepareDeviceCacheTargets(
 				storage.states[layer][name] = state
 			}
 		}
+		if plans[branch].qsaCapacity != 0 {
+			if err := r.prepareQSACells(ctx, compiled, inputs, storage, past, graph, plans[branch].qsaCapacity); err != nil {
+				return fail(err)
+			}
+		}
 	}
 	return targets, storages, nil
 }
@@ -1351,6 +1394,9 @@ func deviceCacheStorageView(group executor.DeviceValue, offset uint64, shape ten
 
 func deviceCacheStorageFits(storage *deviceCacheStorage, plan deviceCacheTargetPlan) bool {
 	if storage == nil || len(storage.keys) != len(plan.layers) || len(storage.values) != len(plan.layers) {
+		return false
+	}
+	if plan.qsaCapacity != 0 && (storage.qsa == nil || storage.qsa.capacity != plan.qsaCapacity) {
 		return false
 	}
 	fits := func(target deviceCacheTargetValue, value executor.DeviceValue) bool {
@@ -1386,6 +1432,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 	checkpoints []uint32,
 	projected *ProjectedInputs,
+	qsaCapacity uint32,
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
@@ -1535,6 +1582,22 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	layerCheckpoints := make([][]model.LayerCheckpoint, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
+	var qsaInputs [][]*tensor.Tensor
+	var qsaPositions [][tensor.QSAPositionAxes]uint32
+	if r.qsaLayers != nil {
+		if qsaCapacity == 0 || sequences != tensor.SingletonExtent {
+			return fail(errors.New("QSA layers take one sequence's cells at a capacity"))
+		}
+		qsaInputs = make([][]*tensor.Tensor, len(r.weights.Layers))
+		if multiPositions != nil {
+			qsaPositions = make([][tensor.QSAPositionAxes]uint32, tokensPerSequence)
+			for index := range qsaPositions {
+				for axis := range tensor.QSAPositionAxes {
+					qsaPositions[index][axis] = multiPositions[axis][index]
+				}
+			}
+		}
+	}
 	var positionFeeds []*tensor.Tensor
 	var ngramEmbedding, ngramHistory *tensor.Tensor
 	decodeCatalog := plan.is(deviceOutputGreedy) && tokensPerSequence == 1 && r.decodeWeights != nil
@@ -1594,6 +1657,14 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			ngramEmbedding, ngramHistory = graphWeights.PerLayerInput, layerHistory
 		}
 		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_input", layerIndex), current, plan.DeepstackBefore, projected.DeepstackEmbeddings, hostFeeds)
+		var qsa *model.QSABinding
+		if r.holdsQSA(layerIndex) {
+			state, nodes := qsaStateInputs(builder, func(suffix string) string {
+				return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
+			}, qsaCapacity)
+			qsaInputs[layerIndex] = nodes
+			qsa = &model.QSABinding{State: state, Capacity: qsaCapacity, FirstCell: pastTokens}
+		}
 		result, buildErr := program.Build(model.CachedBlockContext{
 			NGramHistory: layerHistory, MultiPositions: multiPositions,
 			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
@@ -1603,6 +1674,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			PerLayerInput:    graphWeights.PerLayerInput,
 			Layer:            uint32(layerIndex), Recurrent: plan.Recurrent,
 			CacheWrite: cacheWrite, Sequences: sequences, Checkpoints: checkpoints,
+			QSA: qsa,
 		}, graphWeights)
 		if buildErr != nil {
 			return fail(buildErr)
@@ -1675,6 +1747,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		positionFeeds: positionFeeds, ngramEmbedding: ngramEmbedding, ngramHistory: ngramHistory,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
+		qsaInputs: qsaInputs, qsaPositions: qsaPositions,
 		checkpointTokens: checkpoints, checkpoints: layerCheckpoints,
 		pastTokens: pastTokens, nextPosition: nextPosition, positionAfter: positionAfter,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
@@ -1702,7 +1775,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		hostFeeds[input] = reference.ZeroValue(shape)
 		return input
 	}
-	_, schema, err := r.cacheSchema(layerIndex, 0)
+	_, schema, err := r.deviceCacheSchema(layerIndex, 0)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}
@@ -1791,6 +1864,9 @@ func rebuildDeviceCachePages(
 //   - each tensor's active tokens are one block from its pointer because the token axis is outermost, so a read is one copy per tensor
 //   - a shared-KV layer holds its source layer's key and value, as the host forward stores them
 func (r *Runner) downloadDeviceCache(ctx context.Context, cache *deviceKVCache) (*KVCache, error) {
+	if r.qsaLayers != nil {
+		return nil, errQSAHostCache
+	}
 	if cache == nil || len(cache.Keys) != len(r.weights.Layers) || len(cache.Values) != len(cache.Keys) {
 		return nil, errors.New("inference: device cache layer count differs")
 	}
@@ -1844,6 +1920,9 @@ func (r *Runner) downloadDeviceCache(ctx context.Context, cache *deviceKVCache) 
 //   - fixed values keep their exact shapes
 //   - a shared-KV layer aliases its source layer, as a device forward does
 func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceKVCache, error) {
+	if r.qsaLayers != nil {
+		return nil, errQSAHostCache
+	}
 	if host == nil || len(host.Layers) != len(r.weights.Layers) {
 		return nil, errors.New("inference: host cache layer count differs from the device layers")
 	}

@@ -19,6 +19,8 @@ const (
 	decodeDynamicCacheAppend
 	// decodeDynamicQueryStart is a block selection's or a sparse attention's first query, the past's token count.
 	decodeDynamicQueryStart
+	// decodeDynamicQSACells is a QSA step's cells, from the past's token count.
+	decodeDynamicQSACells
 )
 
 type decodeDynamicSlot struct {
@@ -30,6 +32,9 @@ type decodeDynamicSlot struct {
 	attention  *tensor.AttentionAttributes
 	append     *tensor.CacheAppendAttributes
 	queryStart *uint32
+	// qsa is a QSA step's attributes and qsaOffset its first cell's distance from the past's tokens.
+	qsa       *tensor.QSAAttentionAttributes
+	qsaOffset uint32
 }
 
 type decodeSessionIdentity struct {
@@ -195,6 +200,11 @@ func compileDecodeSessionPlan(
 			case tensor.OpSparseAttention:
 				value := node.Attrs.(tensor.SparseAttentionAttributes)
 				slot.kind, slot.value, slot.queryStart = decodeDynamicQueryStart, &value, &value.QueryStart
+			case tensor.OpQSAAttention:
+				value := node.Attrs.(tensor.QSAAttentionAttributes)
+				value.Cells = slices.Clone(value.Cells)
+				slot.kind, slot.value, slot.qsa = decodeDynamicQSACells, &value, &value
+				slot.qsaOffset = value.Cells[0] - graph.pastTokens
 			default:
 				continue
 			}
@@ -302,6 +312,10 @@ func (p *decodeSessionPlan) updateBranch(
 			slot.append.Offset = pastTokens
 		case decodeDynamicQueryStart:
 			*slot.queryStart = pastTokens
+		case decodeDynamicQSACells:
+			for index := range slot.qsa.Cells {
+				slot.qsa.Cells[index] = pastTokens + slot.qsaOffset + uint32(index)
+			}
 		}
 	}
 	return nil

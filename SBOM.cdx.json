@@ -32,7 +32,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "03a68ec0980364d8b48cd826ffb46a6af6dc63747ab665a33e780e9ab99b932b"
+          "content": "04d1e9b8cc7c8a451be683da9393a1b124cbdda941dbbb05ab5997114db376e2"
         }
       ],
       "name": "internal/cuda/kernel/ops_f32.ptx",
@@ -112,7 +112,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "1933669a73df22805d97b6a37d8c52bc3a164a44a6ed785fad3a7a998f692f5f"
+          "content": "0ad153690904e36d658e5859bbb5dc09907360a3153513d412796619a8edc75b"
         }
       ],
       "name": "kernels/cuda/ops_f32.cu",
@@ -127,6 +127,17 @@
         }
       ],
       "name": "kernels/cuda/strata_qsa.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_qsa_native.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "01e7c3962410662d21e35234eb85296d1e8879cd35d1e173d250ffa678e6f8e0"
+        }
+      ],
+      "name": "kernels/cuda/strata_qsa_native.cuh",
       "type": "file"
     },
     {
@@ -156,7 +167,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "2b909728d2872adca6d189d611b4102d27eccb7d5995208af3e32ba401bafbf7"
+          "content": "6aaf4afcd357f2def177c4001a30a5e2f3bac41c6e65dae76fa2b4aa140931f2"
         }
       ],
       "name": "kernels/manifest.json",
@@ -302,6 +313,7 @@
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
         "file:kernels/cuda/strata_qsa.cu",
+        "file:kernels/cuda/strata_qsa_native.cuh",
         "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",

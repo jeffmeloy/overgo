@@ -196,7 +196,8 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 		}
 	}
 	var capacities []uint64
-	if plan.elements > 0 && r.reusableDeviceCacheStorage(past, plan) == nil {
+	fresh := r.reusableDeviceCacheStorage(past, plan) == nil
+	if plan.elements > 0 && fresh {
 		shape, err := tensor.NewShape(plan.elements)
 		if err != nil {
 			return err
@@ -206,6 +207,13 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 			return err
 		}
 		capacities = []uint64{bytes}
+	}
+	// New QSA cells, and the rotation table at the first QSA step, are buffers the read allocates beside its graph.
+	if plan.qsaCapacity > 0 && fresh {
+		capacities = append(capacities, r.qsaCellBytes(plan.qsaCapacity))
+	}
+	if plan.qsaCapacity > 0 && r.qsaRope == nil {
+		capacities = append(capacities, qsaRopeBytes(r.qsaRopeRows()))
 	}
 	return r.cuda.CheckRetainedMemory(ctx, execution.Graph, execution.Inputs, slots, capacities)
 }

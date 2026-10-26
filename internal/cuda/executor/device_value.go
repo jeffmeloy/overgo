@@ -234,6 +234,58 @@ func (e *Executor) WriteDeviceValues(ctx context.Context, values []DeviceValue, 
 	})
 }
 
+// DeviceBytes is a host byte range for a device address: a table of integers or codes, which DeviceValue's F32
+// transfers do not describe.
+type DeviceBytes struct {
+	Pointer driver.DevicePtr
+	Data    []byte
+}
+
+// WriteDeviceBytes copies host bytes to device addresses in one worker transaction; a zero pointer or an empty range is
+// refused before any copy.
+func (e *Executor) WriteDeviceBytes(ctx context.Context, writes []DeviceBytes) error {
+	for index, write := range writes {
+		if write.Pointer == 0 || len(write.Data) == 0 {
+			return fmt.Errorf("CUDA device byte write %d is empty", index)
+		}
+	}
+	return e.transfer(ctx, func(state *device.State) error {
+		for _, write := range writes {
+			if err := state.Driver.MemcpyHtoD(write.Pointer, write.Data); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// DeviceRangeCopy is a device-to-device copy of Bytes from Source to Target.
+type DeviceRangeCopy struct {
+	Target, Source driver.DevicePtr
+	Bytes          uint64
+}
+
+// CopyDeviceRanges copies device ranges into existing device memory in one worker transaction, as a state that grows
+// or forks copies the prefix it keeps; a zero pointer, an empty range or a target overlapping its source is refused
+// before any copy.
+func (e *Executor) CopyDeviceRanges(ctx context.Context, copies []DeviceRangeCopy) error {
+	for index, copySpec := range copies {
+		source, sourceErr := newDeviceAddressRange(copySpec.Source, copySpec.Bytes)
+		target, targetErr := newDeviceAddressRange(copySpec.Target, copySpec.Bytes)
+		if copySpec.Bytes == 0 || sourceErr != nil || targetErr != nil || deviceRangesOverlap(source, target) {
+			return fmt.Errorf("CUDA device range copy %d is empty, invalid or overlaps its source", index)
+		}
+	}
+	return e.transfer(ctx, func(state *device.State) error {
+		for _, copySpec := range copies {
+			if err := state.Driver.MemcpyDtoD(copySpec.Target, copySpec.Source, copySpec.Bytes); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func transferElements(value DeviceValue) (int, error) {
 	if value.Pointer == 0 {
 		return 0, errors.New("device value pointer is zero")

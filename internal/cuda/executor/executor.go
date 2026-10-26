@@ -597,6 +597,10 @@ func (a *RuntimeAttributes) Set(node *tensor.Tensor, attributes tensor.Attribute
 	a.values[index] = attributes
 	attention, isAttention := resolved.(tensor.AttentionAttributes)
 	a.launchArguments = a.launchArguments || isAttention && !decodeAttention(node, attention)
+	// A QSA step of several tokens passes its first cell and active blocks as launch arguments; a token's step reads
+	// only its staged step record.
+	qsa, isQSA := resolved.(tensor.QSAAttentionAttributes)
+	a.launchArguments = a.launchArguments || isQSA && len(qsa.Cells) > 1
 	return nil
 }
 
@@ -627,6 +631,10 @@ func resolveRuntimeAttributes(attributes tensor.Attributes) (tensor.Attributes, 
 			return *value, nil
 		}
 	case *tensor.SparseAttentionAttributes:
+		if value != nil {
+			return *value, nil
+		}
+	case *tensor.QSAAttentionAttributes:
 		if value != nil {
 			return *value, nil
 		}
@@ -688,6 +696,18 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		if initial != next || logicalTokens > capacity ||
 			(next.Causal && queryStart+queryTokens > logicalTokens) {
 			return errors.New("CUDA runtime attention override changes compiled policy or exceeds capacity")
+		}
+	case tensor.OpQSAAttention:
+		// A replayed QSA step takes the next tokens' cells over the same state: the token count, the capacity and the
+		// epsilon are compiled, the cells consecutive and inside the state.
+		initial, next := node.Attrs.(tensor.QSAAttentionAttributes), attributes.(tensor.QSAAttentionAttributes)
+		if len(next.Cells) != len(initial.Cells) || next.Capacity != initial.Capacity || next.Epsilon != initial.Epsilon {
+			return errors.New("CUDA runtime QSA override changes compiled policy")
+		}
+		for index, cell := range next.Cells {
+			if cell >= next.Capacity || index > 0 && cell != next.Cells[index-1]+1 {
+				return errors.New("CUDA runtime QSA cells are not consecutive inside the state")
+			}
 		}
 	case tensor.OpCacheAppend:
 		initial, next := node.Attrs.(tensor.CacheAppendAttributes), attributes.(tensor.CacheAppendAttributes)
@@ -1233,6 +1253,15 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 	}
 	for _, node := range order {
+		// A QSA step keeps its selected ids, a batch of block scores and the decode partials in the score staging.
+		if node.Op == tensor.OpQSAAttention {
+			layout, err := qsaScratchLayout(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, layout.total)
+		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true
@@ -1357,16 +1386,6 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
-			continue
-		}
-		// An attention over Q8_0 cells dequantizes its page into the staging, past the kernels' own regions.
-		if node.Inputs[1].Type == dtype.Q8_0 {
-			layout, err := q8AttentionStagingLayout(node)
-			if err != nil {
-				return nil, err
-			}
-			compiled.needBlas = true
-			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, layout.total)
 			continue
 		}
 		// The tensor-core kernel keeps a prompt's scores in registers, so its attention reserves no score staging.
@@ -2190,7 +2209,7 @@ func execute(
 		}
 		if deviceFed {
 			if node.Type != dtype.F32 && node.Type != dtype.BF16 && node.Type != dtype.F16 &&
-				node.Type != dtype.F8E4M3 && !nativeQuantizedType(node.Type) {
+				node.Type != dtype.F8E4M3 && node.Type != dtype.I8 && node.Type != dtype.I32 && !nativeQuantizedType(node.Type) {
 				return nil, fmt.Errorf("CUDA device feed %q has unsupported type %s", node.Name, node.Type)
 			}
 			if pointer == 0 {
@@ -2322,7 +2341,7 @@ func execute(
 		if node.Op == tensor.OpInput {
 			continue
 		}
-		if node.Type != dtype.F32 && !(node.Type == dtype.Q8_0 && node.Op == tensor.OpCacheAppend) {
+		if node.Type != dtype.F32 {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if frame.skipped {

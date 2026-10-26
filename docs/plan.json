@@ -212,20 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "dense-prompt-precision",
-      "title": "Give the tensor-core prompt attention products that hold held-out quality, then admit it again",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the tensor-core prompt attention products that hold held-out quality, then admit it again",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/evaluation -run '^TestTensorCorePromptAttentionHoldsBBH$' -count=1 -timeout 60m",
-          "rationale": "Serves: dense models' long prompts at the tensor-core kernel's speed (a 16K prompt's attention in a tenth of the strided-batched path's time, e70ceee56) without the quality the kernel's half-precision products cost (gemma-4-12B-it-fp8 BBH 0.657 to 0.643; the f32 path restores 0.657 at the same commit).\nFirst: where the precision goes (the Q and K halves, the softcap, the online softmax's running maximum) against the f32 path on gemma's BBH prompts, case by case; then the products that hold quality (f32 accumulation, or bf16 inputs where fp16 clips) and the switch turned on.\nEvidence: TestTensorCorePromptAttentionHoldsBBH (gemma-4-12B-it-fp8's BBH with the kernel on equal to the f32 path's within chance, on a store copy); the measurement run's held-out and first-output cells.\nBatch: cuda/executor device lane; the models lane."
-        }
-      ]
-    },
-    {
       "id": "reductions",
       "title": "Land the review's reductions once the port has begun",
       "status": "open",

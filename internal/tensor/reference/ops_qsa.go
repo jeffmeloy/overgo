@@ -113,24 +113,31 @@ func (s qsaHostState) appendCell(cell int, keys, values []float32) error {
 		for head := range tensor.QSAKeyValueHeads {
 			row := s.row(cell, head)
 			for group := range groups {
-				x := rows[head*tensor.QSAHeadWidth+group*tensor.QSAScaleGroup:][:tensor.QSAScaleGroup]
-				var maximum float32
-				for _, value := range x {
-					maximum = max(maximum, float32(math.Abs(float64(value))))
-				}
-				stored := quant.Float16ToFloat32(quant.Float32ToFloat16(maximum / qsaCodeRange))
-				scales[row*groups+group] = stored
-				for index, value := range x {
-					code := float32(0)
-					if stored > 0 {
-						code = float32(min(max(math.RoundToEven(float64(value/stored)), -qsaCodeRange), qsaCodeRange))
-					}
-					codes[row*tensor.QSAHeadWidth+group*tensor.QSAScaleGroup+index] = code
-				}
+				scales[row*groups+group] = quantizeCellGroup(rows[head*tensor.QSAHeadWidth+group*tensor.QSAScaleGroup:][:tensor.QSAScaleGroup],
+					codes[row*tensor.QSAHeadWidth+group*tensor.QSAScaleGroup:][:tensor.QSAScaleGroup])
 			}
 		}
 	}
 	return nil
+}
+
+// quantizeCellGroup is kv_q8's quantizer for one 64-value group of a cell's head: its scale the group's largest
+// magnitude over the code range, stored in fp16, and each value's code rounded to even against the stored scale and
+// clamped, written into codes; it returns the stored scale.
+func quantizeCellGroup(values, codes []float32) float32 {
+	var maximum float32
+	for _, value := range values {
+		maximum = max(maximum, float32(math.Abs(float64(value))))
+	}
+	stored := quant.Float16ToFloat32(quant.Float32ToFloat16(maximum / qsaCodeRange))
+	for index, value := range values {
+		code := float32(0)
+		if stored > 0 {
+			code = float32(min(max(math.RoundToEven(float64(value/stored)), -qsaCodeRange), qsaCodeRange))
+		}
+		codes[index] = code
+	}
+	return stored
 }
 
 // qsaCodeRange is an int8 code's magnitude, the scale's divisor.

@@ -639,6 +639,10 @@ func resolveRuntimeAttributes(attributes tensor.Attributes) (tensor.Attributes, 
 		if value != nil {
 			return *value, nil
 		}
+	case *tensor.CellAttentionAttributes:
+		if value != nil {
+			return *value, nil
+		}
 	default:
 		return attributes, nil
 	}
@@ -709,6 +713,19 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		for index, cell := range next.Cells {
 			if cell >= next.Capacity || index > 0 && cell != next.Cells[index-1]+1 {
 				return errors.New("CUDA runtime QSA cells are not consecutive inside the state")
+			}
+		}
+	case tensor.OpCellAttention:
+		// A replayed cell attention step takes the next tokens' cells over the same state: the token count, the
+		// capacity, the window and the scale are compiled, the cells consecutive and inside the state.
+		initial, next := node.Attrs.(tensor.CellAttentionAttributes), attributes.(tensor.CellAttentionAttributes)
+		if len(next.Cells) != len(initial.Cells) || next.Capacity != initial.Capacity || next.Window != initial.Window ||
+			next.Scale != initial.Scale {
+			return errors.New("CUDA runtime cell attention override changes compiled policy")
+		}
+		for index, cell := range next.Cells {
+			if cell >= next.Capacity || index > 0 && cell != next.Cells[index-1]+1 {
+				return errors.New("CUDA runtime cells are not consecutive inside the state")
 			}
 		}
 	case tensor.OpCacheAppend:
@@ -1263,6 +1280,11 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, layout.total)
+		}
+		// A decoding cell attention step keeps its partials in the score staging.
+		if node.Op == tensor.OpCellAttention {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, cellScratchBytes(node))
 		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {

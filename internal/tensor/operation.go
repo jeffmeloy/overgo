@@ -167,6 +167,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpGatedDeltaCommit, "gated_delta_commit", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
 	{OpQSACommit, "qsa_commit", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
 	{OpCopyIndexed, "copy_indexed", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpCellAttention, "cell_attention", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
 }
 
 // DescribeOperation: typed operation lookup.

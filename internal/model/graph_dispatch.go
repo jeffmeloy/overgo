@@ -24,7 +24,9 @@ type CachedBlockContext struct {
 	PerLayerInput    *tensor.Tensor
 	NGramHistory     *tensor.Tensor
 	// QSA is a QSA layer's cells for the step, nil where the layer is built otherwise (QSABinding).
-	QSA        *QSABinding
+	QSA *QSABinding
+	// Cells is an attention layer's int8 cells for the step, nil where the layer keeps its K/V otherwise (CellBinding).
+	Cells      *CellBinding
 	Layer      uint32
 	Recurrent  bool
 	CacheWrite tensor.CacheWriteMode
@@ -241,7 +243,7 @@ func executeAttentionOperator(
 	case layerOperatorAttentionSharedKVQKNorm:
 		return buildSharedKVQKNormMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], plan, c.CacheWrite,
+			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], plan, c.CacheWrite, c.Cells,
 		)
 	case layerOperatorAttentionBidirectionalEncoder:
 		return buildBidirectionalEncoderAttentionMix(

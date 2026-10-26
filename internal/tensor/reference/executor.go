@@ -359,6 +359,8 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return qsaCommit(node, inputs)
 	case tensor.OpCopyIndexed:
 		return copyIndexed(node, inputs)
+	case tensor.OpCellAttention:
+		return cellAttention(inputs, node.Attrs.(tensor.CellAttentionAttributes))
 	default:
 		return Value{}, fmt.Errorf("unsupported operation %s", node.Op)
 	}

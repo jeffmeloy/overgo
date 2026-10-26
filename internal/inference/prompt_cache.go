@@ -542,6 +542,10 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.Ses
 		return errors.New("inference: a QSA cache keeps its fixed state at its last token")
 	}
 	for index := range cache.Keys {
+		// A layer over attention cells keeps no value of its own: its cells hold every shorter prefix.
+		if cache.storage != nil && cache.storage.cells != nil && cache.Keys[index].Pointer == 0 {
+			continue
+		}
 		values := [...]struct {
 			label string
 			value *executor.DeviceValue

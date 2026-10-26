@@ -104,6 +104,8 @@ const (
 	OpQSACommit
 	// OpCopyIndexed is Strata's copy_indexed, in place (Builder.CopyIndexed).
 	OpCopyIndexed
+	// OpCellAttention is an attention layer over Strata's int8 K/V cells, appended in place (Builder.CellAttention).
+	OpCellAttention
 )
 
 // GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its

@@ -43,6 +43,13 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 	if err := lib.FuncSetMaxDynamicShared(functions[kernelSparseAttentionMmaF32].function, sparseAttentionMMASharedBytes); err != nil {
 		return err
 	}
+	// A cell prompt attention's layout grows with its head: 88,864 bytes for a 512-wide one.
+	for index, geometry := range tensor.CellAttentionGeometries {
+		bytes := strataCellPromptSharedBytes(int64(geometry[0]))
+		if err := lib.FuncSetMaxDynamicShared(functions[strataCellEntries[index].prompt].function, bytes); err != nil {
+			return err
+		}
+	}
 	return lib.FuncSetMaxDynamicShared(functions[kernelStrataBlockScoresTc].function, strataScoresTCSharedBytes)
 }
 
@@ -507,6 +514,8 @@ func launchAttentionLayout(
 		return launchQSAAttention(state, functions, blas, node, runtimeAttributes, pointers)
 	case tensor.OpQSACommit:
 		return launchQSACommit(state, functions, node, pointers)
+	case tensor.OpCellAttention:
+		return launchCellAttention(state, functions, blas, node, runtimeAttributes, pointers)
 	case tensor.OpReshape:
 		count := shapeCount32(node.Shape)
 		input := pointers.input(0)

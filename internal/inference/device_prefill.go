@@ -208,9 +208,13 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 		}
 		capacities = []uint64{bytes}
 	}
-	// New QSA cells, and the rotation table at the first QSA step, are buffers the read allocates beside its graph.
+	// New QSA or attention cells, and the rotation table at the first QSA step, are buffers the read allocates beside
+	// its graph.
 	if plan.qsaCapacity > 0 && fresh {
 		capacities = append(capacities, r.qsaCellBytes(plan.qsaCapacity))
+	}
+	if plan.cellCapacity > 0 && fresh {
+		capacities = append(capacities, r.attentionCellBytes(plan.cellCapacity))
 	}
 	if plan.qsaCapacity > 0 && r.qsaRope == nil {
 		capacities = append(capacities, qsaRopeBytes(r.qsaRopeRows()))

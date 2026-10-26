@@ -388,6 +388,7 @@ func buildSharedKVQKNormMixCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerPlan LayerPlan,
 	cacheWrite tensor.CacheWriteMode,
+	cells *CellBinding,
 ) (DenseBlockResult, error) {
 	layerIndex := layerPlan.Layer
 	tokenCount, validInput := tensor.MatrixRows32(normalized.Shape, uint64(spec.EmbeddingLength))
@@ -396,6 +397,9 @@ func buildSharedKVQKNormMixCached(
 	}
 	if err := requireTensorPair(pastKey, pastValue, "shared-KV attention cache pair is incomplete"); err != nil {
 		return DenseBlockResult{}, err
+	}
+	if cells != nil && (!layerPlan.HasKV || pastKey != nil) {
+		return DenseBlockResult{}, errors.New("shared-KV attention over cells holds no other cache")
 	}
 	required := graphWeights{
 		weights.AttentionQ,
@@ -435,6 +439,12 @@ func buildSharedKVQKNormMixCached(
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
 		key = layerPlan.Rotary.ApplyOne(builder, key, positions, nil, weights.RopeFactors)
+		if cells != nil {
+			// The step's keys and values join the layer's cells, which its queries read in place.
+			attention := cellAttentionStep(builder, spec, layerPlan, cells, query, key, value)
+			attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
+			return DenseBlockResult{Output: attention}, builder.Err()
+		}
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
 			pastTokens, keyAxis, validKey := tensor.TrailingExtent32(pastKey.Shape, keyLength, kvHeadCount)

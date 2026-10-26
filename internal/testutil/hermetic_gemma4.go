@@ -54,6 +54,104 @@ const (
 	g4EndOfSequenceToken = 2
 )
 
+// The miniature Gemma 4 12B the attention cell tests decode: its two layer kinds at their own geometry, which the
+// int8 cells' kernels are instantiated for, every other dimension small.
+const (
+	// g4CellsHidden is the model width.
+	g4CellsHidden = uint64(64)
+	// g4CellsHeads is the query head count of both kinds.
+	g4CellsHeads = uint64(16)
+	// g4CellsSlidingKVHeads and g4CellsSlidingWidth are a sliding layer's K/V heads and their width.
+	g4CellsSlidingKVHeads, g4CellsSlidingWidth = uint64(8), uint64(256)
+	// g4CellsGlobalKVHeads and g4CellsGlobalWidth are a global layer's K/V head and its width; its keys are its values.
+	g4CellsGlobalKVHeads, g4CellsGlobalWidth = uint64(1), uint64(512)
+	// g4CellsWindow is the sliding layers' window, past which a prompt of a few dozen tokens reads.
+	g4CellsWindow = uint32(24)
+	// g4CellsInner is the feed-forward width.
+	g4CellsInner = uint64(128)
+)
+
+// HermeticGemma4CellsGGUF writes the Gemma 4 12B layer kinds in F32 miniature: a sliding layer of 8 K/V heads of 256
+// reading a window, then a global layer of one K/V head of 512 whose keys are its values (no value projection), with
+// no per-layer input adapter and no shared K/V, as the 12B's layers are.
+func HermeticGemma4CellsGGUF(t testing.TB, context uint32) string {
+	t.Helper()
+	sliding := []bool{true, false}
+	seed := 0
+	var tensors []gguf.TensorData
+	add := func(name string, shape ...uint64) {
+		seed++
+		tensors = append(tensors, GGUFTensorF32(name, shape, seed))
+	}
+	add("token_embd.weight", g4CellsHidden, g4Vocabulary)
+	add("rope_freqs.weight", g4CellsGlobalWidth/g4HalfWidth)
+	for layer := range len(sliding) {
+		name := func(role string) string { return fmt.Sprintf("blk.%d.%s.weight", layer, role) }
+		width, kvHeads := g4CellsGlobalWidth, g4CellsGlobalKVHeads
+		if sliding[layer] {
+			width, kvHeads = g4CellsSlidingWidth, g4CellsSlidingKVHeads
+		}
+		add(name("attn_norm"), g4CellsHidden)
+		add(name("attn_q"), g4CellsHidden, g4CellsHeads*width)
+		add(name("attn_q_norm"), width)
+		add(name("attn_k_norm"), width)
+		add(name("attn_k"), g4CellsHidden, kvHeads*width)
+		if sliding[layer] {
+			add(name("attn_v"), g4CellsHidden, kvHeads*width)
+		}
+		add(name("attn_output"), g4CellsHeads*width, g4CellsHidden)
+		add(name("post_attention_norm"), g4CellsHidden)
+		add(name("ffn_norm"), g4CellsHidden)
+		add(name("ffn_gate"), g4CellsHidden, g4CellsInner)
+		add(name("ffn_up"), g4CellsHidden, g4CellsInner)
+		add(name("ffn_down"), g4CellsInner, g4CellsHidden)
+		add(name("post_ffw_norm"), g4CellsHidden)
+		add(name("layer_output_scale"), 1)
+	}
+	add("output_norm.weight", g4CellsHidden)
+	tokens := []string{"<unk>", "<s>", "</s>"}
+	for letter := range int(g4Vocabulary) - len(tokens) {
+		tokens = append(tokens, string(rune('a'+letter)))
+	}
+	tokenTypes := make([]int32, g4Vocabulary)
+	for index := range tokenTypes {
+		tokenTypes[index] = g4NormalTokenType
+	}
+	copy(tokenTypes, []int32{g4UnknownTokenType, g4ControlTokenType, g4ControlTokenType})
+	metadata := []gguf.Metadata{
+		GGUFScalar("general.architecture", gguf.ValueTypeString, "gemma4"),
+		GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-gemma4-cells"),
+		GGUFScalar("gemma4.block_count", gguf.ValueTypeUint32, uint32(len(sliding))),
+		GGUFScalar("gemma4.context_length", gguf.ValueTypeUint32, context),
+		GGUFScalar("gemma4.embedding_length", gguf.ValueTypeUint32, uint32(g4CellsHidden)),
+		GGUFArray("gemma4.feed_forward_length", gguf.ValueTypeInt32, []int32{int32(g4CellsInner), int32(g4CellsInner)}),
+		GGUFScalar("gemma4.attention.head_count", gguf.ValueTypeUint32, uint32(g4CellsHeads)),
+		GGUFArray("gemma4.attention.head_count_kv", gguf.ValueTypeInt32, []int32{int32(g4CellsSlidingKVHeads), int32(g4CellsGlobalKVHeads)}),
+		GGUFScalar("gemma4.attention.key_length", gguf.ValueTypeUint32, uint32(g4CellsGlobalWidth)),
+		GGUFScalar("gemma4.attention.value_length", gguf.ValueTypeUint32, uint32(g4CellsGlobalWidth)),
+		GGUFScalar("gemma4.attention.key_length_swa", gguf.ValueTypeUint32, uint32(g4CellsSlidingWidth)),
+		GGUFScalar("gemma4.attention.value_length_swa", gguf.ValueTypeUint32, uint32(g4CellsSlidingWidth)),
+		GGUFScalar("gemma4.rope.dimension_count", gguf.ValueTypeUint32, uint32(g4CellsGlobalWidth)),
+		GGUFScalar("gemma4.rope.dimension_count_swa", gguf.ValueTypeUint32, uint32(g4CellsSlidingWidth)),
+		GGUFScalar("gemma4.rope.freq_base", gguf.ValueTypeFloat32, float32(g4FullRopeBase)),
+		GGUFScalar("gemma4.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(g4SlidingRopeBase)),
+		GGUFScalar("gemma4.attention.sliding_window", gguf.ValueTypeUint32, g4CellsWindow),
+		GGUFArray("gemma4.attention.sliding_window_pattern", gguf.ValueTypeBool, sliding),
+		GGUFScalar("gemma4.attention.shared_kv_layers", gguf.ValueTypeUint32, uint32(0)),
+		GGUFScalar("gemma4.embedding_length_per_layer_input", gguf.ValueTypeUint32, uint32(0)),
+		GGUFScalar("gemma4.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(g4NormEpsilon)),
+		GGUFScalar("gemma4.final_logit_softcapping", gguf.ValueTypeFloat32, float32(g4LogitSoftcap)),
+		GGUFScalar("gemma4.vocab_size", gguf.ValueTypeUint32, uint32(g4Vocabulary)),
+		GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
+		GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString, tokens),
+		GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, g4Vocabulary)),
+		GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32, tokenTypes),
+		GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
+		GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(g4EndOfSequenceToken)),
+	}
+	return TempGGUF(t, "hermetic-gemma4-cells.gguf", metadata, tensors)
+}
+
 // HermeticGemma4SharedKVGGUF writes the Gemma 4 E4B layer kinds in F32
 // miniature: a sliding layer and a full layer that project their own keys and
 // values, then a sliding and a full layer that attend those, with a per-layer

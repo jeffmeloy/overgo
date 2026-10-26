@@ -66,12 +66,12 @@ func (r *Runner) deviceCacheSchema(layer int, tokens uint32) (model.LayerPlan, m
 	return r.cacheSchema(layer, tokens)
 }
 
-// A QSA runner's caches neither shift nor move to host memory: Strata's QSA state holds every cell from the
-// sequence's first (no context shift), and its conversation file, which a prompt state's save and restore would
-// port, is not ported yet.
+// A cell runner's caches, QSA or attention cells, neither shift nor move to host memory: Strata's cells hold every
+// cell from the sequence's first (no context shift), and its conversation file, which a prompt state's save and
+// restore would port, is not ported yet.
 var (
-	errQSAContextShift = errors.New("inference: a QSA runner's cache cannot shift its context")
-	errQSAHostCache    = errors.New("inference: a QSA runner's cache cannot move to host memory")
+	errQSAContextShift = errors.New("inference: a cell runner's cache cannot shift its context")
+	errQSAHostCache    = errors.New("inference: a cell runner's cache cannot move to host memory")
 )
 
 // qsaCapacity is the cells a sequence's QSA cells hold for a cache capacity of tokens: the capacity in whole pages.

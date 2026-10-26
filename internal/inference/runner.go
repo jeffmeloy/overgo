@@ -214,6 +214,9 @@ type preparedModel struct {
 
 	// qsaLayers answers, a layer each, whether the runner builds the layer as Strata's QSA layer (qsaLayerSet); nil for none.
 	qsaLayers []bool
+	// cellLayers answers, a layer each, whether the runner builds the layer over attention cells (cellLayerSet); nil for
+	// none.
+	cellLayers []bool
 
 	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
 	grammarVocabularyMu sync.Mutex

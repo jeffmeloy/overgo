@@ -74,27 +74,27 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1763
+lines: 1784
 functions: 10
 packages: 4
-constants: 74
-operations-by-switches: 1=3 2=36 3=26 4=9
+constants: 75
+operations-by-switches: 1=3 2=36 3=26 4=10
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
-lines: 88
-constants: 9
-clauses: 9
-dispatch-lines: 12
-decides: the rule for a per-step override of get_rows, the rotary encodings, attention, cache_append, top_k, sparse_attention and qsa_attention, which keeps the compiled row and position counts and policy and lets rows move within the table, attention's query start and logical tokens within its compiled capacity, an append's offset within the cache, the first query of a block selection and of a sparse attention within their compiled blocks and capacity, and a QSA step's consecutive cells within its state
-row: a method of each of the eight attribute types with per-step values, in one interface with the words those types write to the device and their resolution from a pointer
+lines: 101
+constants: 10
+clauses: 10
+dispatch-lines: 13
+decides: the rule for a per-step override of get_rows, the rotary encodings, attention, cache_append, top_k, sparse_attention, qsa_attention and cell_attention, which keeps the compiled row and position counts and policy and lets rows move within the table, attention's query start and logical tokens within its compiled capacity, an append's offset within the cache, the first query of a block selection and of a sparse attention within their compiled blocks and capacity, and a QSA step's or a cell attention step's consecutive cells within its state
+row: a method of each of the nine attribute types with per-step values, in one interface with the words those types write to the device and their resolution from a pointer
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 308
-constants: 6
-clauses: 7
-dispatch-lines: 10
-decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, of cache_append as a copy and a write at a device-resident offset, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), and of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again
+lines: 310
+constants: 7
+clauses: 8
+dispatch-lines: 11
+decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, of cache_append as a copy and a write at a device-resident offset, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again, and of cell_attention as an attention layer's int8 cells appended and read by Strata's kernels at the layer's geometry
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 
@@ -144,11 +144,11 @@ row: the entry of each operation and its kernel as a column
 table: yes
 
 switch: internal/inference/device_decode_session.go#compileDecodeSessionPlan
-lines: 54
-constants: 9
-clauses: 9
-dispatch-lines: 12
-decides: which nodes take per-step attribute overrides, a QSA step's cells among them, and which carry positions through graph inputs
+lines: 58
+constants: 10
+clauses: 10
+dispatch-lines: 13
+decides: which nodes take per-step attribute overrides, a QSA step's cells and a cell attention step's among them, and which carry positions through graph inputs
 row: none, because the choice of nodes reads the decode graph's token input, per-layer rows and position rows, and its slot kinds are the session's own, which package tensor cannot name
 table: no
 
@@ -162,23 +162,23 @@ row: a column of internal/tensor/operation.go#operationDescriptors naming each o
 table: yes
 
 switch: internal/tensor/reference/executor.go#executeNode
-lines: 227
-constants: 71
-clauses: 72
-dispatch-lines: 75
+lines: 229
+constants: 72
+clauses: 73
+dispatch-lines: 76
 decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, signed_sqrt, xielu and the unary activations and by a named function for the rest
 row: one entry per operation holding its function or a function literal, with each case of one statement folded onto its row
 table: yes
 
 == estimate ==
-table-dispatch-lines: 176
+table-dispatch-lines: 179
 estimated-scaffolding-deleted: 192
-table-deleted: 368
+table-deleted: 371
 estimated-rows-added: 129
 estimated-frames-added: 67
 estimated-machinery-added: 44
 table-added: 240
-table-net: 128
+table-net: 131
 table-net-range: -54 144
 makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
 not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel

@@ -24,8 +24,8 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
-	// A QSA runner's cells are one sequence's each, so its appends run as branches.
-	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() || r.qsaLayers != nil {
+	// A cell runner's cells are one sequence's each, so its appends run as branches.
+	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() || r.cellsRunner() {
 		return nil, false, nil
 	}
 	for _, item := range appends {

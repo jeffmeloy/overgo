@@ -13,64 +13,6 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// strataCellKernels are one cell attention instantiation's entries (kernels/cuda/strata_qsa.cu STRATA_CELL_ENTRIES).
-type strataCellKernels struct {
-	chunk, merge, prompt, sharedBytes kernelFunctionID
-}
-
-// strataCellInstantiations are the cell attention's entries by head width and query heads a K/V head.
-var strataCellInstantiations = map[[2]int64]strataCellKernels{
-	{128, 8}:  {kernelStrataCellAttnChunkQ8128x8, kernelStrataCellAttnMerge128x8, kernelStrataCellPromptAttnI8128x8, kernelStrataCellPromptAttnI8Smem128x8},
-	{256, 2}:  {kernelStrataCellAttnChunkQ8256x2, kernelStrataCellAttnMerge256x2, kernelStrataCellPromptAttnI8256x2, kernelStrataCellPromptAttnI8Smem256x2},
-	{512, 16}: {kernelStrataCellAttnChunkQ8512x16, kernelStrataCellAttnMerge512x16, kernelStrataCellPromptAttnI8512x16, kernelStrataCellPromptAttnI8Smem512x16},
-}
-
-// strataCellGeometry is an attention layer's cells: K/V heads of width, group query heads each, pages of pageCells.
-type strataCellGeometry struct {
-	width, group, kvHeads, pageCells int64
-}
-
-// launchStrataCellDecode is launchStrataDecodeAttention at the layer's geometry: the int8 chunks over each query's
-// selection, or over the range of cells its step record names where ids is zero, then the merge.
-func launchStrataCellDecode(state *device.State, functions functionSet, geometry strataCellGeometry, queries driver.DevicePtr,
-	pools strataAttentionPools, ids, steps driver.DevicePtr, capacity int64, scratch, output driver.DevicePtr, queryCount int64,
-) error {
-	kernels := strataCellInstantiations[[2]int64{geometry.width, geometry.group}]
-	heads := geometry.kvHeads * geometry.group
-	chunks := int32((capacity + strataAttentionChunk - 1) / strataAttentionChunk)
-	stride := int64(chunks) * heads * (geometry.width + 2)
-	accumulators := scratch
-	maxima := scratch + driver.DevicePtr(int64(chunks)*heads*geometry.width*f32Bytes)
-	sums := maxima + driver.DevicePtr(int64(chunks)*heads*f32Bytes)
-	scale := float32(1 / math.Sqrt(float64(geometry.width)))
-	kvHeads, pageCells, capacity32 := int32(geometry.kvHeads), int32(geometry.pageCells), int32(capacity)
-	if err := launchGridABI(state, functions[kernels.chunk],
-		driver.Dim3{X: uint32(chunks), Y: uint32(kvHeads), Z: uint32(queryCount)}, driver.Dim3{X: strataAttentionThreads, Y: 1, Z: 1},
-		&queries, &pools.kv.key, &pools.kv.value, &pools.kv.keyScale, &pools.kv.valueScale, &pools.table, &ids, &steps,
-		&kvHeads, &pageCells, &scale, &accumulators, &maxima, &sums, &chunks, &capacity32, &stride); err != nil {
-		return err
-	}
-	return launchGridABI(state, functions[kernels.merge],
-		driver.Dim3{X: uint32(heads), Y: uint32(queryCount), Z: 1}, driver.Dim3{X: uint32(geometry.width), Y: 1, Z: 1},
-		&accumulators, &maxima, &sums, &chunks, &output, &stride)
-}
-
-// launchStrataCellPrompt is launchStrataPromptAttention at the layer's geometry, its shared memory sharedBytes.
-func launchStrataCellPrompt(state *device.State, functions functionSet, geometry strataCellGeometry, queries driver.DevicePtr,
-	pools strataAttentionPools, ids, steps driver.DevicePtr, capacity int64, sharedBytes uint32, output driver.DevicePtr, queryCount int64,
-) error {
-	kernels := strataCellInstantiations[[2]int64{geometry.width, geometry.group}]
-	if err := state.Driver.FuncSetMaxDynamicShared(functions[kernels.prompt].function, sharedBytes); err != nil {
-		return err
-	}
-	scaleLog2 := float32(math.Log2E / math.Sqrt(float64(geometry.width)))
-	kvHeads, pageCells, capacity32 := int32(geometry.kvHeads), int32(geometry.pageCells), int32(capacity)
-	return launchGridSharedABI(state, functions[kernels.prompt],
-		driver.Dim3{X: uint32(queryCount), Y: uint32(kvHeads), Z: 1}, driver.Dim3{X: uint32(geometry.width / 2), Y: 1, Z: 1},
-		sharedBytes, &queries, &pools.kv.key, &pools.kv.value, &pools.kv.keyScale, &pools.kv.valueScale, &pools.table, &ids, &steps,
-		&kvHeads, &pageCells, &scaleLog2, &output, &capacity32)
-}
-
 // TestStrataCellAttentionGeometries holds Strata's int8 cell attention, instantiated for an attention layer's own
 // geometry (widen-kv-kernels), to Strata's parity program for its own (qsa_prompt_attn_parity.cpp, as
 // strataAttentionParity transcribes it): random codes and scales behind a shuffled page table, the decode attention
@@ -191,24 +133,21 @@ func strataCellParity(t *testing.T, cuda *Executor, geometry strataCellGeometry,
 	chunks := (capacity + strataAttentionChunk - 1) / strataAttentionChunk
 	decodeOutput, promptOutput := buffers.zeros(t, outputBytes), buffers.zeros(t, outputBytes)
 	scratch := buffers.zeros(t, int(queries*chunks*heads*(width+2)*4))
-	kernels := strataCellInstantiations[[2]int64{width, geometry.group}]
+	kernels, _ := strataCellKernelsOf(geometry)
 	sizeBuffer := buffers.zeros(t, 4)
 	buffers.run(t, func(state *device.State, functions functionSet) error {
 		return launchGridABI(state, functions[kernels.sharedBytes], driver.Dim3{X: 1, Y: 1, Z: 1}, driver.Dim3{X: 1, Y: 1, Z: 1}, &sizeBuffer)
 	})
-	sharedBytes := binary.LittleEndian.Uint32(buffers.read(t, sizeBuffer, 4))
-	// StrataSmemCells<W>: two stages of W warps' K and V 32-cell slices of 64 bytes and their scales, W warps' partials,
-	// the probabilities, W maxima and three 16-row softmax states.
-	warps := uint32(width / 64)
-	if want := 2*warps*2*32*64 + 2*warps*2*32*4 + warps*16*33*4 + 16*33*4 + warps*4 + 3*16*4; sharedBytes != want {
-		t.Fatalf("the prompt kernel's shared layout is %d bytes, %d warps take %d", sharedBytes, warps, want)
+	if sharedBytes, want := binary.LittleEndian.Uint32(buffers.read(t, sizeBuffer, 4)), strataCellPromptSharedBytes(width); sharedBytes != want {
+		t.Fatalf("the prompt kernel's shared layout is %d bytes, the launch gives %d", sharedBytes, want)
 	}
+	scoreScale := float32(1 / math.Sqrt(float64(width)))
 	buffers.run(t, func(state *device.State, functions functionSet) error {
-		if err := launchStrataCellDecode(state, functions, geometry, queryBuffer, pools, idBuffer, stepBuffer, capacity, scratch,
-			decodeOutput, queries); err != nil {
+		if err := launchStrataCellDecode(state, functions, geometry, queryBuffer, pools, idBuffer, stepBuffer, capacity, scoreScale,
+			scratch, decodeOutput, queries); err != nil {
 			return err
 		}
-		return launchStrataCellPrompt(state, functions, geometry, queryBuffer, pools, idBuffer, stepBuffer, capacity, sharedBytes,
+		return launchStrataCellPrompt(state, functions, geometry, queryBuffer, pools, idBuffer, stepBuffer, capacity, scoreScale,
 			promptOutput, queries)
 	})
 	decode := float32s(buffers.read(t, decodeOutput, outputBytes))

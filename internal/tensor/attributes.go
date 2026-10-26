@@ -132,6 +132,8 @@ func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []ui
 		values = []uint32{value.QueryStart}
 	case QSAAttentionAttributes:
 		values = value.steps()
+	case CellAttentionAttributes:
+		values = value.steps()
 	}
 	return copyRuntimeWords(destination, values), nil
 }

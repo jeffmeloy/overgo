@@ -1,16 +1,16 @@
 {
-  "branch": "master",
+  "branch": "codex/overgo_moss",
   "candidate_review": {
-      "assessment": "31 active/3 deferred. New219 is a measured44-node production reuse opportunity with unchanged tests/setup.218 remains the leading recovery defect; no closure or landed reduction.",
-      "priority": "Rank by user-visible recovery and acceptance risk, then whole-surface reduction/confidence.218 precedes215/213; small219 follows the established reductions with broader payoff. New retained quality restoration does not close unrelated findings.",
-      "declined_candidates": "No additional safe reduction in backup capture/sealing, held-open response integration, quiet-machine exclusion or cache-page identity. Keep distinct failure/recovery requirements. No new policy, registry, timing threshold or adaptive controller."
-    },
+    "assessment": "One new P2 finding, SQA-MOSS-001, from the bounded MOSS import/cancellation sample. All 34 inherited findings are preserved without new closure claims. Totals are 32 open and 3 deferred.",
+    "declined_candidates": "No proven session leak, fixture-provenance defect or net test deletion in the sampled paths. Repeated inspection is not sufficient evidence to replace content verification with a metadata cache. No inference/training optimization is claimed without measurements.",
+    "priority": "The new finding is the actionable result of this MOSS review. The inherited ranked list keeps its relative order; cross-campaign reprioritization was not attempted."
+  },
   "committed_plan": {
-    "git_blob": "33dcac8367514c5fe4dfd60712054b64a3d09926",
+    "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "841006c7836ba9a503b1ee25c8831c797dc58674",
-    "sha256": "72e8cbd26ffcf4b3667f7f18a5f24369db9a4b591795ba475f36a92b56eaf574",
-    "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
+    "revision": "aee9365b9b56a7828317f818d56430c938da3407",
+    "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
+    "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
   "findings": [
     {
@@ -1812,7 +1812,83 @@
       ],
   "status": "deferred",
   "title": "Make historical document reads explicit about later content releases"
-}
+},
+    {
+      "category": "import-cancellation",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "Cancel during source inspection through the actual MOSS registration/preparation route and observe context.Canceled without further component hashing or a publishable partial inventory. Reuse deterministic cancellation control rather than sleeps.",
+        "Store head and activation remain unchanged for the canceled attempt. Normal and repeated compact imports keep their model/recipe identities and candidate-only status; existing relocation and corrupt-source contracts remain intact.",
+        "All existing Resolve constructors and consumers compile on their supported build configurations. Retain the existing inventory cancellation check and distinct registration/native/browser lifetime coverage; report complete production/test growth rather than claiming a reduction from a local wrapper alone."
+      ],
+      "comparison": "Extend TestMOSSGenerationRegistration's existing compact fixture to cancel during inspection, since its current cancellation case cancels before Register starts. Keep TestPipelineInventoryCancellationDuringHashing as the lower-level deciding comparison and reuse shared HF import cases for affected consumers. Use existing affected checks to confirm signature propagation. No full model generation, new fixture, performance sweep or new suite is needed for this context-wiring decision.",
+      "displaced_surface": "Replace the context-discarding shared Resolve call chain with the existing cancellable inventory owner. Four production capability.Resolve invocations were found in Prepare and cmd/recipe; ten Resolve constructor sites span capabilities.go, image_cuda_windows.go, image_unsupported.go, video.go, video_cuda_windows.go, video_source.go and vqa.go. Existing media test callers also require signature migration. Do not remove FromHFPath globally without auditing its other callers. No existing behavioral test or fixture is redundant on this evidence; extend current compact registration coverage. This is a correctness repair with possible small production/test growth, not a demonstrated net code reduction.",
+      "evidence": "Allowed source counterexample: cancel or disconnect a valid MOSS registration/validation request after Prepare's initial context check while source inventory is hashing a checkpoint component. Capability.Resolve cannot receive the request context and resolveImageSource calls FromHFPath, which supplies context.Background to the reader. Hashing can continue through the remaining components before later preparation/publication observes cancellation. Validation performs this preparation before submitting its operation, so the operation cancel handle cannot stop this work either. The generic importer already carries ctx to the same inventory owner. The existing focused TestPipelineInventoryCancellationDuringHashing passed on this pin in 0.584 seconds; that is lower-level evidence, not an end-to-end reproduction. Retained log: tmp/moss-sqa/inventory-cancel-20261026.log.",
+      "evidence_commit": "aee9365b9b56a7828317f818d56430c938da3407",
+      "expected_benefit": {
+        "outcome": "Stops avoidable source-hash work on aborted imports by reusing a mechanism already used by generic import. Successful import, inference and training are unchanged; no measured speedup or peak-memory reduction is claimed.",
+        "uncertainty": "Elapsed abort delay, bytes read after cancellation and frequency are unmeasured. Bounded go/ast analysis through existing internal/gosyntax parsed 11 files: 15,489 production and 1,102 test nodes, including comments. Prepare contains 346 nodes, resolveImageSource 332, FromHFPath 23 and FromHFPathContext 121. These are source-structure proxies, not the complete migration cost. Include all callback/platform/test consumers when costing the eventual change; no hypothetical after-count was measured."
+      },
+      "id": "SQA-MOSS-001",
+      "impact": "Aborted generation imports can retain disk reads, CPU hashing and the requesting goroutine until inventory finishes. The supported HF path affects MOSS and Krea. No database corruption, unintended activation, device-memory leak or numerical difference is established. The material behavior change is prompt cancellation of source inventory instead of delayed cancellation after hashing.",
+      "likely_effort": "Small shared API propagation with coordinated CLI, platform callback and existing test updates. No new runtime component or model fixture is needed.",
+      "plan_coverage": "New branch-local advisory finding. The MOSS implementation campaign remains paused; no plan step was added, adopted or advanced.",
+      "plan_references": [],
+      "recommended_change": "Carry context through the existing Capability.Resolve contract and its real production/test consumers. Use FromHFPathContext(ctx, path) for the shared HF image source. Migrate the existing CLI callers and platform-specific capability callbacks together. Reuse the existing inventoryReader and source integrity checks. Do not add a parallel resolver field, MOSS-specific importer, hash cache, worker goroutine or cancellation poller. Keep manifest/recipe identities, full content verification, source-change refusals, supported-platform errors and database publication/activation boundaries intact.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/server/library_workspace.go",
+          "symbol": "registration calls intake.Register(request.Context()) at 185; validation calls intake.Validate at 365 before operations.Submit at 370"
+        },
+        {
+          "path": "internal/libraryintake/intake.go",
+          "symbol": "Register at 153 and Validate at 247 route declared generation directories to shared preparation"
+        },
+        {
+          "path": "internal/libraryintake/generation.go",
+          "symbol": "prepareGenerationCandidate at 29 and prepareGenerationValidation at 44"
+        },
+        {
+          "path": "internal/mediacapability/prepare.go",
+          "symbol": "Prepare checks ctx.Err at 20 but invokes capability.Resolve(path) without context at 23"
+        },
+        {
+          "path": "internal/mediacapability/capabilities.go",
+          "symbol": "Capability.Resolve at 35 accepts only a path; callback constructors also require migration"
+        },
+        {
+          "path": "internal/mediacapability/image_source.go",
+          "symbol": "resolveImageSource at 19 uses modelartifact.FromHFPath at 43 for shared MOSS/Krea HF inventory"
+        },
+        {
+          "path": "internal/modelartifact/inventory.go",
+          "symbol": "FromHFPath at 37 discards request cancellation through context.Background; FromHFPathContext at 42, inventoryReader.Read at 332 and identifyFileContext at 339 already own cancellable hashing"
+        },
+        {
+          "path": "internal/modelartifact/pipeline.go",
+          "symbol": "fromHFPipeline at 97 forwards its context to fromFilesContext"
+        },
+        {
+          "path": "internal/modelintake/import.go",
+          "symbol": "generic import already uses FromHFPathContext(ctx, path) at 80 and VerifySources(ctx) at 326"
+        },
+        {
+          "path": "cmd/recipe/main.go",
+          "symbol": "direct capability.Resolve consumers at 436, 524 and 683; taskModelInventory also needs context propagation"
+        },
+        {
+          "path": "internal/libraryintake/generation_test.go",
+          "symbol": "TestMOSSGenerationRegistration at 20 covers cancellation before registration, repeat identity and candidate-only database publication"
+        },
+        {
+          "path": "internal/modelartifact/inventory_context_test.go",
+          "symbol": "TestPipelineInventoryCancellationDuringHashing at 28 covers the existing reader's cancellation contract"
+        }
+      ],
+      "status": "open",
+      "title": "Propagate cancellation through generation source inventory"
+    }
   ],
   "gate_test_assessment": {
       "ast_analysis": {
@@ -2283,12 +2359,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "AST counts are structural proxies. The hypothetical44-node deletion was parsed outside the repository; no implementation or runtime performance was measured.",
-      "Only complete driver/host.go received actual go/types checking. Dependent CUDA/model packages and cross-language consumers were source-traced without a package build.",
-      "150 of151 previous cited paths are identical; their prior source evidence remains applicable. New scorecard/gate facts are retained implementation evidence, not SQA measurements.",
-      "New219 reduces maintenance only. Backup/GPU/browser/quiet tests have distinct owners and were retained; similar AST/setup alone did not justify deletion.",
-      "237290 input tokens does not establish262144 boundary coverage. Missing expected output lengths, routing distributions and future device/link state remain unknown; a fixed sweep optimum is not a universal cost derivation."
-    ],
+    "This chat implemented the integration. Review findings are advisory and not independent certification.",
+    "Source establishes missing cancellation propagation. No full checkpoint abort experiment measured latency, residual bytes or resource savings. The focused lower-level check does not reproduce the entire server import route.",
+    "AST counts describe a bounded sample, not a complete model, whole API migration or runtime cost. No throughput, training-time, numerical-quality or peak-memory change was measured.",
+    "Retained native/browser evidence is revision- and scope-bound. The released-model comparison predates this merge; inherited master findings and owner responses were preserved rather than re-audited.",
+    "Known plan-dependent checks and the live-store MOSS acceptance-catalog omission remain baseline exceptions. SQA neither changes the plan nor creates activation evidence."
+  ],
   "master_lead_triage": {
     "at": "2026-09-24",
     "head": "4d53c93bfe843da9ab13440513a9088d814ae1a5",
@@ -2359,12 +2435,12 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-      "checked_head": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "committed_plan_git_blob": "33dcac8367514c5fe4dfd60712054b64a3d09926",
-      "assessment": "Pin841006c78; source unchanged since87261eef2. Plan now records the second scorecard and new arena/architecture obligations.219 comes from rotated caller/AST inspection.",
-      "newer_commit_note": "Later work is publication context only and cannot silently change this pin. Immediately re-read the report/HEAD before writing.",
-      "publication": "Report-only commit under existing landing/gate locks; preserve unrelated index/worktree and all owner fields; no production gate."
-    },
+    "assessment": "Substantive MOSS report update only. New cancellation finding; implementation and MOSS plan remain untouched.",
+    "checked_head": "aee9365b9b56a7828317f818d56430c938da3407",
+    "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
+    "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
+    "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
+  },
   "ranked_active_finding_ids": [
     "SQA-218",
     "SQA-215",
@@ -2396,33 +2472,33 @@
     "SQA-194",
     "SQA-154",
     "SQA-161",
-    "SQA-170"
+    "SQA-170",
+    "SQA-MOSS-001"
   ],
-  "repository": "C:\\Users\\jeffm\\overgo",
-  "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
+  "repository": "C:\\Users\\jeffm\\overgo_moss",
+  "review_author": "Scheduled MOSS SQA in the chat that implemented this integration. This is not an independent review.",
   "review_notes": [
-      "Fresh caller review found encodeF32 duplicates existing driver.Bytes before reading the prior report. Keeping its required callback adapter still removes44 production nodes and moves no tests or fixtures.",
-      "Retain F32 callback alias checks and the generic uint32 length/order/reverse-alias test: they cover different wiring/type cases. BF16 still performs real encoding; its math oracle is dtype, not this adapter.",
-      "The new retained115-cell4b9fb96 scorecard restores gemma BBH/IFEval and MiniCPM5 IFEval; three plan rows disappear.17 peak rows remain because first-arena rounding still costs64MiB. Two new release repairs are prospective.",
-      "Six new scorecard rows are implementation-owned observations, not six new SQA backlog entries. The609b182 benchmark/long-context evidence is separate from the4b9fb96 scorecard.",
-      "218 still lacks inventory invalidation in hubResync snapshots/client tracked reads. Source recheck confirms it; no runtime frequency/reproduction claim.",
-      "Every implementation-owned field remains byte-identical. Recommendations preserve validation, errors, cancellation, numerical behavior and resource lifetime."
-    ],
-  "reviewed_at": "2026-10-25T04:09:34Z",
+    "SQA-MOSS-001 traces the actual request path to the context.Background inventory route. Existing cancellable inventory already supplies the required mechanism; publication/activation behavior is not weakened.",
+    "Native fixture metadata pins ModelScope MOSS-Image-SFT commit 797fa8e678b4f0a766271bf5103e6cd7a2faa999 and pipeline SHA256 1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31. Compact oracle contracts and full-model parity are distinct evidence scopes. This pass found no new provenance issue in the sample.",
+    "Retained merge checks in tmp/moss-merge/native-v2.log and browser-v2.log passed their selected native and browser cases. The diffusionimage line reports no tests to run and is not validation credit. Source inspection of session_director, MOSS session/lifetime tests and generationProgressRepository found no new defect in sampled retirement/release or progress-after-commit behavior. Nothing was rerun on device.",
+    "Released full-model parity evidence belongs to implementation 22e14fff9007a7c585427ed210ad7ffa2ad0570a. This merge review does not establish a new released-model comparison or performance result.",
+    "The merge baseline retains TestDoctrineNamesNoPerson and TestTuningValuesNameTheirCost as master-plan scope mismatches. TestAcceptedImageVideoEvidence lacks the active MOSS entry in the retained live-store catalog. These are accepted baseline limitations, not new failures; neither the plan nor catalog was changed to hide them. The pin is unchanged and no repeat run was needed.",
+    "Existing golden, registration, session and browser cases exercise different numerical, database and lifecycle boundaries. Retain them. The new cancellation coverage belongs in the existing compact registration case and requires no new fixture or suite."
+  ],
+  "reviewed_at": "2026-10-26T06:39:45Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-      "Read repository instructions and committed plan first; pin master841006c7836ba9a503b1ee25c8831c797dc58674, plan blob33dcac8367514c5fe4dfd60712054b64a3d09926. Only docs/plan.json changed since the preceding reviewed87261eef2, apart from its report.",
-      "Nine rotated committed files:3275 production/2525 test AST,26 functions/1265 parser-local bindings. Two supplemental driver files bring totals to3355 production/2606 test,28 functions/1280 bindings.",
-      "Complete original driver/host.go go/types:1 generic function,22 uses,5 definitions,46 expressions,0 selections; no stubs. Separate AST-only hypothetical encodeF32 substitution counted the44-node reduction. Other Go/JS callers source-traced, no package build.",
-      "Covered conversion/load/transfers/resource lifetime, backup's captured blob set and query/retention owners, held-open GUI streaming and landing/measurement exclusion. Provisional conclusions formed before opening prior findings.",
-      "Reconciled all151 cited paths:150 unchanged; docs/plan.json supplies new retained results and removes release/scorecard. Historical implementation responses are unchanged; all owner fields preserved.",
-      "This chat previously implemented changes and is not an independent third-party reviewer. No SQA tests,gates,models,services,benchmarks,profiles,agents or production changes."
-    ],
+    "SQA-only review of codex/overgo_moss at aee9365b9b56a7828317f818d56430c938da3407. Read skill.md and the preserved MOSS plan. Implementation remains paused. Initial worktree/index were clean.",
+    "Rotate through declared generation import and database preparation, request cancellation, native fixture provenance, shared session retirement/release and durable image progress. Trace real server and recipe CLI callers. No full repository census.",
+    "Existing internal/gosyntax parsed 11 selected files, totaling 15,489 production and 1,102 test AST nodes including comments. Evidence is retained in tmp/moss-sqa/ast-20261026.json. Call tracing is source/AST based, without whole-program type resolution.",
+    "One existing focused CPU cancellation check was run to verify the proposed shared inventory owner. No model generation, training, device run, benchmark, broad validation, service, production landing gate or code change.",
+    "reviewed_master and the inherited gate_test_assessment remain historical master-review provenance at 841006c7836ba9a503b1ee25c8831c797dc58674. They are not this MOSS review's pin or fresh validation. All inherited findings and implementation-owned responses remain unchanged."
+  ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "31 active/3 deferred. New P3 SQA-219 reuses driver.Bytes, removing44 production AST with unchanged test/setup surface. P2 SQA-218 remains first; no finding closed.",
-      "evidence": "11 parsed committed files3355 production/2606 test AST; actual generic host-view type resolution; AST-only substitution432->388 scoped production.150 cited paths unchanged, plan updated. Second scorecard115 cells/three restored quality rows is distinct from prior bench/long-context evidence.",
+      "assessment": "New P2 SQA-MOSS-001: declared generation source hashing loses request cancellation. All 34 inherited findings remain unchanged; none resolved or newly adopted. Implementation remains paused.",
+      "evidence": "Server/CLI caller tracing and 11-file AST sample identify the context-discarding route. Existing TestPipelineInventoryCancellationDuringHashing passed in 0.584 seconds; log tmp/moss-sqa/inventory-cancel-20261026.log. Retained native/browser checks were inspected without rerunning model workloads.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2431,12 +2507,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "Repair218 via existing stream/read owners. Optional219 can reuse the existing byte-view owner with the smallest complete diff; preserve independent loader/BF16 tests. Keep current arena/architecture work and load-cost derivation with their existing plan owners.",
-      "next_action": "Publish only the reconciled report under existing locks, preserving concurrent work. No production gate, implementation or plan/skill change.",
-      "uncertainty": "Source and AST establish the reduction, not runtime speed. Retained restoration is limited to named scorecard cells/revisions; future arena/FlashNext repairs are not credited as landed.",
+      "recommendation": "When implementation resumes, propagate context through the existing Capability.Resolve contract to FromHFPathContext and extend current compact registration cancellation coverage. Reuse inventoryReader; preserve hashes, identities, validation and activation boundaries.",
+      "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
+      "uncertainty": "The canceled request's extra I/O and elapsed delay are source-based consequences, not measured performance results. Existing implementation_response_context, user_findings and reviewed_master are historical inherited records, not fresh MOSS dispositions.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics."
-    }
+      "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
+      "reviewed_revision": "aee9365b9b56a7828317f818d56430c938da3407"
+    },
+  "reviewed_revision": "aee9365b9b56a7828317f818d56430c938da3407"
 }

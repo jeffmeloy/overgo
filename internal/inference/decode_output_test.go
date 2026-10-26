@@ -3,6 +3,7 @@ package inference
 import (
 	"testing"
 
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 )
 
@@ -51,21 +52,26 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 	}
 }
 
-// TestPromptReadsMarkTheirExperts holds a prompt read of more than one token to the prompt's mark on its routed nodes,
-// whose small groups take the grouped products, and a read of one token, a decode step's append, to none.
+// TestPromptReadsMarkTheirExperts holds a prompt read of more than one token by a runner whose experts are offloaded to
+// the prompt's mark on its routed nodes, whose small groups take the grouped products, and a read of one token, a
+// decode step's append, or any read by a runner holding every expert on the card, to none.
 func TestPromptReadsMarkTheirExperts(t *testing.T) {
-	runner := &Runner{}
-	runner.spec.VocabularySize = 32
-	for _, c := range []struct {
-		tokens int
-		marked bool
-	}{{1, false}, {2, true}, {31, true}, {8192, true}} {
-		plan, err := runner.promptReadPlan(deviceOutputGreedy, c.tokens)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if plan.promptExperts != c.marked || !plan.is(deviceOutputGreedy) {
-			t.Errorf("a read of %d tokens marks its experts %t in mode %v, want %t", c.tokens, plan.promptExperts, plan.mode, c.marked)
+	for _, residency := range []recipe.RealizedResidency{recipe.RealizedExpertOffloaded, recipe.RealizedDeviceNativeBF16} {
+		runner := &Runner{}
+		runner.spec.VocabularySize = 32
+		runner.realizedResidency = residency
+		for _, c := range []struct {
+			tokens int
+			marked bool
+		}{{1, false}, {2, true}, {31, true}, {8192, true}} {
+			plan, err := runner.promptReadPlan(deviceOutputGreedy, c.tokens)
+			if err != nil {
+				t.Fatal(err)
+			}
+			marked := c.marked && residency == recipe.RealizedExpertOffloaded
+			if plan.promptExperts != marked || !plan.is(deviceOutputGreedy) {
+				t.Errorf("a read of %d tokens over %s marks its experts %t in mode %v, want %t", c.tokens, residency, plan.promptExperts, plan.mode, marked)
+			}
 		}
 	}
 }

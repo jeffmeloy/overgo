@@ -666,21 +666,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-6c8d4a845f501259",
-      "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Unlimited-OCR-bf16 inference peak-device-memory to 5.87567878e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-6c8d4a845f501259 -target 5.875678776e+09",
-          "rationale": "- Unlimited-OCR-bf16 peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 5.87567878e+09 to 6.08557087e+09 (+209892096, +3.6%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-b7732c229ffc7e14",
       "title": "Restore Qwen3.5-9B inference held-out-quality to 0.818181818 ",
       "owner": "master-lead",

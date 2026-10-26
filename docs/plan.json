@@ -676,7 +676,10 @@
           "title": "Measure image-gen's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
-          "rationale": "- MOSS-Image-SFT-797fa8e678b4f first-output: no benchmark time to first token and no serving prefill sample\n- MOSS-Image-SFT-797fa8e678b4f failure-rate: no completed serving attempts recorded\n- MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- MOSS-Image-SFT-797fa8e678b4f peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f first-output: no benchmark time to first token and no serving prefill sample\n- MOSS-Image-SFT-797fa8e678b4f failure-rate: no completed serving attempts recorded\n- MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- MOSS-Image-SFT-797fa8e678b4f peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
+          "depends_on": [
+            "moss-evaluation/resources"
+          ]
         }
       ]
     },
@@ -691,7 +694,10 @@
           "title": "Define the held-out evaluation that measures image-gen quality",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
-          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
+          "depends_on": [
+            "moss-closeout/close"
+          ]
         }
       ]
     },

@@ -112,6 +112,17 @@ func (r *Runner) qsaSlots(capacity uint32) uint32 {
 	return (ring + tensor.QSABlockCells - 1) / tensor.QSABlockCells
 }
 
+// qsaSequenceCapacity is the cells a sequence of tokens holds, fixed as Strata's session holds max_cells from its start
+// (kv_plan over --max-context): the ring while the tokens fit it and the context passes it, the context otherwise, so a
+// sequence keeps one capacity, and its steps their graphs, from its first token until it streams past the ring.
+func (r *Runner) qsaSequenceCapacity(tokens uint32) uint32 {
+	context, ring := r.qsaRopeRows(), qsaCapacity(cmp.Or(r.qsaRing, qsaRingCells))
+	if tokens <= ring && ring < context {
+		return ring
+	}
+	return context
+}
+
 // qsaLayerCount is the runner's QSA layers.
 func (r *Runner) qsaLayerCount() int {
 	count := 0

@@ -6,11 +6,14 @@ import (
 	"context"
 	"encoding/binary"
 	"math"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/recipe"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
@@ -149,4 +152,84 @@ func int8KVDecoding(t *testing.T, path string, promptTokens int, ring uint32) {
 	if overflow := binary.LittleEndian.Uint32(control[3*i32Bytes:]); overflow != 0 || calls == 0 || misses == 0 {
 		t.Fatalf("the streamed decode resolved %d calls with %d misses (overflow %d), want misses brought in", calls, misses, overflow)
 	}
+}
+
+// TestQSACellsHoldOneCapacity holds a QSA runner's sequence to Strata's max_cells (kv_plan over --max-context): the
+// cells a sequence takes at its first token are the ring's while it fits the ring and the context's past it, so the
+// turns of a conversation and a fresh conversation, each asking for its own output, decode through the sessions the
+// first turn compiled, and a prompt past the ring takes the context's cells, streamed.
+func TestQSACellsHoldOneCapacity(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	const ring = 4096
+	trunk := writeFlashNextFixture(t, strataFlashNext)
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := openFixtureRunnerWithResidency(trunk,
+		OpenOptions{Draft: writeFlashNextMTPFixture(t, trunk, false, strataFlashNext), PromptCacheEntries: 1}, recipe.ResidencyDeviceNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := runner.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	runner.qsaRing = ring
+	prompt := func(tokens int) []tokenizer.TokenID {
+		ids := make([]tokenizer.TokenID, tokens)
+		for index := range ids {
+			ids[index] = tokenizer.TokenID(3 + (index*7+index/5)%int(flashNextVocab-3))
+		}
+		return ids
+	}
+	// capacity is the cells and VRAM slots of the sequence the prompt cache keeps after a turn.
+	capacity := func() (uint32, uint32) {
+		t.Helper()
+		for _, entry := range runner.promptCaches {
+			for _, cache := range entry.deviceCaches() {
+				if cache.storage != nil && cache.storage.qsa != nil {
+					return cache.storage.qsa.capacity, cache.storage.qsa.slots
+				}
+			}
+		}
+		t.Fatal("the prompt cache keeps no QSA cells")
+		return 0, 0
+	}
+	var ids []tokenizer.TokenID
+	sessions := 0
+	for turn, generated := range []int{24, 40, 31, 57} {
+		input := append(slices.Clone(ids), 21, 30, 7)
+		if turn == 0 || turn == 3 {
+			input = prompt(40)
+			input[len(input)-1] = tokenizer.TokenID(3 + turn)
+		}
+		ids, _, err = runner.Generate(t.Context(), "", GenerateOptions{
+			MaxNewTokens: generated, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true, CachePrompt: true,
+			PromptTokenIDs: input, ContinueAfterEOG: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cells, slots := capacity(); cells != ring || slots != 0 {
+			t.Fatalf("turn %d: the sequence holds %d cells (%d slots), want the ring's %d on the card", turn, cells, slots, ring)
+		}
+		if turn == 0 {
+			sessions = len(runner.decodeSessions)
+		} else if len(runner.decodeSessions) != sessions {
+			t.Fatalf("turn %d: %d decode sessions compiled, the first turn's %d", turn, len(runner.decodeSessions), sessions)
+		}
+	}
+	if _, _, err = runner.Generate(t.Context(), "", GenerateOptions{
+		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: true, CachePrompt: true,
+		PromptTokenIDs: prompt(ring + 100), ContinueAfterEOG: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if cells, slots := capacity(); cells != strataFlashNext.context || slots == 0 {
+		t.Fatalf("a prompt past the ring holds %d cells (%d slots), want the context's %d streamed", cells, slots, strataFlashNext.context)
+	}
+	t.Logf("four turns decoded through %d sessions at %d cells", sessions, ring)
 }

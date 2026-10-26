@@ -25,6 +25,13 @@ import (
 //   - copyTrunk => the layer passes the trunk's streams through unchanged (no embedding, no attention or expert output) and mixes them with the trunk's own head mix, so each draft is the token the trunk selected from the same streams
 func writeHermeticFlashNextMTPGGUF(t *testing.T, trunkPath string, copyTrunk bool) string {
 	t.Helper()
+	return writeFlashNextMTPFixture(t, trunkPath, copyTrunk, hermeticFlashNext)
+}
+
+// writeFlashNextMTPFixture emits the draft layer of a Flash-Next fixture whose attention is at a geometry.
+func writeFlashNextMTPFixture(t *testing.T, trunkPath string, copyTrunk bool, geometry flashNextGeometry) string {
+	t.Helper()
+	query, kv := uint64(geometry.heads)*uint64(geometry.headWidth), uint64(geometry.kvHeads)*uint64(geometry.headWidth)
 	wide, streams, rank := flashNextEmbedding*flashNextStreams, flashNextStreams, flashNextRank
 	var tensors []gguf.TensorData
 	seed := 101
@@ -104,11 +111,11 @@ func writeHermeticFlashNextMTPGGUF(t *testing.T, trunkPath string, copyTrunk boo
 		random(p+"hyper_connection_mixer.input_mix_weight_up.weight", rank, wide)
 	}
 	random(p+"pre_fc_norm_embedding.weight", flashNextEmbedding)
-	random(l+"self_attn.q_proj.weight", flashNextEmbedding, flashNextHeads*flashNextHeadWidth*2)
-	random(l+"self_attn.k_proj.weight", flashNextEmbedding, flashNextHeadWidth)
-	random(l+"self_attn.v_proj.weight", flashNextEmbedding, flashNextHeadWidth)
-	random(l+"self_attn.q_norm.weight", flashNextHeadWidth)
-	random(l+"self_attn.k_norm.weight", flashNextHeadWidth)
+	random(l+"self_attn.q_proj.weight", flashNextEmbedding, query*2)
+	random(l+"self_attn.k_proj.weight", flashNextEmbedding, kv)
+	random(l+"self_attn.v_proj.weight", flashNextEmbedding, kv)
+	random(l+"self_attn.q_norm.weight", uint64(geometry.headWidth))
+	random(l+"self_attn.k_norm.weight", uint64(geometry.headWidth))
 	for _, stage := range []string{"attn", "mlp"} {
 		random(l+stage+"_hyper_connection.hc_norm.weight", wide)
 		random(l+stage+"_hyper_connection.input_mix_weight_down.weight", wide, rank)
@@ -121,11 +128,11 @@ func writeHermeticFlashNextMTPGGUF(t *testing.T, trunkPath string, copyTrunk boo
 	random(l+"mlp.shared_expert.gate_proj.weight", flashNextEmbedding, flashNextShared)
 	random(l+"mlp.shared_expert.up_proj.weight", flashNextEmbedding, flashNextShared)
 	if copyTrunk {
-		zeros(l+"self_attn.o_proj.weight", flashNextHeads*flashNextHeadWidth, flashNextEmbedding)
+		zeros(l+"self_attn.o_proj.weight", query, flashNextEmbedding)
 		zeros(l+"mlp.experts.down_proj", flashNextExpertWidth, flashNextEmbedding, flashNextExperts)
 		zeros(l+"mlp.shared_expert.down_proj.weight", flashNextShared, flashNextEmbedding)
 	} else {
-		random(l+"self_attn.o_proj.weight", flashNextHeads*flashNextHeadWidth, flashNextEmbedding)
+		random(l+"self_attn.o_proj.weight", query, flashNextEmbedding)
 		random(l+"mlp.experts.down_proj", flashNextExpertWidth, flashNextEmbedding, flashNextExperts)
 		random(l+"mlp.shared_expert.down_proj.weight", flashNextShared, flashNextEmbedding)
 	}

@@ -499,6 +499,9 @@ func (r *Runner) cacheCapacity(past *deviceKVCache, tokens, reserve uint32) uint
 	if stored := past.storedCapacity(); stored >= tokens {
 		return stored
 	}
+	if r.qsaLayers != nil {
+		return r.qsaSequenceCapacity(max(tokens, reserve))
+	}
 	return cachePageCapacity(max(tokens, reserve), r.spec.ContextLength, r.program.Decode.Session)
 }
 

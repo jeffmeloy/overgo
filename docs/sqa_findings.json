@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-004 concerns cancellation during native schedule construction. SQA-MOSS-001/003 remain P2 and SQA-MOSS-002 remains P3. All 37 earlier findings and owner responses are preserved. Totals are 35 open and 3 deferred.",
-    "declined_candidates": "No new resource measurement or optimization claim. Shared session capacity, waiting and retirement already provide the owners needed for cancellation once schedule construction returns. Existing bounded-residency and conditioning-reuse work remains paused and is not refiled as a new finding.",
-    "priority": "The three MOSS P2 findings concern cancellation and request fidelity, ahead of the P3 exact-comparison guard. Earlier relative ranks remain unchanged; no cross-campaign reprioritization."
+    "assessment": "New P2 SQA-MOSS-005 identifies accumulated host allocation records across reused MOSS requests. All 38 earlier findings and owner responses are preserved. Totals are 36 open and 3 deferred.",
+    "declined_candidates": "No GPU leak or measured memory/time improvement is claimed. Existing stage residency and conditioning-cache proposals remain paused. Reclaim released trailing records in the shared owner before considering a separate free list, pool or forced model reload.",
+    "priority": "The new MOSS P2 resource-lifetime defect follows the existing MOSS P2 findings and precedes the P3 exact-comparison guard. Earlier relative ranks remain unchanged; no cross-campaign reprioritization."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "1926187f33318707f8e2a8bace02d30e2cf35fc3",
+    "revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2096,6 +2096,69 @@
       ],
       "status": "open",
       "title": "Honor request cancellation while constructing the native sampling schedule"
+    },
+    {
+      "category": "resident-host-metadata-lifetime",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "A small repeated bind/execute/release comparison in the existing graphruntime test home shows bookkeeping capacity no longer grows with fixed-size completed cycles, while StaticBytes returns to zero and outputs remain equal.",
+        "Partial releases preserve live shared binding indices and output values; releasing the final owner permits reuse. Include the sealed-map case, cancellation/error cleanup and idempotent release/close in the same lifecycle coverage.",
+        "Retain TestMOSSResidentSession and existing sampling cancellation/partial-binding tests for integration behavior. Run only the relevant checks when implementing; no new full-model or broad test campaign is required to decide this bookkeeping defect.",
+        "Report host/device resource claims separately. Do not claim measured RSS or speed savings without a deciding measurement, and do not fix the growth by reloading the model after every successful request."
+      ],
+      "comparison": "Before: after N completed fixed-size bind/release cycles on one live session, allocations length includes all historical cache misses even though their records are zero. After: fully released suffix records are reusable, so identical cycles stop increasing retained bookkeeping after warm-up; live shared indices and computed outputs stay valid. Existing TestMOSSResidentSession proves the relevant reuse route and retained merge native-v2 logs cover prior functional tests, but neither measures this host retention. No new test or model execution occurred in this SQA run.",
+      "displaced_surface": "Remove dead allocation-history entries and their repeated slice growth/copy and close-scan work in the shared runtime. Keep the existing MOSS numerical and session tests because they cover different contracts. Add only the missing bounded-bookkeeping lifecycle comparison in the current graphruntime test home; do not duplicate the generator or create a separate MOSS pool. Net production/test AST change has not been measured.",
+      "evidence": "Source-confirmed host metadata growth at the pinned revision. Every new ResidentSession.Bind cache miss appends one residentAllocation and stores its index in program.weights. Release decrements references, frees device storage, deletes the lookup key and zeroes the record, but never reduces allocations length or reuses a vacant slot. The next binding therefore appends again even when StaticBytes is zero. MOSS repeatedly binds/releases conditioning, sampling and decoder weights on the same runtime; resetRotary resets request flags without replacing it. Thus each fresh successful compatible generation adds records until eviction/Close, and Close scans the accumulated history. Stored-answer replay bypasses generation and does not add records; failed or request-scoped sessions retire, limiting those cases. Seal is only called by diffusionimage's resident loader and is not a MOSS escape path. The existing gosyntax inspector read four selected files (4263 production AST nodes and 1120 test nodes including comments); this is inspection scope, not a resource measurement. No generation, new test, performance run or RSS measurement was performed.",
+      "evidence_commit": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117",
+      "expected_benefit": {
+        "outcome": "For repeated MOSS bind/release cycles, host bookkeeping follows the high-water simultaneous stage bindings instead of cumulative requests, with unchanged weight sharing, image outputs and model reuse.",
+        "uncertainty": "The retained record count follows directly from source; per-request bytes, RSS, allocator capacity behavior and elapsed-time savings are unmeasured. Suffix trimming addresses the demonstrated MOSS all-released stage boundary; arbitrary long-lived interleaved programs may need separate evidence before broader compaction is justified."
+      },
+      "id": "SQA-MOSS-005",
+      "impact": "Repeated fresh images with compatible geometry can retain host bookkeeping proportional to all prior bindings despite zero static device bytes. Host memory pressure and eventual close-scan work can grow for the life of a resident MOSS session. This does not establish a GPU-memory leak, image corruption, a measured RSS slope or a latency regression. Same-request durable replay and session eviction bound other paths.",
+      "likely_effort": "Small shared-owner lifecycle change plus a focused resident-runtime comparison; preserve sealed and partially shared programs. No model arithmetic or import format change.",
+      "plan_coverage": "The paused bounded-residency row covers whole-request resources and conditioning reuse, but does not identify append-only released host records. This advisory records the separate concrete defect without adopting it, changing the plan or claiming the prospective resource checks have passed.",
+      "plan_references": [
+        "moss-efficiency/bounded"
+      ],
+      "recommended_change": "When implementation resumes, reclaim trailing fully released allocation records inside the existing ResidentSession.Release owner after all requested programs have dropped their references. Shorten the logical slice while retaining reusable backing capacity; never move a live allocation index or infer liveness from len(byBinding), because Seal deliberately drops that map. MOSS releases all temporary bindings between stages, so this makes its subsequent appends reuse capacity and removes growth with completed request count. Preserve shared-weight reference counts, capture invalidation, device frees, cancellation and error handling. No new cache, free-list owner, timer, public telemetry API or forced session reload is needed for this case.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/graphruntime/resident.go",
+          "symbol": "ResidentSession.Bind at 113 appends every newly uploaded binding at 160; Release at 229 clears allocation records at 257 without shortening the slice; Close at 330 scans the accumulated slice and finally drops it at 355"
+        },
+        {
+          "path": "internal/latentimage/model_encoder_windows.go",
+          "symbol": "modelConditioner.encode at 76 compiles and binds temporary weights, then releases its program at 102; resident binds each required input at 135"
+        },
+        {
+          "path": "internal/latentimage/resident_graph_cuda_windows.go",
+          "symbol": "compileResidentWeights at 42 and compileResidentStatic at 97 bind sampling and decoder inputs through the shared ResidentSession"
+        },
+        {
+          "path": "internal/latentimage/rotary_sampling_windows.go",
+          "symbol": "runRotarySampling at 22 releases all sampling programs at 31 while returning only its retained latent"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "resetRotary at 112 keeps the same runtime; decodeRotary at 216 releases its temporary decoder program; closeRotary at 265 closes the runtime only when the generator is retired"
+        },
+        {
+          "path": "internal/mediacapability/image_cuda_windows.go",
+          "symbol": "pictureSessions at 32 supplies Generator.Reset to the shared director for compatible resident requests"
+        },
+        {
+          "path": "internal/capabilityruntime/session_director.go",
+          "symbol": "ModelSessionDirector.serve at 526 reuses a successful reset at 573 and retires on execution failure or request-scoped resources at 605-608; a successful resident session remains available"
+        },
+        {
+          "path": "internal/mediacapability/moss_session_windows_test.go",
+          "symbol": "TestMOSSResidentSession verifies changed prompts and seeds reuse one loaded session, exact image recovery and retirement, but does not measure retained host allocation bookkeeping"
+        }
+      ],
+      "status": "open",
+      "title": "Reuse released resident allocation records across MOSS requests"
     }
   ],
   "gate_test_assessment": {
@@ -2643,8 +2706,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-004. Prior findings and implementation-owned fields preserved. No implementation or MOSS plan changes.",
-    "checked_head": "1926187f33318707f8e2a8bace02d30e2cf35fc3",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-005. Prior findings and implementation-owned fields preserved. No implementation or MOSS plan changes.",
+    "checked_head": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2684,6 +2747,7 @@
     "SQA-MOSS-001",
     "SQA-MOSS-003",
     "SQA-MOSS-004",
+    "SQA-MOSS-005",
     "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
@@ -2703,21 +2767,24 @@
     "Code and plan remain unchanged, so the documented master-plan checks and live-store MOSS acceptance-catalog omission remain baseline scope mismatches. No new broad check or live-store mutation was used to hide them.",
     "At 1926187f3, SQA-MOSS-004 traces accepted large requested step counts through configureRotary to a context-free loop. The loop's training-grid-sized storage does not bound its requested-step work. Manager.Cancel cannot settle the operation while that synchronous work continues.",
     "The source-bound 1001-step schedule is a required counterexample to capping requested steps at the training grid: it produces 616 actual steps. Context propagation should preserve the native arithmetic and use existing retirement, without a second scheduler or cancellation owner.",
-    "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain the documented merge-baseline scope mismatches; no broad rerun or database mutation was performed."
+    "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain the documented merge-baseline scope mismatches; no broad rerun or database mutation was performed.",
+    "At 9200920f2, SQA-MOSS-005 traces append-only ResidentSession allocation bookkeeping through successful MOSS stage releases and resident reuse. Zero StaticBytes does not bound this host slice. Close releases it but scans the accumulated record history.",
+    "The smallest demonstrated repair is released-suffix reclamation in the shared owner with live indices preserved. Seal clears byBinding while retaining live allocations, so an empty lookup map alone is not a safe reset criterion. No free-list subsystem or repeated model loading is recommended.",
+    "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain documented merge-baseline scope mismatches; no broad rerun or database mutation was performed."
   ],
-  "reviewed_at": "2026-10-26T20:40:01Z",
+  "reviewed_at": "2026-10-27T10:48:05Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 1926187f33318707f8e2a8bace02d30e2cf35fc3 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and the MOSS-focused plan were read; implementation remains paused.",
-    "Rotated sample covers resource admission, request geometry and step validation, schedule construction, initial load and resident reset, shared director capacity and operation cancellation. Actual callers and existing schedule/lifecycle tests were source-traced.",
-    "The new schedule-cancellation finding is source-based. No large-step workload, new test, model generation, training, performance sweep, service or production gate ran. Retained native and browser evidence keeps its original revision and scope.",
+    "SQA-only review at 9200920f27d0ac1a4a0e7a59c199504bf7a4d117 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and the MOSS-focused plan were read; implementation remains paused.",
+    "Rotated sample covers resident bindings, shared references, release/close, MOSS stage cleanup, successful resident reset and the actual image-session director. Existing Go AST inspection and retained native validation evidence were reused.",
+    "The new host-metadata finding is source-based. No model generation, training, performance sweep, new test, service or production gate ran. Retained native and browser evidence keeps its original revision and scope.",
     "This chat implemented the integration; the review is not independent. Only the advisory SQA report changes. Historical reviewed_master, gate_test_assessment and implementation-owned responses are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-004: native schedule construction can keep a cancelled large-step request occupying the image session. Prior findings remain open; none adopted or closed.",
-      "evidence": "The schedule compiler visits every requested step and accepts no context. Both initial configuration and resident reset call it synchronously, while the operation manager needs execution to return and the director holds capacity. Existing request validation and step controls admit the billion-step source counterexample. No such workload was executed.",
+      "assessment": "New P2 SQA-MOSS-005: fresh successful generations on a reused MOSS session accumulate released host allocation records. Prior findings remain open; none adopted or closed.",
+      "evidence": "Bind appends every cache miss; Release zeroes but does not truncate or reuse records; resetRotary preserves the runtime. The real image director reuses successful compatible sessions, as its existing MOSS test confirms. Existing static-device-byte assertions do not cover host bookkeeping growth.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2726,14 +2793,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, carry the existing context through the one schedule compiler and configuration path; check cancellation before allocation and inside its loops. Preserve source-defined step semantics, exact schedules and the shared director's release behavior. Extend current host-side coverage without a full-model run.",
+      "recommendation": "When implementation resumes, reclaim fully released trailing records in ResidentSession.Release while preserving live indices and retained backing capacity. Verify fixed-size repeated lifecycle, partial sharing and Seal behavior in the existing runtime test home; retain MOSS integration coverage.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "No cancellation latency or normal-request overhead was measured. The finding follows from the inspected control flow; retained native parity and browser results remain valid for their original cases. All implementation-owned responses remain untouched.",
+      "uncertainty": "Source inspection establishes record growth, not measured RSS, device leakage or speed impact. No generation or new test ran. Retained validation remains scoped to its original implementation and cases; owner responses are untouched.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "1926187f33318707f8e2a8bace02d30e2cf35fc3"
+      "reviewed_revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117"
     },
-  "reviewed_revision": "1926187f33318707f8e2a8bace02d30e2cf35fc3"
+  "reviewed_revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117"
 }

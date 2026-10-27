@@ -35,6 +35,8 @@ type Executor struct {
 }
 
 type executorResources struct {
+	// costs are the machine's measured costs a model's load binds (SetMachineCosts), which a blas state takes.
+	costs     MachineCosts
 	experts   ExpertBanks
 	modules   [kernelModuleCount]driver.Module
 	functions functionSet
@@ -2739,11 +2741,13 @@ type blasState struct {
 	// back beside both.
 	moeCopyStream driver.Stream
 	moeReadStream driver.Stream
-	library       *cublas.Library
-	handle        cublas.Handle
-	staging       driver.DevicePtr
-	stagingBytes  uint64
-	stagedNode    *tensor.Tensor
+	// costs are the machine's measured costs (MachineCosts), which choose the experts the CPU computes.
+	costs        MachineCosts
+	library      *cublas.Library
+	handle       cublas.Handle
+	staging      driver.DevicePtr
+	stagingBytes uint64
+	stagedNode   *tensor.Tensor
 	// stagedType is the dtype the staged activation was packed to; a
 	// node feeding both F16 and BF16 weights repacks when it switches.
 	stagedType dtype.Type
@@ -2822,7 +2826,7 @@ func (e *Executor) ensureResources(
 			_ = library.Close()
 			return nil, err
 		}
-		e.resources.blas = &blasState{library: library, handle: handle, lt: lt}
+		e.resources.blas = &blasState{library: library, handle: handle, lt: lt, costs: e.resources.costs}
 	}
 	// A run takes back the whole staging: its launches size their rows to all of it and place their activations at its
 	// end, where the experts' slots are carved first (launch_linear_layout.go).

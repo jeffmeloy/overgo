@@ -155,9 +155,9 @@ func (g moeMatrixGeometry) copyBytes() uint64 {
 		g.hostRowsReserve() + moeSlotAlignment + g.tensorCoreLayout().bytes
 }
 
-// hostRowsReserve is the staging the CPU's outputs take at most: hostExpertSlots slots an expert of every expert.
+// hostRowsReserve is the staging the CPU's outputs take at most: hostExpertSlotsMost slots an expert of every expert.
 func (g moeMatrixGeometry) hostRowsReserve() uint64 {
-	return hostRowsBytes(g, uint32(min(hostExpertSlots*g.experts, math.MaxUint32)))
+	return hostRowsBytes(g, uint32(min(hostExpertSlotsMost*g.experts, math.MaxUint32)))
 }
 
 // tokenLimit is the tokens whose plan and outputs the staging holds beside the copies.

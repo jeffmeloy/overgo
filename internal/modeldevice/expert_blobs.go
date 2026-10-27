@@ -1,7 +1,11 @@
 package modeldevice
 
 import (
+	"slices"
+	"strings"
+
 	"overgo/internal/cuda/driver"
+	"overgo/internal/hostexpert"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -72,4 +76,41 @@ func (l ExpertBlobLayer) Host(expert int, parts [][]byte) [][]byte {
 		parts = append(parts, host[:bank.bytes])
 	}
 	return parts
+}
+
+// gatedExpertBanks are a gated expert layer's bank names by their suffix, gate, up and down, which a host expert's
+// sample reads.
+var gatedExpertBanks = [...]string{"ffn_gate_exps.weight", "ffn_up_exps.weight", "ffn_down_exps.weight"}
+
+// HostExpertSample answers one routed expert in host memory as the CPU computes one: its gate, up and down rows, their
+// formats, and the layer's hidden and intermediate widths (the gate bank's rows and columns); false where no routed
+// layer holds its gate, up and down as banks of their own with an expert in host memory. A load measures the
+// machine's costs on it (executor.MeasureHostExpertCosts).
+func (w *DeviceWeights) HostExpertSample() (hostexpert.Expert, hostexpert.Formats, int, int, bool) {
+	if w == nil || w.experts == nil {
+		return hostexpert.Expert{}, hostexpert.Formats{}, 0, 0, false
+	}
+	for _, blob := range w.experts.blobs {
+		var banks [len(gatedExpertBanks)]*expertBank
+		for _, bank := range blob.banks {
+			for index, suffix := range gatedExpertBanks {
+				if strings.HasSuffix(bank.info.Name, suffix) {
+					banks[index] = bank
+				}
+			}
+		}
+		if slices.Contains(banks[:], nil) || len(blob.banks) != len(gatedExpertBanks) {
+			continue
+		}
+		gate, up, down := banks[0], banks[1], banks[len(banks)-1]
+		for expert, host := range gate.hosted {
+			if host == nil || up.hosted[expert] == nil || down.hosted[expert] == nil {
+				continue
+			}
+			formats := hostexpert.Formats{Gate: gate.info.Type, Up: up.info.Type, Down: down.info.Type}
+			sample := hostexpert.Expert{Gate: host[:gate.bytes], Up: up.hosted[expert][:up.bytes], Down: down.hosted[expert][:down.bytes]}
+			return sample, formats, int(gate.info.Shape[0]), int(gate.info.Shape[1]), true
+		}
+	}
+	return hostexpert.Expert{}, hostexpert.Formats{}, 0, 0, false
 }

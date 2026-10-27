@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
+	"overgo/internal/hostexpert"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeldevice"
@@ -200,6 +201,16 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if rawWeights.HasExpertResidency() {
 		if err := cuda.SetExpertBanks(rawWeights); err != nil {
 			return fail(err)
+		}
+		// This machine's costs, measured on one of the model's experts in host memory, choose what the CPU computes.
+		if sample, formats, hidden, intermediate, found := rawWeights.HostExpertSample(); found && hostexpert.Supported(formats, hidden, intermediate) {
+			costs, err := cuda.MeasureHostExpertCosts(ctx, sample, formats, hidden, intermediate)
+			if err == nil {
+				err = cuda.SetMachineCosts(costs)
+			}
+			if err != nil {
+				return fail(err)
+			}
 		}
 	}
 	runner := &Runner{preparedModel: preparedModel{

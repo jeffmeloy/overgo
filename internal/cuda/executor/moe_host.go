@@ -12,17 +12,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-// hostExpertSlots is the most slots of a prompt group an expert wholly in
-// host memory may have and be computed on the CPU where it lies, beside the
-// card's products, rather than copied to the card: a Flash-Next expert's
-// three matrices take about 160 us over the link and about 5 us a slot on
-// the 9950X's 32 workers (hostexpert's BenchmarkLayer), so up to about 32
-// slots the CPU costs less.
-// It trades a copy's link time against the CPU's time a slot, both beside the card's own products, which made its
-// choice flat from 16 to 64 on Flash-Next (the derive-tuning record of 2026-10-24; the CPU takes about 9 us a slot
-// today). Provisional: the load-costs step computes it from the link's and the CPU's measured rates.
-const hostExpertSlots = 32
-
 // gatedBanks is a gated expert layer's banks, gate, up and down in order, and
 // fusedHalves the halves a fused layer's first bank holds, gate's then up's.
 const (
@@ -44,7 +33,7 @@ type hostExperts struct {
 }
 
 // planHostExperts chooses a group's experts to compute on the CPU: every
-// bank of the expert in host memory, at most hostExpertSlots slots, in a
+// bank of the expert in host memory, at most the slots its copy costs more than (MachineCosts), in a
 // format and with an activation the CPU computes, and no bias; the staging
 // reserves their outputs (hostRowsReserve). It returns false where none is
 // chosen.
@@ -65,14 +54,15 @@ func (b *blasState) planHostExperts(a tensor.MoEAttributes, banks []*tensor.Tens
 	plan.onCPU = make([]bool, experts)
 	for expert := range experts {
 		slots := b.moeOffsets[expert+1] - b.moeOffsets[expert]
-		if slots == 0 || slots > hostExpertSlots {
+		if slots == 0 || slots > hostExpertSlotsMost {
 			continue
 		}
-		hosted := true
+		hosted, bytes := true, uint64(0)
 		for index := range banks {
-			hosted = hosted && len(b.moeHosted[index*int(experts)+int(expert)]) > 0
+			rows := b.moeHosted[index*int(experts)+int(expert)]
+			hosted, bytes = hosted && len(rows) > 0, bytes+uint64(len(rows))
 		}
-		if hosted {
+		if hosted && slots <= b.costs.hostSlotLimit(bytes) {
 			plan.onCPU[expert] = true
 			plan.experts = append(plan.experts, expert)
 			plan.slots += slots

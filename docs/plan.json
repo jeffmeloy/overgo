@@ -229,17 +229,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 1411,
+        "nodes": 281,
         "reason": "decode lands Strata's round as one unit, as the owner asked on 2026-10-26: the verify windows, the drafter and its pack, the draft policy and suffix drafter, the round's serve loop, the CPU expert pool and tier, and the bindings of the kernels they launch, about 9,800 lines of Strata's source translated (51,148 production syntax nodes measured by the gate)"
       },
       "steps": [
-        {
-          "id": "host-slots",
-          "title": "Choose the CPU's share of a prompt group's experts from this machine's measured costs",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run '^TestHostSlotLimitTradesACopyForTheCPU$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestLoadMeasuresTheMachineCosts$' -count=1",
-          "rationale": "The first of load-costs' values, split out to land on its own: the most slots of a prompt group an expert in host memory may have and be computed on the CPU where it lies rather than copied to the card (hostExpertSlots, a constant 32 from this PC's figures of 2026-10-24). A model's load measures this machine's costs on one of its own experts in host memory (executor.MeasureHostExpertCosts: the expert's bytes copied from pinned memory to the card, the best of a few bursts; the CPU pool computing it at one slot and at the reserve's 32, the least batch's mean of each) and binds them (SetMachineCosts); each group's plan takes an expert to the CPU while its call's fixed time and a slot's for each slot cost less than its copy over the link (MachineCosts.hostSlotLimit), at most the 32 the staging reserves its outputs for, and 32 where nothing was measured. On this PC (13.1-13.4 GB/s, ~27-42 us a call, ~10 us a slot, three loads within a few percent) a Flash-Next expert's crossover is 13-14 slots; the measurement takes ~17 ms of a load.\nCheck: TestHostSlotLimitTradesACopyForTheCPU (the limit from costs) and TestLoadMeasuresTheMachineCosts (a measurement on an expert of Flash-Next's widths and formats: rates of this hardware's order, a fraction of a load, a crossover within the reserve).\nEvidence: the replayed agent session's prompt reads (1.5 to 3.4K tokens a turn) on the build before and after, alternating.\nBatch: cuda/executor and inference."
-        },
         {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",

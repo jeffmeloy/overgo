@@ -577,7 +577,10 @@ func (e *Executor) PrefillStrataDrafter(ctx context.Context, d *StrataDrafter, r
 		if err := state.Driver.StreamWait(d.cs, state.Stream); err != nil {
 			return err
 		}
-		if err := state.Driver.MemcpyHtoD(d.prefillRecords, int32Words(records)); err != nil {
+		// The records go up on the drafter's stream (pf_ring_.h2d on cs_), ahead of the copies that read them: a
+		// synchronous upload on the legacy stream returned before its bytes landed, and the non-blocking stream's copies
+		// read the buffer first, so every group wrote its cells at cell 0. The records stay alive until the stream's wait.
+		if err := state.Driver.MemcpyHtoDAsync(d.prefillRecords, int32Words(records), d.cs); err != nil {
 			return fmt.Errorf("mtp prefill: the input records upload failed: %w", err)
 		}
 		dTok := d.prefillRecords

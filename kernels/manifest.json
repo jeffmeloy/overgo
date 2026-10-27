@@ -2100,11 +2100,11 @@
       "sourceDependencies": [
         {
           "path": "kernels/cuda/strata_gdn.cuh",
-          "sha256": "f2352df2014b36e2723a177fa35b54d7efd86c42e84700d5b40325af6b706704"
+          "sha256": "a617404f37a3e3b8efa09b6c78b915510dce254d071b56f19941092bb22fe73b"
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "e7554320acaa44095ba78472d186f2d48c7a15e9c091dda00e6bc6b4945ca773",
+      "assetSha256": "b03982bd2aaafa93b09bb310c6fb368820dc051d85ce4321ef986ff7cd34f198",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2136,8 +2136,10 @@
         "strata_copy_indexed",
         "strata_gate_apply_f32",
         "strata_gdn_conv_commit",
+        "strata_gdn_conv_commit_layers",
         "strata_gdn_conv_l2_multi",
         "strata_gdn_step_commit",
+        "strata_gdn_step_commit_layers",
         "strata_gdn_step_norm_multi_all",
         "strata_gdn_step_norm_multi_kept",
         "strata_indexer_key_append",
@@ -2337,6 +2339,16 @@
         },
         {
           "parameters": [
+            ".align 8 .b8[1024]",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_gdn_conv_commit_layers"
+          ]
+        },
+        {
+          "parameters": [
             ".u64",
             ".u64",
             ".u64",
@@ -2364,6 +2376,18 @@
           ],
           "functions": [
             "strata_gdn_step_commit"
+          ]
+        },
+        {
+          "parameters": [
+            ".align 8 .b8[2048]",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_gdn_step_commit_layers"
           ]
         },
         {

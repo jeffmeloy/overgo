@@ -504,6 +504,8 @@ func (r *Runner) buildWindowCommit(layout []model.LayerWindow, tokens uint64, li
 	feeds = append(feeds, tensor.InputBinding[driver.DevicePtr]{Node: kept, Value: r.qsaWindow.words.Device},
 		tensor.InputBinding[driver.DevicePtr]{Node: rowCells, Value: r.qsaWindow.words.Device + driver.DevicePtr(i32Bytes)})
 	var after *tensor.Tensor
+	// Every gated-delta layer's commit is one node, launched once a kernel for all of them (Strata's gdn_commit_layers).
+	var deferred []tensor.GatedDeltaCommitLayer
 	for layer, window := range layout {
 		parts := windowParts(window)
 		holdsQSA := r.holdsQSA(layer)
@@ -511,7 +513,7 @@ func (r *Runner) buildWindowCommit(layout []model.LayerWindow, tokens uint64, li
 			continue
 		}
 		name := func(suffix string) string { return fmt.Sprintf("window.blk.%d.%s", layer, suffix) }
-		inputs := model.LayerCommitInputs{Kept: kept}
+		inputs := model.LayerCommitInputs{Kept: kept, Deferred: &deferred}
 		if live.keys[layer].Pointer != 0 {
 			commit.keys[layer] = builder.Input(name("key"), dtype.F32, live.keys[layer].Shape)
 			commit.values[layer] = builder.Input(name("value"), dtype.F32, live.values[layer].Shape)
@@ -554,6 +556,9 @@ func (r *Runner) buildWindowCommit(layout []model.LayerWindow, tokens uint64, li
 		if after, err = r.layerProgram(layer).Commit(builder, after, inputs, weights); err != nil {
 			return nil, fmt.Errorf("inference: window commit layer %d: %w", layer, err)
 		}
+	}
+	if len(deferred) != 0 {
+		after = builder.GatedDeltaCommitLayers(after, deferred, kept, r.spec.SSMGroupCount, r.spec.SSMTimeStepRank)
 	}
 	if after == nil {
 		return nil, errors.New("inference: a window commit holds no layer")

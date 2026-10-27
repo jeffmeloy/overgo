@@ -284,8 +284,10 @@ const (
 	kernelStrataCopyIndexed
 	kernelStrataGateApplyF32
 	kernelStrataGdnConvCommit
+	kernelStrataGdnConvCommitLayers
 	kernelStrataGdnConvL2Multi
 	kernelStrataGdnStepCommit
+	kernelStrataGdnStepCommitLayers
 	kernelStrataGdnStepNormMultiAll
 	kernelStrataGdnStepNormMultiKept
 	kernelStrataIndexerKeyAppend
@@ -581,8 +583,10 @@ var kernelFunctionNames = [...]string{
 	"strata_copy_indexed",
 	"strata_gate_apply_f32",
 	"strata_gdn_conv_commit",
+	"strata_gdn_conv_commit_layers",
 	"strata_gdn_conv_l2_multi",
 	"strata_gdn_step_commit",
+	"strata_gdn_step_commit_layers",
 	"strata_gdn_step_norm_multi_all",
 	"strata_gdn_step_norm_multi_kept",
 	"strata_indexer_key_append",
@@ -877,8 +881,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	4,
+	3,
 	9,
 	8,
+	5,
 	12,
 	14,
 	15,
@@ -1152,6 +1158,8 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
+	1,
 	1,
 	1,
 	1,

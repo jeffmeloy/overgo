@@ -108,19 +108,24 @@ func gatedDeltaWindowStep(node *tensor.Tensor, inputs []Value) (Value, error) {
 // gatedDeltaCommit is gdn_conv_commit and gdn_step_commit over the kept count, in place on the history and the state.
 func gatedDeltaCommit(node *tensor.Tensor, inputs []Value) (Value, error) {
 	attributes, ok := node.Attrs.(tensor.GatedDeltaWindowAttributes)
-	if !ok || len(inputs) < tensor.GatedDeltaCommitOperands {
+	layers := attributes.CommitLayers()
+	if !ok || len(inputs) < layers*tensor.GatedDeltaCommitKept+tensor.SingletonExtent {
 		return Value{}, errors.New("gated-delta commit inputs are invalid")
 	}
-	history, state := inputs[tensor.GatedDeltaCommitHistory].Data, inputs[tensor.GatedDeltaCommitState].Data
-	qkv, rows := inputs[tensor.GatedDeltaCommitQKV].Data, inputs[tensor.GatedDeltaCommitRows].Data
-	gate, beta := inputs[tensor.GatedDeltaCommitGate].Data, inputs[tensor.GatedDeltaCommitBeta].Data
-	kept := int(inputs[tensor.GatedDeltaCommitKept].Data[0])
-	shape := inputs[tensor.GatedDeltaCommitRows].Shape
-	channels, tokens := int(shape.Dims[0]), int(shape.Dims[1])
-	if kept < 0 || kept > tokens {
-		return Value{}, errors.New("gated-delta commit keeps more tokens than its window holds")
-	}
-	if kept > 0 {
+	kept := int(inputs[layers*tensor.GatedDeltaCommitKept].Data[0])
+	for layer := range layers {
+		operands := inputs[layer*tensor.GatedDeltaCommitKept:]
+		history, state := operands[tensor.GatedDeltaCommitHistory].Data, operands[tensor.GatedDeltaCommitState].Data
+		qkv, rows := operands[tensor.GatedDeltaCommitQKV].Data, operands[tensor.GatedDeltaCommitRows].Data
+		gate, beta := operands[tensor.GatedDeltaCommitGate].Data, operands[tensor.GatedDeltaCommitBeta].Data
+		shape := operands[tensor.GatedDeltaCommitRows].Shape
+		channels, tokens := int(shape.Dims[0]), int(shape.Dims[1])
+		if kept < 0 || kept > tokens {
+			return Value{}, errors.New("gated-delta commit keeps more tokens than its window holds")
+		}
+		if kept == 0 {
+			continue
+		}
 		taps := tensor.GatedDeltaWindowKernel
 		for channel := range channels {
 			var window [tensor.GatedDeltaWindowKernel - 1]float32

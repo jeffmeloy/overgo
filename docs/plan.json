@@ -216,7 +216,7 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 773,
+        "nodes": 0,
         "reason": "decode-commit ports Strata's gdn_commit_layers: its two layers kernels and their bindings, the commit node over several layers with its reference, and the window commit's one node for every gated-delta layer; Flash-Next's commit 158 launches and 1.16 ms a window to 53 and 0.48 ms"
       },
       "steps": [
@@ -230,13 +230,6 @@
             "strata-port/decode",
             "strata-port/prompt-experts"
           ]
-        },
-        {
-          "id": "decode-commit",
-          "title": "Commit a window's layers in one launch a kind, as Strata's verifier does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestStrataGatedDeltaCommitLayersMatchTheLayers$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestVerifyWindowsMatchPlainDecoding$' -count=1",
-          "rationale": "Serves: a window's commit, 1.16 ms of card time a window of ours against Strata's 0.21 (decode's read, 2026-10-26): Strata's verifier commits every gated-delta layer's state and conv history in one launch each (src/core/verify.cpp capture_commit, STRATA_COMMIT_BATCH: gdn_commit_layers over gdn_step_commit_layers_kernel and gdn_conv_commit_layers_kernel) and every QSA layer's indexer tail and append in one (native_qsa_indexer_append_steps_layers), where ours launches each layer's step commit, conv commit and indexer append and 61 copies.\nPort: the batched commit kernels from Strata's source (src/kernels/cuda/verify_kernels.cu and native_qsa_indexer.cu, their parity beside them), the commit graph (qsa_window.go buildWindowCommit) launching them over every layer's live state and the window's kept rows, the copies it no longer needs gone.\nEvidence: the batched kernels' state and conv bits against the per-layer kernels' on Flash-Next's geometry; verify windows still match plain decoding token for token; the commit's card time under Nsight.\nBatch: cuda/executor and inference device lanes."
         },
         {
           "id": "decode",

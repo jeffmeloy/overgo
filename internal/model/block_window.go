@@ -50,13 +50,17 @@ type LayerCommitInputs struct {
 	Cells      *tensor.Tensor
 	Snapshot   *tensor.Tensor
 	QSA        *QSABinding
+	// Deferred, where set, takes a gated-delta layer's commit operands in place of the layer's own commit, for one commit
+	// of every such layer (tensor.Builder.GatedDeltaCommitLayers, Strata's gdn_commit_layers).
+	Deferred *[]tensor.GatedDeltaCommitLayer
 }
 
 // Commit builds a layer's commit of a verify window, Strata's capture_commit for the layer: a gated-delta layer's
 // history and state advanced over the kept tokens (tensor.Builder.GatedDeltaCommit), a QSA layer's indexer restored and
 // its kept rows' keys appended again (tensor.Builder.QSACommit), the lexical injection's convolution history copied
 // from after the kept tokens (tensor.Builder.CopyIndexed); each takes the commit before it, after, and answers its own
-// word, or after itself where the layer keeps no fixed state of these kinds.
+// word, or after itself where the layer keeps no fixed state of these kinds or hands its gated-delta commit to
+// inputs.Deferred.
 func (p CompiledLayerProgram) Commit(builder *tensor.Builder, after *tensor.Tensor, inputs LayerCommitInputs, weights LayerGraphWeights) (*tensor.Tensor, error) {
 	spec := p.spec
 	if inputs.QSA != nil {
@@ -80,6 +84,12 @@ func (p CompiledLayerProgram) Commit(builder *tensor.Builder, after *tensor.Tens
 			return nil, errors.New("gated-delta commit inputs are missing")
 		}
 		gate, beta := windowGates(builder, inputs.Window.Gates, uint64(spec.SSMTimeStepRank), inputs.Window.Rows.Shape.Dims[1])
+		if inputs.Deferred != nil {
+			*inputs.Deferred = append(*inputs.Deferred, tensor.GatedDeltaCommitLayer{
+				History: inputs.Key, State: inputs.Value, QKV: inputs.Window.QKV, Rows: inputs.Window.Rows, Gate: gate, Beta: beta,
+			})
+			return after, builder.Err()
+		}
 		after = builder.GatedDeltaCommit(after, inputs.Key, inputs.Value, inputs.Window.QKV, inputs.Window.Rows, gate, beta,
 			inputs.Kept, spec.SSMGroupCount, spec.SSMTimeStepRank)
 	}

@@ -182,6 +182,95 @@ func TestStrataGatedDeltaWindowParity(t *testing.T) {
 	}
 }
 
+// TestStrataGatedDeltaCommitLayersMatchTheLayers holds Strata's commit of every gated-delta layer in one launch of each
+// kernel (gdn_commit_layers: gdn_conv_commit_layers_kernel and gdn_step_commit_layers_kernel, a table of each layer's
+// addresses where Strata strides) to each layer's own commit, bit for bit: over more layers than one launch's table
+// holds, for windows of two and five tokens, a commit of the window's tokens, of all but its last and of none leaves every
+// layer's history and state as that layer's own launches leave them.
+func TestStrataGatedDeltaCommitLayersMatchTheLayers(t *testing.T) {
+	const (
+		keyHeads   = 2
+		valueHeads = 4
+		// layers spans a launch's table and part of the next.
+		layers = strataGatedDeltaCommitLayers + 6
+	)
+	width := strataGatedDeltaWidth
+	channels := (2*keyHeads + valueHeads) * width
+	stateWords, historyWords := width*width*valueHeads, 3*channels
+	worker := newFixtureWorker(t)
+	cuda := newFixtureExecutorWithWorker(t, worker)
+	buffers := newStrataDevice(t, cuda)
+	defer buffers.release(t)
+	draws := rand.New(rand.NewPCG(13, 17))
+	fill := func(count int, scale float32) []float32 {
+		values := make([]float32, count)
+		for index := range values {
+			values[index] = float32(draws.NormFloat64()) * scale
+		}
+		return values
+	}
+	type layer struct {
+		history, state []float32
+		qkv, rows      []float32
+		gate, beta     []float32
+	}
+	for _, tokens := range []int{2, 5} {
+		fixtures := make([]layer, layers)
+		for index := range fixtures {
+			gate, beta := make([]float32, valueHeads*tokens), make([]float32, valueHeads*tokens)
+			for entry := range gate {
+				gate[entry], beta[entry] = -(0.5 + 3*draws.Float32()), draws.Float32()
+			}
+			fixtures[index] = layer{
+				history: fill(historyWords, 0.5), state: fill(stateWords, 0.1),
+				qkv: fill(channels*tokens, 1), rows: fill(channels*tokens, 0.1), gate: gate, beta: beta,
+			}
+		}
+		for _, kept := range []int{tokens, tokens - 1, 0} {
+			keptBuffer := buffers.upload(t, int32Bytes([]int32{int32(kept)}))
+			upload := func() (histories, states []driver.DevicePtr, windows []strataGatedDeltaWindow) {
+				for _, fixture := range fixtures {
+					histories = append(histories, buffers.upload(t, float32Bytes(fixture.history)))
+					states = append(states, buffers.upload(t, float32Bytes(fixture.state)))
+					windows = append(windows, strataGatedDeltaWindow{
+						qkv: buffers.upload(t, float32Bytes(fixture.qkv)), rows: buffers.upload(t, float32Bytes(fixture.rows)),
+						gate: buffers.upload(t, float32Bytes(fixture.gate)), beta: buffers.upload(t, float32Bytes(fixture.beta)),
+					})
+				}
+				return histories, states, windows
+			}
+			ownHistories, ownStates, ownWindows := upload()
+			buffers.run(t, func(state *device.State, functions functionSet) error {
+				for index := range fixtures {
+					if err := launchStrataGatedDeltaCommit(state, functions, ownHistories[index], ownStates[index], keptBuffer,
+						ownWindows[index], int32(channels), keyHeads, valueHeads); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			histories, states, windows := upload()
+			buffers.run(t, func(state *device.State, functions functionSet) error {
+				return launchStrataGatedDeltaCommitLayers(state, functions, histories, states, keptBuffer, windows,
+					int32(channels), keyHeads, valueHeads)
+			})
+			for index, fixture := range fixtures {
+				ownHistory, history := buffers.read(t, ownHistories[index], 4*historyWords), buffers.read(t, histories[index], 4*historyWords)
+				ownState, state := buffers.read(t, ownStates[index], 4*stateWords), buffers.read(t, states[index], 4*stateWords)
+				if !slices.Equal(history, ownHistory) || !slices.Equal(state, ownState) {
+					t.Fatalf("T=%d kept %d: layer %d's history or state differs from its own commit's", tokens, kept, index)
+				}
+				if kept > 0 && slices.Equal(float32s(state), fixture.state) {
+					t.Fatalf("T=%d kept %d: layer %d's state was not advanced", tokens, kept, index)
+				}
+				if kept == 0 && (!slices.Equal(float32s(state), fixture.state) || !slices.Equal(float32s(history), fixture.history)) {
+					t.Fatalf("T=%d: a commit of none changed layer %d", tokens, index)
+				}
+			}
+		}
+	}
+}
+
 // gdnTranscription is gdn_parity's ref_step in double precision over the window's tokens, its state in our layout (a
 // value head's [value][key]), each output scaled by rsqrt(128), normed by its head's mean square (gamma, epsilon) and
 // gated by sigmoid(z). modulo pairs value head h with key head h modulo the key heads, else h / (value heads / key

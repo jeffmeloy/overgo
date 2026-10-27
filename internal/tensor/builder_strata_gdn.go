@@ -2,6 +2,7 @@ package tensor
 
 import (
 	"errors"
+	"math"
 
 	"overgo/internal/tensor/dtype"
 )
@@ -75,6 +76,13 @@ type GatedDeltaWindowAttributes struct {
 	Epsilon              float32
 	// Commit has a one-token window's conv keep its token in the history (Strata's one-token self-commit).
 	Commit bool
+	// Layers is the layers a commit advances (Builder.GatedDeltaCommitLayers), zero where a node predates it.
+	Layers uint32
+}
+
+// CommitLayers is the layers a commit advances, one for a node that names none.
+func (a GatedDeltaWindowAttributes) CommitLayers() int {
+	return max(int(a.Layers), SingletonExtent)
 }
 
 // channels is the layer's convolved channels: the query's and the key's heads and the value's.
@@ -145,26 +153,49 @@ func (b *Builder) GatedDeltaWindowStep(state, rows, gate, beta, z, gamma, kept *
 // recurrence's over rows' first n tokens with their gate and beta, both in place; the output is an F32 [1] word holding
 // the count's bits, written last, which a later commit may take as after (nil for none) so the commits run in order.
 func (b *Builder) GatedDeltaCommit(after, history, state, qkv, rows, gate, beta, kept *Tensor, keyHeads, valueHeads uint32) *Tensor {
+	return b.GatedDeltaCommitLayers(after, []GatedDeltaCommitLayer{{
+		History: history, State: state, QKV: qkv, Rows: rows, Gate: gate, Beta: beta,
+	}}, kept, keyHeads, valueHeads)
+}
+
+// GatedDeltaCommitLayer is a layer's operands in a commit of several (Builder.GatedDeltaCommitLayers), each as
+// GatedDeltaCommit takes it.
+type GatedDeltaCommitLayer struct {
+	History, State, QKV, Rows, Gate, Beta *Tensor
+}
+
+// GatedDeltaCommitLayers is GatedDeltaCommit over several layers of the same heads and window in one node, Strata's
+// gdn_commit_layers: each layer's history and state advanced in place over the kept count's tokens of its own rows. Its
+// operands are each layer's in GatedDeltaCommit's order (GatedDeltaCommitKept of them a layer), then kept and after.
+func (b *Builder) GatedDeltaCommitLayers(after *Tensor, layers []GatedDeltaCommitLayer, kept *Tensor, keyHeads, valueHeads uint32) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	attributes := GatedDeltaWindowAttributes{KeyHeads: keyHeads, ValueHeads: valueHeads}
+	attributes := GatedDeltaWindowAttributes{KeyHeads: keyHeads, ValueHeads: valueHeads, Layers: uint32(len(layers))}
 	channels := attributes.channels()
-	if history == nil || history.Type != dtype.F32 || history.Shape != MustShape(GatedDeltaWindowKernel-1, channels) ||
-		!gatedDeltaWindowState(state, valueHeads) || !gatedDeltaWindowRows(qkv, channels) || !gatedDeltaWindowRows(rows, channels) ||
-		qkv.Shape != rows.Shape || kept == nil || kept.Type != dtype.I32 || kept.Shape != MustShape(SingletonExtent) ||
-		after != nil && (after.Type != dtype.F32 || after.Shape != kept.Shape) {
+	if len(layers) == 0 || uint64(len(layers)) > math.MaxUint32 || kept == nil || kept.Type != dtype.I32 ||
+		kept.Shape != MustShape(SingletonExtent) || after != nil && (after.Type != dtype.F32 || after.Shape != kept.Shape) {
 		b.setError(errors.New("gated-delta commit operands are invalid"))
 		return nil
 	}
-	tokens := rows.Shape.Dims[1]
-	for _, operand := range []*Tensor{gate, beta} {
-		if !gatedDeltaWindowElements(operand, uint64(valueHeads)*tokens) {
-			b.setError(errors.New("gated-delta commit gates are invalid"))
+	inputs := make([]*Tensor, 0, len(layers)*GatedDeltaCommitKept+PairedExtent)
+	for _, layer := range layers {
+		if layer.History == nil || layer.History.Type != dtype.F32 || layer.History.Shape != MustShape(GatedDeltaWindowKernel-1, channels) ||
+			!gatedDeltaWindowState(layer.State, valueHeads) || !gatedDeltaWindowRows(layer.QKV, channels) ||
+			!gatedDeltaWindowRows(layer.Rows, channels) || layer.QKV.Shape != layer.Rows.Shape || layer.Rows.Shape != layers[0].Rows.Shape {
+			b.setError(errors.New("gated-delta commit operands are invalid"))
 			return nil
 		}
+		tokens := layer.Rows.Shape.Dims[1]
+		for _, operand := range []*Tensor{layer.Gate, layer.Beta} {
+			if !gatedDeltaWindowElements(operand, uint64(valueHeads)*tokens) {
+				b.setError(errors.New("gated-delta commit gates are invalid"))
+				return nil
+			}
+		}
+		inputs = append(inputs, layer.History, layer.State, layer.QKV, layer.Rows, layer.Gate, layer.Beta)
 	}
-	inputs := []*Tensor{history, state, qkv, rows, gate, beta, kept}
+	inputs = append(inputs, kept)
 	if after != nil {
 		inputs = append(inputs, after)
 	}

@@ -99,18 +99,77 @@ func launchGatedDeltaWindowStep(state *device.State, functions functionSet, node
 		int32(attributes.ValueHeads), attributes.Epsilon, int32(rows.Dims[1]), 0)
 }
 
-// launchGatedDeltaCommit launches a gated-delta layer's commit (tensor.Builder.GatedDeltaCommit) and copies its kept
-// count's word to the output.
+// strataGatedDeltaCommitLayers is the most layers one launch of the layers' commit kernels takes, their tables' entries
+// (strata_gdn.cuh STRATA_GDN_COMMIT_LAYERS).
+const strataGatedDeltaCommitLayers = 64
+
+// strataGatedDeltaConvCommitTable is gdn_conv_commit_layers' table, by value: each layer's history and qkv rows.
+type strataGatedDeltaConvCommitTable struct {
+	history, qkv [strataGatedDeltaCommitLayers]driver.DevicePtr
+}
+
+// strataGatedDeltaStepCommitTable is gdn_step_commit_layers' table, by value: each layer's state, convolved rows, gate
+// and beta.
+type strataGatedDeltaStepCommitTable struct {
+	state, rows, gate, beta [strataGatedDeltaCommitLayers]driver.DevicePtr
+}
+
+// launchStrataGatedDeltaCommitLayers launches gdn_conv_commit_layers and gdn_step_commit_layers over the kept count,
+// in place, for histories, states and windows a layer each, a launch of each for every strataGatedDeltaCommitLayers.
+func launchStrataGatedDeltaCommitLayers(state *device.State, functions functionSet, histories, states []driver.DevicePtr,
+	kept driver.DevicePtr, windows []strataGatedDeltaWindow, channels, keyHeads, valueHeads int32) error {
+	for first := 0; first < len(windows); first += strataGatedDeltaCommitLayers {
+		end := min(first+strataGatedDeltaCommitLayers, len(windows))
+		var conv strataGatedDeltaConvCommitTable
+		var step strataGatedDeltaStepCommitTable
+		for layer := first; layer < end; layer++ {
+			at := layer - first
+			conv.history[at], conv.qkv[at] = histories[layer], windows[layer].qkv
+			step.state[at], step.rows[at], step.gate[at], step.beta[at] = states[layer], windows[layer].rows, windows[layer].gate, windows[layer].beta
+		}
+		layers := uint32(end - first)
+		if err := launchGridABI(state, functions[kernelStrataGdnConvCommitLayers],
+			driver.Dim3{X: (uint32(channels) + strataGatedDeltaCommitThreads - 1) / strataGatedDeltaCommitThreads, Y: layers, Z: 1},
+			driver.Dim3{X: strataGatedDeltaCommitThreads, Y: 1, Z: 1},
+			&conv, &channels, &kept); err != nil {
+			return err
+		}
+		if err := launchGridABI(state, functions[kernelStrataGdnStepCommitLayers],
+			driver.Dim3{X: uint32(valueHeads), Y: strataGatedDeltaWidth / strataGatedDeltaCommitColumns, Z: layers},
+			driver.Dim3{X: strataGatedDeltaCommitColumns, Y: strataGatedDeltaRowGroups, Z: 1},
+			&step, &channels, &keyHeads, &valueHeads, &kept); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// launchGatedDeltaCommit launches a gated-delta commit (tensor.Builder.GatedDeltaCommitLayers) - a layer's by its own
+// kernels, several layers' by the layers' kernels - and copies its kept count's word to the output.
 func launchGatedDeltaCommit(state *device.State, functions functionSet, node *tensor.Tensor, pointers launchPointerFrame) error {
 	attributes := node.Attrs.(tensor.GatedDeltaWindowAttributes)
-	window := strataGatedDeltaWindow{
-		qkv: pointers.input(tensor.GatedDeltaCommitQKV), rows: pointers.input(tensor.GatedDeltaCommitRows),
-		gate: pointers.input(tensor.GatedDeltaCommitGate), beta: pointers.input(tensor.GatedDeltaCommitBeta),
+	layers := attributes.CommitLayers()
+	channels := int32(node.Inputs[tensor.GatedDeltaCommitRows].Shape.Dims[0])
+	histories, states := make([]driver.DevicePtr, layers), make([]driver.DevicePtr, layers)
+	windows := make([]strataGatedDeltaWindow, layers)
+	for layer := range layers {
+		at := layer * tensor.GatedDeltaCommitKept
+		histories[layer], states[layer] = pointers.input(at+tensor.GatedDeltaCommitHistory), pointers.input(at+tensor.GatedDeltaCommitState)
+		windows[layer] = strataGatedDeltaWindow{
+			qkv: pointers.input(at + tensor.GatedDeltaCommitQKV), rows: pointers.input(at + tensor.GatedDeltaCommitRows),
+			gate: pointers.input(at + tensor.GatedDeltaCommitGate), beta: pointers.input(at + tensor.GatedDeltaCommitBeta),
+		}
 	}
-	kept, output := pointers.input(tensor.GatedDeltaCommitKept), pointers.output()
-	if err := launchStrataGatedDeltaCommit(state, functions, pointers.input(tensor.GatedDeltaCommitHistory),
-		pointers.input(tensor.GatedDeltaCommitState), kept, window, int32(node.Inputs[tensor.GatedDeltaCommitRows].Shape.Dims[0]),
-		int32(attributes.KeyHeads), int32(attributes.ValueHeads)); err != nil {
+	kept, output := pointers.input(layers*tensor.GatedDeltaCommitKept), pointers.output()
+	var err error
+	if layers == tensor.SingletonExtent {
+		err = launchStrataGatedDeltaCommit(state, functions, histories[0], states[0], kept, windows[0], channels,
+			int32(attributes.KeyHeads), int32(attributes.ValueHeads))
+	} else {
+		err = launchStrataGatedDeltaCommitLayers(state, functions, histories, states, kept, windows, channels,
+			int32(attributes.KeyHeads), int32(attributes.ValueHeads))
+	}
+	if err != nil {
 		return err
 	}
 	return launchCommitWord(state, functions, kept, output)

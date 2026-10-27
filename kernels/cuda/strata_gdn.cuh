@@ -3,7 +3,7 @@
 // Ported from Strata (https://github.com/Niko1221/Strata, commit 296b59d2), MIT License,
 // Copyright (c) 2026 Niko1221 and the Strata contributors; the license text is licenses/Strata-MIT.txt.
 // Source: src/kernels/cuda/verify_kernels.cu (gdn_conv_l2_body, gdn_step_norm_multi_kernel, gdn_conv_commit_kernel,
-// gdn_step_commit_body).
+// gdn_step_commit_body, gdn_conv_commit_layers_kernel, gdn_step_commit_layers_kernel).
 //
 // This module compiles WITHOUT -use_fast_math, as Strata compiles verify_kernels.cu. Each kernel keeps Strata's body
 // and launch geometry (internal/cuda/executor/launch_strata_gdn.go), its template instantiations extern "C" entries of
@@ -182,10 +182,30 @@ extern "C" __global__ void __launch_bounds__(STRATA_GDN_S * STRATA_GDN_RG) strat
     strata_gdn_step_norm_body<false>(state, hbuf, C, gate, beta, z, gamma, eps, y, h_k, h_v, T, n_keep, t_out_begin);
 }
 
+// The most layers one launch of the layers' commits takes (gdn_commit_layers' n_layers): a table's entries. Strata
+// reaches each layer's state and rows at a fixed stride from the first's; ours lie where each layer's storage put them,
+// so a layers launch takes a table of each layer's addresses, by value, as Strata's QSA indexer launch takes its
+// layers' (QsaIndexerLayers).
+#define STRATA_GDN_COMMIT_LAYERS 64
+
+// A layers launch's conv commit table: each layer's history and qkv rows.
+struct strata_gdn_conv_commit_table {
+    float * hist[STRATA_GDN_COMMIT_LAYERS];
+    const float * qkv[STRATA_GDN_COMMIT_LAYERS];
+};
+
+// A layers launch's state commit table: each layer's state, convolved rows, gate and beta.
+struct strata_gdn_step_commit_table {
+    float * state[STRATA_GDN_COMMIT_LAYERS];
+    const float * hbuf[STRATA_GDN_COMMIT_LAYERS];
+    const float * gate[STRATA_GDN_COMMIT_LAYERS];
+    const float * beta[STRATA_GDN_COMMIT_LAYERS];
+};
+
 // ---- gdn_conv_commit_kernel: the history keeps the last three of [hist(3) | x_0..x_{n-1}], n the kept count.
 // Launch: grid ceil(channels / 256), 256 threads.
-extern "C" __global__ void strata_gdn_conv_commit(float * __restrict__ hist, const float * __restrict__ qkv, int C,
-                                                  const int32_t * __restrict__ n_keep) {
+__device__ __forceinline__ void strata_gdn_conv_commit_body(float * __restrict__ hist, const float * __restrict__ qkv,
+                                                            int C, const int32_t * __restrict__ n_keep) {
     const int c = blockIdx.x * blockDim.x + threadIdx.x;
     if (c >= C) return;
     const int n = *n_keep;
@@ -201,9 +221,21 @@ extern "C" __global__ void strata_gdn_conv_commit(float * __restrict__ hist, con
     hist[c * 3 + 2] = seq[2];
 }
 
+extern "C" __global__ void strata_gdn_conv_commit(float * __restrict__ hist, const float * __restrict__ qkv, int C,
+                                                  const int32_t * __restrict__ n_keep) {
+    strata_gdn_conv_commit_body(hist, qkv, C, n_keep);
+}
+
+// ---- gdn_conv_commit_layers_kernel: gdn_conv_commit_kernel for every layer of the table in one launch, blockIdx.y the
+// layer. Launch: grid (ceil(channels / 256), layers), 256 threads.
+extern "C" __global__ void strata_gdn_conv_commit_layers(const strata_gdn_conv_commit_table table, int C,
+                                                         const int32_t * __restrict__ n_keep) {
+    strata_gdn_conv_commit_body(table.hist[blockIdx.y], table.qkv[blockIdx.y], C, n_keep);
+}
+
 // ---- gdn_step_commit_kernel<DBG = false> / gdn_step_commit_body: the state replayed over the kept count's tokens,
 // no outputs; each value head's 128 columns over 4 blocks of 32. Launch: grid (value heads, 4), block (32, 4).
-extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step_commit(
+__device__ __forceinline__ void strata_gdn_step_commit_body(
         float * __restrict__ state, const float * __restrict__ hbuf, int C, const float * __restrict__ gate,
         const float * __restrict__ beta, int h_k, int h_v, const int32_t * __restrict__ n_keep) {
     const int S = STRATA_GDN_S, RPG = STRATA_GDN_RPG;
@@ -254,6 +286,22 @@ extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step
         const int c = index / S, k = index % S;
         columns[(size_t) c * S + k] = tile[c][k];
     }
+}
+
+extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step_commit(
+        float * __restrict__ state, const float * __restrict__ hbuf, int C, const float * __restrict__ gate,
+        const float * __restrict__ beta, int h_k, int h_v, const int32_t * __restrict__ n_keep) {
+    strata_gdn_step_commit_body(state, hbuf, C, gate, beta, h_k, h_v, n_keep);
+}
+
+// ---- gdn_step_commit_layers_kernel: gdn_step_commit_kernel for every layer of the table in one launch, blockIdx.z the
+// layer, each layer's blocks running the body on its own state and rows. Launch: grid (value heads, 4, layers), block
+// (32, 4).
+extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step_commit_layers(
+        const strata_gdn_step_commit_table table, int C, int h_k, int h_v, const int32_t * __restrict__ n_keep) {
+    const int layer = blockIdx.z;
+    strata_gdn_step_commit_body(table.state[layer], table.hbuf[layer], C, table.gate[layer], table.beta[layer], h_k, h_v,
+                                n_keep);
 }
 
 // ---- copy_indexed_kernel: dst's n values become src's from row index (read from device memory) on, rows of stride

@@ -224,7 +224,7 @@
           "id": "sample-tools",
           "title": "Draw a sampled tool request's rows from the card's top K until its grammar triggers",
           "status": "open",
-          "verify": "false",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestSampledToolRequestDrawsFromTheTopKUntilItsTrigger|TestSampledToolRequestTriggersOnAnAcceptedDraft)$' -count=1",
           "rationale": "Serves: sampled tool requests, the agent's turns, which decode at 28.7 to 29.2 tok/s sampled against 102 to 106 greedy on Strata's bench suite (2026-10-26, sample-card's bench): their lazy grammar (a tool call's, awaiting its trigger) keeps sampling.Sampler.BoundedTopK refusing, so every row comes down whole and the host sorts it, where a lazy grammar awaiting its trigger masks no token.\nPort: as a greedy request selects on the card until its grammar triggers (GreedyUntilTrigger, the device's selection then the grammar's logits), a sampled one draws from the card's top K of each row until its grammar triggers, and from the whole row, which the grammar masks, after; Strata draws a tool request's rows on the card the same way until its grammar constrains them.\nCheck: the sampled tool request's text from the same seed equals the whole rows' text, before and after its trigger, on the stepping fixture and the windows' fixture; the bench suite's sampled agent turns over three alternating rounds against the build before.\nDisappears: a sampled tool request's whole rows before its trigger.\nBatch: inference device lanes and sampling tests."
         },
         {

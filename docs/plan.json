@@ -224,7 +224,7 @@
           "id": "sample-windows",
           "title": "Speculate a sampled request through the windows, as a greedy one does",
           "status": "open",
-          "verify": "false",
+          "verify": "go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1",
           "rationale": "Serves: sampled decode, which reads a token a forward while greedy decode verifies 1.7 to 1.9 tokens a window: the server's admitSpeculation refuses any request but a greedy one (\"speculative decoding verifies greedy drafts\"), though the window-sampled step gave the windows Strata's sampled acceptance (src/core/verify.cpp run), checked by TestSampledVerifyWindowsKeepTheDistribution.\nPort: Strata serves a sampled request through its verify windows, the rows drawn after the window at their own positions and a draft kept while it equals its row's draw; a request naming no speculation speculates as a greedy one does on a model that speculates by default, one asking for it is admitted, and one refusing it decodes plainly.\nCheck: a server test that a sampled request on a runner speculating by default reaches the runner speculating, one asking for speculation is admitted, and one refusing it is not; then the bench suite's sampled pass over three alternating rounds against the build before.\nDisappears: the refusal of sampled speculation.\nBatch: server tests; inference device lanes for the sampled windows' check."
         },
         {

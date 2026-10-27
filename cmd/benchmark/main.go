@@ -703,7 +703,7 @@ func executeContinuousBatch(
 			for index, candidate := range output.Candidates {
 				ids[index], logits[index] = int(candidate.ID), candidate.Logit
 			}
-			id, sampleErr := sampler.SampleTopK(ids, logits, runner.SamplingVocabularySize())
+			id, sampleErr := sampler.SampleTopK(ids, logits, runner.SamplingVocabularySize(), nil)
 			return tokenizer.TokenID(id), sampleErr
 		}
 		id, sampleErr := sampler.Sample(output.Logits)

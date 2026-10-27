@@ -115,6 +115,8 @@ func (r *Runner) Generate(
 	deviceGreedy := useDeviceCache &&
 		options.PostSamplingProbabilities == 0 && (options.Sampler.IsRawGreedy() || awaitsTrigger) &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
+	// A sampled request whose sampler cuts to the top K first draws each row from the card's top K of it.
+	topK := r.sampledTopK(options)
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -212,9 +214,9 @@ func (r *Runner) Generate(
 				if projectedOnDevice {
 					projected = options.ProjectedInputs
 				}
-				mode := deviceOutputLogits
-				if deviceGreedy {
-					mode = deviceOutputGreedy
+				plan, planErr := r.decodeStepPlan(deviceGreedy, topK)
+				if planErr != nil {
+					return nil, "", planErr
 				}
 				if retainedPrefix == nil && options.CachePrompt {
 					if err := r.releaseEvictedPromptCaches(ctx); err != nil {
@@ -228,7 +230,7 @@ func (r *Runner) Generate(
 					}
 					defer func() { r.hyperDraft.prompt = nil }()
 				}
-				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, mode, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
+				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, plan, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
 				if r.hyperDraft != nil {
 					err = errors.Join(err, r.hyperDraft.prompt.releaseStreams(context.WithoutCancel(ctx)))
 				}
@@ -438,22 +440,19 @@ func (r *Runner) Generate(
 				}
 			}
 			var nextDeviceCache *deviceKVCache
-			if r.windowsDecode() {
-				mode := deviceOutputLogits
-				if deviceGreedy {
-					mode = deviceOutputGreedy
+			plan, planErr := r.decodeStepPlan(deviceGreedy, topK)
+			step := []tokenizer.TokenID{ids[len(ids)-1]}
+			switch {
+			case planErr != nil:
+				err = planErr
+			case r.windowsDecode():
+				nextDeviceCache, err = r.forwardDeviceWindowLocked(ctx, plan, step, deviceCache)
+			default:
+				var next []*deviceKVCache
+				appended := deviceBatchAppend{Tokens: step, Past: deviceCache}
+				if next, err = r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{appended}, plan); err == nil {
+					nextDeviceCache = next[0]
 				}
-				nextDeviceCache, err = r.forwardDeviceWindowLocked(ctx, mode, []tokenizer.TokenID{ids[len(ids)-1]}, deviceCache)
-			} else if deviceGreedy {
-				nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
-					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
-					deviceCache,
-				)
-			} else {
-				nextDeviceCache, err = r.forwardDeviceCachedModeLocked(
-					ctx, deviceOutputLogits, []tokenizer.TokenID{ids[len(ids)-1]}, deviceCache, nil,
-				)
 			}
 			if err == nil {
 				oldDeviceCache := deviceCache
@@ -481,7 +480,7 @@ func (r *Runner) Generate(
 			}
 		} else {
 			var sampleErr error
-			event, sampleErr = sampleGenerationToken(deviceCache.Logits, ids, options)
+			event, sampleErr = r.sampleGenerationRow(deviceCache.Logits, deviceCache.Candidates, ids, options)
 			if sampleErr != nil {
 				loopErr = sampleErr
 				break

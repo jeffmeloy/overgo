@@ -69,7 +69,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			b, err := bounded.SampleTopK([]int{0, 1}, logits[:2], len(logits))
+			b, err := bounded.SampleTopK([]int{0, 1}, logits[:2], len(logits), nil)
 			if err != nil || a != b {
 				t.Fatalf("bounded selection %d != full %d: %v", b, a, err)
 			}

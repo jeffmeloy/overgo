@@ -335,7 +335,9 @@ func (s *Sampler) greedyBeyondGrammar() bool {
 		!slices.Contains(s.stages, SamplerInfill)
 }
 
-// BoundedTopK: exact prefix-filter candidate limit.
+// BoundedTopK: exact prefix-filter candidate limit: the chain's stages before its top-K cut leave every candidate as
+// they found it (stageIdle; a temperature of one with no dynamic range), so the cut's K candidates are all a draw
+// reads.
 func (s *Sampler) BoundedTopK() (int, bool) {
 	if s == nil {
 		return 0, false
@@ -346,44 +348,13 @@ func (s *Sampler) BoundedTopK() (int, bool) {
 		return 0, false
 	}
 	for _, stage := range s.stages {
-		switch stage {
-		case SamplerPenalties:
-			if config.RepeatPenalty != 1 || config.PresencePenalty != 0 || config.FrequencyPenalty != 0 {
-				return 0, false
-			}
-		case SamplerDry:
-			if config.DryMultiplier != 0 {
-				return 0, false
-			}
-		case SamplerTopNSigma:
-			if config.TopNSigma != 0 {
-				return 0, false
-			}
-		case SamplerTypicalP:
-			if config.TypicalP != 1 {
-				return 0, false
-			}
-		case SamplerTopP:
-			if config.TopP != 1 {
-				return 0, false
-			}
-		case SamplerMinP:
-			if config.MinP != 0 {
-				return 0, false
-			}
-		case SamplerXTC:
-			if config.XTCProbability != 0 {
-				return 0, false
-			}
-		case SamplerTemperature:
-			if config.Temperature != 1 || config.DynatempRange != 0 {
-				return 0, false
-			}
-		case SamplerAdaptiveP, SamplerInfill:
-			return 0, false
-		case SamplerTopK:
+		switch {
+		case stage == SamplerTopK:
 			return config.TopK, true
+		case stage == SamplerTemperature && config.Temperature == 1 && config.DynatempRange == 0, stageIdle(stage, config):
+			continue
 		}
+		return 0, false
 	}
 	return 0, false
 }
@@ -500,12 +471,13 @@ func applyNoRepeatNgram(logits []float32, history []int, size, window int) error
 	return nil
 }
 
-// SampleTopK: complete descending top-K prefix.
-func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (int, error) {
+// SampleTopK: complete descending top-K prefix, drawn as SampleWithHistory draws the row it came from: keyed by
+// history's position, the sequential stream for none.
+func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int, history []int) (int, error) {
 	if s == nil {
 		return 0, errors.New("sampler is nil")
 	}
-	s.drawAt(nil)
+	s.drawAt(history)
 	limit, ok := s.BoundedTopK()
 	if !ok {
 		return 0, errors.New("sampling configuration has no bounded top-K prefix")
@@ -532,7 +504,7 @@ func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (i
 	stages := s.stages
 	for index, stage := range stages {
 		if stage == SamplerTopK {
-			return s.sampleCandidatePipeline(candidates, vocabularySize, nil, stages[index+1:])
+			return s.sampleCandidatePipeline(candidates, vocabularySize, history, stages[index+1:])
 		}
 	}
 	return 0, errors.New("sampling top-K stage is missing")

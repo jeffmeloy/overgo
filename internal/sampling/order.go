@@ -45,27 +45,33 @@ var defaultSamplerOrder = []SamplerStage{
 // sampling off the raw argmax path, as IsRawGreedy reads it.
 func configuredOrder(config Config) []SamplerStage {
 	return slices.DeleteFunc(slices.Clone(defaultSamplerOrder), func(stage SamplerStage) bool {
-		switch stage {
-		case SamplerPenalties:
-			return (config.RepeatPenalty == 0 || config.RepeatPenalty == 1) &&
-				config.PresencePenalty == 0 && config.FrequencyPenalty == 0
-		case SamplerDry:
-			return config.DryMultiplier == 0
-		case SamplerTopNSigma:
-			return config.TopNSigma <= 0
-		case SamplerTopK:
-			return config.TopK <= 0
-		case SamplerTypicalP:
-			return config.TypicalP <= 0 || config.TypicalP >= 1
-		case SamplerTopP:
-			return config.TopP <= 0 || config.TopP >= 1
-		case SamplerMinP:
-			return config.MinP <= 0
-		case SamplerXTC:
-			return config.XTCProbability <= 0
-		}
-		return false
+		return stageIdle(stage, config)
 	})
+}
+
+// stageIdle reports whether a stage leaves every candidate as it found it under config, whether a chain names it or
+// not.
+func stageIdle(stage SamplerStage, config Config) bool {
+	switch stage {
+	case SamplerPenalties:
+		return (config.RepeatPenalty == 0 || config.RepeatPenalty == 1) &&
+			config.PresencePenalty == 0 && config.FrequencyPenalty == 0
+	case SamplerDry:
+		return config.DryMultiplier == 0
+	case SamplerTopNSigma:
+		return config.TopNSigma <= 0
+	case SamplerTopK:
+		return config.TopK <= 0
+	case SamplerTypicalP:
+		return config.TypicalP <= 0 || config.TypicalP >= 1
+	case SamplerTopP:
+		return config.TopP <= 0 || config.TopP >= 1
+	case SamplerMinP:
+		return config.MinP <= 0
+	case SamplerXTC:
+		return config.XTCProbability <= 0
+	}
+	return false
 }
 
 // ParseSamplerOrder: parses llama.cpp's semicolon-delimited sampler names

@@ -196,12 +196,15 @@ func (r *Runner) generateDeviceSpeculative(
 		}
 		return deliver(TokenEvent{ID: id})
 	}
-	// draw samples a row after the ids emitted so far, at the position of the last: the sampler's draw is keyed by it.
-	draw := func(logits []float32) (TokenEvent, error) { return sampleGenerationToken(logits, ids, options) }
+	// draw samples a row, its logits or the card's top K of them, after the ids emitted so far, at the position of the
+	// last: the sampler's draw is keyed by it.
+	draw := func(logits []float32, candidates []LogitCandidate) (TokenEvent, error) {
+		return r.sampleGenerationRow(logits, candidates, ids, options)
+	}
 	boundary := prefill
 	first := boundary.Selected
 	if drawing {
-		event, err := draw(boundary.Logits)
+		event, err := draw(boundary.Logits, boundary.Candidates)
 		if err == nil {
 			err = deliver(event)
 		}
@@ -225,6 +228,18 @@ func (r *Runner) generateDeviceSpeculative(
 			}
 		}
 		boundary = live
+	}
+	// A window keeps every row in the head: greedy, each row's selection; sampled, each row's logits, or the card's top
+	// K of them where the sampler cuts to the top K first.
+	spanMode, spanTopK := deviceOutputGreedySpan, uint32(0)
+	if drawing {
+		if spanMode, spanTopK = deviceOutputLogitsSpan, r.sampledTopK(options); spanTopK != 0 {
+			spanMode = deviceOutputTopKSpan
+		}
+	}
+	spanPlan, err := compileDeviceOutputPlan(spanMode, spanTopK, r.spec.VocabularySize)
+	if err != nil {
+		return ids, boundary, false, "", err
 	}
 	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
@@ -297,17 +312,17 @@ func (r *Runner) generateDeviceSpeculative(
 		for index := range checkpoints {
 			checkpoints[index] = uint32(len(pending) + index)
 		}
-		mode := deviceOutputGreedySpan
-		if drawing {
-			mode = deviceOutputLogitsSpan
-		}
 		var span *deviceKVCache
 		var err error
 		if r.windowsDecode() {
 			// Strata's verifier: the window reads the live state where it sits; its commit keeps what it accepts.
-			span, err = r.forwardDeviceWindowLocked(ctx, mode, spanTokens, boundary)
+			span, err = r.forwardDeviceWindowLocked(ctx, spanPlan, spanTokens, boundary)
 		} else {
-			span, err = r.forwardDeviceCachedModeLocked(ctx, mode, spanTokens, boundary, nil, checkpoints...)
+			var next []*deviceKVCache
+			appended := deviceBatchAppend{Tokens: spanTokens, Past: boundary, Checkpoints: checkpoints}
+			if next, err = r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{appended}, spanPlan); err == nil {
+				span = next[0]
+			}
 		}
 		if err != nil {
 			return ids, boundary, false, "", err
@@ -316,13 +331,13 @@ func (r *Runner) generateDeviceSpeculative(
 		accepted := 0
 		var correction tokenizer.TokenID
 		if drawing {
-			if len(span.SpanLogits) != len(spanTokens) {
+			if len(span.SpanLogits)+len(span.SpanCandidates) != len(spanTokens) {
 				return ids, boundary, false, "", errors.Join(errors.New("inference: span logits are incomplete"), span.Release(context.Background()))
 			}
 			// Each row is drawn after the ones before it, at its own position; a draft is kept while it equals its row's
 			// draw, and the first row that differs, or the last, gives the correction.
 			for row := base; !stopped; row++ {
-				event, drawErr := draw(span.SpanLogits[row])
+				event, drawErr := draw(span.spanRow(row))
 				if drawErr == nil {
 					drawErr = deliver(event)
 				}

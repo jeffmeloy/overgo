@@ -595,6 +595,9 @@ func boundedProtocolTokens(
 // protocolGenerationOptions are a protocol request's generation options.
 //   - a raw-greedy request selects its tokens on the device: the protocols return no logits, and a decode step that
 //     copied its vocabulary's logits back and sampled them on the host spent about 0.4 ms of Flash-Next's 14.6
+//   - a sampled one draws from the card's top K of each row where its sampler cuts to the top K first: a whole row
+//     brought back and sorted on the host took about 20 ms of a Flash-Next token, its sampled decode a quarter of
+//     its greedy decode
 func (h *Handler) protocolGenerationOptions(
 	maxTokens int,
 	sampler *sampling.Sampler,
@@ -605,6 +608,7 @@ func (h *Handler) protocolGenerationOptions(
 		MaxNewTokens:    maxTokens,
 		Sampler:         sampler,
 		DeviceGreedy:    true,
+		DeviceTopK:      true,
 		ParseSpecial:    true,
 		ContextShift:    h.config.ContextShift,
 		PromptTokenIDs:  promptIDs,

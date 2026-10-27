@@ -93,7 +93,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	}
 
 	// The MTP shape proper: a committed prefix cache plus a draft span.
-	prefix, err := runner.forwardDeviceCachedGreedyStepLocked(ctx, tokens[:1], nil)
+	prefix, err := runner.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokens[:1], nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

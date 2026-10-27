@@ -90,21 +90,17 @@ func (r *Runner) prefillDeviceCachedLocked(ctx context.Context, appendInput devi
 // the CPU's time a slot and the card's time a token.
 const devicePromptChunkTokens = 8192
 
-// promptReadPlan is the output plan of mode for a prompt read of tokens tokens: a request that drafts over its prompt
+// promptReadPlan is the output plan for a prompt read of tokens tokens: a request that drafts over its prompt
 // reads its rows' streams into the draft's history, and a read of more than one token by a runner whose experts are
 // offloaded marks its routed nodes as a prompt's (tensor.Builder.SetPromptExperts), whose small groups then take the
 // grouped products, the CPU computing the experts in host memory: a chat right after a 16K Flash-Next read ran its
 // prompt through the decode products, which read the experts the long read had moved out over the link, its first
 // token 0.78 s against 0.17. A runner holding every expert on the card has none to compute there, and its small groups
 // keep the decode products and stage no copies (Unlimited-OCR's 6-token prompt reserved 138 MiB for them).
-func (r *Runner) promptReadPlan(mode deviceOutputMode, tokens int) (deviceOutputPlan, error) {
-	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
-	if err != nil {
-		return deviceOutputPlan{}, err
-	}
+func (r *Runner) promptReadPlan(plan deviceOutputPlan, tokens int) deviceOutputPlan {
 	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil
 	plan.promptExperts = tokens > 1 && r.offloadsExperts()
-	return plan, nil
+	return plan
 }
 
 // offloadsExperts reports whether the runner's routed experts live partly in host memory, a file-backed residency.
@@ -112,25 +108,22 @@ func (r *Runner) offloadsExperts() bool {
 	return r.realizedResidency == recipe.RealizedExpertOffloaded
 }
 
-// readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan of mode, sizing the
-// cache for the prompt and the output tokens it may decode after it, within the context, so that no part of the read
-// nor a decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep), with at least
+// readDevicePromptLocked reads the prompt's tokens after cached onto past under the output plan, sizing the cache for
+// the prompt and the output tokens it may decode after it, within the context, so that no part of the read nor a
+// decode step outgrows the cache into a copy. A recurrent prompt its entry keeps (keep), with at least
 // promptBoundaryTokens before its last turn, is read in two parts, the second its last turn, and the cache before that
 // turn is answered too, nil otherwise: a recurrent state cannot step back a token, so a later request that keeps the
 // turns before it reads on from there.
 func (r *Runner) readDevicePromptLocked(
 	ctx context.Context,
-	mode deviceOutputMode,
+	plan deviceOutputPlan,
 	ids []tokenizer.TokenID,
 	cached, output int,
 	past *deviceKVCache,
 	projected *ProjectedInputs,
 	keep bool,
 ) (*deviceKVCache, *deviceKVCache, error) {
-	plan, err := r.promptReadPlan(mode, len(ids)-cached)
-	if err != nil {
-		return nil, nil, err
-	}
+	plan = r.promptReadPlan(plan, len(ids)-cached)
 	reserve := uint64(len(ids)) + uint64(max(output, 0))
 	if limit := uint64(r.spec.ContextLength); limit > 0 {
 		reserve = min(reserve, max(limit, uint64(len(ids))))

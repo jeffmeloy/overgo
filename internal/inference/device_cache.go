@@ -44,6 +44,8 @@ type deviceKVCache struct {
 	// SpanLogits holds the per-position logits of a sampled verify span, one row a consumed position, which the request
 	// draws its rows from.
 	SpanLogits [][]float32
+	// SpanCandidates holds each row's top-K candidates in SpanLogits' place, for a sampler that cuts to the top K first.
+	SpanCandidates [][]LogitCandidate
 	// SpanHidden holds the pre-output-norm hidden rows of a span
 	// append, one column per consumed position — the trunk states the
 	// NextN draft head seeds from.
@@ -448,26 +450,20 @@ func (r *Runner) compactDeviceCacheForAppend(
 	return next, nil
 }
 
-// forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
-// argmax token stays resident and only its id is copied back.
-func (r *Runner) forwardDeviceCachedGreedyStepLocked(
-	ctx context.Context,
-	tokenIDs []tokenizer.TokenID,
-	past *deviceKVCache,
-) (*deviceKVCache, error) {
-	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past, nil, 0)
+// spanRow is a sampled span's row: its logits, or the card's top K of them.
+func (c *deviceKVCache) spanRow(row int) ([]float32, []LogitCandidate) {
+	if c.SpanCandidates != nil {
+		return nil, c.SpanCandidates[row]
+	}
+	return c.SpanLogits[row], nil
 }
 
 // forwardDeviceWindowLocked steps a verify window of tokens over a past whose fixed state is its sequence's live state
 // (Strata's verifier, qsa_window.go): the window reads that state where it sits and keeps its rows for its commit
 // (commitWindowLocked); a one-token window commits itself.
 func (r *Runner) forwardDeviceWindowLocked(
-	ctx context.Context, mode deviceOutputMode, tokenIDs []tokenizer.TokenID, past *deviceKVCache,
+	ctx context.Context, plan deviceOutputPlan, tokenIDs []tokenizer.TokenID, past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
-	if err != nil {
-		return nil, err
-	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{Tokens: tokenIDs, Past: past, Window: true}}, plan)
 	if err != nil {
 		return nil, err

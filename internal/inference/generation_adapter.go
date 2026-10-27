@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
@@ -61,6 +62,47 @@ func (r *Runner) applyGenerationLoRA(options *GenerateOptions) (func(), error) {
 }
 
 func tokenHistory(ids []tokenizer.TokenID) []int { return dtype.ConvertSlice[int](ids) }
+
+// deviceTopK is the top K a request's sampled rows come down from the card as (DeviceTopK), zero for whole rows: its
+// sampler's bounded top K, where the request reads no row's probabilities and its sampler cuts to the top K first.
+func deviceTopK(options GenerateOptions, vocabulary int) int {
+	if !options.DeviceTopK || options.PostSamplingProbabilities != 0 || options.Sampler == nil {
+		return 0
+	}
+	limit, ok := options.Sampler.BoundedTopK()
+	if !ok || limit <= 0 || limit > vocabulary || limit > int(tensor.MaxTopKPairs) {
+		return 0
+	}
+	return limit
+}
+
+// sampledTopK is deviceTopK for one request on the runner, zero where the runner masks output tokens, which it does
+// over a whole row.
+func (r *Runner) sampledTopK(options GenerateOptions) uint32 {
+	if len(r.outputExclusions) != 0 {
+		return 0
+	}
+	return uint32(deviceTopK(options, int(r.spec.VocabularySize)))
+}
+
+// sampleGenerationRow draws a row as sampleGenerationToken does, from its top-K candidates where the card cut it to
+// them, which give the draw the whole row gives.
+func (r *Runner) sampleGenerationRow(
+	logits []float32,
+	candidates []LogitCandidate,
+	ids []tokenizer.TokenID,
+	options GenerateOptions,
+) (TokenEvent, error) {
+	if candidates == nil {
+		return sampleGenerationToken(logits, ids, options)
+	}
+	topIDs, topLogits := make([]int, len(candidates)), make([]float32, len(candidates))
+	for index, candidate := range candidates {
+		topIDs[index], topLogits[index] = int(candidate.ID), candidate.Logit
+	}
+	next, err := options.Sampler.SampleTopK(topIDs, topLogits, int(r.spec.VocabularySize), tokenHistory(ids))
+	return TokenEvent{ID: tokenizer.TokenID(next)}, err
+}
 
 func sampleGenerationToken(
 	logits []float32,

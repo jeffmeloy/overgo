@@ -91,11 +91,18 @@ func TestTopKOneIsGreedy(t *testing.T) {
 // TestBoundedTopKMatchesFullPipeline: the bounded prefix samples as the full
 // pipeline does, for a named order and for the order an omitted one resolves to.
 func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
-	for name, order := range map[string][]SamplerStage{"named": defaultSamplerOrder, "omitted": nil} {
+	for name, chain := range map[string]struct {
+		order []SamplerStage
+		sigma float32
+	}{
+		"named": {order: defaultSamplerOrder}, "omitted": {},
+		// A named chain's idle stages before the cut, as the served defaults name them: top-n-sigma off at -1.
+		"named idle": {order: defaultSamplerOrder, sigma: -1},
+	} {
 		t.Run(name, func(t *testing.T) {
 			config := Config{
 				Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
-				Samplers: order, RepeatPenalty: 1,
+				Samplers: chain.order, RepeatPenalty: 1, TopNSigma: chain.sigma,
 			}
 			full, err := New(config)
 			if err != nil {
@@ -111,12 +118,17 @@ func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
 			logits := []float32{0.2, 1.4, -0.1, 2.1, 0.7}
 			ids := []int{3, 1, 4}
 			values := []float32{logits[3], logits[1], logits[4]}
-			for index := range 50 {
-				want, sampleErr := full.Sample(logits)
+			// The sequential stream, then draws keyed by a history's position.
+			for index := range 100 {
+				var history []int
+				if index >= 50 {
+					history = make([]int, index)
+				}
+				want, sampleErr := full.SampleWithHistory(logits, history)
 				if sampleErr != nil {
 					t.Fatal(sampleErr)
 				}
-				got, sampleErr := bounded.SampleTopK(ids, values, len(logits))
+				got, sampleErr := bounded.SampleTopK(ids, values, len(logits), history)
 				if sampleErr != nil {
 					t.Fatal(sampleErr)
 				}

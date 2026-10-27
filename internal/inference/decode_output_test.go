@@ -64,10 +64,7 @@ func TestPromptReadsMarkTheirExperts(t *testing.T) {
 			tokens int
 			marked bool
 		}{{1, false}, {2, true}, {31, true}, {8192, true}} {
-			plan, err := runner.promptReadPlan(deviceOutputGreedy, c.tokens)
-			if err != nil {
-				t.Fatal(err)
-			}
+			plan := runner.promptReadPlan(deviceOutputPlan{mode: deviceOutputGreedy}, c.tokens)
 			marked := c.marked && residency == recipe.RealizedExpertOffloaded
 			if plan.promptExperts != marked || !plan.is(deviceOutputGreedy) {
 				t.Errorf("a read of %d tokens over %s marks its experts %t in mode %v, want %t", c.tokens, residency, plan.promptExperts, plan.mode, marked)

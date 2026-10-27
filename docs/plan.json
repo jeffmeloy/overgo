@@ -216,17 +216,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "widen-kv keeps a sliding layer's cells to a ring of its window and a prompt chunk: 857 nodes over the 0 the row held - the ring's pools, table, forks and staleness"
+        "nodes": 45,
+        "reason": "sample-card draws a sampled request's rows from the card's top K: a top-K span output for windows, one decode-step plan and eligibility shared with continuous batching, the positioned top-K draw and one idle-stage rule for the sampler; sampled chat decode 28 to 82 tok/s"
       },
       "steps": [
-        {
-          "id": "sample-card",
-          "title": "Draw a sampled window's tokens on the card, as Strata's sampler does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestCardTopKDrawsAsTheHostSampler$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestBoundedTopKMatchesFullPipeline$' -count=1",
-          "rationale": "Serves: sampled decode, 26 to 29 tok/s on Strata's bench suite against 100 to 108 greedy on the same build (2026-10-26, at 8e4652f and the retired chain's build alike); the sampling step's default would put every request on that path.\nPort: Strata's sampler (src/kernels/cuda/sampler.cu sample_tokens, as src/core/verify.cpp's run draws a window's rows): a window's rows drawn on the card with the request's chain - its penalties over the history, temperature, top-k, top-p and min-p - and its Philox draw keyed by the row's position, only the ids coming back. Ours copies each row's full logits to the host (248,320 floats, about 1 MB a row) and the host sampler sorts every candidate for top-k (internal/sampling sampler.go, SamplerTopK).\nFirst: where a sampled window's time goes on the bench's sampled chat - the logits' copies, the host's sort and draw, the verify; then the check is set: the card's draws equal the host sampler's for the same seed and positions, plain and speculative, and a seeded request keeps the text plain sampling gives.\nDisappears: a sampled row's logits copied to the host where the card draws it.\nEvidence: the check; the bench suite's sampled pass over three alternating rounds against the build before.\nBatch: inference, sampling and cuda/executor device lanes.\n\nFirst (2026-10-26, at 3bec7a4): a sampled token of the bench's chat costs about 38 ms. The server admits no sampled request to the windows (admitSpeculation: \"speculative decoding verifies greedy drafts\"), so it decodes a token a forward of about 12 ms; and the host's draw over the whole row takes 20.5 ms (the sampler sorts all 248,320 candidates for its top-k cut; tmp/strata-port/samplecost) beside the row's 1 MB copy. The step: a sampled request's rows come down as the card's top K of them (TopKPairs, the decode plan's top-K output and a top-K span output for windows) where its sampler cuts to the top K first (sampling.Sampler.BoundedTopK), and the host draws from those K what it draws from the whole row (SampleTopK, keyed by position as SampleWithHistory is); the server asks for it wherever a request reads no logits. Strata's merge kernel draws on the card from the same per-block candidates; drawing the K on the host costs microseconds and keeps the host sampler's chain the one source of a draw. Check: TestCardTopKDrawsAsTheHostSampler, the same text from the same seed either way, plainly and speculating, on the stepping fixture and the windows' fixture. Admitting sampled requests to the windows is sample-windows."
-        },
         {
           "id": "sample-windows",
           "title": "Speculate a sampled request through the windows, as a greedy one does",

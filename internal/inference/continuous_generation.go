@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"overgo/internal/processmeasure"
-	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -303,14 +302,8 @@ func continuousStatesUseDeviceTopK(
 ) (int, bool) {
 	limit := 0
 	for _, state := range states {
-		options := state.request.options
-		if !options.DeviceTopK || options.PostSamplingProbabilities != 0 || options.Sampler == nil {
-			return 0, false
-		}
-		candidateLimit, ok := options.Sampler.BoundedTopK()
-		if !ok || candidateLimit <= 0 || candidateLimit > vocabulary ||
-			candidateLimit > int(tensor.MaxTopKPairs) ||
-			(limit != 0 && candidateLimit != limit) {
+		candidateLimit := deviceTopK(state.request.options, vocabulary)
+		if candidateLimit == 0 || limit != 0 && candidateLimit != limit {
 			return 0, false
 		}
 		limit = candidateLimit
@@ -380,7 +373,7 @@ func (g *ContinuousGenerator) sampleTopK(
 		state.topKIDs[index], state.topKLogits[index] = int(candidate.ID), candidate.Logit
 	}
 	next, err := state.request.options.Sampler.SampleTopK(
-		state.topKIDs, state.topKLogits, int(g.runner.spec.VocabularySize),
+		state.topKIDs, state.topKLogits, int(g.runner.spec.VocabularySize), nil,
 	)
 	if err != nil {
 		return continuousGenerateResult{err: err}, true

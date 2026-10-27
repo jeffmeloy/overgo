@@ -23,6 +23,10 @@ const (
 	// deviceOutputLogitsSpan keeps every position of a span append in the output head as the greedy span does and
 	// publishes each row's logits, which a sampled request's verify draws its rows from.
 	deviceOutputLogitsSpan
+	// deviceOutputTopKSpan keeps every position of a span append in the output head as the greedy span does and
+	// publishes each row's top-K candidates, which a sampled request's verify draws its rows from where its sampler cuts
+	// to the top K first (sampling.Sampler.BoundedTopK), as continuous batching's bounded steps do.
+	deviceOutputTopKSpan
 )
 
 // deviceOutputPlan: graph reduction and publication contract.
@@ -42,7 +46,7 @@ func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (de
 		if topK != 0 {
 			return deviceOutputPlan{}, errors.New("inference: decode output count requires top-K mode")
 		}
-	case deviceOutputTopK:
+	case deviceOutputTopK, deviceOutputTopKSpan:
 		if topK == 0 || topK > vocabulary {
 			return deviceOutputPlan{}, errors.New("inference: device top-K count is invalid")
 		}
@@ -50,6 +54,18 @@ func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (de
 		return deviceOutputPlan{}, errors.New("inference: decode output mode is invalid")
 	}
 	return deviceOutputPlan{mode: mode, topK: topK}, nil
+}
+
+// decodeStepPlan is a request's decode step's output plan: its greedy selection, the top K a sampled request draws from
+// (sampledTopK), or the whole row.
+func (r *Runner) decodeStepPlan(greedy bool, topK uint32) (deviceOutputPlan, error) {
+	switch {
+	case greedy:
+		return compileDeviceOutputPlan(deviceOutputGreedy, 0, r.spec.VocabularySize)
+	case topK != 0:
+		return compileDeviceOutputPlan(deviceOutputTopK, topK, r.spec.VocabularySize)
+	}
+	return compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
 }
 
 // is names the plan's mode contracts at call sites: deviceOutputLogits
@@ -61,14 +77,14 @@ func (p deviceOutputPlan) is(mode deviceOutputMode) bool { return p.mode == mode
 
 // span reports whether the plan keeps every position of the append in the output head: a verify window's.
 func (p deviceOutputPlan) span() bool {
-	return p.mode == deviceOutputGreedySpan || p.mode == deviceOutputLogitsSpan
+	return p.mode == deviceOutputGreedySpan || p.mode == deviceOutputLogitsSpan || p.mode == deviceOutputTopKSpan
 }
 
 func (p deviceOutputPlan) reduce(builder *tensor.Builder, logits *tensor.Tensor) (selection, candidates *tensor.Tensor) {
 	switch p.mode {
 	case deviceOutputGreedy, deviceOutputGreedySpan:
 		selection = builder.TopK(logits, 1)
-	case deviceOutputTopK:
+	case deviceOutputTopK, deviceOutputTopKSpan:
 		candidates = builder.TopKPairs(logits, p.topK)
 	}
 	return selection, candidates
@@ -78,7 +94,7 @@ func (p deviceOutputPlan) graphOutput(graph deviceBatchGraph) *tensor.Tensor {
 	switch p.mode {
 	case deviceOutputGreedy, deviceOutputGreedySpan:
 		return graph.selection
-	case deviceOutputTopK:
+	case deviceOutputTopK, deviceOutputTopKSpan:
 		return graph.candidates
 	default:
 		return graph.logits
@@ -113,13 +129,6 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 			return err
 		}
 		caches[0].SpanSelected = selected
-		if graph.hidden != nil {
-			hidden, hiddenErr := retained.CopyToHost(ctx, graph.hidden)
-			if hiddenErr != nil {
-				return hiddenErr
-			}
-			caches[0].SpanHidden = hidden
-		}
 	case deviceOutputLogitsSpan:
 		if count != 1 {
 			return errors.New("inference: span logits cover exactly one sequence")
@@ -136,12 +145,16 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 		for row := range rows {
 			caches[0].SpanLogits[row] = r.finalizeLogits(value.Data[row*vocabulary : (row+1)*vocabulary])
 		}
-		if graph.hidden != nil {
-			hidden, hiddenErr := retained.CopyToHost(ctx, graph.hidden)
-			if hiddenErr != nil {
-				return hiddenErr
-			}
-			caches[0].SpanHidden = hidden
+	case deviceOutputTopKSpan:
+		if count != 1 {
+			return errors.New("inference: span candidates cover exactly one sequence")
+		}
+		value, err := retained.CopyToHost(ctx, graph.candidates)
+		if err != nil {
+			return err
+		}
+		if caches[0].SpanCandidates, err = r.decodeCandidatePairs(value.Data, int(graph.tokenCount), p.topK); err != nil {
+			return err
 		}
 	case deviceOutputGreedy:
 		selected, device, err := retainedDeviceGreedySelections(
@@ -187,6 +200,14 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 			}
 			cache.Logits = r.finalizeLogits(logits)
 		}
+	}
+	// A span's rows' hidden streams come down beside its outputs, for the next draft.
+	if p.span() && graph.hidden != nil {
+		hidden, err := retained.CopyToHost(ctx, graph.hidden)
+		if err != nil {
+			return err
+		}
+		caches[0].SpanHidden = hidden
 	}
 	return nil
 }

@@ -129,6 +129,7 @@ func (h *Handler) runNativeCompletion(
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			DeviceGreedy:    body.NProbs == 0,
+			DeviceTopK:      body.NProbs == 0,
 			ContextShift:    h.config.ContextShift,
 			KeepTokens:      body.NKeep,
 			DiscardTokens:   body.NDiscard,

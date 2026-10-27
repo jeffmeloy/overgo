@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
@@ -36,6 +37,35 @@ func ResolveModelConfig(ctx context.Context, store overgodb.DocumentReader, mode
 		return modelartifact.ModelConfigDocument{}, false, err
 	}
 	return found, located, nil
+}
+
+// fileDeclaredSampling is the sampling a GGUF file recommends in llama.cpp's general.sampling keys, which its
+// converter writes from the checkpoint's generation config (Flash-Next's: temperature 1, top-p 0.95, top-k 20); nil
+// where the file names none. A temperature of zero or less asks for greedy decoding.
+func fileDeclaredSampling(file *gguf.File) *modelartifact.GenerationSampling {
+	named := false
+	number := func(key string) float64 {
+		value, ok := file.MetadataValue("general.sampling." + key)
+		switch data := value.Data.(type) {
+		case float32:
+			named = named || ok
+			return float64(data)
+		case int32:
+			named = named || ok
+			return float64(data)
+		}
+		return 0
+	}
+	declared := &modelartifact.GenerationSampling{
+		Origin: "gguf general.sampling", Temperature: number("temp"), TopP: number("top_p"), TopK: int(number("top_k")),
+		MinP: number("min_p"), RepetitionPenalty: number("penalty_repeat"),
+	}
+	if !named {
+		return nil
+	}
+	_, temperature := file.MetadataValue("general.sampling.temp")
+	declared.DoSample = !temperature || declared.Temperature > 0
+	return declared
 }
 
 // withDeclaredSampling overlays a model's declared sampling onto both

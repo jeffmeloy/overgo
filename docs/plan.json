@@ -216,23 +216,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 42,
-        "reason": "sample-card draws a sampled request's rows from the card's top K: a top-K span output for windows, one decode-step plan and eligibility shared with continuous batching, the positioned top-K draw and one idle-stage rule for the sampler; sampled chat decode 28 to 82 tok/s"
+        "nodes": 0,
+        "reason": "sampling reads a GGUF file's general.sampling recommendation (temperature, top-p, top-k, min-p, repeat penalty) and overlays it on the catalog policy where the store declares none; Flash-Next's served defaults top-k 20 and top-p 0.95, its published sampling"
       },
       "steps": [
-        {
-          "id": "sampling",
-          "title": "Serve the model file's sampling recommendations when a request names none",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -run '^TestFilesSamplingRecommendationOverlaysTheCatalog$' -count=1",
-          "rationale": "Serves: served requests at the sampling the model is published for: Flash-Next's file recommends temperature 1.0, top-p 0.95 and top-k 20 (general.sampling.temp, top_p, top_k), which no code reads. It follows the window step, so the default does not drop served decode to a token a forward.\nDisappears: nothing; a request's own sampling still wins, and the bench and the tests name theirs.\nEvidence: TestRequestsTakeTheModelsSamplingDefaults (a request naming no sampling decodes at the file's values, one naming its own keeps them, a file naming none keeps today's defaults); the bench suite's sampled pass.\nBatch: server and inference tests.\n\nMap (2026-10-25, Strata at 296b59d2): Strata's sampler parameters (temperature, top-p, top-k, min-p, penalties and the seed; SamplerParams) are a request's own, applied host-side a position after the window's replay (verify.cpp's run), and its serve takes a model's published values from its own configuration; ours reads none of the model file's general.sampling.* keys (internal/sampling, internal/server). Order: after window, as filed. Check confirmed as filed: TestRequestsTakeTheModelsSamplingDefaults.",
-          "depends_on": [
-            "strata-port/sample-tools",
-            "strata-port/sample-windows",
-            "strata-port/sample-card",
-            "strata-port/window"
-          ]
-        },
         {
           "id": "prompt-rest",
           "title": "Read a 16K prompt at Strata's rate",

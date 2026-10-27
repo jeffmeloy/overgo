@@ -75,19 +75,21 @@ func ResolveClaimedGGUF(
 		return fail(err)
 	}
 	// The model's own declared sampling (its generation config or model
-	// card) overlays the catalog policy; a store without typed document
-	// projections cannot hold a declaration, so the policy stands.
+	// card) overlays the catalog policy, else the sampling its file
+	// recommends; a store without typed document projections cannot hold a
+	// declaration, so the file's stands.
+	declared := fileDeclaredSampling(loaded.state.File)
 	if documents, ok := store.(overgodb.DocumentReader); ok {
-		config, declared, err := ResolveModelConfig(ctx, documents, loaded.state.Inventory.Manifest.ID)
+		config, found, err := ResolveModelConfig(ctx, documents, loaded.state.Inventory.Manifest.ID)
 		if err != nil {
 			return fail(err)
 		}
-		if declared && config.Generation != nil {
-			loaded.state.Policy, err = withDeclaredSampling(loaded.state.Policy, config.Generation.Sampling)
-			if err != nil {
-				return fail(err)
-			}
+		if found && config.Generation != nil && config.Generation.Sampling != nil {
+			declared = config.Generation.Sampling
 		}
+	}
+	if loaded.state.Policy, err = withDeclaredSampling(loaded.state.Policy, declared); err != nil {
+		return fail(err)
 	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {

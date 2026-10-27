@@ -221,6 +221,13 @@
       },
       "steps": [
         {
+          "id": "draft-prompt",
+          "title": "Write a prompt's rows into the round's draft layer, so it drafts from the whole conversation",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestPrefillStrataDrafterWritesEveryCell$' -count=1",
+          "rationale": "The round's draft layer reads an empty prompt (the finding of 2026-10-27, high): a 2,418-token prompt read in one chunk runs PrefillStrataDrafter over its 2,416 rows (cell0 0, nothing skipped), yet the draft layer's key codes are zero at cells 1 to 2,410 and set only at cell 0 and at the decode's own cells; skipping the prompt prefill altogether leaves the replayed agent session's draft acceptance where it was. On agent turns, where the answer leans on the prompt (a file to summarize), our drafter keeps 0.46 to 0.61 of its drafts against Strata's 0.55 to 0.69 on the same prompts, and drafts fewer a window (an empty context lowers its confidence below min_p); chat, whose context the decode writes, is equal. Filed ahead of load-costs by the lead: it is Overgo's own decode on long conversations, measurable at once, where load-costs moves nothing on this PC (its optima are flat here).\nFirst: why each prefill group of up to max_t rows writes no cell past 0 (the captured prefillExec[t] graph against the records copied into dTok, dStep, dPos and rin before each launch); the fix; then the check: a model test reading a prompt finds the draft layer's key cells nonzero across it and, for tokens the decode wrote before, within int8 rounding of the decode's cells.\nServes: Flash-Next's agent-turn decode (tokens a window), chat unchanged.\nEvidence: the check; the replayed agent session's draft acceptance before and after.\nBatch: inference and cuda/executor device lanes."
+        },
+        {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",
           "status": "open",

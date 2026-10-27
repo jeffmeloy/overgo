@@ -233,26 +233,23 @@ type speculativeDraftAPI interface {
 }
 
 // admitSpeculation holds a speculative request to the served model's draft
-// head and to the greedy sampling the drafts are verified under, and decides
-// whether the request speculates: as it asks, else as the served model does
-// by default, for a greedy request.
-func (h *Handler) admitSpeculation(requested *bool, sampler *sampling.Sampler) (bool, error) {
-	// A lazy grammar awaiting its trigger (a tool request's) leaves the drafts greedy until a token triggers it.
-	greedy := sampler.IsRawGreedy() || sampler.GreedyUntilTrigger()
+// head and decides whether the request speculates: as it asks, else as the
+// served model does by default. A greedy request keeps a draft its window
+// selects, a sampled one a draft its window's row draws (Strata's verify.cpp
+// run), so any sampling speculates.
+func (h *Handler) admitSpeculation(requested *bool) (bool, error) {
 	switch {
 	case requested == nil:
-		return h.speculatesByDefault() && greedy, nil
+		return h.speculatesByDefault(), nil
 	case !*requested:
 		return false, nil
 	case h.speculativeDraftTokens() == 0:
 		return false, errors.New("speculative decoding needs a served model that declares a draft head")
-	case !greedy:
-		return false, errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
 	}
 	return true, nil
 }
 
-// speculatesByDefault reports whether the served model speculates a greedy request that does not say.
+// speculatesByDefault reports whether the served model speculates a request that does not say.
 func (h *Handler) speculatesByDefault() bool {
 	declared, ok := h.generator.(speculativeDraftAPI)
 	return ok && h.speculativeDraftTokens() > 0 && declared.SpeculatesByDefault()

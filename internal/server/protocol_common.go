@@ -176,7 +176,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	speculative, err := h.admitSpeculation(parameters.Speculative, sampler)
+	speculative, err := h.admitSpeculation(parameters.Speculative)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return nil, false

@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:9e7a5cf8d8b5d804ebd28ed0c2ee339fcefaad0a8ddc36147ef06a2e45c5144f"
+     "identity": "file:sha256:8f303287ad8048c71271112f4e5255528ce836a02864744a44258bacd87b9ef2"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",

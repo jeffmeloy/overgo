@@ -48,9 +48,9 @@ func (generator *draftGenerator) Generate(_ context.Context, _ string, options i
 // speculative decoding, with its draft span, only when the served model
 // declares a draft head and context shifting is off; a speculative turn runs
 // greedily on the device, keeping the prompt cache, and reports its drafted
-// and accepted tokens; a request without a draft head or under non-greedy
-// sampling is refused with why; a turn that does not ask takes the model's
-// default.
+// and accepted tokens; a sampled turn speculates too, its window's rows
+// drawn; a request without a draft head is refused with why; a turn that
+// does not ask, greedy or sampled, takes the model's default.
 func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 	t.Parallel()
 	offered := func(handler *Handler) *workspaceSpeculative {
@@ -90,7 +90,7 @@ func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 	if !ran.SpeculativeDecode || !ran.DeviceGreedy || !ran.CachePrompt || ran.PlainDecode {
 		t.Fatalf("speculative options = speculative %v greedy %v cached %v plain %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.CachePrompt, ran.PlainDecode)
 	}
-	if code, body := turn(handler, "0.8"); code != http.StatusBadRequest || !strings.Contains(body, "set temperature 0") {
+	if code, body := turn(handler, "0.8"); code != http.StatusOK || !generator.ran[len(generator.ran)-1].SpeculativeDecode {
 		t.Fatalf("a sampled speculative turn = %d %s", code, body)
 	}
 	// unasked runs a greedy or sampled turn that does not say whether it speculates, and returns its options.
@@ -118,7 +118,7 @@ func TestSpeculativeDecodingDeclaredOption(t *testing.T) {
 	if ran := unasked(served, attached, "0"); !ran.SpeculativeDecode || !ran.DeviceGreedy || ran.PlainDecode {
 		t.Fatalf("a greedy turn on a served draft = speculative %v greedy %v plain %v", ran.SpeculativeDecode, ran.DeviceGreedy, ran.PlainDecode)
 	}
-	if ran := unasked(served, attached, "0.8"); ran.SpeculativeDecode || !ran.PlainDecode {
+	if ran := unasked(served, attached, "0.8"); !ran.SpeculativeDecode || ran.PlainDecode {
 		t.Fatalf("a sampled turn on a served draft = speculative %v plain %v", ran.SpeculativeDecode, ran.PlainDecode)
 	}
 	declined := serveTestRequest(served, http.MethodPost, "/v1/responses",

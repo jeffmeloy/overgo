@@ -337,14 +337,15 @@ func (s *Sampler) greedyBeyondGrammar() bool {
 
 // BoundedTopK: exact prefix-filter candidate limit: the chain's stages before its top-K cut leave every candidate as
 // they found it (stageIdle; a temperature of one with no dynamic range), so the cut's K candidates are all a draw
-// reads.
+// reads. A lazy grammar awaiting its trigger masks no token, so it bounds a draw until a token it accepts triggers it.
 func (s *Sampler) BoundedTopK() (int, bool) {
 	if s == nil {
 		return 0, false
 	}
 	config := s.config
+	masked := config.GBNF != nil && (s.gbnf == nil || !s.gbnfState.awaitingTrigger)
 	if config.TopK <= 0 || config.Mirostat != mirostatDisabled || config.NoRepeatNgramSize != 0 || config.Grammar != nil ||
-		config.GBNF != nil || config.Infill != nil || len(config.LogitBiases) != 0 {
+		masked || config.Infill != nil || len(config.LogitBiases) != 0 {
 		return 0, false
 	}
 	for _, stage := range s.stages {

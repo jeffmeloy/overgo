@@ -115,8 +115,6 @@ func (r *Runner) Generate(
 	deviceGreedy := useDeviceCache &&
 		options.PostSamplingProbabilities == 0 && (options.Sampler.IsRawGreedy() || awaitsTrigger) &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
-	// A sampled request whose sampler cuts to the top K first draws each row from the card's top K of it.
-	topK := r.sampledTopK(options)
 	defer func() {
 		if deviceCache != nil &&
 			!r.ownsDevicePromptCache(deviceCache) {
@@ -214,7 +212,7 @@ func (r *Runner) Generate(
 				if projectedOnDevice {
 					projected = options.ProjectedInputs
 				}
-				plan, planErr := r.decodeStepPlan(deviceGreedy, topK)
+				plan, planErr := r.decodeStepPlan(deviceGreedy, r.sampledTopK(options))
 				if planErr != nil {
 					return nil, "", planErr
 				}
@@ -440,7 +438,9 @@ func (r *Runner) Generate(
 				}
 			}
 			var nextDeviceCache *deviceKVCache
-			plan, planErr := r.decodeStepPlan(deviceGreedy, topK)
+			// A sampled request draws from the card's top K while its sampler cuts to it first: a tool request's until its
+			// grammar triggers, the whole row after.
+			plan, planErr := r.decodeStepPlan(deviceGreedy, r.sampledTopK(options))
 			step := []tokenizer.TokenID{ids[len(ids)-1]}
 			switch {
 			case planErr != nil:

@@ -229,18 +229,6 @@ func (r *Runner) generateDeviceSpeculative(
 		}
 		boundary = live
 	}
-	// A window keeps every row in the head: greedy, each row's selection; sampled, each row's logits, or the card's top
-	// K of them where the sampler cuts to the top K first.
-	spanMode, spanTopK := deviceOutputGreedySpan, uint32(0)
-	if drawing {
-		if spanMode, spanTopK = deviceOutputLogitsSpan, r.sampledTopK(options); spanTopK != 0 {
-			spanMode = deviceOutputTopKSpan
-		}
-	}
-	spanPlan, err := compileDeviceOutputPlan(spanMode, spanTopK, r.spec.VocabularySize)
-	if err != nil {
-		return ids, boundary, false, "", err
-	}
 	depth := r.speculationDraftTokens()
 	width := uint64(r.spec.EmbeddingLength)
 	if r.hyperDraft != nil {
@@ -312,8 +300,19 @@ func (r *Runner) generateDeviceSpeculative(
 		for index := range checkpoints {
 			checkpoints[index] = uint32(len(pending) + index)
 		}
+		// A window keeps every row in the head: greedy, each row's selection; sampled, each row's logits, or the card's top
+		// K of them while the sampler cuts to the top K first (a tool request's, until its grammar triggers).
+		spanMode, spanTopK := deviceOutputGreedySpan, uint32(0)
+		if drawing {
+			if spanMode, spanTopK = deviceOutputLogitsSpan, r.sampledTopK(options); spanTopK != 0 {
+				spanMode = deviceOutputTopKSpan
+			}
+		}
+		spanPlan, err := compileDeviceOutputPlan(spanMode, spanTopK, r.spec.VocabularySize)
+		if err != nil {
+			return ids, boundary, false, "", err
+		}
 		var span *deviceKVCache
-		var err error
 		if r.windowsDecode() {
 			// Strata's verifier: the window reads the live state where it sits; its commit keeps what it accepts.
 			span, err = r.forwardDeviceWindowLocked(ctx, spanPlan, spanTokens, boundary)
@@ -343,6 +342,12 @@ func (r *Runner) generateDeviceSpeculative(
 				}
 				if drawErr != nil {
 					return ids, boundary, false, "", errors.Join(drawErr, span.Release(context.Background()))
+				}
+				// A draw that triggers the grammar ends the window: the rows after it came down as their top K, which
+				// the grammar now masks; the drawn token is the correction the next window reads.
+				if spanTopK != 0 && r.sampledTopK(options) == 0 {
+					correction = event.ID
+					break
 				}
 				if offset := row - base; offset < len(drafts) && event.ID == drafts[offset] {
 					accepted++

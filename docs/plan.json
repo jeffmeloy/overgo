@@ -217,16 +217,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "sampling reads a GGUF file's general.sampling recommendation (temperature, top-p, top-k, min-p, repeat penalty) and overlays it on the catalog policy where the store declares none; Flash-Next's served defaults top-k 20 and top-p 0.95, its published sampling"
+        "reason": "prompt-experts takes a prompt's expert products on tensor cores as Strata's prefill does: four kernels, the per-expert dequant, gather, cuBLAS products, activation and scatter beside the grouped tiles' batches, and the routed node's attribute; Flash-Next's 16K read 5.3 to 5.1 s with it"
       },
       "steps": [
-        {
-          "id": "prompt-experts",
-          "title": "Take a prompt's expert products on tensor cores where a routed node asks, as Strata's prefill does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestPromptExpertsOnTensorCoresMatchTheGroupedKernels$' -count=1",
-          "rationale": "Serves: the 16K read's expert products, 1,948 ms of its card time on the grouped F32 kernels against Strata's 1,673 (dequant 540, gate/up 512, down 293, combine 328; its prefill timer, 2026-10-26, 16,361 tokens).\nPort: Strata's prefill expert path (src/prefill/prefill.cpp, its native pack's branch: iq_dequant_gu_f16 and iq_dequant_f16, then gemm.f16 for gate/up, swiglu, gemm.f16 for down): a prompt group's expert of moeTensorCoreRows routed rows or more dequantized to f16 by its storage's formulas (moe_expert_dequant_f16 over moe_expert_value), its rows gathered as f16, its gate and up products in one cuBLAS product, its activation (moe_activation) as f16, its down product, each row written to its routed slot; experts of fewer rows, fused gate-up banks and expert biases keep the grouped kernels. A routed node asks for it (MoEAttributes.TensorCores); no model asks yet: Flash-Next's admission is prompt-rest's, after its held-out check on long prompts.\nEvidence: TestPromptExpertsOnTensorCoresMatchTheGroupedKernels (Flash-Next's bank storages, on the card and copied from host memory: within half precision's rounding of the grouped kernels and not their bits; a group of few rows keeps their bits). Measured with Flash-Next asking: the 16K read 5.03 and 5.11 s warm against 5.35 and 5.30 s, its expert products about 1.4 s of card time against 1.95.\nBatch: cuda/executor device lane."
-        },
         {
           "id": "prompt-rest",
           "title": "Read a 16K prompt at Strata's rate",

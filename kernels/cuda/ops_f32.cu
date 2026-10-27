@@ -10921,6 +10921,74 @@ extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_
     }
 }
 
+// ---- A prompt's expert products on tensor cores (Strata's prefill, src/prefill/prefill.cpp) ----
+// An expert with enough routed rows is dequantized to f16 by its storage's formulas, its rows gathered as f16, and its
+// gate and up products, activation and down product taken by cuBLAS between these kernels, each row's output then
+// written to its routed slot as moe_grouped_down_f32 writes it.
+
+// moe_expert_dequant_f16 expands count weights of one expert's bank, from its first, to f16.
+extern "C" __global__ void moe_expert_dequant_f16(
+        const void * weights,
+        __half * output,
+        unsigned int storage,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __float2half(moe_expert_value(weights, index, storage));
+}
+
+// moe_gather_rows_f16 gathers an expert's routed rows, each its token's input row, in its positions' order, as f16.
+extern "C" __global__ void moe_gather_rows_f16(
+        const float * input,
+        const unsigned int * positions,
+        __half * output,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int token = positions[index / hidden] / top_k;
+    output[index] = __float2half(input[(size_t) token * hidden + index % hidden]);
+}
+
+// moe_activate_f16 activates each row's gate and up products, its first intermediate and next intermediate columns,
+// as moe_grouped_hidden_f32 does, as f16 for the down product.
+extern "C" __global__ void moe_activate_f16(
+        const float * gate_up,
+        __half * output,
+        unsigned int intermediate,
+        unsigned int activation,
+        unsigned int routing,
+        float swiglu_clamp,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const float * row = gate_up + (size_t) (index / intermediate) * 2u * intermediate;
+    const unsigned int column = index % intermediate;
+    output[index] = __float2half(
+        moe_activation(row[column], row[intermediate + column], 1u, activation, routing, swiglu_clamp));
+}
+
+// moe_scatter_rows_f32 writes an expert's down products, a row each of its routed rows, to their routed slots.
+extern "C" __global__ void moe_scatter_rows_f32(
+        const float * rows,
+        const unsigned int * positions,
+        float * slots,
+        unsigned int hidden,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    slots[(size_t) positions[index / hidden] * hidden + index % hidden] = rows[index];
+}
+
 // ---- Wan causal 3-D VAE decode (streamed chunk-major, latentvideo) ----
 
 extern "C" __global__ void vae_temporal_downsample_f32(

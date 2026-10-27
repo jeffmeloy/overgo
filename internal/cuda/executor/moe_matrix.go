@@ -6,6 +6,7 @@ import (
 	"slices"
 	"unsafe"
 
+	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
@@ -60,6 +61,48 @@ type moeMatrixGeometry struct {
 	hidden, intermediate, experts uint64
 	// tokenBytes: the staging one token takes, its slots' outputs and plan words.
 	tokenBytes uint64
+	// tensorCore holds whether an expert of enough routed rows takes its products on tensor cores (Strata's prefill), as
+	// the node asks (MoEAttributes.TensorCores): gate and up in banks of their own and no expert biases.
+	tensorCore bool
+}
+
+const (
+	// moeTensorCoreRows is the fewest routed rows an expert of a prompt group takes its products on tensor cores with,
+	// over its banks dequantized to f16, and fewer the grouped kernels: it trades an expert's dequantization and four
+	// launches against the grouped tiles' products. Provisional: the load-costs step derives it.
+	moeTensorCoreRows = uint32(32)
+	// moeTensorCoreChunk is the most routed rows of an expert one pass of its tensor-core products takes, which sizes
+	// their scratch: it trades the scratch the staging holds against an expert's passes. Provisional: the load-costs
+	// step derives it.
+	moeTensorCoreChunk = uint64(1024)
+)
+
+// tensorCoreLayout is the staging an expert's tensor-core products take, offsets from its start: its gate and up banks
+// side by side and its down bank as f16, a pass's rows as f16, their gate and up products, their activations as f16,
+// and their down products.
+type tensorCoreLayout struct {
+	weights, down, rows, gateUp, activations, products, bytes uint64
+}
+
+func (g moeMatrixGeometry) tensorCoreLayout() tensorCoreLayout {
+	var layout tensorCoreLayout
+	if !g.tensorCore {
+		return layout
+	}
+	offset := uint64(0)
+	place := func(bytes uint64) uint64 {
+		at := offset
+		offset += moeAlign(bytes)
+		return at
+	}
+	layout.weights = place(tensor.PairedExtent * g.intermediate * g.hidden * f16ScalarBytes)
+	layout.down = place(g.hidden * g.intermediate * f16ScalarBytes)
+	layout.rows = place(moeTensorCoreChunk * g.hidden * f16ScalarBytes)
+	layout.gateUp = place(moeTensorCoreChunk * tensor.PairedExtent * g.intermediate * f32ScalarBytes)
+	layout.activations = place(moeTensorCoreChunk * g.intermediate * f16ScalarBytes)
+	layout.products = place(moeTensorCoreChunk * g.hidden * f32ScalarBytes)
+	layout.bytes = offset
+	return layout
 }
 
 // moeMatrixTokens is the fewest tokens a group of a routed node takes the grouped products with: a tile, or one for a
@@ -87,7 +130,8 @@ func nativeMoEMatrix(node *tensor.Tensor) (moeMatrixGeometry, bool) {
 		return moeMatrixGeometry{}, false
 	}
 	bankShape := node.Inputs[down].Shape
-	g := moeMatrixGeometry{hidden: node.Shape.Dims[0], intermediate: bankShape.Dims[0], experts: bankShape.Dims[bankShape.Rank-1]}
+	g := moeMatrixGeometry{hidden: node.Shape.Dims[0], intermediate: bankShape.Dims[0], experts: bankShape.Dims[bankShape.Rank-1],
+		tensorCore: a.TensorCores && !a.FusedGateUp && !a.HasExpertBiases}
 	if g.hidden == 0 || g.intermediate == 0 || g.experts == 0 || a.TopK == 0 || g.experts > math.MaxUint32 ||
 		g.hidden > math.MaxUint32 || g.intermediate > math.MaxUint32 {
 		return moeMatrixGeometry{}, false
@@ -105,10 +149,10 @@ func moeAlign(bytes uint64) uint64 {
 }
 
 // copyBytes is the staging the copied experts and their tables take, with the plan's and the outputs' alignment,
-// and the outputs of the experts the CPU computes.
+// the outputs of the experts the CPU computes and the tensor-core products' scratch.
 func (g moeMatrixGeometry) copyBytes() uint64 {
 	return moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes + moeBanks*moeSlotAlignment +
-		g.hostRowsReserve()
+		g.hostRowsReserve() + moeSlotAlignment + g.tensorCoreLayout().bytes
 }
 
 // hostRowsReserve is the staging the CPU's outputs take at most: hostExpertSlots slots an expert of every expert.
@@ -137,8 +181,13 @@ func (g moeMatrixGeometry) hostRowsAt(group uint32, topK uint32) uint64 {
 	return moeAlign(g.copiesAt(group, topK) + moeAlign(moeBanks*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0)))) + moeCopyBytes)
 }
 
+// tensorCoreAt is the staging offset of the tensor-core products' scratch, after the CPU's outputs.
+func (g moeMatrixGeometry) tensorCoreAt(group uint32, topK uint32) uint64 {
+	return moeAlign(g.hostRowsAt(group, topK) + g.hostRowsReserve())
+}
+
 func (g moeMatrixGeometry) stagingBytes(group uint32, topK uint32) uint64 {
-	return g.hostRowsAt(group, topK) + g.hostRowsReserve()
+	return g.tensorCoreAt(group, topK) + g.tensorCoreLayout().bytes
 }
 
 // launchMoEMatrices computes a prompt group's routed experts as grouped
@@ -232,7 +281,14 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	blas.moeTable = blas.moeTable[:0]
 	blas.moeBatches = blas.moeBatches[:0]
 	blas.moeCopied = blas.moeCopied[:0]
+	// An expert of moeTensorCoreRows routed rows or more takes its products on tensor cores, in moeTensor, and no tiles.
+	tensorCore := g.tensorCore && gateBias == 0 && upBias == 0 && downBias == 0
+	blas.moeTensor = blas.moeTensor[:0]
 	addTiles := func(expert uint32) {
+		if tensorCore && blas.moeOffsets[expert+1]-blas.moeOffsets[expert] >= moeTensorCoreRows {
+			blas.moeTensor = append(blas.moeTensor, expert)
+			return
+		}
 		for start, end := blas.moeOffsets[expert], blas.moeOffsets[expert+1]; start < end; start += moeTileTokens {
 			blas.moeTable = append(blas.moeTable, expert, start, min(moeTileTokens, end-start))
 		}
@@ -253,7 +309,9 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			continue
 		}
 		if bytes > free {
-			blas.moeBatches = append(blas.moeBatches, moeBatch{tile: uint32(len(blas.moeTable)) / moeTileWords, copied: len(blas.moeCopied)})
+			blas.moeBatches = append(blas.moeBatches, moeBatch{
+				tile: uint32(len(blas.moeTable)) / moeTileWords, copied: len(blas.moeCopied), tensor: len(blas.moeTensor),
+			})
 			free = moeBatchBytes
 		}
 		at := copies + driver.DevicePtr(uint64(len(blas.moeBatches)-1)%moeCopyBuffers*moeBatchBytes+moeBatchBytes-free)
@@ -268,7 +326,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		addTiles(expert)
 	}
 	tiles := uint32(len(blas.moeTable)) / moeTileWords
-	blas.moeBatches = append(blas.moeBatches, moeBatch{tile: tiles, copied: len(blas.moeCopied)})
+	blas.moeBatches = append(blas.moeBatches, moeBatch{tile: tiles, copied: len(blas.moeCopied), tensor: len(blas.moeTensor)})
 	// Each slot takes the next position of its expert's rows.
 	blas.moeCounts = append(blas.moeCounts[:0], blas.moeOffsets[:experts]...)
 	paired := int(count * topK)
@@ -293,22 +351,91 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	fused, activation, routing := kernelBool(a.FusedGateUp), uint32(a.Activation), uint32(a.Routing)
 	clamp, indexed := a.SwiGLUClamp, kernelBool(residency != nil)
 	block := driver.Dim3{X: moeTileThreads, Y: 1, Z: 1}
-	// launch multiplies tiles first to end over the banks' tables.
-	launch := func(first, end uint32, tables []driver.DevicePtr) error {
-		if first == end {
-			return nil
+	// tensorExpert takes an expert's products on tensor cores (Strata's prefill): its banks dequantized to f16, gate and
+	// up side by side, then a pass of up to moeTensorCoreChunk of its routed rows at a time gathered as f16, their gate
+	// and up products, activations and down products, each row's written to its slot.
+	layout := g.tensorCoreLayout()
+	scratch := blas.staging + driver.DevicePtr(g.tensorCoreAt(count, topK))
+	gateUpWeights, downWeights := scratch+driver.DevicePtr(layout.weights), scratch+driver.DevicePtr(layout.down)
+	rows, gateUp := scratch+driver.DevicePtr(layout.rows), scratch+driver.DevicePtr(layout.gateUp)
+	activated, products := scratch+driver.DevicePtr(layout.activations), scratch+driver.DevicePtr(layout.products)
+	storages := []uint32{gateType, upType, downType}
+	bankWeights := intermediate * hidden
+	targets := []driver.DevicePtr{gateUpWeights, gateUpWeights + driver.DevicePtr(uint64(bankWeights)*f16ScalarBytes), downWeights}
+	tensorExpert := func(expert uint32) error {
+		for index, bank := range banks {
+			// An expert's bytes: where the residency or a batch's copy put them, or its place in its bank.
+			source := blas.moeCopyTable[index*int(experts)+int(expert)]
+			if residency == nil {
+				bytes, err := bank.Shape.Bytes(bank.Type)
+				if err != nil {
+					return err
+				}
+				source = tables[index] + driver.DevicePtr(bytes/uint64(experts)*uint64(expert))
+			}
+			if err := launch1DABI(state, functions[kernelMoeExpertDequantF16], bankWeights,
+				&source, &targets[index], &storages[index], &bankWeights); err != nil {
+				return err
+			}
 		}
-		tileTable := table + driver.DevicePtr(uint64(first)*uint64(moeTileWords)*f32ScalarBytes)
-		gate, up, down := tables[0], tables[upAt-moeFirstBankInput], tables[upAt-moeFirstBankInput+1]
-		if err := launchGridSharedABI(state, functions[kernelMoeGroupedHiddenF32],
-			driver.Dim3{X: end - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, driver.Dim3{X: moeHiddenThreads, Y: 1, Z: 1}, 0,
-			&input, &tileTable, &positionTable, &gate, &up, &gateBias, &upBias, &activations, &hidden, &intermediate, &topK,
-			&gateType, &upType, &fused, &activation, &routing, &clamp, &indexed); err != nil {
-			return err
+		for start := blas.moeOffsets[expert]; start < blas.moeOffsets[expert+1]; start += uint32(moeTensorCoreChunk) {
+			routedRows := min(uint32(moeTensorCoreChunk), blas.moeOffsets[expert+1]-start)
+			at := positionTable + driver.DevicePtr(uint64(start)*f32ScalarBytes)
+			gathered, activatedCount := routedRows*hidden, routedRows*intermediate
+			if err := launch1DABI(state, functions[kernelMoeGatherRowsF16], gathered,
+				&input, &at, &rows, &hidden, &topK, &gathered); err != nil {
+				return err
+			}
+			if err := blas.library.GEMMEx(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(tensor.PairedExtent*intermediate), int32(routedRows), int32(hidden), gemmProductScale,
+				gateUpWeights, cublas.DataF16, int32(hidden), rows, cublas.DataF16, int32(hidden), gemmAccumulatorScale,
+				gateUp, cublas.DataF32, int32(tensor.PairedExtent*intermediate), cublas.ComputeF32, cublas.GemmDefault,
+			); err != nil {
+				return err
+			}
+			if err := launch1DABI(state, functions[kernelMoeActivateF16], activatedCount,
+				&gateUp, &activated, &intermediate, &activation, &routing, &clamp, &activatedCount); err != nil {
+				return err
+			}
+			if err := blas.library.GEMMEx(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(hidden), int32(routedRows), int32(intermediate), gemmProductScale,
+				downWeights, cublas.DataF16, int32(intermediate), activated, cublas.DataF16, int32(intermediate),
+				gemmAccumulatorScale, products, cublas.DataF32, int32(hidden), cublas.ComputeF32, cublas.GemmDefault,
+			); err != nil {
+				return err
+			}
+			if err := launch1DABI(state, functions[kernelMoeScatterRowsF32], gathered,
+				&products, &at, &slots, &hidden, &gathered); err != nil {
+				return err
+			}
 		}
-		return launchGridSharedABI(state, functions[kernelMoeGroupedDownF32],
-			driver.Dim3{X: end - first, Y: (hidden-1)/moeTileRows + 1, Z: 1}, block, 0,
-			&activations, &tileTable, &positionTable, &down, &downBias, &slots, &hidden, &intermediate, &downType, &indexed)
+		return nil
+	}
+	// launch multiplies tiles first to end over the banks' tables, then the tensor-core experts beside them.
+	launch := func(first, end uint32, tables []driver.DevicePtr, tensorExperts []uint32) error {
+		if first < end {
+			tileTable := table + driver.DevicePtr(uint64(first)*uint64(moeTileWords)*f32ScalarBytes)
+			gate, up, down := tables[0], tables[upAt-moeFirstBankInput], tables[upAt-moeFirstBankInput+1]
+			if err := launchGridSharedABI(state, functions[kernelMoeGroupedHiddenF32],
+				driver.Dim3{X: end - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, driver.Dim3{X: moeHiddenThreads, Y: 1, Z: 1}, 0,
+				&input, &tileTable, &positionTable, &gate, &up, &gateBias, &upBias, &activations, &hidden, &intermediate, &topK,
+				&gateType, &upType, &fused, &activation, &routing, &clamp, &indexed); err != nil {
+				return err
+			}
+			if err := launchGridSharedABI(state, functions[kernelMoeGroupedDownF32],
+				driver.Dim3{X: end - first, Y: (hidden-1)/moeTileRows + 1, Z: 1}, block, 0,
+				&activations, &tileTable, &positionTable, &down, &downBias, &slots, &hidden, &intermediate, &downType, &indexed); err != nil {
+				return err
+			}
+		}
+		for _, expert := range tensorExperts {
+			if err := tensorExpert(expert); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	// Experts in host memory copy on the copy stream, a batch into each copy
 	// buffer in turn, while the compute stream multiplies the batch before and
@@ -317,6 +444,10 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	// which read its buffer's last batch.
 	hostBatches := len(blas.moeBatches) - 1
 	cardShare := func(part int) uint32 { return uint32(int(blas.moeBatches[0].tile) * part / (hostBatches + 1)) }
+	cardTensor := func(part int) []uint32 {
+		share := func(part int) int { return blas.moeBatches[0].tensor * part / (hostBatches + 1) }
+		return blas.moeTensor[share(part):share(part+1)]
+	}
 	copiedTables := make([]driver.DevicePtr, len(banks))
 	for index := range copiedTables {
 		copiedTables[index] = copyTables + driver.DevicePtr(uint64(index)*g.experts*uint64(unsafe.Sizeof(driver.DevicePtr(0))))
@@ -388,7 +519,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
 		return false, err
 	}
-	if err := launch(cardShare(0), cardShare(1), tables); err != nil {
+	if err := launch(cardShare(0), cardShare(1), tables, cardTensor(0)); err != nil {
 		return false, err
 	}
 	if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
@@ -413,7 +544,8 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		if err := state.Driver.WaitEvent(state.Stream, mark); err != nil {
 			return false, err
 		}
-		if err := launch(blas.moeBatches[batch].tile, blas.moeBatches[batch+1].tile, copiedTables); err != nil {
+		copiedTensor := blas.moeTensor[blas.moeBatches[batch].tensor:blas.moeBatches[batch+1].tensor]
+		if err := launch(blas.moeBatches[batch].tile, blas.moeBatches[batch+1].tile, copiedTables, copiedTensor); err != nil {
 			return false, err
 		}
 		if batch+moeCopyBuffers < hostBatches {
@@ -422,7 +554,7 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 				return false, err
 			}
 		}
-		if err := launch(cardShare(next), cardShare(next+1), tables); err != nil {
+		if err := launch(cardShare(next), cardShare(next+1), tables, cardTensor(next)); err != nil {
 			return false, err
 		}
 		if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
@@ -440,9 +572,10 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		&routeState, &slots, &expertScale, &output, &hidden, &topK, &normalize, &scale, &divisor, &outputCount)
 }
 
-// moeBatch ends a batch of a group's tiles: the tile that follows it and
-// the end of its experts copied from host memory.
+// moeBatch ends a batch of a group's tiles: the tile that follows it, the
+// end of its experts copied from host memory and of its experts on tensor
+// cores.
 type moeBatch struct {
-	tile   uint32
-	copied int
+	tile           uint32
+	copied, tensor int
 }

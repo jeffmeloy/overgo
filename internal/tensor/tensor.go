@@ -293,6 +293,9 @@ type MoEAttributes struct {
 	SwiGLUClamp        float32
 	// Prompt marks a prompt read's node (Builder.SetPromptExperts), whose groups take the grouped products at any size.
 	Prompt bool
+	// TensorCores takes a prompt group's expert products in half precision on tensor cores (Strata's prefill): an expert
+	// of enough routed rows dequantized to f16, its rows' products by cuBLAS; the architecture's PromptTensorCores.
+	TensorCores bool
 }
 
 type HyperConnectionAttributes struct {

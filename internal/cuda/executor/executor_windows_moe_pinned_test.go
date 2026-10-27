@@ -116,6 +116,8 @@ type moePinnedCase struct {
 	// reference also holds the F32-bank output to the host reference; the
 	// real geometry is too wide for the host.
 	reference bool
+	// tensorCores asks for the prompt's expert products on tensor cores (MoEAttributes.TensorCores).
+	tensorCores bool
 	// prompt marks the node as a prompt read's (tensor.Builder.SetPromptExperts).
 	prompt bool
 }
@@ -339,6 +341,7 @@ func (c moePinnedCase) prepare(t testing.TB, cuda *Executor, bankType dtype.Type
 	options := tensor.MoEOptions{
 		TopK: c.topK, NormalizeTopKProb: c.normalize, Scale: c.scale, Routing: c.routing,
 		Activation: c.activation, FusedGateUp: c.fused, ExpertIndexDivisor: c.divisor, SwiGLUClamp: c.clamp,
+		TensorCores: c.tensorCores,
 	}
 	if c.routerHidden != c.hidden {
 		options.RouterInput = feed("router_input", 1, c.routerHidden, c.tokens)
@@ -1013,6 +1016,63 @@ func TestPromptGroupMarksItsRoutedExperts(t *testing.T) {
 				t.Fatalf("route flags %v, want %v", flags, want)
 			}
 		})
+	}
+}
+
+// accuracyTensorCoreExperts bounds the tensor-core expert products' relative RMS difference from the grouped kernels':
+// their rows and banks rounded to f16, 11 significant bits, where the grouped kernels read them as F32.
+const accuracyTensorCoreExperts = 5e-3
+
+// TestPromptExpertsOnTensorCoresMatchTheGroupedKernels: where a routed node asks (MoEAttributes.TensorCores), a prompt
+// group's experts of moeTensorCoreRows routed rows or more take their products on tensor cores over Flash-Next's bank
+// storages, their banks on the card or copied from host memory: the output agrees with the grouped kernels' within
+// half precision's rounding and differs from their bits, so the tensor-core products ran; a group whose experts all
+// route fewer rows keeps the grouped kernels' bits.
+func TestPromptExpertsOnTensorCoresMatchTheGroupedKernels(t *testing.T) {
+	// Serial: device fixtures share the one card.
+	const pointerBytes, slotAlignment = 8, 256
+	for _, fixture := range []struct {
+		name  string
+		banks [3]dtype.Type
+	}{
+		{"iq3_s-iq4_nl", [3]dtype.Type{dtype.IQ3S, dtype.IQ3S, dtype.IQ4NL}},
+		{"iq4_xs-q8_0", [3]dtype.Type{dtype.IQ4XS, dtype.IQ4XS, dtype.Q8_0}},
+	} {
+		for _, run := range []struct {
+			placement string
+			experts   uint64
+			host      bool
+			cores     bool
+		}{{"card", 4, false, true}, {"host", 4, true, true}, {"few-rows", 16, false, false}} {
+			t.Run(fixture.name+"/"+run.placement, func(t *testing.T) {
+				c := moePinnedCase{
+					name: "tensor-core-" + fixture.name, compute: tensor.MulMatComputeNativeTensorCore,
+					hidden: 512, routerHidden: 512, intermediate: 256, experts: run.experts, tokens: 128, divisor: 1, topK: 2,
+					routing: tensor.MoERoutingSoftmax, activation: tensor.MoEActivationSiLU, normalize: true, scale: 1,
+					banks: fixture.banks, offload: run.host,
+				}
+				// Every expert in host memory, beside the tables, copies a batch.
+				if run.host {
+					c.limit = 3 * c.experts * pointerBytes
+					for index, shape := range []tensor.Shape{
+						tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.hidden, c.intermediate), tensor.MustShape(c.intermediate, c.hidden),
+					} {
+						expert, err := shape.Bytes(fixture.banks[index])
+						if err != nil {
+							t.Fatal(err)
+						}
+						c.limit += (expert + slotAlignment - 1) / slotAlignment * slotAlignment
+					}
+				}
+				grouped, _ := c.run(t, newFixtureExecutor(t), dtype.F32)
+				c.tensorCores = true
+				cores, _ := c.run(t, newFixtureExecutor(t), dtype.F32)
+				compareRelativeRMS(t, cores, grouped, accuracyTensorCoreExperts)
+				if bytes.Equal(driver.Bytes(cores), driver.Bytes(grouped)) == run.cores {
+					t.Fatalf("the tensor-core run kept the grouped kernels' bits %t, want %t", !run.cores, !run.cores)
+				}
+			})
+		}
 	}
 }
 

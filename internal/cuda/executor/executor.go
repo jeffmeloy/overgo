@@ -2702,6 +2702,8 @@ type blasState struct {
 	moeCopyTable []driver.DevicePtr
 	moeBatches   []moeBatch
 	moeCopied    []uint32
+	// moeTensor holds a group's experts that take their products on tensor cores, a batch's after the card's.
+	moeTensor []uint32
 	// hostPool computes experts in host memory on the CPU; hostInput and hostRows are its pinned input rows
 	// and output slots, hostQuantized its tokens' Q8_K activations, hostTokens and hostQuantizedAt which.
 	hostPool        *hostexpert.Pool

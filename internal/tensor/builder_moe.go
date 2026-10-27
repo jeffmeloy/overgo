@@ -25,6 +25,7 @@ type moeOptions struct {
 	fusedGateUp                bool
 	expertIndexDivisor         uint32
 	swigluClamp                float32
+	tensorCores                bool
 }
 
 // MoEBiases: OpenAI routed-expert biases.
@@ -51,6 +52,8 @@ type MoEOptions struct {
 	FusedGateUp        bool
 	ExpertIndexDivisor uint32
 	SwiGLUClamp        float32
+	// TensorCores takes a prompt group's expert products in half precision on tensor cores (MoEAttributes).
+	TensorCores bool
 }
 
 // MoEWithOptions: typed routed-expert construction.
@@ -65,7 +68,7 @@ func (b *Builder) MoEWithOptions(
 		topK: options.TopK, normalizeTopKProb: options.NormalizeTopKProb,
 		scale: options.Scale, routing: options.Routing, activation: options.Activation,
 		fusedGateUp: options.FusedGateUp, expertIndexDivisor: options.ExpertIndexDivisor,
-		swigluClamp: options.SwiGLUClamp,
+		swigluClamp: options.SwiGLUClamp, tensorCores: options.TensorCores,
 	})
 }
 
@@ -231,5 +234,6 @@ func (b *Builder) buildMoE(
 			HasSelectedExperts: selectedExperts != nil,
 			SwiGLUClamp:        swigluClamp,
 			Prompt:             b.promptExperts,
+			TensorCores:        options.tensorCores,
 		})
 }

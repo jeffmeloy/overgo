@@ -43,7 +43,7 @@ func quantizeQ8K(values []float32, blocks []byte) error {
 		target := blocks[block*q8KBlockBytes : (block+1)*q8KBlockBytes]
 		var largest, magnitude float32
 		for _, value := range source {
-			if absolute := float32(math.Abs(float64(value))); absolute > magnitude {
+			if absolute := math.Float32frombits(math.Float32bits(value) &^ float32Sign); absolute > magnitude {
 				magnitude, largest = absolute, value
 			}
 		}
@@ -90,7 +90,7 @@ func quantizeQ80(values []float32, blocks []byte) error {
 		target := blocks[block*q80BlockBytes : (block+1)*q80BlockBytes]
 		var magnitude float32
 		for _, value := range source {
-			magnitude = max(magnitude, float32(math.Abs(float64(value))))
+			magnitude = max(magnitude, math.Float32frombits(math.Float32bits(value)&^float32Sign))
 		}
 		scale := magnitude / q8Limit
 		inverse := float32(0)
@@ -99,8 +99,26 @@ func quantizeQ80(values []float32, blocks []byte) error {
 		}
 		binary.LittleEndian.PutUint16(target, quant.Float32ToFloat16(scale))
 		for index, value := range source {
-			target[q80ValuesAt+index] = byte(int8(math.Round(float64(float32(value * inverse)))))
+			target[q80ValuesAt+index] = byte(int8(roundHalfAway(float64(value * inverse))))
 		}
 	}
 	return nil
 }
+
+// float32Sign is a float32's sign bit.
+const float32Sign = 1 << 31
+
+// roundHalfAway is math.Round for a quantized value's magnitudes, far below 2^63: the value rounded to the nearest
+// integer and a half away from zero, by the conversion to an integer the processor truncates in one instruction.
+func roundHalfAway(value float64) float64 {
+	whole := float64(int64(value))
+	if part := value - whole; part >= roundHalf {
+		whole++
+	} else if part <= -roundHalf {
+		whole--
+	}
+	return whole
+}
+
+// roundHalf is the fraction from which a value rounds away from zero.
+const roundHalf = 0.5

@@ -32,10 +32,21 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7fbc1b6f9bad0be23f2ddda38bbfc9b97270e7e61b9996ef28ba69170618f0cc"
+          "content": "a90bfedc9d69934d12e8bf0ad07f4def5e3f1265a15f50c134efe47590ace53c"
         }
       ],
       "name": "internal/cuda/kernel/ops_f32.ptx",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:internal/cuda/kernel/strata_native.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1a03351a2330589e816d61ffe3fee7f4b2d70e026fdec264419fc4dafcd35938"
+        }
+      ],
+      "name": "internal/cuda/kernel/strata_native.ptx",
       "type": "file"
     },
     {
@@ -43,7 +54,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "b03982bd2aaafa93b09bb310c6fb368820dc051d85ce4321ef986ff7cd34f198"
+          "content": "45525e4025aaa51671196084bdfe5e94f58ba685896b40e199b108ed44e00300"
         }
       ],
       "name": "internal/cuda/kernel/strata_qsa.ptx",
@@ -119,14 +130,135 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:kernels/cuda/strata_fused_gr.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c124b6a8f3a6c197ae4076814bd3432411641de9dec7f5d253d8a294330714d4"
+        }
+      ],
+      "name": "kernels/cuda/strata_fused_gr.cuh",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:kernels/cuda/strata_gdn.cuh",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "a617404f37a3e3b8efa09b6c78b915510dce254d071b56f19941092bb22fe73b"
+          "content": "fca928179eb7e04ee0136df0bc7f28d17d05fd53f2504c0c41eef8e48b58504d"
         }
       ],
       "name": "kernels/cuda/strata_gdn.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_iq_experts.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4a665a9f536f240aabc9b6131693321d8ad21bc61c090f8ac30bfec6a2cb4922"
+        }
+      ],
+      "name": "kernels/cuda/strata_iq_experts.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_mtp.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2b0e93a957faae9c164462e97e627d2bd5b57eca429ba090215325795e5e76b0"
+        }
+      ],
+      "name": "kernels/cuda/strata_mtp.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "88d58ab2963874e35968d2d1ad74fc64f1e853eadc2a1e0bc669a6182795e0d3"
+        }
+      ],
+      "name": "kernels/cuda/strata_native.cu",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_bf16.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5dc29b94d7326d6b79d182629b2f21b92196c6156415ccf5cf84e07f74af297a"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_bf16.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_gr_postops.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "64bebbc7d8e21ee5834f8626238c5dd0cb8d3f0205f3dde375b756c7b8bdd06e"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_gr_postops.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_mmvq.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "edc4dbfbd0cc0a68053905038805f467c44247f80968c95401f054c854919a8f"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_mmvq.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_moe.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d97eabdd14729bba35e6b12eaba174f64e7eda0f0fd1c2d9c1061ed9f3ac88ee"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_moe.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_ple.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "321e13ee746d057a4f285a103ac3b931f980e8e2192eae9b3af60002c6ccaf26"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_ple.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_qsa.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3a2c660a78aa1e20a4c7767bd1d64ae5f78630bd796490c3f1a615a0977c3c09"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_qsa.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_native_router.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "efa078f8345fdcc9912baea5e7d64153332cd5412a1cf4dc95770b760f5561a4"
+        }
+      ],
+      "name": "kernels/cuda/strata_native_router.cuh",
       "type": "file"
     },
     {
@@ -134,7 +266,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "240afbc9d02cd311716d180483c706adb3c01a4a427cc18c5816684c0a6badc3"
+          "content": "0e1a4aff6cd4e92197f5404a49c1da0719a56e3aa4707934d5dcb1e5ebcb94bc"
         }
       ],
       "name": "kernels/cuda/strata_qsa.cu",
@@ -145,10 +277,32 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "01e7c3962410662d21e35234eb85296d1e8879cd35d1e173d250ffa678e6f8e0"
+          "content": "31e953c5fe326693a222b8cd36779bf28b519c6208ef3ad242878dbe195f47f3"
         }
       ],
       "name": "kernels/cuda/strata_qsa_native.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_round_elementwise.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "eda09d601ff9faa7bb7b7bc62f24aab90ec123024e18d5afaeee163b7bff1590"
+        }
+      ],
+      "name": "kernels/cuda/strata_round_elementwise.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/strata_sampler.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "088e300497f296197145f7505a3e441786aad3abc3fed44646d9134f35bfed4f"
+        }
+      ],
+      "name": "kernels/cuda/strata_sampler.cuh",
       "type": "file"
     },
     {
@@ -178,7 +332,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "0e8ea6c7d14f26b9d4f317fbe63cc781971dfd8d1b8ef1b926c492ada940e2d3"
+          "content": "cda68a4aa71486ec8c936d1bda33536c3839cab866bcbe22e56e191fefce5b8d"
         }
       ],
       "name": "kernels/manifest.json",
@@ -317,15 +471,29 @@
         "component:nvidia-cuda-driver-api",
         "component:nvidia-cuda-toolkit",
         "file:internal/cuda/kernel/ops_f32.ptx",
+        "file:internal/cuda/kernel/strata_native.ptx",
         "file:internal/cuda/kernel/strata_qsa.ptx",
         "file:internal/cuda/kernel/torch_cuda_randn.ptx",
         "file:internal/cuda/kernel/vector_add.ptx",
         "file:internal/quant/iq_tables_generated.go",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/strata_fused_gr.cuh",
         "file:kernels/cuda/strata_gdn.cuh",
+        "file:kernels/cuda/strata_iq_experts.cuh",
+        "file:kernels/cuda/strata_mtp.cuh",
+        "file:kernels/cuda/strata_native.cu",
+        "file:kernels/cuda/strata_native_bf16.cuh",
+        "file:kernels/cuda/strata_native_gr_postops.cuh",
+        "file:kernels/cuda/strata_native_mmvq.cuh",
+        "file:kernels/cuda/strata_native_moe.cuh",
+        "file:kernels/cuda/strata_native_ple.cuh",
+        "file:kernels/cuda/strata_native_qsa.cuh",
+        "file:kernels/cuda/strata_native_router.cuh",
         "file:kernels/cuda/strata_qsa.cu",
         "file:kernels/cuda/strata_qsa_native.cuh",
+        "file:kernels/cuda/strata_round_elementwise.cuh",
+        "file:kernels/cuda/strata_sampler.cuh",
         "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",

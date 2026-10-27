@@ -192,6 +192,8 @@ func run() error {
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
 	openOptions.Draft = *draftPath
+	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound).
+	openOptions.StrataRound = true
 	if _, set := explicit["prompt-cache-entries"]; set {
 		openOptions.PromptCacheEntries = *promptCacheEntries
 	}

@@ -17,7 +17,7 @@ func buildNGramInjection(options blockDispatchOptions, input *tensor.Tensor) (De
 	if n == nil || c.Sequences != tensor.SingletonExtent {
 		return DenseBlockResult{}, errors.New("ngram injection requires one sequence and declared metadata")
 	}
-	past := c.PastStates[cacheStateNGramConvolution].Value
+	past := c.PastStates[CacheStateNGramConvolution].Value
 	if err := (graphWeights{input, c.PerLayerInput, c.NGramHistory, past, w.NGramKey, w.NGramValue, w.NGramKeyNorm, w.NGramQueryNorm, w.NGramConvNorm, w.NGramConv}).validate("ngram injection"); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -64,7 +64,7 @@ func buildNGramInjection(options blockDispatchOptions, input *tensor.Tensor) (De
 	}
 	states := CacheStates[*tensor.Tensor]{
 		CacheStateNGramHistory:     {Mode: CacheStateFixed, Value: c.NGramHistory},
-		cacheStateNGramConvolution: {Mode: CacheStateFixed, Value: b.FlatSlice(full, tokens*wide, wide, history)},
+		CacheStateNGramConvolution: {Mode: CacheStateFixed, Value: b.FlatSlice(full, tokens*wide, wide, history)},
 	}
 	result := DenseBlockResult{Output: output, States: states}
 	// A verify span keeps the convolution's window after its pending tokens and each prefix of its drafts; the token
@@ -72,7 +72,7 @@ func buildNGramInjection(options blockDispatchOptions, input *tensor.Tensor) (De
 	if spanCheckpoints(c.Checkpoints, tokens) {
 		for _, at := range c.Checkpoints {
 			result.Checkpoints = append(result.Checkpoints, LayerCheckpoint{States: CacheStates[*tensor.Tensor]{
-				cacheStateNGramConvolution: {Mode: CacheStateFixed, Value: b.FlatSlice(full, uint64(at)*wide, wide, history)},
+				CacheStateNGramConvolution: {Mode: CacheStateFixed, Value: b.FlatSlice(full, uint64(at)*wide, wide, history)},
 			}})
 		}
 	}

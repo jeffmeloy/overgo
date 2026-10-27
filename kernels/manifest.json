@@ -72,11 +72,11 @@
         },
         {
           "path": "kernels/cuda/strata_qsa_native.cuh",
-          "sha256": "01e7c3962410662d21e35234eb85296d1e8879cd35d1e173d250ffa678e6f8e0"
+          "sha256": "31e953c5fe326693a222b8cd36779bf28b519c6208ef3ad242878dbe195f47f3"
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "7fbc1b6f9bad0be23f2ddda38bbfc9b97270e7e61b9996ef28ba69170618f0cc",
+      "assetSha256": "a90bfedc9d69934d12e8bf0ad07f4def5e3f1265a15f50c134efe47590ace53c",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -298,6 +298,7 @@
         "strata_native_indexer_append_blocks",
         "strata_native_indexer_append_first",
         "strata_native_indexer_append_tail",
+        "strata_native_indexer_append_layers",
         "stream_combine_f32",
         "stream_sum_f32",
         "stream_sum_q8_0_f32",
@@ -1870,6 +1871,29 @@
             ".u64",
             ".u64",
             ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".align 8 .b8[768]",
+            ".u32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_indexer_append_layers"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
             ".u64",
             ".u32",
             ".u32",
@@ -2096,15 +2120,35 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "240afbc9d02cd311716d180483c706adb3c01a4a427cc18c5816684c0a6badc3",
+      "sourceSha256": "0e1a4aff6cd4e92197f5404a49c1da0719a56e3aa4707934d5dcb1e5ebcb94bc",
       "sourceDependencies": [
         {
+          "path": "kernels/cuda/strata_fused_gr.cuh",
+          "sha256": "c124b6a8f3a6c197ae4076814bd3432411641de9dec7f5d253d8a294330714d4"
+        },
+        {
+          "path": "kernels/cuda/strata_round_elementwise.cuh",
+          "sha256": "eda09d601ff9faa7bb7b7bc62f24aab90ec123024e18d5afaeee163b7bff1590"
+        },
+        {
+          "path": "kernels/cuda/strata_sampler.cuh",
+          "sha256": "088e300497f296197145f7505a3e441786aad3abc3fed44646d9134f35bfed4f"
+        },
+        {
+          "path": "kernels/cuda/strata_mtp.cuh",
+          "sha256": "2b0e93a957faae9c164462e97e627d2bd5b57eca429ba090215325795e5e76b0"
+        },
+        {
+          "path": "kernels/cuda/strata_iq_experts.cuh",
+          "sha256": "4a665a9f536f240aabc9b6131693321d8ad21bc61c090f8ac30bfec6a2cb4922"
+        },
+        {
           "path": "kernels/cuda/strata_gdn.cuh",
-          "sha256": "a617404f37a3e3b8efa09b6c78b915510dce254d071b56f19941092bb22fe73b"
+          "sha256": "fca928179eb7e04ee0136df0bc7f28d17d05fd53f2504c0c41eef8e48b58504d"
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "b03982bd2aaafa93b09bb310c6fb368820dc051d85ce4321ef986ff7cd34f198",
+      "assetSha256": "45525e4025aaa51671196084bdfe5e94f58ba685896b40e199b108ed44e00300",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2142,6 +2186,22 @@
         "strata_gdn_step_commit_layers",
         "strata_gdn_step_norm_multi_all",
         "strata_gdn_step_norm_multi_kept",
+        "strata_gr_down_q8_t1",
+        "strata_gr_down_q8_t2",
+        "strata_gr_down_q8_t3",
+        "strata_gr_down_q8_t4",
+        "strata_gr_down_q8_t5",
+        "strata_gr_down_q8_t6",
+        "strata_gr_down_q8_t7",
+        "strata_gr_down_q8_t8",
+        "strata_gr_up_q8_t1",
+        "strata_gr_up_q8_t2",
+        "strata_gr_up_q8_t3",
+        "strata_gr_up_q8_t4",
+        "strata_gr_up_q8_t5",
+        "strata_gr_up_q8_t6",
+        "strata_gr_up_q8_t7",
+        "strata_gr_up_q8_t8",
         "strata_indexer_key_append",
         "strata_kv_append_f16",
         "strata_kv_append_q8",
@@ -2153,7 +2213,63 @@
         "strata_kv_gather_q8",
         "strata_prompt_attn_i8",
         "strata_prefill_kv_append_q8",
-        "strata_prompt_attn_i8_smem"
+        "strata_prompt_attn_i8_smem",
+        "strata_broadcast_streams",
+        "strata_copy_from_mapped",
+        "strata_copy_i32_from_mapped",
+        "strata_copy_rows_from_mapped",
+        "strata_doorbell_publish_res",
+        "strata_embed_rows_q8_0",
+        "strata_quantize_q8_1",
+        "strata_gdn_ab_multi_t1",
+        "strata_gdn_ab_multi_t2",
+        "strata_gdn_ab_multi_t3",
+        "strata_gdn_ab_multi_t4",
+        "strata_gdn_ab_multi_t5",
+        "strata_gdn_ab_multi_t6",
+        "strata_gdn_ab_multi_t8",
+        "strata_sigmoid_scale_rows",
+        "strata_sigmoid_scale_rows_vec4",
+        "strata_argmax_rows",
+        "strata_logits_nonfinite",
+        "strata_ple_history_advance",
+        "strata_native_gu_multi_iq3_s",
+        "strata_native_gu_multi_iq4_xs",
+        "strata_native_down_multi_iq4_nl",
+        "strata_native_down_q8_0",
+        "strata_swiglu_q8_1_entries",
+        "strata_wait_flag_ge",
+        "strata_fetch_blobs",
+        "strata_rebase_ptrs",
+        "strata_add_hits",
+        "strata_gr_norm_split",
+        "strata_gr_down_staged_t1",
+        "strata_gr_down_staged_t2",
+        "strata_gr_down_staged_t3",
+        "strata_gr_down_staged_t4",
+        "strata_gr_down_staged_t5",
+        "strata_gr_down_staged_t6",
+        "strata_gr_up_multi_t1",
+        "strata_gr_up_multi_t2",
+        "strata_gr_up_multi_t3",
+        "strata_gr_up_multi_t4",
+        "strata_gr_up_multi_t5",
+        "strata_gr_up_multi_t6",
+        "strata_gu_grouped_t",
+        "strata_down_grouped_t",
+        "strata_swiglu_quantize_q8_0_scaled",
+        "strata_group_resident",
+        "strata_quantize_q8_0_scaled",
+        "strata_copy_from_mapped_multi",
+        "strata_add_streams_broadcast",
+        "strata_gather_rows_u32",
+        "strata_map_ids",
+        "strata_mtp_select",
+        "strata_copy_row_to_first",
+        "strata_row_top_prob_split",
+        "strata_window_ids",
+        "strata_sampler_split_part",
+        "strata_sampler_split_merge"
       ],
       "argumentLayouts": [
         {
@@ -2262,7 +2378,9 @@
             "strata_block_topk_ref",
             "strata_block_topk_reg",
             "strata_block_topk_wide",
-            "strata_copy_indexed"
+            "strata_copy_indexed",
+            "strata_embed_rows_q8_0",
+            "strata_gather_rows_u32"
           ]
         },
         {
@@ -2277,7 +2395,9 @@
           ],
           "functions": [
             "strata_block_scores_tc",
-            "strata_kv_stream_reset"
+            "strata_kv_stream_reset",
+            "strata_down_grouped_t",
+            "strata_copy_row_to_first"
           ]
         },
         {
@@ -2428,6 +2548,31 @@
           ],
           "functions": [
             "strata_gdn_step_norm_multi_kept"
+          ]
+        },
+        {
+          "parameters": [
+            ".align 8 .b8[1232]",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_gr_down_q8_t1",
+            "strata_gr_down_q8_t2",
+            "strata_gr_down_q8_t3",
+            "strata_gr_down_q8_t4",
+            "strata_gr_down_q8_t5",
+            "strata_gr_down_q8_t6",
+            "strata_gr_down_q8_t7",
+            "strata_gr_down_q8_t8",
+            "strata_gr_up_q8_t1",
+            "strata_gr_up_q8_t2",
+            "strata_gr_up_q8_t3",
+            "strata_gr_up_q8_t4",
+            "strata_gr_up_q8_t5",
+            "strata_gr_up_q8_t6",
+            "strata_gr_up_q8_t7",
+            "strata_gr_up_q8_t8"
           ]
         },
         {
@@ -2616,6 +2761,659 @@
           ],
           "functions": [
             "strata_prefill_kv_append_q8"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_broadcast_streams"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_copy_from_mapped",
+            "strata_quantize_q8_1"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_copy_i32_from_mapped",
+            "strata_sigmoid_scale_rows",
+            "strata_sigmoid_scale_rows_vec4",
+            "strata_map_ids"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_copy_rows_from_mapped"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_doorbell_publish_res"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_gdn_ab_multi_t1",
+            "strata_gdn_ab_multi_t2",
+            "strata_gdn_ab_multi_t3",
+            "strata_gdn_ab_multi_t4",
+            "strata_gdn_ab_multi_t5",
+            "strata_gdn_ab_multi_t6",
+            "strata_gdn_ab_multi_t8"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_argmax_rows"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_logits_nonfinite"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_ple_history_advance"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".align 8 .b8[72]",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_gu_multi_iq3_s",
+            "strata_native_gu_multi_iq4_xs"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".align 8 .b8[72]",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_down_multi_iq4_nl",
+            "strata_native_down_q8_0"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_swiglu_q8_1_entries"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_wait_flag_ge"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_fetch_blobs",
+            "strata_rebase_ptrs",
+            "strata_swiglu_quantize_q8_0_scaled",
+            "strata_quantize_q8_0_scaled"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_add_hits",
+            "strata_add_streams_broadcast"
+          ]
+        },
+        {
+          "parameters": [
+            ".align 8 .b8[1232]"
+          ],
+          "functions": [
+            "strata_gr_norm_split",
+            "strata_gr_down_staged_t1",
+            "strata_gr_down_staged_t2",
+            "strata_gr_down_staged_t3",
+            "strata_gr_down_staged_t4",
+            "strata_gr_down_staged_t5",
+            "strata_gr_down_staged_t6",
+            "strata_gr_up_multi_t1",
+            "strata_gr_up_multi_t2",
+            "strata_gr_up_multi_t3",
+            "strata_gr_up_multi_t4",
+            "strata_gr_up_multi_t5",
+            "strata_gr_up_multi_t6"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_gu_grouped_t"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_group_resident"
+          ]
+        },
+        {
+          "parameters": [
+            ".align 8 .b8[192]"
+          ],
+          "functions": [
+            "strata_copy_from_mapped_multi"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_mtp_select"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_row_top_prob_split"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_window_ids"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u32",
+            ".align 8 .b8[80]",
+            ".u32",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_sampler_split_part"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".align 8 .b8[80]",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "strata_sampler_split_merge"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "kernels/cuda/strata_native.cu",
+      "sourceSha256": "88d58ab2963874e35968d2d1ad74fc64f1e853eadc2a1e0bc669a6182795e0d3",
+      "sourceDependencies": [
+        {
+          "path": "kernels/cuda/strata_native_bf16.cuh",
+          "sha256": "5dc29b94d7326d6b79d182629b2f21b92196c6156415ccf5cf84e07f74af297a"
+        },
+        {
+          "path": "kernels/cuda/strata_native_gr_postops.cuh",
+          "sha256": "64bebbc7d8e21ee5834f8626238c5dd0cb8d3f0205f3dde375b756c7b8bdd06e"
+        },
+        {
+          "path": "kernels/cuda/strata_native_ple.cuh",
+          "sha256": "321e13ee746d057a4f285a103ac3b931f980e8e2192eae9b3af60002c6ccaf26"
+        },
+        {
+          "path": "kernels/cuda/strata_native_router.cuh",
+          "sha256": "efa078f8345fdcc9912baea5e7d64153332cd5412a1cf4dc95770b760f5561a4"
+        },
+        {
+          "path": "kernels/cuda/strata_native_qsa.cuh",
+          "sha256": "3a2c660a78aa1e20a4c7767bd1d64ae5f78630bd796490c3f1a615a0977c3c09"
+        },
+        {
+          "path": "kernels/cuda/strata_native_moe.cuh",
+          "sha256": "d97eabdd14729bba35e6b12eaba174f64e7eda0f0fd1c2d9c1061ed9f3ac88ee"
+        },
+        {
+          "path": "kernels/cuda/strata_native_mmvq.cuh",
+          "sha256": "edc4dbfbd0cc0a68053905038805f467c44247f80968c95401f054c854919a8f"
+        }
+      ],
+      "asset": "internal/cuda/kernel/strata_native.ptx",
+      "assetSha256": "1a03351a2330589e816d61ffe3fee7f4b2d70e026fdec264419fc4dafcd35938",
+      "compilerFlags": [
+        "-ptx",
+        "-arch=compute_89",
+        "-use_fast_math",
+        "--std=c++17"
+      ],
+      "functions": [
+        "strata_bf16_f32_mmvf_b256",
+        "strata_bf16_f32_mmvf_multi_b256_t1",
+        "strata_bf16_f32_mmvf_multi_b256_t2",
+        "strata_bf16_f32_mmvf_multi_b256_t3",
+        "strata_bf16_f32_mmvf_multi_b256_t4",
+        "strata_bf16_f32_mmvf_multi_b256_t5",
+        "strata_bf16_f32_mmvf_multi_b256_t6",
+        "strata_bf16_f32_mmvf_multi_b256_t8",
+        "strata_native_mmvq_il_q6_k_c2_r1",
+        "strata_native_mmvq_il_q6_k_c2_r2",
+        "strata_native_mmvq_il_q6_k_c2_r4",
+        "strata_native_mmvq_il_q6_k_c3_r1",
+        "strata_native_mmvq_il_q6_k_c3_r2",
+        "strata_native_mmvq_il_q6_k_c3_r4",
+        "strata_native_mmvq_il_q6_k_c4_r1",
+        "strata_native_mmvq_il_q6_k_c4_r2",
+        "strata_native_mmvq_il_q6_k_c4_r4",
+        "strata_native_mmvq_multi_q6_k_c2",
+        "strata_native_mmvq_multi_q6_k_c3",
+        "strata_native_mmvq_multi_q6_k_c4",
+        "strata_native_mmvq_multi_q6_k_c5",
+        "strata_native_mmvq_multi_q6_k_c6",
+        "strata_native_mmvq_multi_q6_k_c7",
+        "strata_native_mmvq_multi_q6_k_c8",
+        "strata_native_mmvq_multi_q8_0_c2",
+        "strata_native_mmvq_multi_q8_0_c3",
+        "strata_native_mmvq_multi_q8_0_c4",
+        "strata_native_mmvq_multi_q8_0_c5",
+        "strata_native_mmvq_multi_q8_0_c6",
+        "strata_native_mmvq_multi_q8_0_c7",
+        "strata_native_mmvq_multi_q8_0_c8",
+        "strata_native_gr_post",
+        "strata_native_q6_k_mmvq",
+        "strata_native_q6_k_mmvq_small_k",
+        "strata_native_q8_1_interleave",
+        "strata_native_quantize_q8_1",
+        "strata_native_small_mmvq_q8_0",
+        "strata_native_small_mmvq_q8_0_small_k",
+        "strata_native_swiglu_quantize_q8_1",
+        "strata_native_qsa_gate",
+        "strata_native_norm_rope",
+        "strata_native_qsa_norm_256",
+        "strata_native_qsa_norm_1024",
+        "strata_native_rope_apply",
+        "strata_native_route",
+        "strata_native_route_multi",
+        "strata_native_weighted_rms_norm_256",
+        "strata_native_weighted_rms_norm_1024",
+        "strata_native_ple_gate",
+        "strata_native_ple_broadcast",
+        "strata_native_ple_conv_residual",
+        "strata_native_combine_k10_vec4"
+      ],
+      "argumentLayouts": [
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_bf16_f32_mmvf_b256",
+            "strata_native_swiglu_quantize_q8_1",
+            "strata_native_route_multi"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_bf16_f32_mmvf_multi_b256_t1",
+            "strata_bf16_f32_mmvf_multi_b256_t2",
+            "strata_bf16_f32_mmvf_multi_b256_t3",
+            "strata_bf16_f32_mmvf_multi_b256_t4",
+            "strata_bf16_f32_mmvf_multi_b256_t5",
+            "strata_bf16_f32_mmvf_multi_b256_t6",
+            "strata_bf16_f32_mmvf_multi_b256_t8"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_native_mmvq_il_q6_k_c2_r1",
+            "strata_native_mmvq_il_q6_k_c2_r2",
+            "strata_native_mmvq_il_q6_k_c2_r4",
+            "strata_native_mmvq_il_q6_k_c3_r1",
+            "strata_native_mmvq_il_q6_k_c3_r2",
+            "strata_native_mmvq_il_q6_k_c3_r4",
+            "strata_native_mmvq_il_q6_k_c4_r1",
+            "strata_native_mmvq_il_q6_k_c4_r2",
+            "strata_native_mmvq_il_q6_k_c4_r4"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_native_mmvq_multi_q6_k_c2",
+            "strata_native_mmvq_multi_q6_k_c3",
+            "strata_native_mmvq_multi_q6_k_c4",
+            "strata_native_mmvq_multi_q6_k_c5",
+            "strata_native_mmvq_multi_q6_k_c6",
+            "strata_native_mmvq_multi_q6_k_c7",
+            "strata_native_mmvq_multi_q6_k_c8",
+            "strata_native_mmvq_multi_q8_0_c2",
+            "strata_native_mmvq_multi_q8_0_c3",
+            "strata_native_mmvq_multi_q8_0_c4",
+            "strata_native_mmvq_multi_q8_0_c5",
+            "strata_native_mmvq_multi_q8_0_c6",
+            "strata_native_mmvq_multi_q8_0_c7",
+            "strata_native_mmvq_multi_q8_0_c8",
+            "strata_native_q6_k_mmvq",
+            "strata_native_q6_k_mmvq_small_k",
+            "strata_native_small_mmvq_q8_0",
+            "strata_native_small_mmvq_q8_0_small_k",
+            "strata_native_qsa_gate"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "strata_native_gr_post"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "strata_native_q8_1_interleave"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "strata_native_quantize_q8_1"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_norm_rope"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "strata_native_qsa_norm_256",
+            "strata_native_qsa_norm_1024",
+            "strata_native_weighted_rms_norm_256",
+            "strata_native_weighted_rms_norm_1024"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_rope_apply"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_route",
+            "strata_native_ple_broadcast"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".f32"
+          ],
+          "functions": [
+            "strata_native_ple_gate"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_ple_conv_residual"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_native_combine_k10_vec4"
           ]
         }
       ]

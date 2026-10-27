@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"fmt"
+
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
@@ -186,20 +188,55 @@ func launchCopyIndexed(state *device.State, functions functionSet, node *tensor.
 	if err != nil {
 		return err
 	}
-	target, source := pointers.input(tensor.CopyIndexedTarget), pointers.input(tensor.CopyIndexedSource)
 	index := pointers.input(tensor.CopyIndexedIndex)
-	stride, count := int64(attributes.Stride), int64(values)
-	blocks := min((uint32(values)+strataGatedDeltaCommitThreads-1)/strataGatedDeltaCommitThreads, strataCopyIndexedBlocks)
-	if err := launchGridABI(state, functions[kernelStrataCopyIndexed],
-		driver.Dim3{X: blocks, Y: 1, Z: 1}, driver.Dim3{X: strataGatedDeltaCommitThreads, Y: 1, Z: 1},
-		&target, &source, &stride, &index, &count); err != nil {
+	if err := launchStrataCopyIndexed(state, functions, pointers.input(tensor.CopyIndexedTarget),
+		pointers.input(tensor.CopyIndexedSource), int64(attributes.Stride), index, int64(values)); err != nil {
 		return err
 	}
 	return launchCommitWord(state, functions, index, pointers.output())
+}
+
+// launchStrataCopyIndexed is copy_indexed: count floats of target from source's row *index (stride floats a row);
+// nothing where the index is negative.
+func launchStrataCopyIndexed(state *device.State, functions functionSet, target, source driver.DevicePtr, stride int64,
+	index driver.DevicePtr, count int64) error {
+	blocks := min((uint32(count)+strataGatedDeltaCommitThreads-1)/strataGatedDeltaCommitThreads, strataCopyIndexedBlocks)
+	return launchGridABI(state, functions[kernelStrataCopyIndexed],
+		driver.Dim3{X: blocks, Y: 1, Z: 1}, driver.Dim3{X: strataGatedDeltaCommitThreads, Y: 1, Z: 1},
+		&target, &source, &stride, &index, &count)
 }
 
 // launchCommitWord copies a commit's kept count, a word, to its output: a copy reads and writes it without arithmetic.
 func launchCommitWord(state *device.State, functions functionSet, kept, output driver.DevicePtr) error {
 	count := uint32(1)
 	return launch1DABI(state, functions[kernelCopyF32], count, &kept, &output, &count)
+}
+
+// strataGatedDeltaABThreads is gdn_ab_multi_kernel's block: two warps, a row each.
+const strataGatedDeltaABThreads = 64
+
+// strataGatedDeltaABRowValues is the values a lane takes a step of a bf16 row: one uint4 of eight.
+const strataGatedDeltaABRowValues = 8
+
+// strataGatedDeltaABExact are gdn_ab_multi_kernel's exact instances by tokens (one to six); seven and eight take the
+// inexact instance of the window's most tokens.
+var strataGatedDeltaABExact = [...]kernelFunctionID{
+	kernelStrataGdnAbMultiT1, kernelStrataGdnAbMultiT2, kernelStrataGdnAbMultiT3,
+	kernelStrataGdnAbMultiT4, kernelStrataGdnAbMultiT5, kernelStrataGdnAbMultiT6,
+}
+
+// launchStrataGatedDeltaAB is gdn_ab_multi: a window's decay gate and beta [token][value head] from the layer input x
+// [token][n], the bf16 alpha and beta rows, dt and ssm_a.
+func launchStrataGatedDeltaAB(state *device.State, functions functionSet, x, alpha, beta, dt, ssmA, gate, betaOut driver.DevicePtr,
+	n, valueHeads, tokens int32) error {
+	if n%strataGatedDeltaABRowValues != 0 || tokens < 1 || tokens > tensor.GatedDeltaWindowTokens {
+		return fmt.Errorf("gdn_ab_multi: invalid arguments")
+	}
+	kernel := kernelStrataGdnAbMultiT8
+	if int(tokens) <= len(strataGatedDeltaABExact) {
+		kernel = strataGatedDeltaABExact[tokens-1]
+	}
+	return launchGridABI(state, functions[kernel],
+		driver.Dim3{X: uint32(tensor.PairedExtent*valueHeads+1) / tensor.PairedExtent, Y: 1, Z: 1},
+		driver.Dim3{X: strataGatedDeltaABThreads, Y: 1, Z: 1}, &x, &alpha, &beta, &dt, &ssmA, &gate, &betaOut, &n, &valueHeads, &tokens)
 }

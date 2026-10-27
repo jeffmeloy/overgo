@@ -3,7 +3,11 @@
 package executor
 
 import (
+	"slices"
 	"testing"
+
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 )
 
 // TestDeviceBufferPoolReusesClasses: capacity requests of many distinct
@@ -43,6 +47,90 @@ func TestDeviceBufferPoolReusesClasses(t *testing.T) {
 	cuda.mu.RUnlock()
 	if limit == 0 {
 		t.Fatal("free limit was not derived from the device")
+	}
+}
+
+// TestDeviceBufferPoolLendsItsFreeBuffers: the pool lends the expert residency its free buffers of
+// deviceBufferLendBytes or more, once each, and takes one back before it reuses it and every other before it frees
+// them.
+func TestDeviceBufferPoolLendsItsFreeBuffers(t *testing.T) {
+	cuda := newFixtureExecutor(t)
+	ctx := t.Context()
+	var lent, reclaimed []driver.DevicePtr
+	err := cuda.worker.Do(ctx, func(state *device.State) error {
+		pool := &cuda.resources.buffers
+		pool.reclaim = func(_ *device.State, pointer driver.DevicePtr, _ uint64) error {
+			reclaimed = append(reclaimed, pointer)
+			return nil
+		}
+		var leases []deviceBufferLease
+		for _, size := range []uint64{deviceBufferLendBytes, deviceBufferLendBytes, deviceAllocationAlignment} {
+			lease, err := pool.acquireSized(state, size)
+			if err != nil {
+				return err
+			}
+			leases = append(leases, lease)
+		}
+		if err := pool.release(state, leases...); err != nil {
+			return err
+		}
+		lend := func(pointer driver.DevicePtr, _ uint64) error {
+			lent = append(lent, pointer)
+			return nil
+		}
+		for range 2 {
+			if err := pool.lendFree(lend); err != nil {
+				return err
+			}
+		}
+		if want := []driver.DevicePtr{min(leases[0].pointer, leases[1].pointer), max(leases[0].pointer, leases[1].pointer)}; !slices.Equal(lent, want) {
+			t.Errorf("the pool lent %v, want its two large free buffers once each in address order %v", lent, want)
+		}
+		reused, err := pool.acquireSized(state, deviceBufferLendBytes)
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(reclaimed, []driver.DevicePtr{reused.pointer}) {
+			t.Errorf("reusing %v took back %v, want it alone", reused.pointer, reclaimed)
+		}
+		reclaimed = nil
+		if err := pool.close(state); err != nil {
+			return err
+		}
+		if len(reclaimed) != 1 || reclaimed[0] == reused.pointer {
+			t.Errorf("closing took back %v, want the other lent buffer", reclaimed)
+		}
+		pool.reclaim = nil
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestFixedDeviceBufferKeepsItsSize: a buffer kept for the runner's life takes its aligned size where a pooled one of
+// the same request takes its class.
+func TestFixedDeviceBufferKeepsItsSize(t *testing.T) {
+	cuda := newFixtureExecutor(t)
+	ctx := t.Context()
+	const request = 9<<20 + 1
+	for _, testCase := range []struct {
+		allocate func() (*DeviceBuffer, error)
+		want     uint64
+	}{
+		{func() (*DeviceBuffer, error) { return cuda.AllocateDeviceBuffer(ctx, request) }, 10 << 20},
+		{func() (*DeviceBuffer, error) { return cuda.AllocateFixedDeviceBuffer(ctx, request) }, 9<<20 + 256},
+	} {
+		buffer, err := testCase.allocate()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if buffer.lease.size != testCase.want {
+			t.Errorf("a request of %d bytes took %d, want %d", request, buffer.lease.size, testCase.want)
+		}
+		if err := buffer.Release(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

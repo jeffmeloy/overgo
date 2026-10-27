@@ -108,7 +108,12 @@ func launchGridSharedABI(
 		}
 		pointers[index] = value.UnsafePointer()
 	}
-	if trace := state.Trace; trace != nil {
+	if trace := state.Trace; trace != nil && trace.Census != nil {
+		trace.Census[uint64(function.id)]++
+		if trace.Probe {
+			return nil
+		}
+	} else if trace != nil {
 		// grid/block Y and Z are CUDA-bounded to 65535; X keeps 32 bits
 		trace.Words(
 			uint64(function.id),

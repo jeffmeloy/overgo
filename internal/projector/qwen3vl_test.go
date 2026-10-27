@@ -228,6 +228,79 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	compareFloat32Tolerance(t, "Qwen3-VL deepstack", got.DeepstackEmbeddings[0].Data, want.DeepstackEmbeddings[0].Data, 2e-3)
 }
 
+// TestQwen3VLHalfMatricesEncodeAsF32 holds the CUDA projector's products to the same bits with its matrix weights
+// stored at half precision as with them stored in F32: a fixture whose every weight takes values BF16 holds exactly
+// encodes an image to the same embeddings either way, and the BF16 file's runtime keeps its matrices at their stored
+// precision, the rest in F32.
+func TestQwen3VLHalfMatricesEncodeAsF32(t *testing.T) {
+	cudatest.Require(t)
+	var spec qwen3VLSpec
+	spec.Layers, spec.DeepstackLayers = 1, []bool{true}
+	matrices := spec.matrixTensors()
+	fixture := func(half bool) string {
+		var tensors []gguf.TensorData
+		for _, source := range tinyQwen3VLDeepstackTensors() {
+			elements := 1
+			for _, extent := range source.Shape {
+				elements *= int(extent)
+			}
+			values := make([]float32, elements)
+			for index := range values {
+				values[index] = float32((index*37+len(source.Name))%17-8) / 16
+			}
+			if !half || !slices.Contains(matrices, source.Name) {
+				tensors = append(tensors, f32Tensor(source.Name, source.Shape, values))
+				continue
+			}
+			bits := make([]uint16, elements)
+			for index, value := range values {
+				bits[index] = uint16(math.Float32bits(value) >> 16)
+			}
+			var data bytes.Buffer
+			_ = binary.Write(&data, binary.LittleEndian, bits)
+			tensors = append(tensors, gguf.TensorData{Name: source.Name, Shape: source.Shape, Type: gguf.DTypeBF16, Data: bytes.NewReader(data.Bytes())})
+		}
+		return testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tensors)
+	}
+	// An image of 36 patches, 9 merged: every product has more than the four rows the executor's half-precision
+	// kernel reads in place, summing in another order; more take the upconverted weight's SGEMM, the F32 one's.
+	const side = 12
+	input := image.NewRGBA(image.Rect(0, 0, side, side))
+	for index := range input.Pix {
+		input.Pix[index] = uint8(index * 29)
+	}
+	options := qwen3VLPreprocessOptions{MinPixels: side * side, MaxPixels: side * side}
+	var outputs [2]qwen3VLOutput
+	for index, half := range []bool{false, true} {
+		runner, err := openImageProjectorAs[*Qwen3VLRunner](fixture(half), fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = runner.Close() })
+		if (runner.cuda.matrices != nil) != half {
+			t.Fatalf("half=%t: the runtime holds matrices at their stored precision = %t", half, runner.cuda.matrices != nil)
+		}
+		for _, name := range matrices {
+			if !half {
+				break
+			}
+			if _, native := runner.cuda.matrices.Lookup(name); !native {
+				t.Fatalf("the BF16 file's runtime holds %q in F32", name)
+			}
+		}
+		if outputs[index], err = runner.EncodeImage(t.Context(), input, options); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(outputs[1].Embeddings.Data, outputs[0].Embeddings.Data) || len(outputs[1].DeepstackEmbeddings) != 1 ||
+		!slices.Equal(outputs[1].DeepstackEmbeddings[0].Data, outputs[0].DeepstackEmbeddings[0].Data) {
+		t.Fatalf("the BF16 matrices encode %v, the F32 ones %v", outputs[1].Embeddings.Data, outputs[0].Embeddings.Data)
+	}
+	if slices.Max(outputs[0].Embeddings.Data) == slices.Min(outputs[0].Embeddings.Data) {
+		t.Fatalf("the fixture encodes constant embeddings %v", outputs[0].Embeddings.Data)
+	}
+}
+
 type capturingQwen3VLTokenizer struct {
 	qwen3VLPromptTokenizer
 	texts []string

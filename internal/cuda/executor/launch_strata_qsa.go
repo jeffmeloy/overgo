@@ -436,3 +436,49 @@ func launchStrataNativeIndexerBatch(
 		driver.Dim3{X: strataNativeTailSlots, Y: 1, Z: 1}, driver.Dim3{X: tensor.QSAIndexerWidth, Y: 1, Z: 1},
 		&raw, &count, &first, &buffers.tail)
 }
+
+// launchStrataNativeIndexerSteps is native_qsa_indexer_append_steps (and, with one step, native_qsa_indexer_append):
+// steps cells, cell i at positions[i * stride], appended in order in one launch.
+func launchStrataNativeIndexerSteps(
+	state *device.State, functions functionSet, raw, positions driver.DevicePtr, stride, steps, positionBase int32,
+	gamma driver.DevicePtr, epsilon float32, buffers strataIndexerBuffers, maxCells int32, scaling strataRopeScaling,
+	multiAxis driver.DevicePtr,
+) error {
+	thetaScale := float32(math.Pow(scaling.freqBase, -strataPairWidth/float64(tensor.QSARotated)))
+	args := scaling.kernelArgs(tensor.QSARotated)
+	return launchGridABI(state, functions[kernelStrataNativeIndexerAppend],
+		driver.Dim3{X: 1, Y: 1, Z: 1}, driver.Dim3{X: strataNativeIndexerThreads, Y: 1, Z: 1},
+		&raw, &positions, &stride, &steps, &positionBase, &gamma, &epsilon, &buffers.tail, &buffers.dead, &buffers.pooled,
+		&buffers.blockPos, &maxCells, &thetaScale, &args.freqScale, &args.corrLow, &args.corrHigh, &args.extFactor,
+		&args.attnFactor, &multiAxis)
+}
+
+// strataIndexerLayersMax is QsaIndexerLayers::kMax, the layers one append_layers launch takes.
+const strataIndexerLayersMax = 16
+
+// strataIndexerLayers is QsaIndexerLayers in its C layout, by value: each layer's indexer norm, the tail's snapshot it
+// restores first (0: none), and its buffers.
+type strataIndexerLayers struct {
+	gamma, tailSource, tail, dead, pooled, blockPos [strataIndexerLayersMax]driver.DevicePtr
+}
+
+// launchStrataNativeIndexerStepsLayers is native_qsa_indexer_append_steps_layers: the steps of several QSA layers in one
+// launch, a block a layer, layer i's raw keys at raw0 + i * rawStride floats.
+func launchStrataNativeIndexerStepsLayers(
+	state *device.State, functions functionSet, raw0 driver.DevicePtr, rawStride int64, positions driver.DevicePtr,
+	stride, steps, positionBase int32, epsilon float32, layers strataIndexerLayers, count int, maxCells int32,
+	scaling strataRopeScaling, multiAxis driver.DevicePtr,
+) error {
+	if steps <= 0 || count <= 0 {
+		return nil
+	}
+	if count > strataIndexerLayersMax {
+		return errors.New("native QSA indexer (layers): more layers than one launch takes")
+	}
+	thetaScale := float32(math.Pow(scaling.freqBase, -strataPairWidth/float64(tensor.QSARotated)))
+	args := scaling.kernelArgs(tensor.QSARotated)
+	return launchGridABI(state, functions[kernelStrataNativeIndexerAppendLayers],
+		driver.Dim3{X: uint32(count), Y: 1, Z: 1}, driver.Dim3{X: strataNativeIndexerThreads, Y: 1, Z: 1},
+		&raw0, &rawStride, &positions, &stride, &steps, &positionBase, &epsilon, &layers, &maxCells, &thetaScale,
+		&args.freqScale, &args.corrLow, &args.corrHigh, &args.extFactor, &args.attnFactor, &multiAxis)
+}

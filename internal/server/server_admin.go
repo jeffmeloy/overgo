@@ -306,6 +306,10 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 		}
 	}
 	predictedNanos := max(totalNanos-promptNanos, 0)
+	// The decode's time runs from the prompt's evaluation to the last token where both came.
+	if decode, last := stats.decodeNanos.Load(), stats.lastTokenNanos.Load(); decode > 0 && last > decode {
+		predictedNanos = last - decode
+	}
 	if generatedTokens > 0 && predictedNanos == 0 {
 		predictedNanos = 1
 	}
@@ -1046,6 +1050,7 @@ func (h *Handler) generate(
 			stats.promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
 			stats.cachedTokens.Add(uint64(max(evaluation.Cached, 0)))
 			stats.promptNanos.Add(max(evaluation.Duration.Nanoseconds(), 0))
+			stats.decodeNanos.CompareAndSwap(0, time.Now().UnixNano())
 		}
 		if onPromptEvaluated != nil {
 			onPromptEvaluated(evaluation)
@@ -1068,6 +1073,7 @@ func (h *Handler) generate(
 		h.generatedTokens.Add(1)
 		if stats != nil {
 			stats.generatedTokens.Add(1)
+			stats.lastTokenNanos.Store(time.Now().UnixNano())
 			stats.appendGenerated(event.Piece)
 		}
 		if onToken != nil {

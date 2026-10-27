@@ -76,13 +76,19 @@ func testExperts(t testing.TB, formats Formats, counts []int) []Expert {
 
 // TestLayerMatchesTheSerialLayer holds a layer of five experts with 1 to 7
 // tokens each, and one decode token's expert, in each of Flash-Next's
-// formats, spread across eight workers waiting and spinning, to the same rows
+// formats, spread across eight workers and across the core pool's, waiting
+// and spinning, to the same rows
 // computed one after another: each row's arithmetic is the same, so the bits
 // are.
 func TestLayerMatchesTheSerialLayer(t *testing.T) {
-	workers := NewPool(8)
-	defer workers.Close()
-	for run := range 2 * len(testFormats) * 2 {
+	plain, cores := NewPool(8), NewCorePool()
+	defer plain.Close()
+	defer cores.Close()
+	for run := range 2 * 2 * len(testFormats) * 2 {
+		workers := plain
+		if run >= 2*len(testFormats)*2 {
+			workers, run = cores, run-2*len(testFormats)*2
+		}
 		formats, counts, spin := testFormats[run/2%len(testFormats)], []int{1, 2, 3, 4, 7}, run%2 == 1
 		if run >= 2*len(testFormats) {
 			counts = []int{1}

@@ -113,7 +113,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 			c := CachedBlockContext{Builder: b, Sequences: 1, Positions: make([]uint32, tokens),
 				PerLayerInput: input("selected", selected),
 				NGramHistory:  input("history", reference.Value{Shape: tensor.MustShape(uint64(len(nextValues))), Data: nextValues}),
-				PastStates:    CacheStates[*tensor.Tensor]{cacheStateNGramConvolution: {Mode: CacheStateFixed, Value: input("past", conv)}},
+				PastStates:    CacheStates[*tensor.Tensor]{CacheStateNGramConvolution: {Mode: CacheStateFixed, Value: input("past", conv)}},
 			}
 			activation := input("input", reference.Value{Shape: tensor.MustShape(uint64(f.Config.Hidden), uint64(f.Config.HC), tokens), Data: test.Input})
 			result, err := buildNGramInjection(blockDispatchOptions{Context: c, Spec: spec, Weights: LayerGraphWeights{
@@ -131,7 +131,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 				node *tensor.Tensor
 				want []float32
 			}{
-				{"output", result.Output, test.Output}, {"convolution", result.States[cacheStateNGramConvolution].Value, test.Conv}, {"history", result.States[CacheStateNGramHistory].Value, nextValues},
+				{"output", result.Output, test.Output}, {"convolution", result.States[CacheStateNGramConvolution].Value, test.Conv}, {"history", result.States[CacheStateNGramHistory].Value, nextValues},
 			} {
 				got := values[check.node].Data
 				if len(got) != len(check.want) {
@@ -144,7 +144,7 @@ func RunFlashNextNGram(t *testing.T, run func([]*tensor.Tensor, map[*tensor.Tens
 					}
 				}
 			}
-			conv, history = values[result.States[cacheStateNGramConvolution].Value], next
+			conv, history = values[result.States[CacheStateNGramConvolution].Value], next
 		}) {
 			return
 		}

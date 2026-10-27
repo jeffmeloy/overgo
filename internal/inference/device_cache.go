@@ -996,8 +996,8 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if appends[0].Past != nil {
 		first = appends[0].Past.Tokens
 	}
-	draftPrompt := r.hyperDraft != nil && r.hyperDraft.prompt != nil
-	plan.streams = plan.streams && draftPrompt && len(appends) == 1 && first+uint32(len(appends[0].Tokens)) > r.hyperDraft.prompt.from
+	from, draftPrompt := r.draftPromptFrom()
+	plan.streams = plan.streams && draftPrompt && len(appends) == 1 && first+uint32(len(appends[0].Tokens)) > from
 	appendPlan := r.cacheAppendPlan(appends, plan)
 	// A kept session replays a step's token rows and positions, not a projected prompt's media inputs.
 	capacity, source, parameterized := appendPlan.CapacityTokens, appendPlan.SourceCapacityTokens, appendPlan.replay && appends[0].Projected == nil && !plan.streams
@@ -1161,7 +1161,11 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		holdSpanSlot(next, slot)
 	}
 	if err == nil && plan.streams {
-		if err = r.recordHyperDraftPromptLocked(ctx, streams, graphs[0].hidden.Type, appends[0].Tokens, first); err != nil {
+		record := r.recordHyperDraftPromptLocked
+		if r.strataPrompt != nil {
+			record = r.recordStrataDraftPromptLocked
+		}
+		if err = record(ctx, streams, graphs[0].hidden.Type, appends[0].Tokens, first); err != nil {
 			return nil, errors.Join(err, next[0].Release(context.Background()))
 		}
 	}

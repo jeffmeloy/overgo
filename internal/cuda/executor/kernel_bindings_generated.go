@@ -227,6 +227,7 @@ const (
 	kernelStrataNativeIndexerAppendBlocks
 	kernelStrataNativeIndexerAppendFirst
 	kernelStrataNativeIndexerAppendTail
+	kernelStrataNativeIndexerAppendLayers
 	kernelStreamCombineF32
 	kernelStreamSumF32
 	kernelStreamSumQ80F32
@@ -290,6 +291,22 @@ const (
 	kernelStrataGdnStepCommitLayers
 	kernelStrataGdnStepNormMultiAll
 	kernelStrataGdnStepNormMultiKept
+	kernelStrataGrDownQ8T1
+	kernelStrataGrDownQ8T2
+	kernelStrataGrDownQ8T3
+	kernelStrataGrDownQ8T4
+	kernelStrataGrDownQ8T5
+	kernelStrataGrDownQ8T6
+	kernelStrataGrDownQ8T7
+	kernelStrataGrDownQ8T8
+	kernelStrataGrUpQ8T1
+	kernelStrataGrUpQ8T2
+	kernelStrataGrUpQ8T3
+	kernelStrataGrUpQ8T4
+	kernelStrataGrUpQ8T5
+	kernelStrataGrUpQ8T6
+	kernelStrataGrUpQ8T7
+	kernelStrataGrUpQ8T8
 	kernelStrataIndexerKeyAppend
 	kernelStrataKvAppendF16
 	kernelStrataKvAppendQ8
@@ -302,6 +319,114 @@ const (
 	kernelStrataPromptAttnI8
 	kernelStrataPrefillKvAppendQ8
 	kernelStrataPromptAttnI8Smem
+	kernelStrataBroadcastStreams
+	kernelStrataCopyFromMapped
+	kernelStrataCopyI32FromMapped
+	kernelStrataCopyRowsFromMapped
+	kernelStrataDoorbellPublishRes
+	kernelStrataEmbedRowsQ80
+	kernelStrataQuantizeQ81
+	kernelStrataGdnAbMultiT1
+	kernelStrataGdnAbMultiT2
+	kernelStrataGdnAbMultiT3
+	kernelStrataGdnAbMultiT4
+	kernelStrataGdnAbMultiT5
+	kernelStrataGdnAbMultiT6
+	kernelStrataGdnAbMultiT8
+	kernelStrataSigmoidScaleRows
+	kernelStrataSigmoidScaleRowsVec4
+	kernelStrataArgmaxRows
+	kernelStrataLogitsNonfinite
+	kernelStrataPleHistoryAdvance
+	kernelStrataNativeGuMultiIq3S
+	kernelStrataNativeGuMultiIq4Xs
+	kernelStrataNativeDownMultiIq4Nl
+	kernelStrataNativeDownQ80
+	kernelStrataSwigluQ81Entries
+	kernelStrataWaitFlagGe
+	kernelStrataFetchBlobs
+	kernelStrataRebasePtrs
+	kernelStrataAddHits
+	kernelStrataGrNormSplit
+	kernelStrataGrDownStagedT1
+	kernelStrataGrDownStagedT2
+	kernelStrataGrDownStagedT3
+	kernelStrataGrDownStagedT4
+	kernelStrataGrDownStagedT5
+	kernelStrataGrDownStagedT6
+	kernelStrataGrUpMultiT1
+	kernelStrataGrUpMultiT2
+	kernelStrataGrUpMultiT3
+	kernelStrataGrUpMultiT4
+	kernelStrataGrUpMultiT5
+	kernelStrataGrUpMultiT6
+	kernelStrataGuGroupedT
+	kernelStrataDownGroupedT
+	kernelStrataSwigluQuantizeQ80Scaled
+	kernelStrataGroupResident
+	kernelStrataQuantizeQ80Scaled
+	kernelStrataCopyFromMappedMulti
+	kernelStrataAddStreamsBroadcast
+	kernelStrataGatherRowsU32
+	kernelStrataMapIds
+	kernelStrataMtpSelect
+	kernelStrataCopyRowToFirst
+	kernelStrataRowTopProbSplit
+	kernelStrataWindowIds
+	kernelStrataSamplerSplitPart
+	kernelStrataSamplerSplitMerge
+	kernelStrataBf16F32MmvfB256
+	kernelStrataBf16F32MmvfMultiB256T1
+	kernelStrataBf16F32MmvfMultiB256T2
+	kernelStrataBf16F32MmvfMultiB256T3
+	kernelStrataBf16F32MmvfMultiB256T4
+	kernelStrataBf16F32MmvfMultiB256T5
+	kernelStrataBf16F32MmvfMultiB256T6
+	kernelStrataBf16F32MmvfMultiB256T8
+	kernelStrataNativeMmvqIlQ6KC2R1
+	kernelStrataNativeMmvqIlQ6KC2R2
+	kernelStrataNativeMmvqIlQ6KC2R4
+	kernelStrataNativeMmvqIlQ6KC3R1
+	kernelStrataNativeMmvqIlQ6KC3R2
+	kernelStrataNativeMmvqIlQ6KC3R4
+	kernelStrataNativeMmvqIlQ6KC4R1
+	kernelStrataNativeMmvqIlQ6KC4R2
+	kernelStrataNativeMmvqIlQ6KC4R4
+	kernelStrataNativeMmvqMultiQ6KC2
+	kernelStrataNativeMmvqMultiQ6KC3
+	kernelStrataNativeMmvqMultiQ6KC4
+	kernelStrataNativeMmvqMultiQ6KC5
+	kernelStrataNativeMmvqMultiQ6KC6
+	kernelStrataNativeMmvqMultiQ6KC7
+	kernelStrataNativeMmvqMultiQ6KC8
+	kernelStrataNativeMmvqMultiQ80C2
+	kernelStrataNativeMmvqMultiQ80C3
+	kernelStrataNativeMmvqMultiQ80C4
+	kernelStrataNativeMmvqMultiQ80C5
+	kernelStrataNativeMmvqMultiQ80C6
+	kernelStrataNativeMmvqMultiQ80C7
+	kernelStrataNativeMmvqMultiQ80C8
+	kernelStrataNativeGrPost
+	kernelStrataNativeQ6KMmvq
+	kernelStrataNativeQ6KMmvqSmallK
+	kernelStrataNativeQ81Interleave
+	kernelStrataNativeQuantizeQ81
+	kernelStrataNativeSmallMmvqQ80
+	kernelStrataNativeSmallMmvqQ80SmallK
+	kernelStrataNativeSwigluQuantizeQ81
+	kernelStrataNativeQsaGate
+	kernelStrataNativeNormRope
+	kernelStrataNativeQsaNorm256
+	kernelStrataNativeQsaNorm1024
+	kernelStrataNativeRopeApply
+	kernelStrataNativeRoute
+	kernelStrataNativeRouteMulti
+	kernelStrataNativeWeightedRmsNorm256
+	kernelStrataNativeWeightedRmsNorm1024
+	kernelStrataNativePleGate
+	kernelStrataNativePleBroadcast
+	kernelStrataNativePleConvResidual
+	kernelStrataNativeCombineK10Vec4
 	kernelFunctionCount
 )
 
@@ -526,6 +651,7 @@ var kernelFunctionNames = [...]string{
 	"strata_native_indexer_append_blocks",
 	"strata_native_indexer_append_first",
 	"strata_native_indexer_append_tail",
+	"strata_native_indexer_append_layers",
 	"stream_combine_f32",
 	"stream_sum_f32",
 	"stream_sum_q8_0_f32",
@@ -589,6 +715,22 @@ var kernelFunctionNames = [...]string{
 	"strata_gdn_step_commit_layers",
 	"strata_gdn_step_norm_multi_all",
 	"strata_gdn_step_norm_multi_kept",
+	"strata_gr_down_q8_t1",
+	"strata_gr_down_q8_t2",
+	"strata_gr_down_q8_t3",
+	"strata_gr_down_q8_t4",
+	"strata_gr_down_q8_t5",
+	"strata_gr_down_q8_t6",
+	"strata_gr_down_q8_t7",
+	"strata_gr_down_q8_t8",
+	"strata_gr_up_q8_t1",
+	"strata_gr_up_q8_t2",
+	"strata_gr_up_q8_t3",
+	"strata_gr_up_q8_t4",
+	"strata_gr_up_q8_t5",
+	"strata_gr_up_q8_t6",
+	"strata_gr_up_q8_t7",
+	"strata_gr_up_q8_t8",
 	"strata_indexer_key_append",
 	"strata_kv_append_f16",
 	"strata_kv_append_q8",
@@ -601,6 +743,114 @@ var kernelFunctionNames = [...]string{
 	"strata_prompt_attn_i8",
 	"strata_prefill_kv_append_q8",
 	"strata_prompt_attn_i8_smem",
+	"strata_broadcast_streams",
+	"strata_copy_from_mapped",
+	"strata_copy_i32_from_mapped",
+	"strata_copy_rows_from_mapped",
+	"strata_doorbell_publish_res",
+	"strata_embed_rows_q8_0",
+	"strata_quantize_q8_1",
+	"strata_gdn_ab_multi_t1",
+	"strata_gdn_ab_multi_t2",
+	"strata_gdn_ab_multi_t3",
+	"strata_gdn_ab_multi_t4",
+	"strata_gdn_ab_multi_t5",
+	"strata_gdn_ab_multi_t6",
+	"strata_gdn_ab_multi_t8",
+	"strata_sigmoid_scale_rows",
+	"strata_sigmoid_scale_rows_vec4",
+	"strata_argmax_rows",
+	"strata_logits_nonfinite",
+	"strata_ple_history_advance",
+	"strata_native_gu_multi_iq3_s",
+	"strata_native_gu_multi_iq4_xs",
+	"strata_native_down_multi_iq4_nl",
+	"strata_native_down_q8_0",
+	"strata_swiglu_q8_1_entries",
+	"strata_wait_flag_ge",
+	"strata_fetch_blobs",
+	"strata_rebase_ptrs",
+	"strata_add_hits",
+	"strata_gr_norm_split",
+	"strata_gr_down_staged_t1",
+	"strata_gr_down_staged_t2",
+	"strata_gr_down_staged_t3",
+	"strata_gr_down_staged_t4",
+	"strata_gr_down_staged_t5",
+	"strata_gr_down_staged_t6",
+	"strata_gr_up_multi_t1",
+	"strata_gr_up_multi_t2",
+	"strata_gr_up_multi_t3",
+	"strata_gr_up_multi_t4",
+	"strata_gr_up_multi_t5",
+	"strata_gr_up_multi_t6",
+	"strata_gu_grouped_t",
+	"strata_down_grouped_t",
+	"strata_swiglu_quantize_q8_0_scaled",
+	"strata_group_resident",
+	"strata_quantize_q8_0_scaled",
+	"strata_copy_from_mapped_multi",
+	"strata_add_streams_broadcast",
+	"strata_gather_rows_u32",
+	"strata_map_ids",
+	"strata_mtp_select",
+	"strata_copy_row_to_first",
+	"strata_row_top_prob_split",
+	"strata_window_ids",
+	"strata_sampler_split_part",
+	"strata_sampler_split_merge",
+	"strata_bf16_f32_mmvf_b256",
+	"strata_bf16_f32_mmvf_multi_b256_t1",
+	"strata_bf16_f32_mmvf_multi_b256_t2",
+	"strata_bf16_f32_mmvf_multi_b256_t3",
+	"strata_bf16_f32_mmvf_multi_b256_t4",
+	"strata_bf16_f32_mmvf_multi_b256_t5",
+	"strata_bf16_f32_mmvf_multi_b256_t6",
+	"strata_bf16_f32_mmvf_multi_b256_t8",
+	"strata_native_mmvq_il_q6_k_c2_r1",
+	"strata_native_mmvq_il_q6_k_c2_r2",
+	"strata_native_mmvq_il_q6_k_c2_r4",
+	"strata_native_mmvq_il_q6_k_c3_r1",
+	"strata_native_mmvq_il_q6_k_c3_r2",
+	"strata_native_mmvq_il_q6_k_c3_r4",
+	"strata_native_mmvq_il_q6_k_c4_r1",
+	"strata_native_mmvq_il_q6_k_c4_r2",
+	"strata_native_mmvq_il_q6_k_c4_r4",
+	"strata_native_mmvq_multi_q6_k_c2",
+	"strata_native_mmvq_multi_q6_k_c3",
+	"strata_native_mmvq_multi_q6_k_c4",
+	"strata_native_mmvq_multi_q6_k_c5",
+	"strata_native_mmvq_multi_q6_k_c6",
+	"strata_native_mmvq_multi_q6_k_c7",
+	"strata_native_mmvq_multi_q6_k_c8",
+	"strata_native_mmvq_multi_q8_0_c2",
+	"strata_native_mmvq_multi_q8_0_c3",
+	"strata_native_mmvq_multi_q8_0_c4",
+	"strata_native_mmvq_multi_q8_0_c5",
+	"strata_native_mmvq_multi_q8_0_c6",
+	"strata_native_mmvq_multi_q8_0_c7",
+	"strata_native_mmvq_multi_q8_0_c8",
+	"strata_native_gr_post",
+	"strata_native_q6_k_mmvq",
+	"strata_native_q6_k_mmvq_small_k",
+	"strata_native_q8_1_interleave",
+	"strata_native_quantize_q8_1",
+	"strata_native_small_mmvq_q8_0",
+	"strata_native_small_mmvq_q8_0_small_k",
+	"strata_native_swiglu_quantize_q8_1",
+	"strata_native_qsa_gate",
+	"strata_native_norm_rope",
+	"strata_native_qsa_norm_256",
+	"strata_native_qsa_norm_1024",
+	"strata_native_rope_apply",
+	"strata_native_route",
+	"strata_native_route_multi",
+	"strata_native_weighted_rms_norm_256",
+	"strata_native_weighted_rms_norm_1024",
+	"strata_native_ple_gate",
+	"strata_native_ple_broadcast",
+	"strata_native_ple_conv_residual",
+	"strata_native_combine_k10_vec4",
 }
 
 var kernelFunctionArgumentCounts = [...]uint16{
@@ -824,6 +1074,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	19,
 	12,
 	4,
+	16,
 	10,
 	8,
 	9,
@@ -887,6 +1138,22 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	12,
 	14,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
+	3,
 	15,
 	11,
 	15,
@@ -899,11 +1166,119 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	13,
 	17,
 	1,
+	4,
+	3,
+	3,
+	7,
+	9,
+	5,
+	3,
+	10,
+	10,
+	10,
+	10,
+	10,
+	10,
+	10,
+	3,
+	3,
+	5,
+	4,
+	2,
+	8,
+	8,
+	7,
+	7,
+	6,
+	2,
+	4,
+	4,
+	5,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	8,
+	7,
+	4,
+	10,
+	4,
+	1,
+	5,
+	5,
+	3,
+	10,
+	7,
+	5,
+	4,
+	8,
+	6,
+	4,
+	7,
+	7,
+	7,
+	7,
+	7,
+	7,
+	7,
+	6,
+	6,
+	6,
+	6,
+	6,
+	6,
+	6,
+	6,
+	6,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	7,
+	5,
+	5,
+	7,
+	3,
+	5,
+	5,
+	4,
+	5,
+	15,
+	5,
+	5,
+	13,
+	3,
+	4,
+	5,
+	5,
+	4,
+	3,
+	7,
+	5,
 }
 
 // kernelModuleCount is the executor's kernel modules, each function's module its index in that order:
-// ops_f32.ptx, strata_qsa.ptx.
-const kernelModuleCount = 2
+// ops_f32.ptx, strata_qsa.ptx, strata_native.ptx.
+const kernelModuleCount = 3
 
 var kernelFunctionModules = [...]uint8{
 	0,
@@ -1158,6 +1533,7 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	0,
 	1,
 	1,
 	1,
@@ -1201,6 +1577,130 @@ var kernelFunctionModules = [...]uint8{
 	1,
 	1,
 	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
 }
 
 type boundKernel struct {

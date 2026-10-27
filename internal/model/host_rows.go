@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -53,14 +54,24 @@ type HostRows struct {
 	file   *gguf.File
 	info   gguf.TensorInfo
 	layout gguf.TensorRowLayout
-	// handles read the table at base; without them the rows are read through file.
+	// handles read the table at base, each read taking one idle; without them the rows are read through file.
 	handles []*os.File
+	idle    chan *os.File
 	base    uint64
 	mu      sync.Mutex
-	sets    uint64
-	keys    []uint32
-	cached  []byte
-	next    []uint8
+	// reading is the rows a prefetch is reading, each with the channel its batch closes once they are cached.
+	reading map[uint32]chan struct{}
+	// queued is the rows prefetches named that the prefetching reader has not taken yet, and wake starts that reader on
+	// them (prefetch); prefetching counts the reader and its batches in flight, which Close waits for.
+	queue       sync.Mutex
+	queued      []uint32
+	wake        chan struct{}
+	stopped     bool
+	prefetching sync.WaitGroup
+	sets        uint64
+	keys        []uint32
+	cached      []byte
+	next        []uint8
 }
 
 // NewHostRows reads info's rows from file through handles of its own,
@@ -78,21 +89,30 @@ func NewHostRows(file *gguf.File, info gguf.TensorInfo, cacheRows uint64) (*Host
 	if rows.base < info.Offset || rows.base > math.MaxInt64-info.Size {
 		return nil, errors.New("host rows: the table lies outside a file's range")
 	}
+	rows.idle = make(chan *os.File, hostRowReads)
 	for range hostRowReads {
 		handle, err := os.Open(paths[info.Shard])
 		if err != nil {
 			return nil, errors.Join(fmt.Errorf("host rows: %w", err), rows.Close())
 		}
 		rows.handles = append(rows.handles, handle)
+		rows.idle <- handle
 	}
 	return rows, nil
 }
 
-// Close closes the handles the rows are read through.
+// Close closes the handles the rows are read through, once the prefetches still reading are done.
 func (h *HostRows) Close() error {
 	if h == nil {
 		return nil
 	}
+	h.queue.Lock()
+	if h.wake != nil && !h.stopped {
+		close(h.wake)
+	}
+	h.stopped = true
+	h.queue.Unlock()
+	h.prefetching.Wait()
 	var errs []error
 	for _, handle := range h.handles {
 		errs = append(errs, handle.Close())
@@ -168,6 +188,23 @@ func (h *HostRows) Load(ctx context.Context, indices []uint32) (reference.Value,
 			slots[index] = len(slots)
 		}
 	}
+	// The rows a prefetch is reading are waited for, not read again.
+	for {
+		var reads []chan struct{}
+		for index := range slots {
+			if done := h.reading[index]; done != nil && h.find(index) == nil && !slices.Contains(reads, done) {
+				reads = append(reads, done)
+			}
+		}
+		if len(reads) == 0 {
+			break
+		}
+		h.mu.Unlock()
+		for _, done := range reads {
+			<-done
+		}
+		h.mu.Lock()
+	}
 	rowBytes := int(layout.BytesPerRow)
 	storage := make([]byte, len(slots)*rowBytes)
 	for index, slot := range slots {
@@ -198,7 +235,87 @@ func (h *HostRows) Load(ctx context.Context, indices []uint32) (reference.Value,
 	return reference.Value{Shape: shape, Data: output}, nil
 }
 
-// read reads rows into their slots of storage, a reader a handle, or
+// Prefetch starts reading the rows indices names that the cache lacks into it, and answers at once, as Strata's PLE
+// table issues a token's rows as the drafter makes it (prefetch_rows): the rows join those named before and not yet
+// taken, which one reader starts reading together, beside the caller and beside the batches still in flight, as
+// Strata's reader keeps every row's read in flight; a Load waits for the reads of its own rows only. A batch had
+// waited for the one before it: a draft token's rows came about 0.4 ms after the token, the drive's latency, for every
+// token drafted before it. A reader without a cache prefetches nothing; a failed read is the next Load's to make.
+func (h *HostRows) Prefetch(_ context.Context, indices []uint32) {
+	if h == nil || h.sets == 0 || len(indices) == 0 {
+		return
+	}
+	h.queue.Lock()
+	if h.stopped {
+		h.queue.Unlock()
+		return
+	}
+	h.queued = append(h.queued, indices...)
+	if h.wake == nil {
+		h.wake = make(chan struct{}, 1)
+		h.prefetching.Add(1)
+		go h.prefetch()
+	}
+	select {
+	case h.wake <- struct{}{}:
+	default:
+	}
+	h.queue.Unlock()
+}
+
+// prefetch starts reading the rows the prefetches queue, all of them a batch, until the reader closes.
+func (h *HostRows) prefetch() {
+	defer h.prefetching.Done()
+	for range h.wake {
+		h.queue.Lock()
+		indices := h.queued
+		h.queued = nil
+		h.queue.Unlock()
+		h.mu.Lock()
+		slots := make(map[uint32]int, len(indices))
+		var missing []uint32
+		for _, index := range indices {
+			if _, seen := slots[index]; seen || uint64(index) >= h.layout.Count || h.find(index) != nil || h.reading[index] != nil {
+				continue
+			}
+			slots[index] = len(missing)
+			missing = append(missing, index)
+		}
+		if len(missing) == 0 {
+			h.mu.Unlock()
+			continue
+		}
+		if h.reading == nil {
+			h.reading = make(map[uint32]chan struct{})
+		}
+		done := make(chan struct{})
+		for _, index := range missing {
+			h.reading[index] = done
+		}
+		h.mu.Unlock()
+		h.prefetching.Add(1)
+		go h.prefetchBatch(missing, slots, done)
+	}
+}
+
+// prefetchBatch reads a batch's rows outside the cache's lock, caches them and closes done.
+func (h *HostRows) prefetchBatch(rows []uint32, slots map[uint32]int, done chan struct{}) {
+	defer h.prefetching.Done()
+	rowBytes := int(h.layout.BytesPerRow)
+	storage := make([]byte, len(rows)*rowBytes)
+	err := h.read(context.Background(), rows, slots, storage)
+	h.mu.Lock()
+	for slot, index := range rows {
+		if err == nil {
+			h.keep(index, storage[slot*rowBytes:(slot+1)*rowBytes])
+		}
+		delete(h.reading, index)
+	}
+	h.mu.Unlock()
+	close(done)
+}
+
+// read reads rows into their slots of storage, a reader an idle handle, or
 // hostRowReads readers through the file without handles; a cancelled
 // context starts no further read.
 func (h *HostRows) read(ctx context.Context, rows []uint32, slots map[uint32]int, storage []byte) error {
@@ -208,6 +325,12 @@ func (h *HostRows) read(ctx context.Context, rows []uint32, slots map[uint32]int
 	var group sync.WaitGroup
 	for reader := range errs {
 		group.Go(func() {
+			var handle *os.File
+			defer func() {
+				if handle != nil {
+					h.idle <- handle
+				}
+			}()
 			for {
 				next := int(taken.Add(1)) - 1
 				if next >= len(rows) {
@@ -222,8 +345,11 @@ func (h *HostRows) read(ctx context.Context, rows []uint32, slots map[uint32]int
 				destination := storage[at : at+rowBytes]
 				var err error
 				if len(h.handles) > 0 {
+					if handle == nil {
+						handle = <-h.idle
+					}
 					var read int
-					read, err = h.handles[reader].ReadAt(destination, int64(h.base+uint64(index)*rowBytes))
+					read, err = handle.ReadAt(destination, int64(h.base+uint64(index)*rowBytes))
 					if read == len(destination) {
 						err = nil
 					} else if err == nil || errors.Is(err, io.EOF) {

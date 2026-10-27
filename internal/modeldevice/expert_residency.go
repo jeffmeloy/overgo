@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"unsafe"
 
 	"overgo/internal/checked"
@@ -35,15 +36,17 @@ const (
 	// allocation would.
 	expertSlotAlignment = 256
 	// expertFillHeadroomBytes and expertSpareHeadroomBytes: the card memory a fill without an explicit limit, and a
-	// decode's free slots (spare), leave free, which minimizes the experts held off the card against an allocation outside
-	// the reservation hook failing; what the requests allocate through the hook (their K/V, buffers, arenas, staging) the
-	// experts give up as it comes. Outside it are the graphs a runner may still capture, each up to 16 MiB on Flash-Next
-	// (30 instantiations took 156 MiB, the 2,673-launch span graphs 12 to 16 MiB, most none), 48 for a speculating
-	// runner, and the libraries' workspaces: about 0.8 GB at load, less once the graphs exist. At 2 GiB and 1 GiB the card
-	// held a gigabyte fewer experts and chats decoded 9.8% slower over three alternating rounds; Strata keeps 700 MiB
-	// free (--vram-reserve-mib). Provisional: the load-costs step computes them from the graphs' measured bytes.
+	// decode's free slots and a refill (spare), leave free, which minimizes the experts held off the card against an
+	// allocation outside the reservation hook failing; what the requests allocate through the hook (their K/V, buffers,
+	// arenas, staging, and room for each graph the executor captures) the experts give up as it comes. Outside it are
+	// the stores and the draft a runner opens at its first request and the libraries' workspaces: about 0.8 GB at load,
+	// none after. At 2 GiB and 1 GiB the card held a gigabyte fewer experts and chats decoded 9.8% slower over three
+	// alternating rounds; Strata keeps 700 MiB free at its fill (--vram-reserve-mib) and serves with 324 MiB. At 512 MiB a
+	// round's refill left Flash-Next 460-634 MiB of its card unused, 200-280 experts in host memory, the reservations
+	// having freed whole layers' allocations past their need. Provisional: the load-costs step computes them from the
+	// measured bytes.
 	expertFillHeadroomBytes  = 1 << 30
-	expertSpareHeadroomBytes = 512 << 20
+	expertSpareHeadroomBytes = 256 << 20
 	// A decode's miss moves to the card on its first route, the most used first, at most expertPromotionsPerAdvance an
 	// advance, into the slot of the card expert of its stride routed least recently: a promotion pays where the uses it
 	// saves outlast the expert it displaces by more than a copy's cost over a miss's, and a copy beside the run (about
@@ -82,10 +85,13 @@ type residentExpert struct {
 // expertBank keeps where each of its experts lives: pointers is the host
 // copy of its device table, and hosted holds the pinned bytes of each expert
 // not on the card. A routed node's first bank holds the node's banks in group
-// and the flags its routes mark from flag routed.
+// and the flags its routes mark from flag routed. The bank's experts lie in its
+// blob's slots, offset bytes in; stride is the blob's slot.
 type expertBank struct {
 	info          gguf.TensorInfo
 	bytes, stride uint64
+	blob          *expertBlob
+	offset        uint64
 	table         driver.DevicePtr
 	// pointers is the bank's table on the host, the part of the residency's pointers from first.
 	pointers []driver.DevicePtr
@@ -110,6 +116,83 @@ type expertBank struct {
 	decodeRuns []uint64
 	// class keeps the card experts of the bank's stride.
 	class *expertClass
+}
+
+// expertBlob is the banks whose experts lie together: an expert's bytes of each bank back to back in the banks' order,
+// each part at its bank's offset, as Strata's expert blob holds an expert's gate, up and down rows (iq_kernels.hpp,
+// NativeExpertLayout), so one card slot and one host slot hold the expert of every bank and it moves as one. A layer's
+// banks ("blk.N.") form a blob; any other bank is a blob alone. The blob's first bank keeps its experts' entries in the
+// card order and their slots, from its offset 0 to the slot's end.
+type expertBlob struct {
+	banks         []*expertBank
+	bytes, stride uint64
+	// layer is the routed layer the banks name ("blk.N."), -1 for a bank alone.
+	layer int32
+	// rank is each expert's place in the profile a load ranked the card by, the most routed first, past every ranked
+	// place for one it does not rank; nil without a profile.
+	rank []uint32
+}
+
+// head is the bank whose slots and entries stand for the blob's.
+func (b *expertBlob) head() *expertBank { return b.banks[0] }
+
+// expertBlobParts are a layer's banks in a blob in the order Strata's blob holds them: the gate rows (or the fused gate
+// and up rows), the up rows, then the down rows.
+var expertBlobParts = [][]string{{"ffn_gate_exps", "ffn_gate_up_exps"}, {"ffn_up_exps"}, {"ffn_down_exps"}}
+
+// expertBlobOrder is a bank's place in its blob: its part's, any other bank after them.
+func expertBlobOrder(name string) int {
+	for order, parts := range expertBlobParts {
+		for _, part := range parts {
+			if strings.Contains(name, "."+part+".") {
+				return order
+			}
+		}
+	}
+	return len(expertBlobParts)
+}
+
+// newExpertBlobs groups the banks into blobs and lays each blob's expert out: its banks in expertBlobOrder, each part
+// at a slot-aligned offset after the one before, so a part starts where its own slot would.
+func newExpertBlobs(ordered []*expertBank) ([]*expertBlob, error) {
+	byLayer := map[uint32]*expertBlob{}
+	var blobs []*expertBlob
+	for _, bank := range ordered {
+		layer, err := expertBankLayer(bank)
+		blob := byLayer[layer]
+		if err != nil || blob == nil {
+			blob = &expertBlob{layer: -1}
+			blobs = append(blobs, blob)
+			if err == nil {
+				blob.layer, byLayer[layer] = int32(layer), blob
+			}
+		}
+		if len(blob.banks) > 0 && len(blob.head().pointers) != len(bank.pointers) {
+			return nil, fmt.Errorf("expert banks %q and %q of one layer hold different expert counts", blob.head().info.Name, bank.info.Name)
+		}
+		blob.banks = append(blob.banks, bank)
+	}
+	for _, blob := range blobs {
+		slices.SortStableFunc(blob.banks, func(a, b *expertBank) int {
+			return cmp.Or(cmp.Compare(expertBlobOrder(a.info.Name), expertBlobOrder(b.info.Name)), cmp.Compare(a.info.Name, b.info.Name))
+		})
+		for _, bank := range blob.banks {
+			offset, ok := checked.Align(blob.bytes, expertSlotAlignment)
+			if !ok {
+				return nil, fmt.Errorf("expert blob of %q overflows", bank.info.Name)
+			}
+			bank.blob, bank.offset, blob.bytes = blob, offset, offset+bank.bytes
+		}
+		stride, ok := checked.Align(blob.bytes, expertSlotAlignment)
+		if !ok {
+			return nil, fmt.Errorf("expert blob of %q overflows", blob.head().info.Name)
+		}
+		blob.stride = stride
+		for _, bank := range blob.banks {
+			bank.stride = stride
+		}
+	}
+	return blobs, nil
 }
 
 // cardExperts counts the experts on the card.
@@ -196,11 +279,22 @@ type expertResidency struct {
 	mem     expertMemory
 	banks   map[string]*expertBank
 	ordered []*expertBank
+	blobs   []*expertBlob
 	classes map[uint64]*expertClass
-	cards   []expertChunk
+	// resident is the card's table of each routed layer's experts, a layer's experts in index order, 0 where the card
+	// holds the expert and -1 where host memory does (Strata's d_res, which its verify window's doorbell reads), and
+	// residentHost its host copy, published with the tables; zero where the layers' banks hold different expert counts.
+	resident        driver.DevicePtr
+	residentHost    []int32
+	residentExperts int
+	residentStale   bool
+	cards           []expertChunk
 	// loans is the card memory other owners lend, and lentBytes the expert slots carved from it.
-	loans                          []*expertLoan
-	lentBytes                      uint64
+	loans     []*expertLoan
+	lentBytes uint64
+	// reclaimed is the experts moved to host memory to give their card memory to another owner - a prompt read's arena
+	// or a loan taken back - since the last refill (RefillExperts) or decode advance.
+	reclaimed                      []expertKey
 	pinned                         [][]byte
 	tables, routedMap, onHostFlags driver.DevicePtr
 	// pointers is every bank's table on the host, in the order the card's tables lie, each bank's pointers a part.
@@ -226,6 +320,10 @@ type expertResidency struct {
 	// compute the same experts in the same places and decode the same tokens, as a library validation's
 	// recording and replay must.
 	held bool
+	// tiered leaves the experts' places to an adaptive tier (SwapExperts) and the prompt's loans and refills, as
+	// Strata's cache changes by nothing else: every advance reads its routes as a prompt's, promoting no miss and
+	// keeping the experts a reclaim moved for the next refill.
+	tiered bool
 }
 
 // newExpertResidency allocates the tables, the route flags and every
@@ -245,21 +343,27 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		if !found || listed != info || info.Dimensions != expertBankRank || experts == 0 || experts > uint64(^uint32(0)) || info.Size%experts != 0 || c.banks[info.Name] != nil {
 			return nil, fmt.Errorf("expert bank %q requires one unique rank-three GGUF descriptor", info.Name)
 		}
-		stride, ok := checked.Align(info.Size/experts, expertSlotAlignment)
-		if !ok {
-			return nil, fmt.Errorf("expert bank %q slot size overflows", info.Name)
-		}
-		bank := &expertBank{info: info, bytes: info.Size / experts, stride: stride, routed: flags, hosted: make([][]byte, experts),
-			entries: make([]*list.Element, experts), home: make([]expertSlot, experts), moving: make([]bool, experts),
-			usage: make([]float32, experts), decodeRuns: make([]uint64, experts)}
-		if c.classes[stride] == nil {
-			c.classes[stride] = &expertClass{stride: stride}
-		}
-		bank.class = c.classes[stride]
+		bank := &expertBank{info: info, bytes: info.Size / experts, routed: flags, hosted: make([][]byte, experts),
+			pointers: make([]driver.DevicePtr, experts), entries: make([]*list.Element, experts),
+			home: make([]expertSlot, experts), moving: make([]bool, experts), usage: make([]float32, experts),
+			decodeRuns: make([]uint64, experts)}
 		c.banks[info.Name] = bank
 		c.ordered = append(c.ordered, bank)
 		c.tableBytes += experts * pointerBytes
 		flags += experts
+	}
+	blobs, err := newExpertBlobs(c.ordered)
+	if err != nil {
+		return nil, err
+	}
+	c.blobs = blobs
+	for _, blob := range blobs {
+		if c.classes[blob.stride] == nil {
+			c.classes[blob.stride] = &expertClass{stride: blob.stride}
+		}
+		for _, bank := range blob.banks {
+			bank.class = c.classes[blob.stride]
+		}
 	}
 	if c.tableBytes > limit {
 		return nil, errors.New("expert pointer tables exceed the residency limit")
@@ -287,6 +391,9 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 		}
 	}
 	if err == nil {
+		err = c.allocateResident(ctx)
+	}
+	if err == nil {
 		err = c.allocate(ctx, limit, profile)
 		c.loadCard = c.cardExperts()
 	}
@@ -299,8 +406,11 @@ func newExpertResidency(ctx context.Context, file *gguf.File, infos []gguf.Tenso
 // allocate places experts on the card while the limit allows and every other expert in pinned host memory: one card
 // allocation and one pinned allocation a bank. Without a profile it fills in index order across the banks, so each
 // bank keeps the same share there; with one, each layer's top-ranked experts, its banks together.
+//   - one card allocation a bank, not a few experts each: Flash-Next's experts in allocations of 32 (some 540) decoded
+//     at a third of the rate, Windows' driver making each allocation resident for every submission, and lost 500 MB
+//     to its 2 MiB rounding
 func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *ExpertProfile) error {
-	var marks map[*expertBank][]bool
+	var marks map[*expertBlob][]bool
 	if profile != nil {
 		var err error
 		if marks, err = c.rankedCardExperts(*profile, limit); err != nil {
@@ -309,9 +419,9 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 	} else {
 		marks = c.indexCardExperts(limit)
 	}
-	for _, bank := range c.ordered {
-		experts, onCard := uint64(len(bank.pointers)), uint64(0)
-		for _, card := range marks[bank] {
+	for _, blob := range c.blobs {
+		experts, onCard := uint64(len(blob.head().pointers)), uint64(0)
+		for _, card := range marks[blob] {
 			if card {
 				onCard++
 			}
@@ -320,46 +430,116 @@ func (c *expertResidency) allocate(ctx context.Context, limit uint64, profile *E
 		var host []byte
 		var err error
 		if onCard > 0 {
-			if card, err = c.mem.alloc(ctx, onCard*bank.stride); err != nil {
+			if card, err = c.mem.alloc(ctx, onCard*blob.stride); err != nil {
 				return err
 			}
-			c.cards = append(c.cards, expertChunk{card, onCard * bank.stride, bank.stride, nil})
+			c.cards = append(c.cards, expertChunk{card, onCard * blob.stride, blob.stride, nil})
 		}
 		// Every expert keeps its bytes in pinned host memory, as Strata's expert arena does: a card expert's copy there
 		// is its home for good, so a demotion copies nothing back and the card is a cache of the host's experts.
-		if host, mapped, err = c.mem.hostAlloc(ctx, experts*bank.stride); err != nil {
+		if host, mapped, err = c.mem.hostAlloc(ctx, experts*blob.stride); err != nil {
 			return err
 		}
 		c.pinned = append(c.pinned, host)
 		var cardSlot uint64
 		for index := range experts {
-			offset := uint64(index) * bank.stride
-			slot := expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+bank.stride]}
-			if marks[bank][index] {
-				bank.pointers[index] = card + driver.DevicePtr(cardSlot*bank.stride)
-				bank.entries[index] = c.classes[bank.stride].order.PushBack(&residentExpert{key: expertKey{bank, uint32(index)}})
-				bank.home[index] = slot
+			offset := uint64(index) * blob.stride
+			slot := expertSlot{device: mapped + driver.DevicePtr(offset), host: host[offset : offset+blob.stride]}
+			if marks[blob][index] {
+				c.placeOnCard(blob, uint32(index), card+driver.DevicePtr(cardSlot*blob.stride), slot)
 				cardSlot++
 			} else {
-				bank.hosted[index], bank.pointers[index] = slot.host, slot.device
+				c.placeOnHost(blob, uint32(index), slot)
 			}
 		}
-		bank.changed = true
 	}
 	return nil
 }
 
-// indexCardExperts marks experts in index order across the banks while the limit allows.
-func (c *expertResidency) indexCardExperts(limit uint64) map[*expertBank][]bool {
-	marks := make(map[*expertBank][]bool, len(c.ordered))
-	for _, bank := range c.ordered {
-		marks[bank] = make([]bool, len(bank.pointers))
+// allocateResident makes the card's residency table where every routed layer holds the same expert count: every expert
+// in host memory until a placement names it, written at the next publish.
+func (c *expertResidency) allocateResident(ctx context.Context) error {
+	var layers int32
+	experts := -1
+	for _, blob := range c.blobs {
+		if blob.layer < 0 {
+			continue
+		}
+		if experts >= 0 && experts != len(blob.head().pointers) {
+			return nil
+		}
+		experts, layers = len(blob.head().pointers), max(layers, blob.layer+1)
 	}
-	for index := range len(slices.MaxFunc(c.ordered, func(left, right *expertBank) int { return len(left.pointers) - len(right.pointers) }).pointers) {
-		for _, bank := range c.ordered {
-			if index < len(bank.pointers) && (index == 0 || marks[bank][index-1]) && bank.stride <= limit-c.bytes {
-				marks[bank][index] = true
-				c.bytes += bank.stride
+	if experts <= 0 {
+		return nil
+	}
+	c.residentHost, c.residentExperts = make([]int32, int(layers)*experts), experts
+	for index := range c.residentHost {
+		c.residentHost[index] = -1
+	}
+	var err error
+	c.resident, err = c.mem.alloc(ctx, uint64(len(c.residentHost))*uint64(unsafe.Sizeof(int32(0))))
+	c.residentStale = true
+	return err
+}
+
+// markResident sets a layer's expert's entry in the residency table's host copy.
+func (c *expertResidency) markResident(blob *expertBlob, index uint32, onCard bool) {
+	if c.residentHost == nil || blob.layer < 0 {
+		return
+	}
+	value := int32(-1)
+	if onCard {
+		value = 0
+	}
+	c.residentHost[int(blob.layer)*c.residentExperts+int(index)], c.residentStale = value, true
+}
+
+// bankSlot is a bank's part of its blob's slot: from the bank's offset to the slot's end.
+func bankSlot(bank *expertBank, slot expertSlot) expertSlot {
+	return expertSlot{device: slot.device + driver.DevicePtr(bank.offset), host: slot.host[bank.offset:]}
+}
+
+// placeOnCard names a blob's expert on the card at card, its host copy home, every bank's table naming its part, and
+// enters it last in its class's order.
+func (c *expertResidency) placeOnCard(blob *expertBlob, index uint32, card driver.DevicePtr, home expertSlot) {
+	entry := blob.head().class.order.PushBack(&residentExpert{key: expertKey{blob.head(), index}, step: c.step})
+	for _, bank := range blob.banks {
+		bank.pointers[index], bank.hosted[index], bank.changed = card+driver.DevicePtr(bank.offset), nil, true
+		bank.home[index], bank.entries[index] = bankSlot(bank, home), entry
+	}
+	c.markResident(blob, index, true)
+}
+
+// placeOnHost names a blob's expert in host memory at slot, every bank's table naming its part.
+func (c *expertResidency) placeOnHost(blob *expertBlob, index uint32, slot expertSlot) {
+	for _, bank := range blob.banks {
+		part := bankSlot(bank, slot)
+		bank.pointers[index], bank.hosted[index], bank.changed = part.device, part.host, true
+		bank.home[index], bank.entries[index] = expertSlot{}, nil
+	}
+	c.markResident(blob, index, false)
+}
+
+// setMoving marks a blob's expert whose copy is in flight, in every bank.
+func (b *expertBlob) setMoving(index uint32, moving bool) {
+	for _, bank := range b.banks {
+		bank.moving[index] = moving
+	}
+}
+
+// indexCardExperts marks experts in index order across the banks while the limit allows.
+func (c *expertResidency) indexCardExperts(limit uint64) map[*expertBlob][]bool {
+	marks := make(map[*expertBlob][]bool, len(c.blobs))
+	for _, blob := range c.blobs {
+		marks[blob] = make([]bool, len(blob.head().pointers))
+	}
+	most := slices.MaxFunc(c.blobs, func(left, right *expertBlob) int { return len(left.head().pointers) - len(right.head().pointers) })
+	for index := range len(most.head().pointers) {
+		for _, blob := range c.blobs {
+			if index < len(blob.head().pointers) && (index == 0 || marks[blob][index-1]) && blob.stride <= limit-c.bytes {
+				marks[blob][index] = true
+				c.bytes += blob.stride
 			}
 		}
 	}
@@ -405,8 +585,9 @@ func (c *expertResidency) place(ctx context.Context, onDevice expertDevice, bank
 }
 
 // ExpertPlacement is where a residency's experts are and where its runs found the experts they routed.
-//   - bytes are slot bytes, card memory and pinned host memory; every expert keeps its pinned copy, a card expert's
-//     too, so HostExperts and HostBytes count them all and overlap CardExperts and CardBytes
+//   - experts are blobs, a layer's banks' expert once; bytes are slot bytes, card memory and pinned host memory;
+//     every expert keeps its pinned copy, a card expert's too, so HostExperts and HostBytes count them all and overlap
+//     CardExperts and CardBytes
 //   - Routes counts the experts the runs' routes named, a bank's expert once a run
 //   - CardRoutes counts those a run read on the card, and the rest it read over the PCIe link
 //   - LoadCardExperts counts the experts the load placed on the card, few when it found the card held
@@ -435,6 +616,17 @@ func (w *DeviceWeights) HoldExperts() {
 	}
 }
 
+// TierExperts leaves the experts' places to an adaptive tier (SwapExperts) and the prompt's loans and refills
+// (RefillExperts), as Strata's expert cache changes by nothing else: a run's routes promote no miss. A prompt read's
+// short tail, a run of a decode's width, had otherwise promoted its misses and dropped the experts its reclaims had
+// moved, which the refill then never returned (Flash-Next's 16K read left 943 of them on host). It is set before the
+// first run.
+func (w *DeviceWeights) TierExperts() {
+	if w != nil && w.experts != nil {
+		w.experts.tiered = true
+	}
+}
+
 // ExpertMemory reports the card bytes of experts, which a reservation can release.
 // Pointer tables remain resident and are excluded.
 func (w *DeviceWeights) ExpertMemory(state *device.State) (uint64, error) {
@@ -455,9 +647,9 @@ func (w *DeviceWeights) ExpertPlacement(state *device.State) (ExpertPlacement, e
 		placement.CardExperts += uint64(class.order.Len())
 		placement.CardBytes += uint64(class.order.Len()) * class.stride
 	}
-	for _, bank := range c.ordered {
-		placement.HostExperts += uint64(len(bank.pointers))
-		placement.HostBytes += uint64(len(bank.pointers)) * bank.stride
+	for _, blob := range c.blobs {
+		placement.HostExperts += uint64(len(blob.head().pointers))
+		placement.HostBytes += uint64(len(blob.head().pointers)) * blob.stride
 	}
 	return placement, nil
 }
@@ -548,6 +740,99 @@ func (w *DeviceWeights) AdvanceExperts(ctx context.Context, state *device.State,
 	return w.experts.advance(ctx, prompt)
 }
 
+// ExpertSwap is one of Strata's adaptive tier's swaps (src/program/generate.cpp's adapt): the routed layer's host
+// expert In moves into the card slot of its card expert Out.
+type ExpertSwap struct{ Layer, In, Out int }
+
+// SwapExperts queues the adaptive tier's swaps: each Out goes to its host copy at once (the CPU computes it meanwhile),
+// each In is copied into Out's card slot on the residency's stream and stays in host memory until its copy lands
+// (LandExperts); the tables are published. A held residency swaps nothing, nor a swap whose In is not in host memory or
+// whose Out is not on the card. It answers the swaps queued.
+func (w *DeviceWeights) SwapExperts(ctx context.Context, state *device.State, swaps []ExpertSwap) (int, error) {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return 0, errors.New("expert residency requires its owning CUDA worker")
+	}
+	c := w.experts
+	if c.held {
+		return 0, nil
+	}
+	queued := 0
+	for _, swap := range swaps {
+		layer, found := w.ExpertBlobLayer(swap.Layer)
+		if !found {
+			return queued, fmt.Errorf("expert swap: no blob names layer %d", swap.Layer)
+		}
+		head := layer.blob.head()
+		in, out := uint32(swap.In), uint32(swap.Out)
+		if int(max(in, out)) >= len(head.pointers) || head.entries[in] != nil || head.moving[in] || head.entries[out] == nil ||
+			head.moving[out] {
+			continue
+		}
+		c.promoting = append(c.promoting, expertMove{expertKey{head, in}, head.pointers[out], expertSlot{head.pointers[in], head.hosted[in]}})
+		layer.blob.setMoving(in, true)
+		c.demote(head.entries[out])
+		queued++
+	}
+	if err := c.start(ctx); err != nil {
+		return queued, errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
+	return queued, c.publish(ctx)
+}
+
+// RefillExperts is the prompt path's refill after its loan (src/program/generate.cpp's refill): the experts moved to
+// host memory for a prompt read's memory (ReserveExpertMemory, ReclaimExpertMemory) return to the card, into the memory
+// lent back first, each copied on the residency's stream and staying in host memory until its copy lands
+// (LandExperts); the tables are published. A held residency refills nothing. It answers the experts queued.
+func (w *DeviceWeights) RefillExperts(ctx context.Context, state *device.State) (int, error) {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return 0, errors.New("expert residency requires its owning CUDA worker")
+	}
+	c := w.experts
+	seen := make(map[expertKey]bool, len(c.reclaimed))
+	keys := slices.DeleteFunc(c.reclaimed, func(key expertKey) bool {
+		again := seen[key]
+		seen[key] = true
+		return again || key.bank.entries[key.index] != nil || key.bank.moving[key.index]
+	})
+	c.reclaimed = nil
+	// The hottest first, as the room allows; the rest wait in host memory for the next refill's room. A refill that
+	// dropped them kept every reservation's shortfall for good: Flash-Next's round held 16.0K experts through its agent
+	// turns, of 17.2K at load.
+	slices.SortStableFunc(keys, func(a, b expertKey) int { return c.colderKey(b, a) })
+	if c.held || len(keys) == 0 {
+		return 0, nil
+	}
+	if err := c.spare(ctx, keys); err != nil {
+		return 0, errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
+	queued := 0
+	for _, key := range keys {
+		class := c.classes[key.bank.stride]
+		if len(class.free) == 0 {
+			c.reclaimed = append(c.reclaimed, key)
+			continue
+		}
+		card := class.free[len(class.free)-1]
+		class.free = class.free[:len(class.free)-1]
+		c.promoting = append(c.promoting, expertMove{key, card, expertSlot{key.bank.pointers[key.index], key.bank.hosted[key.index]}})
+		key.bank.blob.setMoving(key.index, true)
+		queued++
+	}
+	if err := c.start(ctx); err != nil {
+		return queued, errors.Join(err, c.publish(context.WithoutCancel(ctx)))
+	}
+	return queued, c.publish(ctx)
+}
+
+// LandExperts places the swapped experts on the card once their copies have landed, waited for, and publishes the
+// tables (the adaptive tier's apply_pending).
+func (w *DeviceWeights) LandExperts(ctx context.Context, state *device.State) error {
+	if w == nil || w.experts == nil || w.experts.state != state {
+		return errors.New("expert residency requires its owning CUDA worker")
+	}
+	return errors.Join(w.experts.land(ctx, true), w.experts.publish(ctx))
+}
+
 // StartExpertCopies starts the copies the last advance recorded, once the run it prepared is launched.
 func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.State) error {
 	if w == nil || w.experts == nil {
@@ -566,6 +851,7 @@ func (w *DeviceWeights) StartExpertCopies(ctx context.Context, state *device.Sta
 //     that landed by one advance and not another changed a decoded text with the host's speed; a copy queued behind
 //     the last run has landed by its end on Flash-Next, so the wait costs nothing there
 func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
+	prompt = prompt || c.tiered
 	if err := c.land(ctx, true); err != nil {
 		return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 	}
@@ -586,6 +872,7 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 			if flag == 0 {
 				continue
 			}
+			first := len(missed)
 			for _, bank := range head.group {
 				c.routes++
 				if !prompt {
@@ -596,14 +883,17 @@ func (c *expertResidency) advance(ctx context.Context, prompt bool) error {
 					c.cardRoutes++
 					entry.Value.(*residentExpert).step = c.step
 					bank.class.order.MoveToBack(entry)
-				} else if !prompt && !bank.moving[index] {
-					missed = append(missed, expertKey{bank, uint32(index)})
+				} else if key := (expertKey{bank.blob.head(), uint32(index)}); !prompt && !bank.moving[index] && !slices.Contains(missed[first:], key) {
+					// A blob's expert misses once, however many of its banks the node names.
+					missed = append(missed, key)
 				}
 			}
 		}
 		clear(flags)
 	}
 	if !prompt {
+		// A decode's own misses refill the memory a prompt's reclaims emptied (spare).
+		c.reclaimed = nil
 		if c.decodes++; c.decodes%expertUsageRounds == 0 {
 			for _, bank := range c.ordered {
 				for index := range bank.usage {
@@ -651,12 +941,10 @@ func (c *expertResidency) land(ctx context.Context, wait bool) error {
 		return err
 	}
 	for _, move := range c.promoting {
-		bank, index := move.key.bank, move.key.index
-		bank.pointers[index], bank.hosted[index], bank.changed = move.card, nil, true
+		blob, index := move.key.bank.blob, move.key.index
 		// The promoted expert's host slot stays its copy, so a later demotion copies nothing back.
-		bank.home[index] = move.slot
-		bank.entries[index] = bank.class.order.PushBack(&residentExpert{key: move.key, step: c.step})
-		bank.moving[index] = false
+		c.placeOnCard(blob, index, move.card, move.slot)
+		blob.setMoving(index, false)
 	}
 	c.promoting, c.queuedPromoting = c.promoting[:0], 0
 	return nil
@@ -675,15 +963,14 @@ func (c *expertResidency) start(ctx context.Context) error {
 	}
 	var err error
 	for _, move := range c.promoting[c.queuedPromoting:] {
-		bank := move.key.bank
-		if err = c.mem.copyToCard(ctx, c.copies, move.card, move.slot.host[:bank.bytes]); err != nil {
+		if err = c.mem.copyToCard(ctx, c.copies, move.card, move.slot.host[:move.key.bank.blob.bytes]); err != nil {
 			break
 		}
 		c.queuedPromoting++
 	}
 	if err != nil {
 		for _, move := range c.promoting[c.queuedPromoting:] {
-			move.key.bank.moving[move.key.index] = false
+			move.key.bank.blob.setMoving(move.key.index, false)
 		}
 		c.promoting = c.promoting[:c.queuedPromoting]
 	}
@@ -786,7 +1073,7 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 		card := class.free[len(class.free)-1]
 		class.free = class.free[:len(class.free)-1]
 		c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
-		bank.moving[key.index] = true
+		bank.blob.setMoving(key.index, true)
 		return nil
 	}
 	victim := c.classes[bank.stride].order.Front()
@@ -798,7 +1085,7 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 	resident := victim.Value.(*residentExpert)
 	card := resident.key.bank.pointers[resident.key.index]
 	c.promoting = append(c.promoting, expertMove{key, card, expertSlot{bank.pointers[key.index], bank.hosted[key.index]}})
-	bank.moving[key.index] = true
+	bank.blob.setMoving(key.index, true)
 	c.demote(victim)
 	return nil
 }
@@ -808,11 +1095,8 @@ func (c *expertResidency) promote(ctx context.Context, key expertKey) error {
 func (c *expertResidency) demote(entry *list.Element) {
 	key := entry.Value.(*residentExpert).key
 	bank := key.bank
-	slot := bank.home[key.index]
-	bank.home[key.index] = expertSlot{}
-	bank.pointers[key.index], bank.hosted[key.index], bank.changed = slot.device, slot.host, true
 	c.classes[bank.stride].order.Remove(entry)
-	bank.entries[key.index] = nil
+	c.placeOnHost(bank.blob, key.index, bank.home[key.index])
 }
 
 // publish writes the tables whose experts moved as one copy, from the first such table through the last: the tables
@@ -837,6 +1121,13 @@ func (c *expertResidency) publish(ctx context.Context) error {
 	}
 	for _, bank := range c.ordered[first : last+1] {
 		bank.changed = false
+	}
+	if c.residentStale {
+		if err := c.mem.writeOrdered(ctx, c.resident, unsafe.Slice((*byte)(unsafe.Pointer(&c.residentHost[0])),
+			len(c.residentHost)*int(unsafe.Sizeof(c.residentHost[0])))); err != nil {
+			return err
+		}
+		c.residentStale = false
 	}
 	return nil
 }
@@ -877,8 +1168,8 @@ func (c *expertResidency) publishOnHost(ctx context.Context) error {
 }
 
 // ReserveExpertMemory makes room for another executor owner before allocation.
-// It moves the experts of card allocations to host memory, last allocated
-// first, and frees the allocations until the request fits.
+// It frees the card allocations whose freeing moves the coldest experts to
+// host memory (release) until the request fits.
 func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64) error {
 	if w == nil || w.experts == nil || w.experts.state != state {
 		return errors.New("expert memory reservation requires its owning worker")
@@ -904,14 +1195,67 @@ func (w *DeviceWeights) ReserveExpertMemory(state *device.State, required uint64
 	return nil
 }
 
-// release frees the residency's last own card allocation for another owner (drop).
+// release frees one of the residency's own card allocations for another owner (drop): the one whose freeing moves the
+// coldest experts to host memory, as Strata's cache gives up its lowest-ranked slots. Freeing a chunk takes its slots
+// from its stride's class, whose coldest experts, as many as its free slots do not cover, go to host memory; so a
+// reservation's loss follows the load profile's ranking over every layer of a class, where freeing the last allocation
+// had emptied half of the slots of the layers that share its stride (Flash-Next's round took 594 experts of layers 4,
+// 30, 46 and 47, whose misses the adaptive tier, swapping within a layer, could never take back). Among equals, the
+// last allocated.
 func (c *expertResidency) release(ctx context.Context) error {
+	slots := make(map[uint64]uint64)
+	for _, chunk := range c.cards {
+		slots[chunk.stride] += chunk.bytes / chunk.stride
+	}
+	coldest := make(map[uint64][]*list.Element)
+	// demoted answers the hottest expert freeing the chunk moves to host memory, or nil where its class's free slots
+	// cover its own.
+	demoted := func(chunk expertChunk) *list.Element {
+		class := c.classes[chunk.stride]
+		held, kept := uint64(class.order.Len()), slots[chunk.stride]-chunk.bytes/chunk.stride
+		if held <= kept {
+			return nil
+		}
+		ordered, sorted := coldest[chunk.stride]
+		if !sorted {
+			for entry := class.order.Front(); entry != nil; entry = entry.Next() {
+				ordered = append(ordered, entry)
+			}
+			slices.SortStableFunc(ordered, c.colder)
+			coldest[chunk.stride] = ordered
+		}
+		return ordered[held-kept-1]
+	}
+	chosen, found := expertChunk{}, false
+	var cost *list.Element
 	for at := len(c.cards) - 1; at >= 0; at-- {
-		if chunk := c.cards[at]; chunk.lent == nil {
-			return c.drop(ctx, func(candidate expertChunk) bool { return candidate.pointer == chunk.pointer })
+		chunk := c.cards[at]
+		if chunk.lent != nil {
+			continue
+		}
+		hottest := demoted(chunk)
+		if !found || cost != nil && (hottest == nil || c.colder(hottest, cost) < 0) {
+			chosen, cost, found = chunk, hottest, true
 		}
 	}
-	return nil
+	if !found {
+		return nil
+	}
+	return c.drop(ctx, func(candidate expertChunk) bool { return candidate.pointer == chosen.pointer }, &c.reclaimed)
+}
+
+// colder orders two card experts the colder first: the less routed, and where the routes tie, as before any decode,
+// the lower in the profile the load ranked by, as Strata's cache gives up its lowest-ranked slots first.
+func (c *expertResidency) colder(a, b *list.Element) int {
+	return c.colderKey(a.Value.(*residentExpert).key, b.Value.(*residentExpert).key)
+}
+
+// colderKey is colder for two experts wherever they lie.
+func (c *expertResidency) colderKey(x, y expertKey) int {
+	if order := cmp.Compare(x.bank.usage[x.index], y.bank.usage[y.index]); order != 0 || x.bank.blob.rank == nil || y.bank.blob.rank == nil {
+		return order
+	}
+	return cmp.Compare(y.bank.blob.rank[y.index], x.bank.blob.rank[x.index])
 }
 
 // owned counts the card allocations the residency made itself, which a release frees.
@@ -927,12 +1271,13 @@ func (c *expertResidency) owned() int {
 
 // drop moves the experts out of the chunks leaves names, moving the coldest experts of each stride to host memory
 // rather than the chunks' own (Strata lends its cache's coldest slots, never a layer's): each expert a chunk holds,
-// the most used first, takes a free slot of its stride elsewhere, then the card slot of the least used expert of its
-// stride elsewhere where that one is used less, copied on the card, and the expert it displaces and the rest of the
-// chunks' go to host memory. A long prompt that freed whole banks of the last layers had left those layers' every
-// expert on host for the decode after it. It publishes the tables once, frees the chunks the residency allocated and
-// gives the lent ones back to their loans.
-func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) bool) error {
+// the most used first, takes a free slot of its stride elsewhere, then the card slot of the coldest expert of its
+// stride elsewhere where that one is colder - used less, or where the uses tie ranked lower by the load's profile -
+// copied on the card, and the expert it displaces and the rest of the chunks' go to host memory. A long prompt that
+// freed whole banks of the last layers had left those layers' every expert on host for the decode after it, as had a
+// round's first request, before any decode had used an expert, its buffers taking Flash-Next's layer 46. It publishes the tables once, frees the chunks the residency allocated and
+// gives the lent ones back to their loans. The experts it moves to host memory are added to moved where it is set.
+func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) bool, moved *[]expertKey) error {
 	if !slices.ContainsFunc(c.cards, leaves) {
 		return nil
 	}
@@ -957,9 +1302,12 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 		}
 		return false
 	}
-	use := func(entry *list.Element) float32 {
-		key := entry.Value.(*residentExpert).key
-		return key.bank.usage[key.index]
+	colder := c.colder
+	out := func(entry *list.Element) {
+		if moved != nil {
+			*moved = append(*moved, entry.Value.(*residentExpert).key)
+		}
+		c.demote(entry)
 	}
 	for stride := range strides {
 		class := c.classes[stride]
@@ -973,8 +1321,8 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 				others = append(others, entry)
 			}
 		}
-		slices.SortStableFunc(held, func(a, b *list.Element) int { return cmp.Compare(use(b), use(a)) })
-		slices.SortStableFunc(others, func(a, b *list.Element) int { return cmp.Compare(use(a), use(b)) })
+		slices.SortStableFunc(held, func(a, b *list.Element) int { return colder(b, a) })
+		slices.SortStableFunc(others, colder)
 		victims := 0
 		for _, entry := range held {
 			key := entry.Value.(*residentExpert).key
@@ -983,21 +1331,23 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 			switch {
 			case len(class.free) > 0:
 				slot, class.free = class.free[len(class.free)-1], class.free[:len(class.free)-1]
-			case victims < len(others) && use(others[victims]) < use(entry):
+			case victims < len(others) && colder(others[victims], entry) < 0:
 				victim, victims = others[victims], victims+1
 				cold := victim.Value.(*residentExpert).key
 				slot = cold.bank.pointers[cold.index]
 			default:
-				c.demote(entry)
+				out(entry)
 				continue
 			}
-			if err := c.mem.copyOnCard(ctx, slot, key.bank.pointers[key.index], key.bank.bytes); err != nil {
+			if err := c.mem.copyOnCard(ctx, slot, key.bank.pointers[key.index], key.bank.blob.bytes); err != nil {
 				return errors.Join(err, c.publish(context.WithoutCancel(ctx)))
 			}
 			if victim != nil {
-				c.demote(victim)
+				out(victim)
 			}
-			key.bank.pointers[key.index], key.bank.changed = slot, true
+			for _, bank := range key.bank.blob.banks {
+				bank.pointers[key.index], bank.changed = slot+driver.DevicePtr(bank.offset), true
+			}
 		}
 	}
 	if err := c.publish(ctx); err != nil {
@@ -1057,13 +1407,16 @@ func (w *DeviceWeights) ReclaimExpertMemory(ctx context.Context, state *device.S
 		return nil
 	}
 	end := loan.pointer + driver.DevicePtr(bytes)
+	// A chunk the part taken back ends inside keeps its slots past the end, as Strata's prompt lends only the slots it
+	// needs: a short read takes back the few slots it uses of however large a chunk a refill carved.
+	c.cards = splitExpertChunks(c.cards, loan, end)
 	// The runs in flight end before the experts move: a kernel may read the slot a hotter expert takes.
 	if state != nil && slices.ContainsFunc(c.cards, func(chunk expertChunk) bool { return chunk.lent == loan && chunk.pointer < end }) {
 		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 			return err
 		}
 	}
-	if err := c.drop(ctx, func(chunk expertChunk) bool { return chunk.lent == loan && chunk.pointer < end }); err != nil {
+	if err := c.drop(ctx, func(chunk expertChunk) bool { return chunk.lent == loan && chunk.pointer < end }, &c.reclaimed); err != nil {
 		return err
 	}
 	if bytes >= loan.bytes {
@@ -1078,6 +1431,22 @@ func (w *DeviceWeights) ReclaimExpertMemory(ctx context.Context, state *device.S
 		}
 	}
 	return nil
+}
+
+// splitExpertChunks cuts each chunk carved from loan that end falls inside at its first slot boundary at or past end.
+func splitExpertChunks(chunks []expertChunk, loan *expertLoan, end driver.DevicePtr) []expertChunk {
+	var split []expertChunk
+	for _, chunk := range chunks {
+		if chunk.lent == loan && chunk.pointer < end {
+			if cut := (uint64(end-chunk.pointer) + chunk.stride - 1) / chunk.stride * chunk.stride; cut < chunk.bytes {
+				split = append(split, expertChunk{chunk.pointer, cut, chunk.stride, loan},
+					expertChunk{chunk.pointer + driver.DevicePtr(cut), chunk.bytes - cut, chunk.stride, loan})
+				continue
+			}
+		}
+		split = append(split, chunk)
+	}
+	return split
 }
 
 // Close releases expert tables and experts after their actual device completion.
@@ -1128,7 +1497,7 @@ func (c *expertResidency) close() error {
 			errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{chunk.pointer}))
 		}
 	}
-	for _, pointer := range []driver.DevicePtr{c.tables, c.onHostFlags} {
+	for _, pointer := range []driver.DevicePtr{c.tables, c.onHostFlags, c.resident} {
 		if pointer != 0 {
 			errs = append(errs, c.mem.free(context.Background(), []driver.DevicePtr{pointer}))
 		}
@@ -1137,6 +1506,7 @@ func (c *expertResidency) close() error {
 		errs = append(errs, c.mem.hostFree(host))
 	}
 	c.cards, c.tables, c.onHostFlags, c.pinned, c.routed, c.onHost, c.classes = nil, 0, 0, nil, nil, nil, nil
+	c.resident, c.residentHost = 0, nil
 	c.loans, c.lentBytes = nil, 0
 	return errors.Join(errs...)
 }

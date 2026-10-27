@@ -143,6 +143,36 @@ extern "C" __global__ void strata_native_indexer_append(
                               mscale, mtab);
 }
 
+// QsaIndexerLayers (native_qsa_indexer.hpp): the layers append_layers takes, by value.
+#define STRATA_NATIVE_INDEXER_LAYERS 16
+struct strata_native_indexer_layers {
+    const float * gamma[STRATA_NATIVE_INDEXER_LAYERS];
+    const float * tail_src[STRATA_NATIVE_INDEXER_LAYERS];
+    float * tail[STRATA_NATIVE_INDEXER_LAYERS];
+    float * dead[STRATA_NATIVE_INDEXER_LAYERS];
+    float * pooled[STRATA_NATIVE_INDEXER_LAYERS];
+    int32_t * block_pos[STRATA_NATIVE_INDEXER_LAYERS];
+};
+
+// append_layers<false>: the commit's appends of several QSA layers in one launch, one block per layer (blockIdx.x);
+// each block first restores its layer's tail from the window's snapshot (the commit's copy_from_mapped), then runs
+// append's body. Launch: n_layers blocks, 256 threads.
+extern "C" __global__ void strata_native_indexer_append_layers(
+        const float * __restrict__ raw0, long long raw_stride, const int32_t * __restrict__ pos_dev, int pos_stride,
+        int n_steps, int pos_base, float epsilon, strata_native_indexer_layers L, int max_cells, float theta_scale,
+        float freq_scale, float corr_low, float corr_high, float ext_factor, float mscale,
+        const int32_t * __restrict__ mtab) {
+    const int i = blockIdx.x;
+    float * tail = L.tail[i];
+    if (L.tail_src[i] != nullptr) {
+        for (int j = threadIdx.x; j < (STRATA_NATIVE_R - 1) * STRATA_NATIVE_D; j += blockDim.x) tail[j] = L.tail_src[i][j];
+        __syncthreads();
+    }
+    strata_native_append_body(raw0 + (long long) i * raw_stride, pos_dev, pos_stride, n_steps, pos_base, L.gamma[i], epsilon,
+                              tail, L.dead[i], L.pooled[i], L.block_pos[i], max_cells, theta_scale, freq_scale, corr_low,
+                              corr_high, ext_factor, mscale, mtab);
+}
+
 __device__ __forceinline__ float strata_native_pooled_value(
         const float * values, int d, int rope_pos, float theta_scale, float freq_scale, float corr_low,
         float corr_high, float ext_factor, float mscale, const int32_t * mtab, bool zero_pos) {

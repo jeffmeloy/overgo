@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"cmp"
 	"errors"
 	"math/bits"
 	"slices"
@@ -24,7 +25,11 @@ type deviceBufferLease struct {
 // of exact-size cache pages per length in the lists and filled a 49 GB
 // device within thirty seconds.
 type deviceBufferPool struct {
-	reserve     func(*device.State, uint64) error
+	reserve func(*device.State, uint64) error
+	// reclaim takes back from the expert residency a free buffer lent it (lendFree), which lent names, before the
+	// buffer is reused or freed.
+	reclaim     func(*device.State, driver.DevicePtr, uint64) error
+	lent        map[driver.DevicePtr]bool
 	free        map[uint64][]driver.DevicePtr
 	allocations []deviceBufferLease
 	freeBytes   uint64
@@ -65,6 +70,15 @@ func (p *deviceBufferPool) acquireExact(state *device.State, size uint64) (devic
 	return p.acquireBucket(state, bucket)
 }
 
+// acquireSized takes a buffer of the request's aligned size, no size class (AllocateFixedDeviceBuffer).
+func (p *deviceBufferPool) acquireSized(state *device.State, size uint64) (deviceBufferLease, error) {
+	aligned, ok := checked.Align(size, deviceAllocationAlignment)
+	if !ok || aligned == 0 {
+		return deviceBufferLease{}, errors.New("CUDA buffer size is invalid")
+	}
+	return p.acquireBucket(state, aligned)
+}
+
 // deviceBufferClass: the size class a capacity request occupies: its
 // aligned size up to the exact limit, above it the next multiple of an
 // eighth of its power-of-two octave.
@@ -96,6 +110,9 @@ func (p *deviceBufferPool) acquireBucket(
 			}
 		}
 		pointer := available[lowest]
+		if err := p.takeBack(state, pointer, bucket); err != nil {
+			return deviceBufferLease{}, err
+		}
 		p.free[bucket] = slices.Delete(available, lowest, lowest+1)
 		p.freeBytes -= bucket
 		return deviceBufferLease{pointer: pointer, size: bucket}, nil
@@ -154,6 +171,9 @@ func (p *deviceBufferPool) trim(state *device.State, incoming uint64) error {
 		}
 		pointers := p.free[largest]
 		pointer := pointers[len(pointers)-1]
+		if err := p.takeBack(state, pointer, largest); err != nil {
+			return err
+		}
 		if err := state.Driver.MemFree(pointer); err != nil {
 			return err
 		}
@@ -179,13 +199,86 @@ func (p *deviceBufferPool) release(state *device.State, leases ...deviceBufferLe
 func (p *deviceBufferPool) close(state *device.State) error {
 	var errs []error
 	for _, lease := range p.allocations {
+		if err := p.takeBack(state, lease.pointer, lease.size); err != nil {
+			errs = append(errs, err)
+		}
 		if err := state.Driver.MemFree(lease.pointer); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	p.free = nil
 	p.allocations = nil
+	p.lent = nil
 	return errors.Join(errs...)
+}
+
+// deviceBufferLendBytes is the smallest free buffer the pool lends the expert residency: one expert of Flash-Next's
+// widest stride (3.5 MB) fits it. Provisional: the load-costs step derives it.
+const deviceBufferLendBytes = 4 << 20
+
+// lendFree lends the expert residency, through lend, the free buffers of deviceBufferLendBytes or more it has not lent,
+// in address order, as a prompt's read lends its arena and staging until the next read: the free lists kept a read's
+// buffers idle through every decode after it (Flash-Next's round about 390 MiB, some 170 experts). Each comes back
+// (takeBack) before the pool reuses or frees it.
+func (p *deviceBufferPool) lendFree(lend func(driver.DevicePtr, uint64) error) error {
+	var idle []deviceBufferLease
+	for size, pointers := range p.free {
+		for _, pointer := range pointers {
+			if size >= deviceBufferLendBytes && !p.lent[pointer] {
+				idle = append(idle, deviceBufferLease{pointer: pointer, size: size})
+			}
+		}
+	}
+	slices.SortFunc(idle, func(a, b deviceBufferLease) int { return cmp.Compare(a.pointer, b.pointer) })
+	for _, lease := range idle {
+		if err := lend(lease.pointer, lease.size); err != nil {
+			return err
+		}
+		if p.lent == nil {
+			p.lent = make(map[driver.DevicePtr]bool)
+		}
+		p.lent[lease.pointer] = true
+	}
+	return nil
+}
+
+// takeBack takes a free buffer lent to the expert residency back, its experts moved out, before the pool reuses or
+// frees it; a buffer not lent is the pool's already.
+func (p *deviceBufferPool) takeBack(state *device.State, pointer driver.DevicePtr, size uint64) error {
+	if !p.lent[pointer] {
+		return nil
+	}
+	if p.reclaim != nil {
+		if err := p.reclaim(state, pointer, size); err != nil {
+			return err
+		}
+	}
+	delete(p.lent, pointer)
+	return nil
+}
+
+// graphReserveBytes is the card memory a graph's instantiation is given room for before its capture: up to 16 MiB of
+// Flash-Next's card (its 2,673-launch span graphs 12 to 16 MiB). Provisional: the load-costs step derives it.
+const graphReserveBytes = 32 << 20
+
+// reserveGraph makes room through the reservation for a graph about to be captured, whose instantiation allocates
+// outside the pool: the expert residency leaves the card's memory nearly full, a reservation freeing about what it
+// needs; without a reservation it is the card's own.
+func (p *deviceBufferPool) reserveGraph(state *device.State) error {
+	if p.reserve == nil {
+		return nil
+	}
+	return p.reserve(state, graphReserveBytes)
+}
+
+// takeBackAll takes back every buffer lent, as the residency it was lent to is replaced.
+func (p *deviceBufferPool) takeBackAll(state *device.State) error {
+	for _, lease := range p.allocations {
+		if err := p.takeBack(state, lease.pointer, lease.size); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func deviceBufferBucket(size uint64) (uint64, error) {

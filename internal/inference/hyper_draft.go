@@ -47,22 +47,43 @@ type hyperDraftPrompt struct {
 	streams        *executor.DeviceBuffer
 }
 
+// draftPromptFrom is the first position whose row the draft reading the request's prompt takes: the attached draft
+// layer's, or the round's drafter's; false where no draft reads it.
+func (r *Runner) draftPromptFrom() (uint32, bool) {
+	if r.strataPrompt != nil {
+		return r.strataPrompt.from, true
+	}
+	if r.hyperDraft != nil && r.hyperDraft.prompt != nil {
+		return r.hyperDraft.prompt.from, true
+	}
+	return 0, false
+}
+
 // promptStreamsLocked answers card memory for a prompt read's streams of shape: the prompt's buffer, grown to fit.
 func (r *Runner) promptStreamsLocked(ctx context.Context, shape tensor.Shape) (executor.DeviceValue, error) {
-	prompt := r.hyperDraft.prompt
-	if prompt.streams != nil {
-		if value, err := prompt.streams.Value(shape); err == nil {
+	var buffer **executor.DeviceBuffer
+	if r.strataPrompt != nil {
+		buffer = &r.strataPrompt.streams
+	} else {
+		buffer = &r.hyperDraft.prompt.streams
+	}
+	if *buffer != nil {
+		if value, err := (*buffer).Value(shape); err == nil {
 			return value, nil
 		}
 	}
 	bytes, err := shape.Bytes(dtype.F32)
-	if err = errors.Join(err, prompt.releaseStreams(ctx)); err != nil {
+	if *buffer != nil {
+		err = errors.Join(err, (*buffer).Release(ctx))
+		*buffer = nil
+	}
+	if err != nil {
 		return executor.DeviceValue{}, err
 	}
-	if prompt.streams, err = r.cuda.AllocateDeviceBuffer(ctx, bytes); err != nil {
+	if *buffer, err = r.cuda.AllocateDeviceBuffer(ctx, bytes); err != nil {
 		return executor.DeviceValue{}, err
 	}
-	return prompt.streams.Value(shape)
+	return (*buffer).Value(shape)
 }
 
 // releaseStreams frees the prompt's streams buffer, once the prompt is read.

@@ -371,8 +371,14 @@ type slotRuntimeStats struct {
 	startedNanos    atomic.Int64
 	promptNanos     atomic.Int64
 	totalNanos      atomic.Int64
-	draftedTokens   atomic.Uint64
-	acceptedDrafts  atomic.Uint64
+	// decodeNanos and lastTokenNanos are the wall times the prompt's evaluation ended and the last token came, which
+	// bound the decode's time as llama.cpp's timings and Strata's decode clock do: the request's work before its prompt
+	// (the template, the tokens) and after its last token (the cache kept, the response's end) is neither the prompt's
+	// nor the decode's.
+	decodeNanos    atomic.Int64
+	lastTokenNanos atomic.Int64
+	draftedTokens  atomic.Uint64
+	acceptedDrafts atomic.Uint64
 
 	textMu    sync.RWMutex
 	prompt    string
@@ -387,6 +393,8 @@ func (stats *slotRuntimeStats) reset(started time.Time) {
 	stats.startedNanos.Store(started.UnixNano())
 	stats.promptNanos.Store(0)
 	stats.totalNanos.Store(0)
+	stats.decodeNanos.Store(0)
+	stats.lastTokenNanos.Store(0)
 	stats.draftedTokens.Store(0)
 	stats.acceptedDrafts.Store(0)
 	stats.textMu.Lock()

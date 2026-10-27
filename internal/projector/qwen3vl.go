@@ -131,6 +131,21 @@ func (s qwen3VLSpec) validate() error {
 	return nil
 }
 
+// matrixTensors names the tensors the Qwen3-VL graph reads only as a product's weight (qwen3vl_cuda.go): each block's
+// attention and FFN projections, the deepstack mergers' layers and the projection's.
+func (s qwen3VLSpec) matrixTensors() []string {
+	var names []string
+	for layer := range s.Layers {
+		prefix := fmt.Sprintf("v.blk.%d.", layer)
+		names = append(names, prefix+"attn_qkv.weight", prefix+"attn_out.weight", prefix+"ffn_up.weight", prefix+"ffn_down.weight")
+		if len(s.DeepstackLayers) > layer && s.DeepstackLayers[layer] {
+			deepstack := fmt.Sprintf("v.deepstack.%d.", layer)
+			names = append(names, deepstack+"fc1.weight", deepstack+"fc2.weight")
+		}
+	}
+	return append(names, projectionFirstWeightTensor, projectionSecondWeightTensor)
+}
+
 func validateQwen3VLCatalog(file *gguf.File, spec qwen3VLSpec) ([]string, error) {
 	required := map[string][]uint64{
 		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},

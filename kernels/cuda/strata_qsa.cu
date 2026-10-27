@@ -1655,3 +1655,23 @@ extern "C" __global__ void strata_prefill_kv_append_q8(
 
 // Strata's gated-delta verify kernels (verify_kernels.cu), compiled with this module's flags as Strata compiles them.
 #include "strata_gdn.cuh"
+
+// Strata's hyper-connection read over the GGUF's Q8_0 projections (fused_gr.cu), compiled with this module's flags as Strata
+// compiles it.
+#include "strata_fused_gr.cuh"
+
+// Strata's decode round's copies through mapped memory, doorbell, embedding gather, stream broadcast and experts' quantizer
+// (elementwise.cu, verify_kernels.cu, iq_kernels.cu), compiled with this module's flags as Strata compiles them.
+#include "strata_round_elementwise.cuh"
+
+// Strata's grouped native expert kernels at Flash-Next's formats (iq_kernels.cu), compiled with this module's flags as Strata
+// compiles them.
+#include "strata_iq_experts.cuh"
+
+// The kernels Strata's draft layer launches beyond its verify window's (s2_expert_grouped.cu, quantize_act.cu,
+// verify_kernels.cu, elementwise.cu), compiled with this module's flags as Strata compiles them.
+#include "strata_mtp.cuh"
+
+// Strata's sampler chain for the round's sampled windows (sampler.cu), compiled with this module's flags as Strata compiles
+// it.
+#include "strata_sampler.cuh"

@@ -50,6 +50,11 @@ func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, er
 	return 0, 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// ComputeCapability reports that the CUDA driver is unavailable off Windows.
+func (l *Library) ComputeCapability(Device) (int, int, error) {
+	return 0, 0, errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
 	return 0, errors.New("CUDA driver loading is currently supported only on Windows")
 }
@@ -116,6 +121,9 @@ func (l *Library) GraphExecUpdate(GraphExec, Graph) (bool, error) {
 	return false, errors.New("CUDA unsupported")
 }
 func (l *Library) GraphLaunch(GraphExec, Stream) error { return errors.New("CUDA unsupported") }
+
+// GraphUpload reports that CUDA is unavailable off Windows.
+func (l *Library) GraphUpload(GraphExec, Stream) error { return errors.New("CUDA unsupported") }
 func (l *Library) GraphDestroy(Graph) error            { return nil }
 func (l *Library) GraphExecDestroy(GraphExec) error    { return nil }
 
@@ -161,6 +169,11 @@ func (l *Library) MemcpyDtoD(DevicePtr, DevicePtr, uint64) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
+// MemcpyDtoDAsync reports that the CUDA driver is unavailable off Windows.
+func (l *Library) MemcpyDtoDAsync(DevicePtr, DevicePtr, uint64, Stream) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
 func (l *Library) MemsetD32Async(DevicePtr, uint32, uint64, Stream) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
 }
@@ -189,6 +202,16 @@ func (l *Library) ModuleFunction(module Module, name string) (Function, error) {
 
 func (l *Library) FuncSetMaxDynamicShared(function Function, bytes uint32) error {
 	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// FuncSetPreferredSharedCarveout reports that the CUDA driver is unavailable off Windows.
+func (l *Library) FuncSetPreferredSharedCarveout(function Function, percent uint32) error {
+	return errors.New("CUDA driver loading is currently supported only on Windows")
+}
+
+// TimeCopiesHtoD reports that the CUDA driver is unavailable off Windows.
+func (l *Library) TimeCopiesHtoD(destination DevicePtr, source []byte, bursts int, stream Stream) ([]float32, error) {
+	return nil, errors.New("CUDA driver loading is currently supported only on Windows")
 }
 
 func (l *Library) LaunchKernel(

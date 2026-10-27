@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync/atomic"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -37,6 +38,10 @@ type qsaCells struct {
 	mirror []int32
 	// live is the sequence's fixed state where its verify windows read it, nil before its first (qsa_window.go).
 	live *qsaLive
+	// session marks a round runner's session cells (Runner.qsaSession), which it keeps for its life; holders is the
+	// storages holding them, of which a release drops one instead of freeing them.
+	session bool
+	holders atomic.Int32
 }
 
 // qsaLayerCells is one QSA layer's cells; zero for a layer that is not one. A streamed layer adds its own page table,
@@ -117,9 +122,14 @@ func (r *Runner) qsaSlots(capacity uint32) uint32 {
 // qsaSequenceCapacity is the cells a sequence of tokens holds, fixed as Strata's session holds max_cells from its start
 // (kv_plan over --max-context): the ring while the tokens fit it and the context passes it, the context otherwise, so a
 // sequence keeps one capacity, and its steps their graphs, from its first token until it streams past the ring.
+//   - a request decoding through Strata's round (qsaStreamed) holds the context from its first token, streamed past the
+//     ring as kv_plan's mode 1 streams a session whose --max-context passes --kv-resident
 func (r *Runner) qsaSequenceCapacity(tokens uint32) uint32 {
 	context, ring := r.qsaRopeRows(), qsaCapacity(cmp.Or(r.qsaRing, qsaRingCells))
-	if tokens <= ring && ring < context {
+	if r.qsaStreamed && r.qsaStreamedContext != 0 {
+		context = min(context, qsaCapacity(max(r.qsaStreamedContext, tokens)))
+	}
+	if tokens <= ring && ring < context && !r.qsaStreamed {
 		return ring
 	}
 	return context
@@ -141,16 +151,34 @@ func (r *Runner) qsaCellBytes(capacity uint32) uint64 {
 	return newQSACellLayout(capacity, r.qsaSlots(capacity), r.qsaLayerCount()).total
 }
 
-// newQSACells allocates a sequence's cells at a capacity and writes its page tables and image position table: the
-// identity for a sequence on the card, as qsa_state_init writes it, and for a streamed one every block evicted and every
-// slot free, as kv_stream_reset leaves a map; the image positions the identity, as generate.cpp's vision setup does.
+// newQSACells answers a sequence's cells at a capacity with its page tables and image position table written as a new
+// sequence starts them (qsaResetWrites): a round request's the runner's session cells where they are free, as Strata's
+// one session serves every request at fixed addresses, so the round's graphs name them again; new cells otherwise,
+// which become the session cells for a round request's first sequence.
 func (r *Runner) newQSACells(ctx context.Context, capacity uint32) (*qsaCells, error) {
 	if capacity == 0 || capacity%tensor.QSABlockCells != 0 || uint64(capacity) > uint64(math.MaxInt32) {
 		return nil, fmt.Errorf("inference: QSA capacity %d is not whole pages", capacity)
 	}
+	if session := r.qsaSession; r.qsaStreamed && session != nil && session.capacity == capacity && session.holders.CompareAndSwap(0, 1) {
+		if err := r.cuda.WriteDeviceBytes(ctx, qsaResetWrites(session, r.qsaLayers)); err != nil {
+			return nil, errors.Join(err, session.release(context.WithoutCancel(ctx)))
+		}
+		return session, nil
+	}
+	cells, err := r.allocateQSACells(ctx, capacity)
+	if err == nil && r.qsaStreamed && r.qsaSession == nil {
+		cells.session = true
+		cells.holders.Store(1)
+		r.qsaSession = cells
+	}
+	return cells, err
+}
+
+// allocateQSACells allocates a sequence's cells at a capacity, written as a new sequence starts them.
+func (r *Runner) allocateQSACells(ctx context.Context, capacity uint32) (*qsaCells, error) {
 	slots := r.qsaSlots(capacity)
 	layout := newQSACellLayout(capacity, slots, r.qsaLayerCount())
-	buffer, err := r.cuda.AllocateDeviceBuffer(ctx, layout.total)
+	buffer, err := r.cuda.AllocateFixedDeviceBuffer(ctx, layout.total)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +212,6 @@ func (r *Runner) newQSACells(ctx context.Context, capacity uint32) (*qsaCells, e
 	scalesOf := func(cellCount uint64) tensor.Shape {
 		return tensor.MustShape(tensor.QSAHeadWidth/tensor.QSAScaleGroup, tensor.QSAKeyValueHeads*cellCount)
 	}
-	var writes []executor.DeviceBytes
 	offset, hostOffset := uint64(0), uint64(0)
 	for layer, holds := range r.qsaLayers {
 		if !holds {
@@ -206,9 +233,6 @@ func (r *Runner) newQSACells(ctx context.Context, capacity uint32) (*qsaCells, e
 			held.pageTable = next(layout.table, tensor.MustShape(pages))
 			mapInts := tensor.QSAStreamSlotArrays*uint64(slots) + tensor.QSAStreamControlInts
 			held.streamMap = next(layout.streamMap, tensor.MustShape(mapInts))
-			writes = append(writes,
-				executor.DeviceBytes{Pointer: held.pageTable.Pointer, Data: filledInt32s(pages, -1)},
-				executor.DeviceBytes{Pointer: held.streamMap.Pointer, Data: qsaResetMap(slots)})
 			regions := [qsaHostRegions]uint64{layout.hostCodes, layout.hostCodes, layout.hostScales, layout.hostScales}
 			shapes := [qsaHostRegions]tensor.Shape{codesOf(capacityCells), codesOf(capacityCells), scalesOf(capacityCells), scalesOf(capacityCells)}
 			for index, bytes := range regions {
@@ -222,23 +246,52 @@ func (r *Runner) newQSACells(ctx context.Context, capacity uint32) (*qsaCells, e
 	}
 	cells.pageTable = region(whole.Pointer, offset, layout.pageTable, tensor.MustShape(pages))
 	cells.positions = region(whole.Pointer, offset+layout.pageTable, layout.positions, tensor.MustShape(tensor.QSAPositionAxes, capacityCells))
+	if err := r.cuda.WriteDeviceBytes(ctx, qsaResetWrites(cells, r.qsaLayers)); err != nil {
+		return fail(err)
+	}
+	return cells, nil
+}
+
+// qsaResetWrites sets cells as a new sequence starts them and answers the writes that set the card's copy: the page
+// table the identity for a sequence on the card, as qsa_state_init writes it, and for a streamed one each layer's every
+// block evicted and every slot free, as kv_stream_reset leaves a map; the image positions the identity, as
+// generate.cpp's vision setup does.
+func qsaResetWrites(cells *qsaCells, layers []bool) []executor.DeviceBytes {
+	capacity := uint64(cells.capacity)
+	pages := capacity / tensor.QSABlockCells
+	writes := qsaEvictWrites(cells, layers)
 	identity := make([]int32, pages)
 	for page := range identity {
 		identity[page] = int32(page)
 	}
-	cells.mirror = make([]int32, tensor.QSAPositionAxes*capacityCells)
-	for cell := range capacityCells {
+	cells.mirror = make([]int32, tensor.QSAPositionAxes*capacity)
+	for cell := range capacity {
 		for axis := range uint64(tensor.QSAPositionAxes) {
 			cells.mirror[cell*tensor.QSAPositionAxes+axis] = int32(cell)
 		}
 	}
-	writes = append(writes,
+	return append(writes,
 		executor.DeviceBytes{Pointer: cells.pageTable.Pointer, Data: int32Bytes(identity)},
 		executor.DeviceBytes{Pointer: cells.positions.Pointer, Data: int32Bytes(cells.mirror)})
-	if err := r.cuda.WriteDeviceBytes(ctx, writes); err != nil {
-		return fail(err)
+}
+
+// qsaEvictWrites are the writes that leave a streamed sequence's every block evicted and every slot free, as
+// kv_stream_reset leaves a map; none for a sequence on the card.
+func qsaEvictWrites(cells *qsaCells, layers []bool) []executor.DeviceBytes {
+	if cells.slots == 0 {
+		return nil
 	}
-	return cells, nil
+	pages := uint64(cells.capacity) / tensor.QSABlockCells
+	var writes []executor.DeviceBytes
+	for layer, holds := range layers {
+		if holds {
+			held := cells.layers[layer]
+			writes = append(writes,
+				executor.DeviceBytes{Pointer: held.pageTable.Pointer, Data: filledInt32s(pages, -1)},
+				executor.DeviceBytes{Pointer: held.streamMap.Pointer, Data: qsaResetMap(cells.slots)})
+		}
+	}
+	return writes
 }
 
 // qsaUnsetSlotArrays is the map's leading arrays a reset sets to -1: slot_block and slot_stamp.
@@ -269,6 +322,15 @@ func filledInt32s(count uint64, value int32) []byte {
 func (r *Runner) forkQSACells(ctx context.Context, source *qsaCells, count, capacity uint32) (*qsaCells, error) {
 	if source == nil || count > source.capacity || count > capacity {
 		return nil, errors.New("inference: QSA cells fork exceeds its source")
+	}
+	if r.qsaSessionKeeps(source, count, capacity) {
+		// The session's cells hold the prefix where they sit, as Strata's session keeps a request's common prefix; a
+		// streamed state's slots start empty, as a fork's do.
+		source.holders.Add(1)
+		if err := r.cuda.WriteDeviceBytes(ctx, qsaEvictWrites(source, r.qsaLayers)); err != nil {
+			return nil, errors.Join(err, source.release(context.WithoutCancel(ctx)))
+		}
+		return source, nil
 	}
 	cells, err := r.newQSACells(ctx, capacity)
 	if err != nil || count == 0 {
@@ -318,10 +380,47 @@ func (r *Runner) forkQSACells(ctx context.Context, source *qsaCells, count, capa
 	return cells, nil
 }
 
+// qsaSessionKeeps reports whether a round request's sequence forked from the session's cells at count takes them in
+// place: nothing the prompt cache holds on them reads past count, so the new sequence's cells after it overwrite none.
+func (r *Runner) qsaSessionKeeps(source *qsaCells, count, capacity uint32) bool {
+	if !r.qsaStreamed || !source.session || source.capacity != capacity {
+		return false
+	}
+	for _, entry := range r.promptCaches {
+		for _, cache := range entry.deviceCaches() {
+			if cache.storage != nil && cache.storage.qsa == source && cache.Tokens > count {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// release frees the cells, or drops a holder of the session's, which the runner frees at its close (freeQSASession).
 func (c *qsaCells) release(ctx context.Context) error {
 	if c == nil {
 		return nil
 	}
+	if c.session {
+		c.holders.Add(-1)
+		return nil
+	}
+	return c.free(ctx)
+}
+
+// freeQSASession frees the runner's session cells.
+func (r *Runner) freeQSASession(ctx context.Context) error {
+	if r.qsaSession == nil {
+		return nil
+	}
+	err := r.qsaSession.free(ctx)
+	if err == nil {
+		r.qsaSession = nil
+	}
+	return err
+}
+
+func (c *qsaCells) free(ctx context.Context) error {
 	var errs []error
 	if c.buffer != nil {
 		if err := c.buffer.Release(ctx); err != nil {
@@ -366,7 +465,7 @@ func (r *Runner) qsaStagePool(ctx context.Context, capacity uint32) (*qsaStage, 
 		return nil, err
 	}
 	bytes := qsaStageBytes(capacity)
-	buffer, err := r.cuda.AllocateDeviceBuffer(ctx, bytes)
+	buffer, err := r.cuda.AllocateFixedDeviceBuffer(ctx, bytes)
 	if err != nil {
 		return nil, err
 	}

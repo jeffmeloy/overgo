@@ -187,7 +187,7 @@ func (r *Runner) newQSALive(ctx context.Context, past *deviceKVCache) (*qsaLive,
 			}
 		}
 	}
-	buffer, err := r.cuda.AllocateDeviceBuffer(ctx, max(total, f32Bytes))
+	buffer, err := r.cuda.AllocateFixedDeviceBuffer(ctx, max(total, f32Bytes))
 	if err != nil {
 		return nil, err
 	}

@@ -147,7 +147,7 @@ func (r *Runner) qsaRopeTable(ctx context.Context) (*qsaRope, error) {
 	cosines, sines := tensor.QSARopeTable(int(rows))
 	half := uint64(tensor.QSARotated / tensor.PairedExtent)
 	shape := tensor.MustShape(half, uint64(rows))
-	buffer, err := r.cuda.AllocateDeviceBuffer(ctx, qsaRopeBytes(rows))
+	buffer, err := r.cuda.AllocateFixedDeviceBuffer(ctx, qsaRopeBytes(rows))
 	if err != nil {
 		return nil, err
 	}

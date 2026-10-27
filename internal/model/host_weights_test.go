@@ -90,6 +90,21 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 		check(nine, value.Data)
 	}
 
+	// A prefetch reads the rows the cache lacks, and the Load after it reads none of them again.
+	if rows, err = NewHostRows(file, file.Tensors[0], hostRowWays); err != nil {
+		t.Fatal(err)
+	}
+	four := []uint32{9, 10, 11, 9}
+	reader.calls.Store(0)
+	rows.Prefetch(t.Context(), four)
+	if value, err = rows.Load(t.Context(), four); err != nil {
+		t.Fatal(err)
+	}
+	if reader.calls.Load() != 3 {
+		t.Fatalf("a prefetch and a load read %d rows, want the 3 distinct once", reader.calls.Load())
+	}
+	check(four, value.Data)
+
 	// A table in a file is read through handles of its own, at the table's offset in the file.
 	path := filepath.Join(t.TempDir(), "table.gguf")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -146,6 +161,64 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 			t.Fatalf("cancelled read touched file %d times: %v", reader.calls.Load(), err)
 		}
 	}
+}
+
+// TestHostRowsPrefetchesReadTogether reads a prefetch's rows beside a batch still reading: a Load of the later
+// prefetch's row returns while the earlier one's read is held, and a Load of the held row waits for that read rather
+// than reading it again.
+func TestHostRowsPrefetchesReadTogether(t *testing.T) {
+	data := hostTensorFixture(t, "table", 2, 300)
+	reader := &heldRowReader{Reader: bytes.NewReader(data), started: make(chan struct{}), release: make(chan struct{})}
+	file, err := gguf.Parse(reader, uint64(len(data)), gguf.DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	reader.hold.Store(true)
+	rows.Prefetch(t.Context(), []uint32{1})
+	<-reader.started
+	reader.hold.Store(false)
+	rows.Prefetch(t.Context(), []uint32{2})
+	value, err := rows.Load(t.Context(), []uint32{2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value.Data[0] != 5 || reader.finished.Load() != 1 {
+		t.Fatalf("row 2 = %v with %d reads finished, want 5 beside the held read", value.Data, reader.finished.Load())
+	}
+	close(reader.release)
+	if value, err = rows.Load(t.Context(), []uint32{1}); err != nil {
+		t.Fatal(err)
+	}
+	if value.Data[0] != 3 || reader.calls.Load() != 2 {
+		t.Fatalf("row 1 = %v after %d reads, want 3 read once by its prefetch", value.Data, reader.calls.Load())
+	}
+}
+
+// heldRowReader holds the first read made while hold is set until release closes, saying so on started.
+type heldRowReader struct {
+	*bytes.Reader
+	hold, held       atomic.Bool
+	calls, finished  atomic.Int64
+	started, release chan struct{}
+}
+
+func (r *heldRowReader) ReadAt(p []byte, off int64) (int, error) {
+	if r.hold.Load() && r.held.CompareAndSwap(false, true) {
+		r.calls.Add(1)
+		close(r.started)
+		<-r.release
+		return r.Reader.ReadAt(p, off)
+	}
+	if r.held.Load() {
+		r.calls.Add(1)
+		defer r.finished.Add(1)
+	}
+	return r.Reader.ReadAt(p, off)
 }
 
 type countedRowReader struct {

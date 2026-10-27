@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"overgo/internal/cuda/driver"
 )
@@ -34,7 +35,22 @@ type Worker struct {
 	stop     chan chan error
 	done     chan struct{}
 	close    func() error
+	// spinning holds the worker polling handed for a request (Spin), which handing lets one caller at a time fill.
+	spinning atomic.Bool
+	handing  sync.Mutex
+	handed   atomic.Pointer[handedRequest]
 }
+
+// handedRequest is a request handed over to a spinning worker: its function, its error once ran is set.
+type handedRequest struct {
+	function func(*State) error
+	err      error
+	ran      atomic.Bool
+}
+
+// workerPolls is the polls of handed a spinning worker, or a caller waiting on its request, makes between looks at
+// its channels.
+const workerPolls = 1 << 8
 
 // New: starts CUDA worker for device ordinal
 func New(ordinal int) (*Worker, error) {
@@ -58,10 +74,61 @@ func (w *Worker) Do(ctx context.Context, function func(*State) error) error {
 	if function == nil {
 		return errors.New("CUDA worker: nil function")
 	}
+	if w.spinning.Load() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		w.handing.Lock()
+		if w.spinning.Load() {
+			defer w.handing.Unlock()
+			handed := &handedRequest{function: function}
+			w.handed.Store(handed)
+			for polls := 1; !handed.ran.Load(); polls++ {
+				if polls%workerPolls == 0 {
+					select {
+					case <-w.done:
+						return errors.New("CUDA worker closed before request completed")
+					default:
+					}
+				}
+			}
+			return handed.err
+		}
+		w.handing.Unlock()
+	}
 	result := make(chan error, 1)
 	req := request{ctx: ctx, function: function, result: result}
 	select {
 	case w.requests <- req:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-w.done:
+		return errors.New("CUDA worker is closed")
+	}
+	select {
+	case err := <-result:
+		return err
+	case <-w.done:
+		return errors.New("CUDA worker closed before request completed")
+	}
+}
+
+// Spin starts or stops the worker polling for requests in place of waiting on its channel, as a decode loop's host
+// thread calls the driver itself (Strata's verify): a request then reaches the worker and its answer the caller
+// without either waiting for its thread to be woken, about 10 to 40 us a call, several a decode window. A spinning
+// worker holds a processor; the caller stops it once its loop ends.
+func (w *Worker) Spin(ctx context.Context, on bool) error {
+	w.handing.Lock()
+	changed := w.spinning.Load() != on
+	w.spinning.Store(on)
+	w.handing.Unlock()
+	if !on || !changed {
+		return nil
+	}
+	// the worker waits on its channel: a request through it wakes it to poll
+	result := make(chan error, 1)
+	select {
+	case w.requests <- request{ctx: ctx, function: func(*State) error { return nil }, result: result}:
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-w.done:
@@ -119,14 +186,38 @@ func (w *Worker) run(ordinal int, initialized chan<- error) {
 		return
 	}
 
-	for {
-		select {
-		case req := <-w.requests:
-			if err := req.ctx.Err(); err != nil {
-				req.result <- err
+	serve := func(req request) {
+		if err := req.ctx.Err(); err != nil {
+			req.result <- err
+			return
+		}
+		req.result <- callSafely(req.function, state)
+	}
+	for polls := 1; ; polls++ {
+		// A spinning worker runs what is handed to it, and looks at its channels now and then; it runs a request still
+		// handed over before it stops.
+		if w.spinning.Load() || w.handed.Load() != nil {
+			if handed := w.handed.Swap(nil); handed != nil {
+				handed.err = callSafely(handed.function, state)
+				handed.ran.Store(true)
 				continue
 			}
-			req.result <- callSafely(req.function, state)
+			if polls%workerPolls != 0 {
+				continue
+			}
+			select {
+			case req := <-w.requests:
+				serve(req)
+			case result := <-w.stop:
+				result <- shutdown(state)
+				return
+			default:
+			}
+			continue
+		}
+		select {
+		case req := <-w.requests:
+			serve(req)
 		case result := <-w.stop:
 			result <- shutdown(state)
 			return

@@ -9,8 +9,9 @@ const (
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "7fbc1b6f9bad0be23f2ddda38bbfc9b97270e7e61b9996ef28ba69170618f0cc"
-	StrataQsaSHA256      = "b03982bd2aaafa93b09bb310c6fb368820dc051d85ce4321ef986ff7cd34f198"
+	OpsF32SHA256         = "a90bfedc9d69934d12e8bf0ad07f4def5e3f1265a15f50c134efe47590ace53c"
+	StrataQsaSHA256      = "45525e4025aaa51671196084bdfe5e94f58ba685896b40e199b108ed44e00300"
+	StrataNativeSHA256   = "1a03351a2330589e816d61ffe3fee7f4b2d70e026fdec264419fc4dafcd35938"
 )
 
 var bundleAssets = [...]bundleAsset{
@@ -18,4 +19,5 @@ var bundleAssets = [...]bundleAsset{
 	{name: "torch_cuda_randn.ptx", data: TorchCUDARandnPTX, sha256: TorchCUDARandnSHA256},
 	{name: "ops_f32.ptx", data: OpsF32PTX, sha256: OpsF32SHA256},
 	{name: "strata_qsa.ptx", data: StrataQsaPTX, sha256: StrataQsaSHA256},
+	{name: "strata_native.ptx", data: StrataNativePTX, sha256: StrataNativeSHA256},
 }

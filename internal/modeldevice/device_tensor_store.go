@@ -19,7 +19,34 @@ type deviceMemory interface {
 	free(ctx context.Context, pointers []driver.DevicePtr) error
 }
 
+// hostMappedMemory is pinned host memory the card maps, which a mapped route places a tensor in.
+type hostMappedMemory interface {
+	hostAlloc(ctx context.Context, size uint64) ([]byte, driver.DevicePtr, error)
+	freeHosted(ctx context.Context, data [][]byte) error
+}
+
 type workerMemory struct{ worker *device.Worker }
+
+func (m workerMemory) hostAlloc(ctx context.Context, size uint64) ([]byte, driver.DevicePtr, error) {
+	var host []byte
+	var pointer driver.DevicePtr
+	err := m.worker.Do(ctx, func(state *device.State) error {
+		var allocErr error
+		host, pointer, allocErr = state.Driver.MemHostAlloc(size)
+		return allocErr
+	})
+	return host, pointer, err
+}
+
+func (m workerMemory) freeHosted(ctx context.Context, data [][]byte) error {
+	return m.worker.Do(ctx, func(state *device.State) error {
+		var errs []error
+		for _, host := range data {
+			errs = append(errs, state.Driver.MemFreeHost(host))
+		}
+		return errors.Join(errs...)
+	})
+}
 
 func (m workerMemory) alloc(ctx context.Context, size uint64) (driver.DevicePtr, error) {
 	var pointer driver.DevicePtr
@@ -57,7 +84,9 @@ type deviceTensorStore struct {
 
 	mu      sync.RWMutex
 	tensors map[string]DeviceTensor
-	closed  bool
+	// hosted is the host bytes of the tensors held in pinned host memory the card maps (Loader.Mapped).
+	hosted map[string][]byte
+	closed bool
 }
 
 func newDeviceTensorStore(worker *device.Worker, kind string) *deviceTensorStore {
@@ -113,9 +142,19 @@ func (s *deviceTensorStore) Close() error {
 	}
 	s.closed = true
 	pointers := make([]driver.DevicePtr, 0, len(s.tensors))
-	for _, value := range s.tensors {
+	var hosted [][]byte
+	for name, value := range s.tensors {
+		if host, mapped := s.hosted[name]; mapped {
+			hosted = append(hosted, host)
+			continue
+		}
 		pointers = append(pointers, value.Pointer)
 	}
 	clear(s.tensors)
-	return s.mem.free(context.Background(), pointers)
+	clear(s.hosted)
+	err := s.mem.free(context.Background(), pointers)
+	if len(hosted) != 0 {
+		err = errors.Join(err, s.mem.(hostMappedMemory).freeHosted(context.Background(), hosted))
+	}
+	return err
 }

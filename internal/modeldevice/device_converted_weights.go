@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/quant"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -38,6 +39,8 @@ func NewDeviceConvertedWeights(worker *device.Worker, storage dtype.Type) (*Devi
 		encode = encodeF32
 	case dtype.BF16:
 		encode = encodeBF16
+	case dtype.F16:
+		encode = encodeF16
 	default:
 		return nil, fmt.Errorf("converted device weights: unsupported storage %s", storage)
 	}
@@ -63,6 +66,15 @@ func encodeF32(values []float32, _ int) []byte {
 	}
 	byteCount := len(values) * int(unsafe.Sizeof(values[tensor.FirstOffset]))
 	return unsafe.Slice((*byte)(unsafe.Pointer(&values[tensor.FirstOffset])), byteCount)
+}
+
+// encodeF16 rounds each value to its nearest f16, ties to even.
+func encodeF16(values []float32, size int) []byte {
+	storage := make([]byte, 0, size)
+	for _, value := range values {
+		storage = binary.LittleEndian.AppendUint16(storage, quant.Float32ToFloat16(value))
+	}
+	return storage
 }
 
 func encodeBF16(values []float32, size int) []byte {

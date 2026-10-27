@@ -271,6 +271,94 @@ func TestStrataGatedDeltaCommitLayersMatchTheLayers(t *testing.T) {
 	}
 }
 
+// TestStrataGatedDeltaGatesMatchStrata holds Strata's gated-delta gates (gdn_ab_multi, strata_gdn.cuh from
+// verify_kernels.cu) at Flash-Next's geometry (2,560 inputs, 48 value heads, bf16 alpha and beta rows) to their
+// definition: for windows of one to eight tokens each token's decay gate and beta are bitwise those a one-token window
+// gives it, and they are a float64 transcription's within float rounding - gate = softplus(alpha . x + dt) * ssm_a
+// (softplus the identity past 20), beta = sigmoid(beta . x).
+func TestStrataGatedDeltaGatesMatchStrata(t *testing.T) {
+	const (
+		n          = 2560
+		valueHeads = 48
+		// bound is the relative L1 distance the gates keep from the float64 transcription.
+		bound = 1e-5
+	)
+	worker := newFixtureWorker(t)
+	cuda := newFixtureExecutorWithWorker(t, worker)
+	buffers := newStrataDevice(t, cuda)
+	defer buffers.release(t)
+	draws := rand.New(rand.NewPCG(53, 59))
+	bf16Rows := func() ([]byte, []float64) {
+		data, values := make([]byte, 2*n*valueHeads), make([]float64, n*valueHeads)
+		for index := range values {
+			bits := uint16(math.Float32bits(float32(draws.NormFloat64())*0.05) >> 16)
+			data[2*index], data[2*index+1] = byte(bits), byte(bits>>8)
+			values[index] = float64(math.Float32frombits(uint32(bits) << 16))
+		}
+		return data, values
+	}
+	alphaData, alpha := bf16Rows()
+	betaData, beta := bf16Rows()
+	dt, ssmA := make([]float32, valueHeads), make([]float32, valueHeads)
+	for head := range valueHeads {
+		dt[head], ssmA[head] = float32(draws.NormFloat64()), -float32(draws.Float64()*4)
+	}
+	const tokens = tensorMaxWindowTokens
+	x := make([]float32, tokens*n)
+	for index := range x {
+		x[index] = float32(draws.NormFloat64())
+	}
+	alphaBuffer, betaBuffer := buffers.upload(t, alphaData), buffers.upload(t, betaData)
+	dtBuffer, aBuffer, xBuffer := buffers.upload(t, float32Bytes(dt)), buffers.upload(t, float32Bytes(ssmA)), buffers.upload(t, float32Bytes(x))
+	gates := func(at, count int) ([]float32, []float32) {
+		gate, betaOut := buffers.zeros(t, 4*count*valueHeads), buffers.zeros(t, 4*count*valueHeads)
+		input := xBuffer + driver.DevicePtr(4*at*n)
+		buffers.run(t, func(state *device.State, functions functionSet) error {
+			return launchStrataGatedDeltaAB(state, functions, input, alphaBuffer, betaBuffer, dtBuffer, aBuffer, gate, betaOut,
+				n, valueHeads, int32(count))
+		})
+		return float32s(buffers.read(t, gate, 4*count*valueHeads)), float32s(buffers.read(t, betaOut, 4*count*valueHeads))
+	}
+	singleGate, singleBeta := make([]float32, tokens*valueHeads), make([]float32, tokens*valueHeads)
+	for token := range tokens {
+		g, b := gates(token, 1)
+		copy(singleGate[token*valueHeads:], g)
+		copy(singleBeta[token*valueHeads:], b)
+	}
+	for count := 2; count <= tokens; count++ {
+		g, b := gates(0, count)
+		if !slices.Equal(g, singleGate[:count*valueHeads]) || !slices.Equal(b, singleBeta[:count*valueHeads]) {
+			t.Fatalf("a %d-token window's gates differ from its one-token windows'", count)
+		}
+	}
+	wantGate, wantBeta := make([]float64, tokens*valueHeads), make([]float64, tokens*valueHeads)
+	for token := range tokens {
+		for head := range valueHeads {
+			var a, b float64
+			for k := range n {
+				a += alpha[head*n+k] * float64(x[token*n+k])
+				b += beta[head*n+k] * float64(x[token*n+k])
+			}
+			v := a + float64(dt[head])
+			softplus := v
+			if v <= 20 {
+				softplus = math.Log1p(math.Exp(v))
+			}
+			wantGate[token*valueHeads+head] = softplus * float64(ssmA[head])
+			wantBeta[token*valueHeads+head] = 1 / (1 + math.Exp(-b))
+		}
+	}
+	if d := strataRelativeL1(float32To64(singleGate), wantGate); d > bound {
+		t.Fatalf("the decay gates are %.3g from the transcription", d)
+	}
+	if d := strataRelativeL1(float32To64(singleBeta), wantBeta); d > bound {
+		t.Fatalf("the betas are %.3g from the transcription", d)
+	}
+}
+
+// tensorMaxWindowTokens is a verify window's most tokens.
+const tensorMaxWindowTokens = 8
+
 // gdnTranscription is gdn_parity's ref_step in double precision over the window's tokens, its state in our layout (a
 // value head's [value][key]), each output scaled by rsqrt(128), normed by its head's mean square (gamma, epsilon) and
 // gated by sigmoid(z). modulo pairs value head h with key head h modulo the key heads, else h / (value heads / key

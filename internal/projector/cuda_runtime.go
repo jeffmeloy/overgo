@@ -21,6 +21,17 @@ type projectorCUDA struct {
 	worker   *device.Worker
 	executor *executor.Executor
 	weights  *modeldevice.DeviceConvertedWeights
+	// matrices holds the half-precision matrix weights at their stored precision, which a product reads as the
+	// model's resident weights are read (its prefill upconverts each to F32 into a scratch for the same SGEMM, bit for
+	// bit), where the F32 store doubled them: Flash-Next's Qwen3-VL projector held 1.8 GB of the card for its 908 MB,
+	// twice what Strata's vision encoder takes.
+	matrices *modeldevice.DeviceWeights
+}
+
+// matrixTensors names the tensors a projector's graph reads only as a product's weight, which its CUDA runtime may
+// hold at their stored half precision.
+type matrixTensors interface {
+	matrixTensors() []string
 }
 
 func openProjectorCUDA(
@@ -28,6 +39,7 @@ func openProjectorCUDA(
 	file *gguf.File,
 	required, optional []string,
 	options OpenOptions,
+	matrices []string,
 ) (*projectorCUDA, error) {
 	worker, err := device.New(options.DeviceOrdinal)
 	if err != nil {
@@ -53,8 +65,22 @@ func openProjectorCUDA(
 	if err != nil {
 		return fail(err)
 	}
+	var converted, native []gguf.TensorInfo
+	for _, info := range infos {
+		if slices.Contains(matrices, info.Name) && info.Dimensions == tensor.PairedExtent && (info.Type == dtype.BF16 || info.Type == dtype.F16) {
+			native = append(native, info)
+		} else {
+			converted = append(converted, info)
+		}
+	}
 	loader := modeldevice.NewLoader(file)
-	loader.Converted(state.weights, infos)
+	loader.Converted(state.weights, converted)
+	if len(native) != 0 {
+		if state.matrices, err = modeldevice.NewDeviceWeights(worker); err != nil {
+			return fail(err)
+		}
+		loader.Raw(state.matrices, native)
+	}
 	if err := loader.Load(ctx, nil); err != nil {
 		return fail(err)
 	}
@@ -90,6 +116,10 @@ func (c *projectorCUDA) Close() error {
 		closeErrors = append(closeErrors, c.weights.Close())
 		c.weights = nil
 	}
+	if c.matrices != nil {
+		closeErrors = append(closeErrors, c.matrices.Close())
+		c.matrices = nil
+	}
 	if c.executor != nil {
 		closeErrors = append(closeErrors, c.executor.Close())
 		c.executor = nil
@@ -116,7 +146,13 @@ func (b *projectorCUDAWeights) weight(name string) *tensor.Tensor {
 	if b.err != nil {
 		return nil
 	}
-	node, pointer, err := b.runtime.weights.Input(b.builder, name)
+	input := b.runtime.weights.Input
+	if matrices := b.runtime.matrices; matrices != nil {
+		if _, native := matrices.Lookup(name); native {
+			input = matrices.Input
+		}
+	}
+	node, pointer, err := input(b.builder, name)
 	if err != nil {
 		b.err = err
 		return nil

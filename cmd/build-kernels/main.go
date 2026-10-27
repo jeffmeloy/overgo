@@ -25,6 +25,9 @@ type kernel struct {
 	// compiled as Strata compiles its QSA files, without fast math, since its
 	// parity checks are bitwise.
 	noFastMath bool
+	// cxx17 compiles a fast-math module as C++17: Strata's native kernels (strata_native.cu)
+	// take if constexpr as Strata compiles them.
+	cxx17 bool
 }
 
 var kernels = []kernel{
@@ -32,6 +35,7 @@ var kernels = []kernel{
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
 	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
 	{source: "kernels/cuda/strata_qsa.cu", output: "internal/cuda/kernel/strata_qsa.ptx", noFastMath: true},
+	{source: "kernels/cuda/strata_native.cu", output: "internal/cuda/kernel/strata_native.ptx", cxx17: true},
 }
 
 func main() {
@@ -47,6 +51,9 @@ func run() error {
 		args := []string{"-ptx", "-arch=" + deviceArch}
 		if !item.noFastMath {
 			args = append(args, "-use_fast_math")
+			if item.cxx17 {
+				args = append(args, "--std=c++17")
+			}
 		} else {
 			// curand device headers are C++17 and resolve from the toolkit
 			// include dir; keep standard precision for bit-exact normals.

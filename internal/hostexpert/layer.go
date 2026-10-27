@@ -16,12 +16,26 @@ type Expert struct {
 // the workers.
 const layerSpan = 64
 
+// callerQuantizedRows and callerActivationRows are the most rows the caller quantizes itself rather than hand them to
+// the workers: Flash-Next's intermediate rows of 640 values quantize in about 1.8 us each and its activation rows of
+// 2,560 in about 3.5 us, against about 2 us to hand a batch over, so a window's one or two of the first and its single
+// token's activations are the caller's (a 4-token window's activations on the caller cost a layer 14 us, on the workers
+// about 5): the caller keeps the rows whose quantizing costs less than handing them over.
+const (
+	callerQuantizedRows  = 2
+	callerActivationRows = 1
+)
+
 // layerScratch holds a layer's intermediate values, each token's gate and up
 // products and its activations quantized, grown to the largest layer and kept
 // between layers.
 type layerScratch struct {
 	gates, ups []float32
 	quantized  []byte
+	// firsts and the rows are the call's bookkeeping, kept so a decode window's layer allocates nothing.
+	firsts           []int
+	gateRows, upRows [][]float32
+	quantizedRows    [][]byte
 }
 
 // Layer computes each expert's down products of its tokens, Strata's
@@ -35,7 +49,8 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 		return errFormats
 	}
 	gateRows, upRows, downRows := rowsOf[formats.Gate], rowsOf[formats.Up], rowsOf[formats.Down]
-	firsts := make([]int, len(experts)+1)
+	firsts := growTo(&scratch.firsts, len(experts)+1)
+	firsts[0] = 0
 	for index, work := range experts {
 		if len(work.Out) != len(work.Activations) {
 			return errShape
@@ -50,7 +65,7 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 	if len(scratch.quantized) < tokens*quantizedBytes {
 		scratch.quantized = make([]byte, tokens*quantizedBytes)
 	}
-	gates, ups, quantized := make([][]float32, tokens), make([][]float32, tokens), make([][]byte, tokens)
+	gates, ups, quantized := growTo(&scratch.gateRows, tokens), growTo(&scratch.upRows, tokens), growTo(&scratch.quantizedRows, tokens)
 	for token := range tokens {
 		gates[token] = scratch.gates[token*intermediate : (token+1)*intermediate]
 		ups[token] = scratch.ups[token*intermediate : (token+1)*intermediate]
@@ -78,7 +93,16 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 	}); err != nil {
 		return err
 	}
-	if err := p.run(tokens, func(token int) error {
+	// A decode window's few rows are quantized by the caller between the phases, as Strata's host quantizes them
+	// between its split phases, where handing them to the workers took longer than the rows; a prompt's many are spread
+	// across the workers.
+	if tokens <= callerQuantizedRows {
+		for token := range tokens {
+			if err := quantizeQ80(gates[token], quantized[token]); err != nil {
+				return err
+			}
+		}
+	} else if err := p.run(tokens, func(token int) error {
 		return quantizeQ80(gates[token], quantized[token])
 	}); err != nil {
 		return err
@@ -93,8 +117,20 @@ func (p *Pool) Layer(experts []Expert, formats Formats, hidden, intermediate int
 }
 
 // taskRows is how many of a phase's rows of each expert a task computes:
-// layerSpan, or fewer where its tasks would not reach every worker, as one
-// decode token's expert's would not.
+// layerSpan, or fewer where its tasks would not reach every worker (or the
+// pool's tasks a thread), as one decode token's expert's would not.
 func (p *Pool) taskRows(rows, experts int) int {
-	return min(layerSpan, max(1, (rows*experts+p.workers-1)/p.workers))
+	tasks := p.workers
+	if p.tasksPerThread > 0 {
+		tasks = p.tasksPerThread * (p.workers + 1)
+	}
+	return min(layerSpan, max(1, (rows*experts+tasks-1)/tasks))
+}
+
+// growTo answers the first n of the slice at s, grown first where it holds fewer.
+func growTo[T any](s *[]T, n int) []T {
+	if cap(*s) < n {
+		*s = make([]T, n)
+	}
+	return (*s)[:n]
 }

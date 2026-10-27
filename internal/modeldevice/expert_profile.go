@@ -127,30 +127,39 @@ func expertBankLayer(bank *expertBank) (uint32, error) {
 	return layer, nil
 }
 
-// rankedCardExperts marks the experts a profile places on the card: its pairs in order, each layer's banks together,
-// while the limit allows; it answers each bank's marks.
-func (c *expertResidency) rankedCardExperts(profile ExpertProfile, limit uint64) (map[*expertBank][]bool, error) {
-	byLayer := map[uint32][]*expertBank{}
-	marks := make(map[*expertBank][]bool, len(c.ordered))
-	for _, bank := range c.ordered {
-		if uint32(len(bank.pointers)) != profile.Experts {
-			return nil, fmt.Errorf("expert profile ranks %d experts a layer, bank %q holds %d", profile.Experts, bank.info.Name, len(bank.pointers))
+// rankedCardExperts marks the experts a profile places on the card: its pairs in order, each layer's banks together
+// (its blob), while the limit allows; it answers each blob's marks.
+func (c *expertResidency) rankedCardExperts(profile ExpertProfile, limit uint64) (map[*expertBlob][]bool, error) {
+	byLayer := map[uint32][]*expertBlob{}
+	marks := make(map[*expertBlob][]bool, len(c.blobs))
+	for _, blob := range c.blobs {
+		for _, bank := range blob.banks {
+			if uint32(len(bank.pointers)) != profile.Experts {
+				return nil, fmt.Errorf("expert profile ranks %d experts a layer, bank %q holds %d", profile.Experts, bank.info.Name, len(bank.pointers))
+			}
 		}
-		layer, err := expertBankLayer(bank)
+		layer, err := expertBankLayer(blob.head())
 		if err != nil {
 			return nil, err
 		}
 		if layer >= profile.Layers {
 			return nil, errors.New("expert profile ranks fewer layers than the banks name")
 		}
-		byLayer[layer] = append(byLayer[layer], bank)
-		marks[bank] = make([]bool, len(bank.pointers))
+		byLayer[layer] = append(byLayer[layer], blob)
+		marks[blob] = make([]bool, len(blob.head().pointers))
 	}
-	for _, pair := range profile.Pairs {
-		for _, bank := range byLayer[uint32(pair.Layer)] {
-			if !marks[bank][pair.Expert] && bank.stride <= limit-c.bytes {
-				marks[bank][pair.Expert] = true
-				c.bytes += bank.stride
+	for _, blob := range c.blobs {
+		blob.rank = make([]uint32, len(blob.head().pointers))
+		for index := range blob.rank {
+			blob.rank[index] = uint32(len(profile.Pairs))
+		}
+	}
+	for place, pair := range profile.Pairs {
+		for _, blob := range byLayer[uint32(pair.Layer)] {
+			blob.rank[pair.Expert] = min(blob.rank[pair.Expert], uint32(place))
+			if !marks[blob][pair.Expert] && blob.stride <= limit-c.bytes {
+				marks[blob][pair.Expert] = true
+				c.bytes += blob.stride
 			}
 		}
 	}

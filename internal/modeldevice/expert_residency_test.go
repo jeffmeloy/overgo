@@ -690,6 +690,13 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	if card := admit(t, limited, mem); card != 2 {
 		t.Fatalf("promotions took %d experts past the load's limit", card)
 	}
+	// A tiered residency promotes no miss, with memory to spare: only its tier and its refills move experts.
+	tiered, mem := open(t, 0)
+	mem.freeBytes = freed
+	(&DeviceWeights{experts: tiered}).TierExperts()
+	if card := admit(t, tiered, mem); card != 2 {
+		t.Fatalf("a tiered residency's routes promoted its misses: the card holds %d experts", card)
+	}
 	taken, mem := open(t, 0)
 	mem.freeBytes, mem.failAlloc = freed, mem.allocs+1
 	// The failed allocation fails no run: its misses take the load's experts' slots, and the next advance's allocation
@@ -698,8 +705,8 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 		t.Fatalf("promotions after an allocation failed left %d experts on the card, want %d", card, 2*experts-2)
 	}
 	// Memory another owner lends takes the misses without an allocation or a victim, carved from its end down; its owner
-	// takes back the part it uses next, the experts there moved out, the most used into the card slots of colder ones,
-	// and then all of it, none of it freed.
+	// takes back the part it uses next, the slots there moved out, their experts into free slots past it or the card
+	// slots of colder ones, and then all of it, none of it freed.
 	lending, mem := open(t, 0)
 	mem.freeBytes = expertSpareHeadroomBytes
 	const lentBytes = expertSpareSlots * (gateStride + downStride)
@@ -720,11 +727,12 @@ func TestExpertResidencyFillsTheCardWhenItFrees(t *testing.T) {
 	if card := admit(t, lending, mem); card != 2*experts || mem.allocs != allocs {
 		t.Fatalf("lent memory holds %d experts after %d allocations, want every expert in it and none", card, mem.allocs-allocs)
 	}
-	// The down experts' slots, carved last, lie at the loan's start.
+	// The down experts' slots, carved last, lie at the loan's start: taking back one byte moves its slot's expert to a free
+	// slot of its chunk past the end, so every expert stays on the card.
 	for _, taken := range []struct {
 		bytes uint64
 		card  int
-	}{{1, 2*experts - 2}, {lentBytes, 2}} {
+	}{{1, 2 * experts}, {lentBytes, 2}} {
 		if err := lender.ReclaimExpertMemory(t.Context(), nil, loan, taken.bytes); err != nil {
 			t.Fatal(err)
 		}
@@ -822,6 +830,105 @@ func TestReleaseKeepsTheHottestExperts(t *testing.T) {
 	}
 }
 
+// TestRefillKeepsWhatItCannotPlace refills the experts a release moved to host memory as the card's free memory
+// allows: the hottest first, and those it has no room for at the next refill that has.
+func TestRefillKeepsWhatItCannotPlace(t *testing.T) {
+	const (
+		experts = 3
+		stride  = 256
+	)
+	f := writeFixture(t, rand.New(rand.NewPCG(59, 61)), []fixtureTensor{
+		{name: "gate", shape: []uint64{2, 2, experts}, kind: dtype.BF16},
+	}, 0, 0)
+	file := f.parse(t)
+	mem := newFakeExpertDevice()
+	weights, err := mem.loadExperts(t.Context(), file, experts*8+experts*stride, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := weights.experts
+	t.Cleanup(func() {
+		if err := cache.close(); err != nil || mem.liveCount() != 0 {
+			t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+		}
+	})
+	copy(cache.banks["gate"].usage, []float32{3, 0, 5})
+	if err := cache.release(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := onCard(cache, "gate"); len(got) != 0 {
+		t.Fatalf("the release kept %v on the card", got)
+	}
+	for _, step := range []struct {
+		room   uint64
+		queued int
+		card   []uint32
+	}{{1, 1, []uint32{2}}, {2, 2, []uint32{0, 1, 2}}} {
+		mem.freeBytes = expertSpareHeadroomBytes + step.room*stride
+		queued, err := weights.RefillExperts(t.Context(), nil)
+		if err == nil {
+			err = weights.LandExperts(t.Context(), nil)
+		}
+		if err != nil || queued != step.queued || !slices.Equal(onCard(cache, "gate"), step.card) {
+			t.Fatalf("a refill with room for %d queued %d and left %v on the card, want %d and %v: %v", step.room, queued,
+				onCard(cache, "gate"), step.queued, step.card, err)
+		}
+	}
+	readsItsBytes(t, cache, mem, f.payloads)
+}
+
+// TestReleaseFreesTheColdestClass releases a card allocation where two banks of different strides each hold their own:
+// the release frees the bank whose experts are the colder, not the last allocated, so a reservation takes the coldest
+// experts of every stride rather than the last stride's.
+func TestReleaseFreesTheColdestClass(t *testing.T) {
+	f := writeFixture(t, rand.New(rand.NewPCG(41, 43)), []fixtureTensor{
+		{name: "gate", shape: []uint64{2, 2, 3}, kind: dtype.BF16},
+		{name: "up", shape: []uint64{128, 2, 3}, kind: dtype.BF16},
+	}, 0, 0)
+	file := f.parse(t)
+	const (
+		experts    = 3
+		tableBytes = 2 * experts * 8
+		narrow     = 256
+		wide       = 512
+		twoEach    = tableBytes + 2*narrow + 2*wide
+	)
+	for _, hot := range []string{"up", "gate"} {
+		t.Run("hot="+hot, func(t *testing.T) {
+			mem := newFakeExpertDevice()
+			weights, err := mem.loadExperts(t.Context(), file, twoEach, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cache := weights.experts
+			t.Cleanup(func() {
+				if err := cache.close(); err != nil || mem.liveCount() != 0 {
+					t.Errorf("close left %d allocations: %v", mem.liveCount(), err)
+				}
+			})
+			placed := map[string][]uint32{"gate": onCard(cache, "gate"), "up": onCard(cache, "up")}
+			if len(placed["gate"]) != 2 || len(placed["up"]) != 2 || len(cache.cards) != 2 || cache.cards[0].stride == cache.cards[1].stride {
+				t.Fatalf("the load placed %v in %d allocations, want two experts of each bank in one of its own stride", placed, len(cache.cards))
+			}
+			for _, index := range placed[hot] {
+				cache.banks[hot].usage[index] = 5
+			}
+			// The up bank's allocation is the last; the release frees the colder bank's.
+			if err := cache.release(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			cold := map[string]string{"up": "gate", "gate": "up"}[hot]
+			if got := onCard(cache, hot); !slices.Equal(got, placed[hot]) {
+				t.Fatalf("the release left %s's experts %v on the card, want %v", hot, got, placed[hot])
+			}
+			if got := onCard(cache, cold); len(got) != 0 {
+				t.Fatalf("the release kept the colder %s's experts %v on the card", cold, got)
+			}
+			readsItsBytes(t, cache, mem, f.payloads)
+		})
+	}
+}
+
 // TestPublishQueuesBehindTheRun holds the residency's publishes to the ordered write: an advance that promotes a
 // routed expert into a card expert's slot writes the tables and the card's flags of experts on host only behind
 // the compute stream's work, never with a write that waits for the run in flight, and every table still reads its
@@ -875,4 +982,90 @@ func TestPublishQueuesBehindTheRun(t *testing.T) {
 	}
 	advance()
 	readsItsBytes(t, cache, mem, f.payloads)
+}
+
+// TestALayersBanksShareOneBlob holds a layer's expert banks to Strata's blob (iq_kernels.hpp, NativeExpertLayout): an
+// expert's gate, up and down parts lie back to back in that order whatever order the file holds the banks in, each at a
+// slot-aligned offset, in one card slot and one host slot, so one card allocation and one pinned allocation hold the
+// layer, each table names its part, and a promotion moves the expert of every bank with one copy.
+func TestALayersBanksShareOneBlob(t *testing.T) {
+	f := writeFixture(t, rand.New(rand.NewPCG(41, 43)), []fixtureTensor{
+		{name: "blk.0.ffn_down_exps.weight", shape: []uint64{4, 100, 3}, kind: dtype.F32},
+		{name: "blk.0.ffn_up_exps.weight", shape: []uint64{64, 4, 3}, kind: dtype.BF16},
+		{name: "blk.0.ffn_gate_exps.weight", shape: []uint64{64, 4, 3}, kind: dtype.BF16},
+	}, 0, 0)
+	file := f.parse(t)
+	const (
+		experts = 3
+		// gate and up are 512 bytes an expert, down 1,600: the blob is 2,624 bytes, its slot 2,816.
+		gateBytes, downBytes, stride = 512, 1600, 2816
+		tableBytes                   = 3 * experts * 8
+	)
+	names := []string{"blk.0.ffn_gate_exps.weight", "blk.0.ffn_up_exps.weight", "blk.0.ffn_down_exps.weight"}
+	mem := newFakeExpertDevice()
+	weights, err := mem.loadExperts(t.Context(), file, tableBytes+stride, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := weights.experts
+	t.Cleanup(func() {
+		if err := cache.close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if len(cache.blobs) != 1 || cache.blobs[0].stride != stride || len(cache.cards) != 1 || len(cache.pinned) != 2 {
+		t.Fatalf("%d blobs, %d card and %d pinned allocations, want one blob of stride %d in one of each", len(cache.blobs),
+			len(cache.cards), len(cache.pinned), stride)
+	}
+	for part, name := range names {
+		if bank := cache.blobs[0].banks[part]; bank.info.Name != name || bank.offset != uint64(part)*gateBytes {
+			t.Fatalf("the blob's part %d is %q at %d", part, bank.info.Name, bank.offset)
+		}
+	}
+	// together holds each expert's parts at their offsets from its gate part, one card entry for every bank.
+	together := func(t *testing.T, card []uint32) {
+		t.Helper()
+		readsItsBytes(t, cache, mem, f.payloads)
+		gate := cache.banks[names[0]]
+		for index := range uint32(experts) {
+			for part, name := range names {
+				bank := cache.banks[name]
+				if bank.pointers[index] != gate.pointers[index]+driver.DevicePtr(uint64(part)*gateBytes) ||
+					bank.entries[index] != gate.entries[index] || (bank.entries[index] != nil) != slices.Contains(card, index) {
+					t.Fatalf("expert %d's %s part is not its blob's, or the card holds it %t, want %v", index, name,
+						bank.entries[index] != nil, card)
+				}
+			}
+		}
+	}
+	together(t, []uint32{0})
+	if placement, err := weights.ExpertPlacement(nil); err != nil ||
+		placement != (ExpertPlacement{CardExperts: 1, HostExperts: experts, CardBytes: stride, HostBytes: experts * stride, LoadCardExperts: 1}) {
+		t.Fatalf("placement = %+v: %v", placement, err)
+	}
+	builder := tensor.NewBuilder()
+	var nodes []*tensor.Tensor
+	for _, name := range names {
+		bank := cache.banks[name].info
+		nodes = append(nodes, builder.Input(name, bank.Type, tensor.MustShape(bank.Shape[:bank.Dimensions]...)))
+	}
+	routes, _, err := weights.ExpertRoutes(nil, nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache.routed[uint64(routes-cache.routedMap)+2] = 1
+	if err := cache.advance(t.Context(), false); err != nil {
+		t.Fatal(err)
+	}
+	if len(cache.promoting) != 1 {
+		t.Fatalf("%d moves promote one expert of three banks, want one", len(cache.promoting))
+	}
+	together(t, nil)
+	if err := cache.advance(t.Context(), false); err != nil {
+		t.Fatal(err)
+	}
+	together(t, []uint32{2})
+	if downBytes != cache.banks[names[2]].bytes {
+		t.Fatalf("the down bank holds %d bytes an expert", cache.banks[names[2]].bytes)
+	}
 }

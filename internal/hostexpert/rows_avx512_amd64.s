@@ -54,6 +54,12 @@
 	ZTOK(J, R10, Z14); \
 	ZTOK(J, R11, Z15)
 
+// ZPREFETCH asks for the row's bytes 2,048 ahead of the block at SI, the next row's start included, as Strata's
+// row_dot does (STRATA_IQ_PREFETCH's default): the rows stream from memory in 4 KB pages.
+#define ZPREFETCH \
+	PREFETCHT0 2048(SI); \
+	PREFETCHT0 2112(SI)
+
 // ZWEIGHT sets X5 to the block's f16 scale at SI as f32.
 #define ZWEIGHT \
 	MOVWLZX 0(SI), AX; \
@@ -88,6 +94,7 @@ TEXT ·iq3SDots1Z(SB), NOSPLIT, $0-28
 	JZ z31done
 
 z31block:
+	ZPREFETCH
 	VPXORD Z12, Z12, Z12
 	ZCHUNK1(0)
 	ZCHUNK1(1)
@@ -126,6 +133,7 @@ TEXT ·iq3SDots4Z(SB), NOSPLIT, $0-32
 	JZ z34done
 
 z34block:
+	ZPREFETCH
 	VPXORD Z12, Z12, Z12
 	VPXORD Z13, Z13, Z13
 	VPXORD Z14, Z14, Z14

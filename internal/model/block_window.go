@@ -73,7 +73,7 @@ func (p CompiledLayerProgram) Commit(builder *tensor.Builder, after *tensor.Tens
 			weights.IndexerKNorm, inputs.QSA.State, spec.RMSNormEpsilon)
 	}
 	if inputs.Window.Full != nil {
-		history := inputs.States[cacheStateNGramConvolution].Value
+		history := inputs.States[CacheStateNGramConvolution].Value
 		if history == nil || inputs.Kept == nil {
 			return nil, errors.New("lexical commit inputs are missing")
 		}

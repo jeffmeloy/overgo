@@ -316,6 +316,12 @@ func (s *Sampler) GreedyUntilTrigger() bool {
 	return s.greedyBeyondGrammar() && s.config.Grammar == nil && s.gbnf != nil && s.gbnfState.awaitingTrigger
 }
 
+// AwaitsTrigger reports a sampler whose only grammar is a lazy one still awaiting its trigger, which masks no token
+// until a token it accepts (AcceptToken) triggers it: its draws until then are its chain's alone.
+func (s *Sampler) AwaitsTrigger() bool {
+	return s != nil && s.config.Grammar == nil && s.gbnf != nil && s.gbnfState.awaitingTrigger
+}
+
 // greedyBeyondGrammar reports whether the sampler is raw greedy apart from a
 // grammar. A grammar masks the logits before the selection, so the token
 // chosen among those it allows is their argmax, which a scan finds where the

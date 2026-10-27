@@ -49,6 +49,19 @@ func TestQuantizersRoundAsGGML(t *testing.T) {
 	if got := [3]int8{int8(block[2]), int8(block[3]), int8(block[4])}; got != [3]int8{127, 3, -4} {
 		t.Fatalf("Q8_0 values %v, want 127 3 -4: halves away from zero", got)
 	}
+	// The rounding is math.Round's at the halves, beside them, and over a quantized row's range.
+	random := rand.New(rand.NewPCG(1, 2))
+	for _, value := range []float64{0.5, -0.5, 1.5, -2.5, 126.5, -127.5, 0.49999997, -0.49999997, math.Nextafter(0.5, 0), 0} {
+		if roundHalfAway(value) != math.Round(value) {
+			t.Fatalf("%v rounds to %v, math.Round's %v", value, roundHalfAway(value), math.Round(value))
+		}
+	}
+	for range 1 << 16 {
+		value := float64(float32((random.Float64()*2 - 1) * 128))
+		if roundHalfAway(value) != math.Round(value) {
+			t.Fatalf("%v rounds to %v, math.Round's %v", value, roundHalfAway(value), math.Round(value))
+		}
+	}
 	zeros := make([]byte, q8KBlockBytes)
 	for index := range zeros {
 		zeros[index] = 0xff

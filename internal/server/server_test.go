@@ -1433,6 +1433,27 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 	}
 }
 
+// TestSlotDecodeRunsToTheLastToken: a slot's decode time runs from its prompt's evaluation to its last token, the
+// request's own work before and after them left out, and is the request's time less the prompt's without them.
+func TestSlotDecodeRunsToTheLastToken(t *testing.T) {
+	t.Parallel()
+	var stats slotRuntimeStats
+	started := time.Unix(100, 0)
+	stats.reset(started)
+	stats.generatedTokens.Store(4)
+	stats.promptNanos.Store(int64(10 * time.Millisecond))
+	stats.totalNanos.Store(int64(100 * time.Millisecond))
+	if got := stats.metrics(false).Timings.PredictedMS; got != 90 {
+		t.Fatalf("without its bounds the decode took %v ms, want the request's 100 less the prompt's 10", got)
+	}
+	stats.decodeNanos.Store(started.Add(30 * time.Millisecond).UnixNano())
+	stats.lastTokenNanos.Store(started.Add(70 * time.Millisecond).UnixNano())
+	if timings := stats.metrics(false).Timings; timings.PredictedMS != 40 || timings.PredictedPerSecond != 100 {
+		t.Fatalf("the decode took %v ms at %v tokens/s, want 40 from the evaluation to the last token, 100/s",
+			timings.PredictedMS, timings.PredictedPerSecond)
+	}
+}
+
 func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 	t.Parallel()
 	handler, err := New(Config{

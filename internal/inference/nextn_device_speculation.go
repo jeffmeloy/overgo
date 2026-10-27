@@ -60,8 +60,12 @@ func (r *Runner) deviceSpeculationReady(options GenerateOptions) bool {
 
 // SpeculativeDraftTokens declares the tokens each speculative verify span
 // drafts under raw-greedy device decoding, or zero when the model has no
-// draft head this runner drafts from or its weights are not device-resident.
+// draft head this runner drafts from or its weights are not device-resident;
+// a round runner's are its window's drafts beside the pending token.
 func (r *Runner) SpeculativeDraftTokens() int {
+	if r.strataDraft != nil {
+		return strataRoundMaxTokens - 1
+	}
 	if !r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true}) {
 		return 0
 	}
@@ -69,9 +73,10 @@ func (r *Runner) SpeculativeDraftTokens() int {
 }
 
 // SpeculatesByDefault reports whether the runner's raw-greedy device decoding speculates unless a request decodes
-// plainly: a draft the runner was opened with, which a model's own draft head is not.
+// plainly: a draft the runner was opened with - its draft layer, or the round's drafter - which a model's own draft
+// head is not.
 func (r *Runner) SpeculatesByDefault() bool {
-	return r.hyperDraft != nil && r.SpeculativeDraftTokens() > 0
+	return (r.hyperDraft != nil || r.strataDraft != nil) && r.SpeculativeDraftTokens() > 0
 }
 
 func greedyTokenID(logits []float32) tokenizer.TokenID {

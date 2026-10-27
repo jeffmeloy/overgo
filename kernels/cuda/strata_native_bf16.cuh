@@ -1,0 +1,162 @@
+// strata_native_bf16.cuh - Strata's native bf16 projections over f32 activations, ported literally for its decode
+// round (strata-port/decode).
+//
+// Ported from Strata (https://github.com/Niko1221/Strata, commit 296b59d2), MIT License, Copyright (c) 2026 Niko1221
+// and the Strata contributors (licenses/Strata-MIT.txt), from src/kernels/cuda/native_bf16.cu (bf16_f32_mmvf_kernel,
+// bf16_f32_mmvf_multi_kernel) and include/strata/kernels/bf16_bits.hpp, which Strata adapted from llama.cpp
+// 3cf03257f219afbe7334045ff7c6a06ac68c627d (ggml/src/ggml-cuda/{mmvf.cu,common.cuh}):
+//
+// MIT License
+// Copyright (c) 2023-2026 The ggml authors
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+// Strata compiles native_bf16.cu WITH --use_fast_math, as this module is compiled. The instances are the block size
+// mmvf_block_size gives the round's inputs, 2,560 values (256 threads), at one to six exact rows and the inexact eight;
+// the host side (bf16_gemv_fp32_mmvf, bf16_gemv_fp32_mmvf_multi) is translated in
+// internal/cuda/executor/launch_strata_native_bf16.go. The rows kernel (STRATA_MMVF_ROWS) is opt-in in Strata and not
+// ported.
+
+namespace strata_native_bf16 {
+
+constexpr bool kPdlPrefetch = true;   // pdl.hpp: CUDA, sm_70 and newer
+
+__device__ __forceinline__ void pdl_wait() {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900)
+    asm volatile("griddepcontrol.wait;" ::: "memory");
+#endif
+}
+
+// bf16 is the top half of an f32, so `f32_from_bf16` is a shift and needs no rounding at all.
+__device__ __forceinline__ float f32_from_bf16(uint16_t h) { return __uint_as_float((uint32_t) h << 16); }
+
+__device__ __forceinline__ float mmvf_warp_sum(float value) {
+#pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+        value += __shfl_xor_sync(0xffffffffu, value, offset, 32);
+    return value;
+}
+
+template <int BLOCK_SIZE>
+__device__ __forceinline__ void bf16_f32_mmvf_kernel(const float* __restrict__ x, const uint16_t* __restrict__ w,
+                                                     float* __restrict__ y, int n_in) {
+    const int t = threadIdx.x;
+    const uint16_t* row = w + (size_t) blockIdx.x * n_in;
+    const uint32_t* weights2 = reinterpret_cast<const uint32_t*>(row);
+    const float2* inputs2 = reinterpret_cast<const float2*>(x);
+    __shared__ float partials[32];
+    if (t < 32) partials[t] = 0.0f;
+    __syncthreads();
+    float acc = 0.0f;
+    for (int pair = t; pair < n_in / 2; pair += BLOCK_SIZE) {
+        const uint32_t weight = weights2[pair];
+        const float2 input = inputs2[pair];
+        // Match the two ordered multiply-adds in ggml_cuda_mad, not a pair sum followed by one add.
+        acc = __fmaf_rn(f32_from_bf16((uint16_t) weight), input.x, acc);
+        acc = __fmaf_rn(f32_from_bf16((uint16_t) (weight >> 16)), input.y, acc);
+    }
+    acc = mmvf_warp_sum(acc);
+    if constexpr (BLOCK_SIZE > 32) {
+        // All lanes have the same reduced value; one store avoids a same-value shared-memory race.
+        if ((t & 31) == 0) partials[t / 32] = acc;
+        __syncthreads();
+        if (t < 32) acc = mmvf_warp_sum(partials[t]);
+    }
+    if (t == 0) y[blockIdx.x] = acc;
+}
+
+// the same kernel for up to 8 activation rows - the weight row is read ONCE and every
+// token keeps its own accumulator with exactly the single-row kernel's order (pairs, two ordered FMAs, the same warp
+// and block reductions), so each output is bit-identical to a bf16_f32_mmvf_kernel launch of its own.
+template <int BLOCK_SIZE, int NT, bool EXACT_T = true>
+__device__ __forceinline__ void bf16_f32_mmvf_multi_kernel(const float* x_, int64_t ldx, const uint16_t* __restrict__ w,
+                                                           float* y_, int64_t ldy, int n_in, int n_tok) {
+    const float* x = x_;   // STRATA_PDL_RESTRICT: __restrict__ below sm_70 only (pdl.hpp, #1469)
+    float* y = y_;
+    const int t = threadIdx.x;
+    const uint16_t* row = w + (size_t) blockIdx.x * n_in;
+    const uint32_t* weights2 = reinterpret_cast<const uint32_t*>(row);
+    __shared__ float partials[NT][32];
+    if (t < 32) {
+#pragma unroll
+        for (int k = 0; k < NT; ++k) partials[k][t] = 0.0f;
+    }
+    __syncthreads();
+    float acc[NT];
+#pragma unroll
+    for (int k = 0; k < NT; ++k) acc[k] = 0.0f;
+    // PDL (pdl.hpp): this thread's first PRE weight pairs are loaded before waiting for the activations
+    constexpr int PRE = kPdlPrefetch ? 8 : 0;
+    uint32_t wpre[PRE > 0 ? PRE : 1];
+#pragma unroll
+    for (int q = 0; q < PRE; ++q) {
+        const int pair = t + q * BLOCK_SIZE;
+        wpre[q] = pair < n_in / 2 ? __ldg(weights2 + pair) : 0u;
+    }
+    pdl_wait();
+    int q = 0;
+    for (int pair = t; pair < n_in / 2; pair += BLOCK_SIZE, ++q) {
+        const uint32_t weight = q < PRE ? wpre[q] : __ldg(weights2 + pair);
+        const float w0 = f32_from_bf16((uint16_t) weight), w1 = f32_from_bf16((uint16_t) (weight >> 16));
+#pragma unroll
+        for (int k = 0; k < NT; ++k) {
+            if (EXACT_T || k < n_tok) {
+                const float2 input = __ldg(reinterpret_cast<const float2*>(x + (size_t) k * ldx) + pair);
+                acc[k] = __fmaf_rn(w0, input.x, acc[k]);
+                acc[k] = __fmaf_rn(w1, input.y, acc[k]);
+            }
+        }
+    }
+#pragma unroll
+    for (int k = 0; k < NT; ++k)
+        if (EXACT_T || k < n_tok) acc[k] = mmvf_warp_sum(acc[k]);
+    if constexpr (BLOCK_SIZE > 32) {
+        if ((t & 31) == 0)
+#pragma unroll
+            for (int k = 0; k < NT; ++k)
+                if (EXACT_T || k < n_tok) partials[k][t / 32] = acc[k];
+        __syncthreads();
+        if (t < 32)
+#pragma unroll
+            for (int k = 0; k < NT; ++k)
+                if (EXACT_T || k < n_tok) acc[k] = mmvf_warp_sum(partials[k][t]);
+    }
+    if (t == 0)
+#pragma unroll
+        for (int k = 0; k < NT; ++k)
+            if (EXACT_T || k < n_tok) y[(size_t) k * ldy + blockIdx.x] = acc[k];
+}
+
+}  // namespace strata_native_bf16
+
+extern "C" __global__ void strata_bf16_f32_mmvf_b256(const float * __restrict__ x, const uint16_t * __restrict__ w,
+                                                     float * __restrict__ y, int n_in) {
+    strata_native_bf16::bf16_f32_mmvf_kernel<256>(x, w, y, n_in);
+}
+
+#define STRATA_BF16_MULTI(NAME, NT, EXACT)                                                                              \
+    extern "C" __global__ void NAME(const float * x, long long ldx, const uint16_t * __restrict__ w, float * y,       \
+                                    long long ldy, int n_in, int n_tok) {                                             \
+        strata_native_bf16::bf16_f32_mmvf_multi_kernel<256, NT, EXACT>(x, ldx, w, y, ldy, n_in, n_tok);               \
+    }
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t1, 1, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t2, 2, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t3, 3, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t4, 4, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t5, 5, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t6, 6, true)
+STRATA_BF16_MULTI(strata_bf16_f32_mmvf_multi_b256_t8, 8, false)
+#undef STRATA_BF16_MULTI

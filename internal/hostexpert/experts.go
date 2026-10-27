@@ -48,10 +48,19 @@ func Supported(formats Formats, hidden, intermediate int) bool {
 }
 
 // QuantizeQ8K quantizes each row of values, a token's activations, into the
-// same row of blocks as Q8_K across the pool's workers.
+// same row of blocks as Q8_K across the pool's workers, or the caller's alone for a decode window's few.
 func (p *Pool) QuantizeQ8K(values [][]float32, blocks [][]byte) error {
 	if len(values) != len(blocks) {
 		return errShape
+	}
+	// A single token's row is the caller's, as Strata's host quantizes a window's activations itself.
+	if len(values) <= callerActivationRows {
+		for row := range values {
+			if err := quantizeQ8K(values[row], blocks[row]); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return p.run(len(values), func(row int) error { return quantizeQ8K(values[row], blocks[row]) })
 }

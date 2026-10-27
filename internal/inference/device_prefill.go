@@ -98,7 +98,7 @@ const devicePromptChunkTokens = 8192
 // token 0.78 s against 0.17. A runner holding every expert on the card has none to compute there, and its small groups
 // keep the decode products and stage no copies (Unlimited-OCR's 6-token prompt reserved 138 MiB for them).
 func (r *Runner) promptReadPlan(plan deviceOutputPlan, tokens int) deviceOutputPlan {
-	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil
+	plan.streams = r.hyperDraft != nil && r.hyperDraft.prompt != nil || r.strataPrompt != nil
 	plan.promptExperts = tokens > 1 && r.offloadsExperts()
 	return plan
 }

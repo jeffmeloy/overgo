@@ -59,15 +59,22 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	var rawWeights *modeldevice.DeviceWeights
 	var decodeWeights *modeldevice.DeviceConvertedWeights
 	var draft *hyperDraft
+	var strataDraft *strataDraftPack
 	fail := func(openErr error) (*Runner, error) {
 		return nil, errors.Join(
 			openErr,
+			strataDraft.close(context.Background()),
 			closeAcceleratorResources(decodeWeights, rawWeights, deviceWeights, cuda, worker),
 			draft.close(),
 			file.Close(),
 		)
 	}
-	if options.Draft != "" {
+	// A served open asks for Strata's round (OpenOptions.StrataRound), which a model takes where its facts are the
+	// round's: Flash-Next's geometry, its experts offloaded natively, and a qwen4exp-mtp draft whose experts the pack
+	// relays; its draft then feeds the round's drafter, not the trunk's own draft layer.
+	strataRound := options.StrataRound && options.Draft != "" && program.Residency == recipe.ResidencyHybridNative &&
+		strataRoundSpec(spec) && strataDraftFits(options.Draft)
+	if options.Draft != "" && !strataRound {
 		if !residency.deviceF32 && !residency.deviceNative {
 			return fail(errors.New("inference: a draft layer needs device-resident weights"))
 		}
@@ -143,6 +150,12 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if err != nil {
 			return fail(err)
 		}
+		// The round's drafter is placed before the experts, as Strata loads its drafter before it sizes its expert tier.
+		if strataRound {
+			if strataDraft, err = openStrataDraftFile(ctx, cuda, options.Draft); err != nil {
+				return fail(err)
+			}
+		}
 		// Resolve tied or dedicated output projection before residency selection.
 		outputProjection := weights.TokenEmbedding
 		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
@@ -151,7 +164,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		uploaded := processmeasure.Stage(ctx, "weights")
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(
-				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft, expertProfile,
+				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims, draft, expertProfile, strataRound,
 				&deviceWeights, &rawWeights, &decodeWeights,
 			)
 		}, func() error {
@@ -163,6 +176,10 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}
 		if options.HoldExperts {
 			rawWeights.HoldExperts()
+		}
+		// The round's adaptive tier places the experts, as Strata's.
+		if strataRound {
+			rawWeights.TierExperts()
 		}
 		// The pass that fell back to streaming stopped before it hashed the whole file.
 		if recovered && len(claims) != 0 {
@@ -196,6 +213,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		outputExclusions:    vocab.NonTextGenerationRanges(),
 		promptCacheCapacity: promptCacheCapacity, promptBoundaryTokens: promptBoundaryTokens, promptChunkTokens: devicePromptChunkTokens,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}
+	runner.strataDraft = strataDraft
 	runner.qsaLayers = runner.qsaLayerSet()
 	if !options.F32Cache {
 		runner.cellLayers = runner.cellLayerSet()
@@ -323,6 +341,7 @@ func loadResidentWeights(
 	claims []artifact.ID,
 	draft *hyperDraft,
 	expertProfile *modeldevice.ExpertProfile,
+	mappedEmbedding bool,
 	deviceWeights **modeldevice.DeviceConvertedWeights,
 	rawWeights **modeldevice.DeviceWeights,
 	decodeWeights **modeldevice.DeviceConvertedWeights,
@@ -395,6 +414,15 @@ func loadResidentWeights(
 				return err
 			}
 		}
+		// A Strata round's runner keeps its token embedding in mapped host memory, as Strata does, where the output head
+		// is its own: a step reads a few rows of it, and its card memory goes to the expert cache.
+		if mappedEmbedding && weights.TokenEmbedding.Name != outputProjection.Name {
+			at := slices.IndexFunc(quantized, func(info gguf.TensorInfo) bool { return info.Name == weights.TokenEmbedding.Name })
+			if at >= 0 {
+				loader.Mapped(*rawWeights, quantized[at:at+1])
+				quantized = slices.Delete(quantized, at, at+1)
+			}
+		}
 		loader.Raw(*rawWeights, quantized)
 		if len(fileBackedExperts) != 0 {
 			// The pass that reads, and with claims hashes, the file fills the experts.
@@ -455,7 +483,10 @@ func (r *Runner) Close() error {
 		r.releaseHyperDraftHistory(context.Background()),
 		r.releaseQSARope(context.Background()),
 		r.releaseQSAStage(context.Background()),
+		r.freeQSASession(context.Background()),
 		r.qsaWindow.release(context.Background()),
+		r.strata.close(context.Background(), resources.cuda),
+		r.strataDraft.close(context.Background()),
 		resources.close(),
 	)
 }

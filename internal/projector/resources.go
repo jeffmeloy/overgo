@@ -145,7 +145,11 @@ func buildCatalogProjector[S, R any](
 	}
 	var cuda *projectorCUDA
 	if options.CUDA {
-		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options)
+		var matrices []string
+		if declared, ok := any(spec).(matrixTensors); ok {
+			matrices = declared.matrixTensors()
+		}
+		cuda, err = openProjectorCUDA(ctx, file, catalog, excluded, options, matrices)
 		if err != nil {
 			return zero, fmt.Errorf("projector: initialize %s CUDA: %w", label, err)
 		}

@@ -100,9 +100,10 @@ func run(root string, update bool) error {
 		return errors.New("kernel manifest: Go host kernel ABI identity is stale")
 	}
 	runtimePins := map[string]string{
-		"internal/cuda/kernel/vector_add.ptx": cudaKernel.VectorAddSHA256,
-		"internal/cuda/kernel/ops_f32.ptx":    cudaKernel.OpsF32SHA256,
-		"internal/cuda/kernel/strata_qsa.ptx": cudaKernel.StrataQsaSHA256,
+		"internal/cuda/kernel/vector_add.ptx":    cudaKernel.VectorAddSHA256,
+		"internal/cuda/kernel/ops_f32.ptx":       cudaKernel.OpsF32SHA256,
+		"internal/cuda/kernel/strata_qsa.ptx":    cudaKernel.StrataQsaSHA256,
+		"internal/cuda/kernel/strata_native.ptx": cudaKernel.StrataNativeSHA256,
 	}
 	seenSource := map[string]struct{}{}
 	seenAsset := map[string]struct{}{}

@@ -50,7 +50,10 @@ func configureLargeSharedKernels(lib *driver.Library, functions functionSet) err
 			return err
 		}
 	}
-	return lib.FuncSetMaxDynamicShared(functions[kernelStrataBlockScoresTc].function, strataScoresTCSharedBytes)
+	if err := lib.FuncSetMaxDynamicShared(functions[kernelStrataBlockScoresTc].function, strataScoresTCSharedBytes); err != nil {
+		return err
+	}
+	return configureStrataGRStaged(lib, functions)
 }
 
 // blasBF16AttentionStagingBytes: per-node BF16 K/V pack staging (the

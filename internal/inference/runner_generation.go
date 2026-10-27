@@ -51,6 +51,13 @@ func (r *Runner) Generate(
 		return nil, "", err
 	}
 	defer r.mu.Unlock()
+	// A runner opened for Strata's round decodes every request it takes through it (strataRoundOn).
+	if r.strataDraft != nil && !r.strataTestOvergo {
+		options.StrataRound = true
+	}
+	// A request that decodes through Strata's round reads its prompt into a sequence sized as Strata's session is.
+	r.qsaStreamed = options.StrataRound && r.strataRoundModel()
+	defer func() { r.qsaStreamed = false }()
 	// A draft the runner was opened with speculates its greedy decoding unless the request decodes plainly.
 	options.SpeculativeDecode = !options.PlainDecode && (options.SpeculativeDecode || r.hyperDraft != nil)
 	restoreLoRA, err := r.applyGenerationLoRA(&options)
@@ -121,6 +128,17 @@ func (r *Runner) Generate(
 			_ = deviceCache.Release(context.Background())
 		}
 	}()
+	// A request Strata's round decodes reads its prompt but the last token, which the round's first window reads alone
+	// (generate.cpp's first_window), so its first token is the round's, as Strata's is; a projected prompt, whose
+	// inputs name every token, is read whole.
+	read := ids
+	if useDeviceCache && options.MaxNewTokens > 0 && len(ids) > 1 && options.ProjectedInputs == nil && r.strataRoundOn(options, deviceGreedy) {
+		read = ids[:len(ids)-1]
+	}
+	// needLogits: the read selects the first token from the prompt's last row.
+	needLogits := len(read) == len(ids)
+	// promptEvaluated reports the prompt read; a round request's once its round is set up for the first window.
+	var promptEvaluated func() error
 	if options.MaxNewTokens > 0 {
 		promptStarted, err := processmeasure.Counter()
 		if err != nil {
@@ -131,7 +149,7 @@ func (r *Runner) Generate(
 			var retainedPrefix *deviceKVCache
 			if options.CachePrompt {
 				selectedPromptCache, cached = r.selectPromptCache(
-					ids,
+					read,
 					options.MinCacheReuse,
 					true,
 				)
@@ -157,7 +175,7 @@ func (r *Runner) Generate(
 				}
 				// Device greedy selects from the prompt's last token, which an entry holding the whole prompt
 				// does not keep, and a recurrent state cannot step back a token: the prompt is read again.
-				if deviceGreedy && cached == len(ids) {
+				if deviceGreedy && needLogits && cached == len(read) {
 					cached = 0
 				}
 				if cached > 0 {
@@ -167,7 +185,7 @@ func (r *Runner) Generate(
 						// retained logits describe old final token
 						// For exact shorter prompt, reevaluate its final
 						// token from preceding cache entry
-						if cached == len(ids) {
+						if needLogits && cached == len(read) {
 							base--
 						}
 						if base == 0 {
@@ -180,13 +198,13 @@ func (r *Runner) Generate(
 						); trimErr != nil {
 							return nil, "", trimErr
 						} else {
-							selectedPromptCache.Tokens = slices.Clone(ids[:base])
+							selectedPromptCache.Tokens = slices.Clone(read[:base])
 							cached = base
 						}
 					}
 				}
 			}
-			if cached == len(ids) &&
+			if needLogits && cached == len(read) &&
 				retainedPrefix != nil &&
 				len(retainedPrefix.Logits) == 0 {
 				if cached <= 1 {
@@ -200,10 +218,10 @@ func (r *Runner) Generate(
 					return nil, "", trimErr
 				} else {
 					cached--
-					selectedPromptCache.Tokens = slices.Clone(ids[:cached])
+					selectedPromptCache.Tokens = slices.Clone(read[:cached])
 				}
 			}
-			if cached == len(ids) && len(retainedPrefix.Logits) > 0 {
+			if cached == len(read) && (!needLogits || len(retainedPrefix.Logits) > 0) {
 				deviceCache = retainedPrefix
 			} else {
 				deviceCache = retainedPrefix
@@ -223,14 +241,25 @@ func (r *Runner) Generate(
 				}
 				// A request that drafts reads its prompt into the draft's history, as Strata's drafter does, greedy or sampled.
 				if r.hyperDraft != nil && r.deviceSpeculationReady(options) {
-					if err := r.beginHyperDraftPromptLocked(ctx, len(ids), cached, options.MaxNewTokens); err != nil {
+					if err := r.beginHyperDraftPromptLocked(ctx, len(read), cached, options.MaxNewTokens); err != nil {
 						return nil, "", err
 					}
 					defer func() { r.hyperDraft.prompt = nil }()
 				}
-				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, plan, ids, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
+				// A round request that drafts reads its prompt into the round's drafter (mtp.cpp's prefill).
+				if r.strataRoundDrafter(options, deviceGreedy) {
+					if err := r.beginStrataDraftPromptLocked(ctx, len(read), cached); err != nil {
+						return nil, "", err
+					}
+					defer func() { r.strataPrompt = nil }()
+				}
+				nextDevice, boundary, err = r.readDevicePromptLocked(ctx, plan, read, cached, options.MaxNewTokens, retainedPrefix, projected, options.CachePrompt)
 				if r.hyperDraft != nil {
 					err = errors.Join(err, r.hyperDraft.prompt.releaseStreams(context.WithoutCancel(ctx)))
+				}
+				if r.strataPrompt != nil && r.strataPrompt.streams != nil {
+					err = errors.Join(err, r.strataPrompt.streams.Release(context.WithoutCancel(ctx)))
+					r.strataPrompt.streams = nil
 				}
 				// The read lends the card memory it borrowed to the experts, which fill it while the request decodes.
 				err = errors.Join(err, r.cuda.ReleasePromptMemory(context.WithoutCancel(ctx)))
@@ -311,7 +340,7 @@ func (r *Runner) Generate(
 		}
 		if options.CachePrompt {
 			nextPromptCache := &cachedPrompt{
-				Tokens:              slices.Clone(ids),
+				Tokens:              slices.Clone(read),
 				Hidden:              hidden,
 				Cache:               cache,
 				Device:              deviceCache,
@@ -330,16 +359,27 @@ func (r *Runner) Generate(
 			}
 			selectedPromptCache = nextPromptCache
 		}
-		if options.OnPromptEvaluated != nil {
+		promptEvaluated = func() error {
+			if options.OnPromptEvaluated == nil {
+				return nil
+			}
 			finished, err := processmeasure.Counter()
 			if err != nil {
-				return nil, "", err
+				return err
 			}
 			options.OnPromptEvaluated(PromptEvaluation{
 				Tokens:   len(ids),
 				Cached:   cached,
 				Duration: finished - promptStarted,
 			})
+			return nil
+		}
+		// A round request's prompt time ends once its round is set up, as Strata's ends after its refill.
+		if needLogits {
+			if err := promptEvaluated(); err != nil {
+				return nil, "", err
+			}
+			promptEvaluated = nil
 		}
 	}
 	if !useDeviceCache {
@@ -356,8 +396,38 @@ func (r *Runner) Generate(
 		return ids, text, decodeErr
 	}
 
-	// start is the tokens decoded before the loop below: those a speculation decoded until a grammar triggered.
+	// start is the tokens decoded before the loop below: those a speculation or the round decoded until a grammar
+	// triggered.
 	start, promptTokens := 0, len(ids)
+	// A runner opened for Strata's decode round decodes a request through it (strata_round_generate.go); a tool request
+	// until a token triggers its grammar, which chooses the rest below.
+	if deviceCache != nil && options.MaxNewTokens > 0 && r.strataRoundOn(options, deviceGreedy) {
+		var triggered bool
+		ids, deviceCache, triggered, err = r.generateStrataRound(ctx, ids, deviceCache, options, promptEvaluated)
+		if !triggered || err != nil {
+			if options.CachePrompt && deviceCache != nil {
+				err = errors.Join(err, r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids[:deviceCache.Tokens+1], reference.Value{}, nil, deviceCache))
+			}
+			if err != nil {
+				return ids, "", err
+			}
+			decoded, decodeErr := r.vocab.Decode(ids, false)
+			return ids, decoded, decodeErr
+		}
+		// The grammar the token triggered chooses the rest: the ids the round's cache does not hold are read for its
+		// logits.
+		next, err := r.forwardDeviceCachedModeLocked(ctx, deviceOutputLogits, ids[deviceCache.Tokens:], deviceCache, nil)
+		if err != nil {
+			return ids, "", err
+		}
+		previous := deviceCache
+		deviceCache, deviceGreedy, start = next, false, len(ids)-promptTokens
+		if !r.ownsDevicePromptCache(previous) {
+			if err := previous.Release(ctx); err != nil {
+				return ids, "", err
+			}
+		}
+	}
 	// A greedy request verifies its drafts by the window's selections, a sampled one by drawing the window's rows.
 	if deviceCache != nil && r.deviceSpeculationReady(options) {
 		if err := r.startSpeculatingLocked(); err != nil {

@@ -46,13 +46,14 @@ type executorResources struct {
 	// back (ReleasePromptMemory).
 	promptArena     driver.DevicePtr
 	promptArenaSize uint64
-	// promptArenaLent and stagingLent: the prompt arena and the matmul staging are lent to the experts between reads
-	// (ReleasePromptMemory), and taken back before their next use (reclaim).
-	promptArenaLent, stagingLent bool
-	scratch                      executionScratch
-	buffers                      deviceBufferPool
-	graphExecs                   graphExecCache
-	arenaUse                     arenaMetrics
+	// promptArenaLent, stagingLent, scoresLent and q8Lent: the prompt arena, the matmul staging, the attention scores
+	// and the Q8 input staging are lent to the experts between reads (ReleasePromptMemory), and taken back before their
+	// next use (reclaim), each but the staging only the part the run uses.
+	promptArenaLent, stagingLent, scoresLent, q8Lent bool
+	scratch                                          executionScratch
+	buffers                                          deviceBufferPool
+	graphExecs                                       graphExecCache
+	arenaUse                                         arenaMetrics
 	// promptRouted: the last run through the expert banks was a prompt.
 	promptRouted bool
 	// routesApplied: an advance has applied the last expert run's routes, while a later run that reads no routed expert
@@ -146,6 +147,18 @@ type DeviceBuffer struct {
 }
 
 func (e *Executor) AllocateDeviceBuffer(ctx context.Context, bytes uint64) (*DeviceBuffer, error) {
+	return e.allocateDeviceBuffer(ctx, bytes, (*deviceBufferPool).acquireExact)
+}
+
+// AllocateFixedDeviceBuffer is AllocateDeviceBuffer for a buffer kept for the runner's life, at its own size: a size
+// class, which lets a freed buffer serve a request near its size, holds up to an eighth more of the card than the
+// buffer uses (Flash-Next's QSA cells, 788 MiB, took a class of 896), card memory the expert residency loses, as
+// Strata's session carves its buffers from one arena at their sizes.
+func (e *Executor) AllocateFixedDeviceBuffer(ctx context.Context, bytes uint64) (*DeviceBuffer, error) {
+	return e.allocateDeviceBuffer(ctx, bytes, (*deviceBufferPool).acquireSized)
+}
+
+func (e *Executor) allocateDeviceBuffer(ctx context.Context, bytes uint64, acquire func(*deviceBufferPool, *device.State, uint64) (deviceBufferLease, error)) (*DeviceBuffer, error) {
 	if e == nil || bytes == 0 {
 		return nil, errors.New("CUDA device buffer request is invalid")
 	}
@@ -157,7 +170,7 @@ func (e *Executor) AllocateDeviceBuffer(ctx context.Context, bytes uint64) (*Dev
 	var lease deviceBufferLease
 	err := e.worker.Do(ctx, func(state *device.State) error {
 		var allocateErr error
-		lease, allocateErr = e.resources.buffers.acquireExact(state, bytes)
+		lease, allocateErr = acquire(&e.resources.buffers, state, bytes)
 		return allocateErr
 	})
 	if err != nil {
@@ -1969,8 +1982,13 @@ func (e *Executor) runCompiled(
 		// A cache keeping its frames (a speculating runner's) keeps the
 		// reservation through one-shot runs too: a release moves the
 		// staging every kept frame names, and a regrowth for a longer
-		// verify span drops every exec.
-		if executeErr == nil && !cacheGraph && compiled.matmulStagingBytes > 0 &&
+		// verify span drops every exec. A runner with experts keeps it
+		// as well, lent to them between reads (ReleasePromptMemory) as
+		// Strata's prompt borrows its cache's slots: freed, each read
+		// allocated it again and the reservation moved a layer's card
+		// experts to host memory for it (Flash-Next's round: 292 MiB to
+		// 1.1 GB a read, the card 15.2-16.3K experts through the bench).
+		if executeErr == nil && !cacheGraph && compiled.matmulStagingBytes > 0 && resources.experts == nil &&
 			resources.blas != nil && resources.blas.staging != 0 && !resources.graphExecs.keepsFrames() {
 			// A one-shot staged run (no replay-cache ownership -- prefill,
 			// not steady-state decode) releases the multi-token weight
@@ -2551,6 +2569,9 @@ func execute(
 	}
 	if !replayed {
 		if capturing {
+			if reserveErr := buffers.reserveGraph(state); reserveErr != nil {
+				return nil, reserveErr
+			}
 			if captureErr := state.Driver.StreamBeginCapture(state.Stream); captureErr != nil {
 				return nil, captureErr
 			}
@@ -2761,9 +2782,9 @@ func (e *Executor) ensureResources(
 		if err := kernel.ValidateAssets(); err != nil {
 			return nil, err
 		}
-		// The modules in kernelModuleCount's order: the operation module, then Strata's QSA kernels.
+		// The modules in kernelModuleCount's order: the operation module, Strata's QSA kernels, then its round's native kernels.
 		var modules [kernelModuleCount]driver.Module
-		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.StrataQsaPTX} {
+		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.StrataQsaPTX, kernel.StrataNativePTX} {
 			module, err := state.Driver.ModuleLoadData(ptx)
 			if err != nil {
 				return nil, errors.Join(err, unloadModules(state.Driver, modules[:index]))
@@ -2827,6 +2848,20 @@ func (e *Executor) ensureResources(
 		}
 		e.resources.blas.staging = staging
 		e.resources.blas.stagingBytes = matmulStagingBytes
+	}
+	// A run takes back the part of the lent scores and Q8 staging it uses, the whole of either it outgrows before it is
+	// freed: a short read leaves the rest with the experts.
+	if attentionScoreBytes > 0 && e.resources.blas != nil {
+		if err := e.resources.reclaim(state, e.resources.blas.scores, min(attentionScoreBytes, e.resources.blas.scoreBytes),
+			e.resources.blas.scoreBytes, &e.resources.scoresLent); err != nil {
+			return nil, err
+		}
+	}
+	if q8InputBytes > 0 {
+		if err := e.resources.reclaim(state, e.resources.q8Input.staging, min(q8InputBytes, e.resources.q8Input.stagingBytes),
+			e.resources.q8Input.stagingBytes, &e.resources.q8Lent); err != nil {
+			return nil, err
+		}
 	}
 	if attentionScoreBytes > 0 && e.resources.blas != nil && e.resources.blas.scoreBytes < attentionScoreBytes {
 		scores, err := e.resources.allocate(state, attentionScoreBytes)
@@ -2994,12 +3029,12 @@ func (r *executorResources) reclaim(state *device.State, pointer driver.DevicePt
 	return nil
 }
 
-// ReleasePromptMemory lends the expert residency the card memory a prompt's read borrowed, its one-shot arena and the
-// matmul staging, which the decode's promotions fill while the request decodes and the next read takes back, as
-// Strata's prompt borrows its cache's slots and gives them back: a 16K-token read had left Flash-Next's card 5.6 GB of
-// experts short through every decode after it. Lent, not freed: freed, each next read cleared its arena again and
-// moved experts out of the card's allocations to allocate it (about 220 ms of a 16K read's first token). Without a
-// residency the memory stays the executor's.
+// ReleasePromptMemory lends the expert residency the card memory a prompt's read borrowed, its one-shot arena, the
+// matmul staging and the buffer pool's free buffers (lendFree), which the decode's promotions fill while the request
+// decodes and the next read takes back, as Strata's prompt borrows its cache's slots and gives them back: a 16K-token
+// read had left Flash-Next's card 5.6 GB of experts short through every decode after it. Lent, not freed: freed, each
+// next read cleared its arena again and moved experts out of the card's allocations to allocate it (about 220 ms of a
+// 16K read's first token). Without a residency the memory stays the executor's.
 func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
 	if e == nil {
 		return nil
@@ -3026,10 +3061,21 @@ func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
 			*lent = true
 			return nil
 		}
-		if err := lend(resources.promptArena, resources.promptArenaSize, &resources.promptArenaLent); err != nil || resources.blas == nil {
+		if err := lend(resources.promptArena, resources.promptArenaSize, &resources.promptArenaLent); err != nil {
 			return err
 		}
-		return lend(resources.blas.staging, resources.blas.stagingBytes, &resources.stagingLent)
+		if resources.blas != nil {
+			if err := errors.Join(lend(resources.blas.staging, resources.blas.stagingBytes, &resources.stagingLent),
+				lend(resources.blas.scores, resources.blas.scoreBytes, &resources.scoresLent)); err != nil {
+				return err
+			}
+		}
+		if err := lend(resources.q8Input.staging, resources.q8Input.stagingBytes, &resources.q8Lent); err != nil {
+			return err
+		}
+		return resources.buffers.lendFree(func(pointer driver.DevicePtr, bytes uint64) error {
+			return resources.experts.LendExpertMemory(ctx, state, pointer, bytes)
+		})
 	})
 }
 
@@ -3081,6 +3127,7 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.stagedNode = nil
 		}
 		if e.resources.blas.scores != 0 {
+			errs = append(errs, e.resources.reclaim(state, e.resources.blas.scores, e.resources.blas.scoreBytes, e.resources.blas.scoreBytes, &e.resources.scoresLent))
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.scores))
 			e.resources.blas.scores = 0
 			e.resources.blas.scoreBytes = 0
@@ -3098,6 +3145,7 @@ func (e *Executor) closeResources(state *device.State) error {
 		e.resources.blas = nil
 	}
 	if e.resources.q8Input.staging != 0 {
+		errs = append(errs, e.resources.reclaim(state, e.resources.q8Input.staging, e.resources.q8Input.stagingBytes, e.resources.q8Input.stagingBytes, &e.resources.q8Lent))
 		errs = append(errs, state.Driver.MemFree(e.resources.q8Input.staging))
 		e.resources.q8Input = q8InputState{}
 	}

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
+	"overgo/internal/strataspec"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -69,6 +70,9 @@ type GenerateOptions struct {
 	SpeculativeDecode bool
 	// PlainDecode decodes a token a step though the runner holds an attached draft.
 	PlainDecode bool
+	// StrataRound decodes a greedy request through Strata's decode round (strata-port/decode) where the model is at
+	// Flash-Next's geometry; off, the runner decodes as before.
+	StrataRound bool
 	// OnDraftSpan: each speculative verify span's drafted tokens and how
 	// many of them the trunk accepted.
 	OnDraftSpan func(drafted, accepted int)
@@ -241,12 +245,35 @@ type runnerState struct {
 	qsaStage *qsaStage
 	// qsaRing is the cells a QSA layer keeps on the card once its sequence streams; zero for qsaRingCells.
 	qsaRing uint32
+	// qsaStreamed holds a request's sequences at the context from their first token (qsaSequenceCapacity), set while a
+	// request decoding through Strata's round runs.
+	qsaStreamed bool
+	// qsaStreamedContext is the cells such a sequence holds (Strata's --max-context), zero for the model's context.
+	qsaStreamedContext uint32
+	// qsaSession is the session cells a round request's sequences take in turn (newQSACells), kept at fixed addresses
+	// for the runner's life as Strata's one session is; nil before the first.
+	qsaSession *qsaCells
 	// qsaWindow is the rows a verify window keeps for its commit and the window's control, allocated at the first
 	// window (qsa_window.go); qsaCommits are the compiled commits, a window size and cell layout each.
 	qsaWindow  *qsaWindowScratch
 	qsaCommits map[qsaCommitKey]*qsaCommitGraph
 	// qsaWindows holds whether the runner decodes through Strata's verifier (qsaWindowSet).
 	qsaWindows bool
+	// strata is the runner's Strata decode round, made at its first decode (strata_round.go); nil before.
+	strata *strataRound
+	// strataDraft is the round's draft layer on the card as Strata's rt pack holds it, placed at open (OpenOptions.StrataRound);
+	// strataPrompt the prompt read's rows the round's drafter takes, while a round request reads its prompt.
+	strataDraft  *strataDraftPack
+	strataPrompt *strataDraftPrompt
+	// strataSuffix and strataPolicy are the round's suffix drafter and draft policy, made at its first drafting request.
+	strataSuffix *strataspec.SuffixDrafter
+	strataPolicy *strataspec.DraftPolicy
+	// strataTestDrafts drafts a round's windows in place of the drafter where a check sets it; nil: the drafter's.
+	strataTestDrafts strataDraftSource
+	// strataTestOvergo decodes a round runner's requests Overgo's own way, where a check compares the two.
+	strataTestOvergo bool
+	// strataTestShare is the PCIe share a check sets, nil for Strata's.
+	strataTestShare *float64
 	// qsaWindowLayouts are the rows a window of each size keeps a layer, recorded as its graph is built, which its commit
 	// reads.
 	qsaWindowLayouts map[int][]model.LayerWindow
@@ -304,6 +331,10 @@ type OpenOptions struct {
 	// tokens: a library validation records and replays under it, where host and card products differ by
 	// a rounding that flips a near tie.
 	HoldExperts bool
+	// StrataRound decodes through Strata's round (strata-port/decode): the draft file Draft names feeds the round's
+	// drafter, placed on the card as Strata's rt pack holds it before the experts are, and is not attached as the trunk's
+	// own draft layer.
+	StrataRound bool
 	// F32Cache keeps every attention layer's K/V in the F32 cache, where a layer whose geometry Strata's cells hold
 	// would keep int8 cells: the path a held-out check holds the cells to.
 	F32Cache bool

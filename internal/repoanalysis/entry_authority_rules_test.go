@@ -238,6 +238,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Exceptions: map[string]string{
 				"internal/cuda/driver/driver_windows.go":             "OS-ABI owner: loads the NVIDIA driver library through the Windows ABI",
 				"internal/fsatomic/replace_windows.go":               "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace; ntdll lists the processes holding a file",
+				"internal/hostexpert/cores_windows.go":               "OS-ABI owner: kernel32 processor topology and thread group affinity for the expert pool's pinned workers",
 				"internal/landing/space_windows.go":                  "OS-ABI owner: kernel32 GetDiskFreeSpaceExW for the free-space floor of a commit's checks",
 				"internal/processcontrol/supervisor_windows.go":      "OS-ABI owner: kernel32 job objects for process-tree supervision",
 				"internal/processcontrol/resource_shared_windows.go": "OS-ABI owner: shell32 resolves the machine-wide resource admission directory",

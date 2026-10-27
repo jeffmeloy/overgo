@@ -304,6 +304,78 @@ extern "C" __global__ void __launch_bounds__(32 * STRATA_GDN_RG) strata_gdn_step
                                 n_keep);
 }
 
+// ---- gdn_ab_body / gdn_ab_multi_kernel: the window's decay gate and beta from the layer input x [token][n], the bf16
+// alpha and beta rows [value head][n], dt and ssm_a: two rows a block of 64 threads, a warp a row - alpha's rows
+// first, then beta's - every token's dot from one read of the row; gate = softplus(dot + dt) * ssm_a, beta =
+// sigmoid(dot). Launch: grid ceil(2 h_v / 2) blocks of 64 threads.
+#define STRATA_VERIFY_MAX_T 8
+
+template <int MAX_T = STRATA_VERIFY_MAX_T, bool EXACT_T = false>
+__device__ __forceinline__ void strata_gdn_ab_body(const int bx, const float* __restrict__ x, const uint16_t* __restrict__ wa,
+                                                   const uint16_t* __restrict__ wb,
+                                                   const float* __restrict__ dt,
+                                                   const float* __restrict__ ssm_a, float* __restrict__ gate,
+                                                   float* __restrict__ beta, int n, int h_v, int T) {
+    const int row = bx * 2 + (threadIdx.x >> 5), lane = threadIdx.x & 31;
+    if (row >= 2 * h_v) return;
+    const bool is_beta = row >= h_v;
+    const int r = is_beta ? row - h_v : row;
+    const uint4* w4 = reinterpret_cast<const uint4*>((is_beta ? wb : wa) + (size_t) r * n);
+    float acc[MAX_T];
+#pragma unroll
+    for (int t = 0; t < MAX_T; ++t) acc[t] = 0.0f;
+    for (int j = lane; j < n / 8; j += 32) {
+        const uint4 wv = __ldg(w4 + j);
+        const float w0 = __uint_as_float(wv.x << 16), w1 = __uint_as_float(wv.x & 0xffff0000u);
+        const float w2 = __uint_as_float(wv.y << 16), w3 = __uint_as_float(wv.y & 0xffff0000u);
+        const float w4f = __uint_as_float(wv.z << 16), w5 = __uint_as_float(wv.z & 0xffff0000u);
+        const float w6 = __uint_as_float(wv.w << 16), w7 = __uint_as_float(wv.w & 0xffff0000u);
+#pragma unroll
+        for (int t = 0; t < MAX_T; ++t) {
+            if (!EXACT_T && t >= T) break;
+            const float* xt = x + (size_t) t * n;
+            const float4 xa = __ldg(reinterpret_cast<const float4*>(xt + j * 8));
+            const float4 xb = __ldg(reinterpret_cast<const float4*>(xt + j * 8 + 4));
+            float a = acc[t];
+            a = fmaf(w0, xa.x, a); a = fmaf(w1, xa.y, a);
+            a = fmaf(w2, xa.z, a); a = fmaf(w3, xa.w, a);
+            a = fmaf(w4f, xb.x, a); a = fmaf(w5, xb.y, a);
+            a = fmaf(w6, xb.z, a); a = fmaf(w7, xb.w, a);
+            acc[t] = a;
+        }
+    }
+#pragma unroll
+    for (int t = 0; t < MAX_T; ++t) {
+        if (!EXACT_T && t >= T) break;
+        float a = acc[t];
+#pragma unroll
+        for (int o = 16; o > 0; o >>= 1) a += __shfl_xor_sync(0xffffffffu, a, o);
+        if (lane != 0) continue;
+        if (is_beta) {
+            beta[(size_t) t * h_v + r] = 1.0f / (1.0f + __expf(-a));
+        } else {
+            const float v = a + dt[r];
+            const float sp = v > 20.0f ? v : log1pf(__expf(v));
+            gate[(size_t) t * h_v + r] = sp * ssm_a[r];
+        }
+    }
+}
+
+#define STRATA_GDN_AB(NAME, MAX_T, EXACT)                                                                               \
+    extern "C" __global__ void __launch_bounds__(64) NAME(const float * __restrict__ x, const uint16_t * __restrict__ wa, \
+            const uint16_t * __restrict__ wb, const float * __restrict__ dt, const float * __restrict__ ssm_a,        \
+            float * __restrict__ gate, float * __restrict__ beta, int n, int h_v, int T) {                             \
+        strata_gdn_ab_body<MAX_T, EXACT>(blockIdx.x, x, wa, wb, dt, ssm_a, gate, beta, n, h_v, T);                     \
+    }
+STRATA_GDN_AB(strata_gdn_ab_multi_t1, 1, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t2, 2, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t3, 3, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t4, 4, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t5, 5, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t6, 6, true)
+STRATA_GDN_AB(strata_gdn_ab_multi_t8, STRATA_VERIFY_MAX_T, false)
+#undef STRATA_GDN_AB
+
 // ---- copy_indexed_kernel: dst's n values become src's from row index (read from device memory) on, rows of stride
 // values; nothing when the index is negative. The commit's copy of a window's history after its kept tokens.
 // Launch: min(ceil(n / 256), 64) blocks of 256 threads.

@@ -597,7 +597,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:84341df4912dfa4cef8e6cde53a85791b807fd96acef3a195f43a5d1b14abd66"
+     "identity": "evidence:sha256:40d43ec725a8847e186d898bde649470a4d6ec92e6b4a8ef1a471b1a51bc18ae"
     }
    ],
    "id": "bounded-server-media",
@@ -801,13 +801,13 @@
      "contains": "func (w *Worker) Do(",
      "path": "internal/cuda/device/worker.go",
      "role": "source",
-     "identity": "file:sha256:34b27d6bcbc39771973923ff0605acf8630455c09aa67c0264cc0b1623e26dd1"
+     "identity": "file:sha256:b4c838176bf3141833533effae990bc9ab40c50984c55bacb58d0312586610ad"
     },
     {
      "contains": "func TestWorkerMemoryRoundTrip(",
      "path": "internal/cuda/device/worker_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d1a1490675609d056d968bc7a64cbc8278f119fc52bc626008c161aa43fa5879"
+     "identity": "evidence:sha256:909a2713372e07f5f0ee89bb2271416c800b6fbbbb67c81523d48a7a523d544c"
     }
    ],
    "id": "serialized-cuda-worker",
@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:c5fcf83eb88308b5d75fc7705611181166ef63de4548d122a8df4484ba0bcec1"
+     "identity": "file:sha256:9aaed5da1779ee3593e9e4d97e528815a362a9e855dafdd4188b9799b1477dfc"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",

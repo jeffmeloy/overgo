@@ -95,6 +95,7 @@ type Library struct {
 	cuEventCreate        *syscall.Proc
 	cuEventDestroy       *syscall.Proc
 	cuEventRecord        *syscall.Proc
+	cuEventElapsedTime   *syscall.Proc
 	cuMemAlloc           *syscall.Proc
 	cuMemFree            *syscall.Proc
 	cuMemGetInfo         *syscall.Proc
@@ -104,6 +105,7 @@ type Library struct {
 	cuMemcpyDtoH         *syscall.Proc
 	cuMemcpyDtoHAsync    *syscall.Proc
 	cuMemcpyDtoD         *syscall.Proc
+	cuMemcpyDtoDAsync    *syscall.Proc
 	cuMemsetD32Async     *syscall.Proc
 	cuMemHostAlloc       *syscall.Proc
 	cuMemHostDevice      *syscall.Proc
@@ -118,6 +120,7 @@ type Library struct {
 	cuGraphInstantiate   *syscall.Proc
 	cuGraphExecUpdate    *syscall.Proc
 	cuGraphLaunch        *syscall.Proc
+	cuGraphUpload        *syscall.Proc
 	cuGraphDestroy       *syscall.Proc
 	cuGraphExecDestroy   *syscall.Proc
 }
@@ -156,6 +159,7 @@ func Open() (*Library, error) {
 		{"cuEventCreate", &lib.cuEventCreate},
 		{"cuEventDestroy_v2", &lib.cuEventDestroy},
 		{"cuEventRecord", &lib.cuEventRecord},
+		{"cuEventElapsedTime", &lib.cuEventElapsedTime},
 		{"cuMemAlloc_v2", &lib.cuMemAlloc},
 		{"cuMemFree_v2", &lib.cuMemFree},
 		{"cuMemGetInfo_v2", &lib.cuMemGetInfo},
@@ -165,6 +169,7 @@ func Open() (*Library, error) {
 		{"cuMemcpyDtoH_v2", &lib.cuMemcpyDtoH},
 		{"cuMemcpyDtoHAsync_v2", &lib.cuMemcpyDtoHAsync},
 		{"cuMemcpyDtoD_v2", &lib.cuMemcpyDtoD},
+		{"cuMemcpyDtoDAsync_v2", &lib.cuMemcpyDtoDAsync},
 		{"cuMemsetD32Async", &lib.cuMemsetD32Async},
 		{"cuMemHostAlloc", &lib.cuMemHostAlloc},
 		{"cuMemHostGetDevicePointer_v2", &lib.cuMemHostDevice},
@@ -179,6 +184,7 @@ func Open() (*Library, error) {
 		{"cuGraphInstantiateWithFlags", &lib.cuGraphInstantiate},
 		{"cuGraphExecUpdate_v2", &lib.cuGraphExecUpdate},
 		{"cuGraphLaunch", &lib.cuGraphLaunch},
+		{"cuGraphUpload", &lib.cuGraphUpload},
 		{"cuGraphDestroy", &lib.cuGraphDestroy},
 		{"cuGraphExecDestroy", &lib.cuGraphExecDestroy},
 	}
@@ -256,6 +262,11 @@ func (l *Library) GraphLaunch(execution GraphExec, stream Stream) error {
 		l.graphLaunches.Add(1)
 	}
 	return err
+}
+
+// GraphUpload uploads an instantiated graph's work to the device on stream, so its first launch does not.
+func (l *Library) GraphUpload(execution GraphExec, stream Stream) error {
+	return l.call(l.cuGraphUpload, uintptr(execution), uintptr(stream))
 }
 
 func (l *Library) GraphDestroy(graph Graph) error {
@@ -556,6 +567,50 @@ func (l *Library) WaitEvent(waiter Stream, event Event) error {
 	return errors.Join(l.call(l.cuStreamWaitEvent, uintptr(waiter), uintptr(event), 0), l.ReleaseEvent(event))
 }
 
+// TimeCopiesHtoD copies source to destination bursts times back to back on stream, a timing event between each two, and
+// answers each copy's milliseconds as the events measured them.
+func (l *Library) TimeCopiesHtoD(destination DevicePtr, source []byte, bursts int, stream Stream) ([]float32, error) {
+	events := make([]uintptr, bursts+1)
+	var errs []error
+	for index := range events {
+		result, _, _ := l.cuEventCreate.Call(uintptr(unsafe.Pointer(&events[index])), 0)
+		if err := l.result("cuEventCreate", result); err != nil {
+			errs = append(errs, err)
+			events = events[:index]
+			break
+		}
+	}
+	defer func() {
+		for _, event := range events {
+			_ = l.call(l.cuEventDestroy, event)
+		}
+	}()
+	if len(errs) != 0 {
+		return nil, errors.Join(errs...)
+	}
+	if err := l.call(l.cuEventRecord, events[0], uintptr(stream)); err != nil {
+		return nil, err
+	}
+	for burst := range bursts {
+		if err := l.MemcpyHtoDAsync(destination, source, stream); err != nil {
+			return nil, err
+		}
+		if err := l.call(l.cuEventRecord, events[burst+1], uintptr(stream)); err != nil {
+			return nil, err
+		}
+	}
+	if err := l.StreamSynchronize(stream); err != nil {
+		return nil, err
+	}
+	times := make([]float32, bursts)
+	for burst := range bursts {
+		if err := l.call(l.cuEventElapsedTime, uintptr(unsafe.Pointer(&times[burst])), events[burst], events[burst+1]); err != nil {
+			return nil, err
+		}
+	}
+	return times, nil
+}
+
 // ReleaseEvent releases a mark RecordEvent made that no stream will wait for.
 func (l *Library) ReleaseEvent(event Event) error {
 	return l.call(l.cuEventDestroy, uintptr(event))
@@ -854,6 +909,20 @@ func (l *Library) MemcpyDtoD(
 	return nil
 }
 
+// MemcpyDtoDAsync enqueues a copy of bytes between two device addresses on stream: under capture, a memcpy node.
+func (l *Library) MemcpyDtoDAsync(destination, source DevicePtr, bytes uint64, stream Stream) error {
+	if bytes == 0 {
+		return nil
+	}
+	result, _, _ := l.cuMemcpyDtoDAsync.Call(uintptr(destination), uintptr(source), uintptr(bytes), uintptr(stream))
+	if err := l.result("cuMemcpyDtoDAsync_v2", result); err != nil {
+		return err
+	}
+	l.deviceToDeviceCopies.Add(1)
+	l.deviceToDeviceBytes.Add(bytes)
+	return nil
+}
+
 // MemsetD32Async: enqueues 32-bit device fill in stream
 func (l *Library) MemsetD32Async(
 	destination DevicePtr,
@@ -1039,6 +1108,19 @@ func (l *Library) FuncSetMaxDynamicShared(function Function, bytes uint32) error
 	return l.result("cuFuncSetAttribute", result)
 }
 
+// funcAttributePreferredSharedCarveout: CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT.
+const funcAttributePreferredSharedCarveout = 9
+
+// FuncSetPreferredSharedCarveout sets the share of the L1/shared split, in percent, a kernel prefers for shared memory.
+func (l *Library) FuncSetPreferredSharedCarveout(function Function, percent uint32) error {
+	result, _, _ := l.cuFuncSetAttribute.Call(
+		uintptr(function),
+		uintptr(funcAttributePreferredSharedCarveout),
+		uintptr(percent),
+	)
+	return l.result("cuFuncSetAttribute", result)
+}
+
 // LaunchKernel: launches CUDA kernel; Each argument must point to storage
 // containing one kernel parameter value and must stay live until this method
 // returns
@@ -1103,6 +1185,15 @@ func (l *Library) DeviceProfile(device Device) (smCount, maxThreadsPerSM int, er
 		return 0, 0, err
 	}
 	return smCount, maxThreadsPerSM, nil
+}
+
+// ComputeCapability returns the device's compute capability.
+func (l *Library) ComputeCapability(device Device) (major, minor int, err error) {
+	if major, err = l.deviceAttribute(device, attributeComputeCapabilityMajor); err != nil {
+		return 0, 0, err
+	}
+	minor, err = l.deviceAttribute(device, attributeComputeCapabilityMinor)
+	return major, minor, err
 }
 
 func (l *Library) deviceAttribute(device Device, attribute int) (int, error) {

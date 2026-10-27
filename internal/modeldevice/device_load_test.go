@@ -748,3 +748,69 @@ func TestLoaderVerifiesEverySplitShard(t *testing.T) {
 		})
 	}
 }
+
+// mappingDevice is a fake device that also maps pinned host memory, each host allocation at a device address of its
+// own.
+type mappingDevice struct {
+	*fakeDevice
+	hosted map[driver.DevicePtr][]byte
+}
+
+func (d *mappingDevice) hostAlloc(_ context.Context, size uint64) ([]byte, driver.DevicePtr, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	pointer := d.next
+	d.next += driver.DevicePtr(size) + 512
+	host := make([]byte, size)
+	d.hosted[pointer] = host
+	return host, pointer, nil
+}
+
+func (d *mappingDevice) freeHosted(_ context.Context, data [][]byte) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, host := range data {
+		found := false
+		for pointer, held := range d.hosted {
+			if &held[0] == &host[0] {
+				delete(d.hosted, pointer)
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("free of host memory that is not live")
+		}
+	}
+	return nil
+}
+
+// TestLoaderMapsATensorFromHostMemory routes one tensor into mapped host memory and another onto the card: the mapped
+// one holds its file bytes in host memory at the address the store names, takes no card allocation, and the store's
+// close frees both kinds.
+func TestLoaderMapsATensorFromHostMemory(t *testing.T) {
+	source := writeFixture(t, rand.New(rand.NewPCG(3, 4)), []fixtureTensor{
+		{name: "a.q8", shape: []uint64{64, 3}, kind: dtype.Q8_0, raw: true},
+		{name: "b.f16", shape: []uint64{8, 4}, kind: dtype.F16, raw: true},
+	}, 0, 0)
+	file := source.parse(t)
+	device := &mappingDevice{fakeDevice: newFakeDevice(), hosted: make(map[driver.DevicePtr][]byte)}
+	s := newStores(device)
+	loader := NewLoader(file)
+	mapped, _ := file.Tensor("a.q8")
+	carded, _ := file.Tensor("b.f16")
+	loader.Mapped(s.raw, []gguf.TensorInfo{mapped})
+	loader.Raw(s.raw, []gguf.TensorInfo{carded})
+	if err := loader.Load(t.Context(), nil); err != nil {
+		t.Fatal(err)
+	}
+	value, found := s.raw.Lookup("a.q8")
+	if host, hosted := device.hosted[value.Pointer]; !found || !hosted || !bytes.Equal(host, source.payloads["a.q8"]) {
+		t.Fatalf("the mapped tensor is not its file bytes in host memory at its address (found %t)", found)
+	}
+	if card, found := s.raw.Lookup("b.f16"); !found || !bytes.Equal(device.contents(t, card), source.payloads["b.f16"]) || device.liveCount() != 1 {
+		t.Fatalf("the card holds %d allocations, want the other tensor's alone (found %t)", device.liveCount(), found)
+	}
+	if err := s.raw.Close(); err != nil || device.liveCount() != 0 || len(device.hosted) != 0 {
+		t.Fatalf("close left %d card and %d host allocations: %v", device.liveCount(), len(device.hosted), err)
+	}
+}

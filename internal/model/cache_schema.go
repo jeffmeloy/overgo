@@ -92,8 +92,9 @@ const (
 	CacheStateCrossValue             CacheStateName = "cross_value"
 	// CacheStateNGramHistory retains preceding token IDs for causal row selection.
 	CacheStateNGramHistory CacheStateName = "ngram_history"
-	// cacheStateNGramConvolution retains gated values for lexical convolution.
-	cacheStateNGramConvolution CacheStateName = "ngram_convolution"
+	// CacheStateNGramConvolution retains gated values for lexical convolution: (width*streams, history rows), the oldest
+	// row first.
+	CacheStateNGramConvolution CacheStateName = "ngram_convolution"
 )
 
 // CacheValueSchema: named or primary state contract.
@@ -270,7 +271,7 @@ func cacheSchemaForPlan(
 	schema := LayerCacheSchema{Label: "KV"}
 	states := cacheSchemaBuilder{schema: &schema}
 	if n := spec.NGram; n != nil && n.Layer == plan.Layer {
-		states.state(cacheStateNGramConvolution, CacheStateFixed, true, false,
+		states.state(CacheStateNGramConvolution, CacheStateFixed, true, false,
 			uint64(spec.EmbeddingLength)*uint64(spec.HyperConnectionCount), uint64(n.ConvKernel-1)*uint64(n.Size))
 		states.state(CacheStateNGramHistory, CacheStateFixed, false, false, uint64(n.Size-1))
 	}

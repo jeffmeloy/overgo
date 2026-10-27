@@ -49,20 +49,28 @@ func (e *Executor) SetExpertBanks(source ExpertBanks) error {
 	}
 	// Memory lent to the previous owner comes back first.
 	if err := e.worker.Do(context.Background(), func(state *device.State) error {
-		var staging driver.DevicePtr
-		var stagingBytes uint64
+		var staging, scores driver.DevicePtr
+		var stagingBytes, scoreBytes uint64
 		if e.resources.blas != nil {
 			staging, stagingBytes = e.resources.blas.staging, e.resources.blas.stagingBytes
+			scores, scoreBytes = e.resources.blas.scores, e.resources.blas.scoreBytes
 		}
+		q8 := e.resources.q8Input
 		return errors.Join(e.resources.reclaim(state, e.resources.promptArena, e.resources.promptArenaSize, e.resources.promptArenaSize, &e.resources.promptArenaLent),
-			e.resources.reclaim(state, staging, stagingBytes, stagingBytes, &e.resources.stagingLent), e.resources.graphExecs.drop(state))
+			e.resources.reclaim(state, staging, stagingBytes, stagingBytes, &e.resources.stagingLent),
+			e.resources.reclaim(state, scores, scoreBytes, scoreBytes, &e.resources.scoresLent),
+			e.resources.reclaim(state, q8.staging, q8.stagingBytes, q8.stagingBytes, &e.resources.q8Lent),
+			e.resources.buffers.takeBackAll(state), e.resources.graphExecs.drop(state))
 	}); err != nil {
 		return err
 	}
 	e.resources.experts = source
-	e.resources.buffers.reserve = nil
+	e.resources.buffers.reserve, e.resources.buffers.reclaim = nil, nil
 	if source != nil {
 		e.resources.buffers.reserve = source.ReserveExpertMemory
+		e.resources.buffers.reclaim = func(state *device.State, pointer driver.DevicePtr, bytes uint64) error {
+			return source.ReclaimExpertMemory(context.Background(), state, pointer, bytes)
+		}
 	}
 	return nil
 }

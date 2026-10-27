@@ -67,6 +67,7 @@ type segment struct {
 	info     gguf.TensorInfo
 	routes   []route
 	pointers []driver.DevicePtr // each route's allocation, made before the pass reads
+	hosts    [][]byte           // a mapped route's pinned host bytes, which the card reads at its pointer
 	storage  []byte             // the whole tensor, gathered for routes that convert
 	bank     *expertBank        // the residency's bank, for a tensor routed to experts
 }
@@ -78,6 +79,8 @@ type route struct {
 	encode        convertedTensorEncoder // nil: the bytes upload as stored
 	bytesPerValue uint64
 	expert        bool
+	// mapped places the bytes as stored in pinned host memory the card maps (Mapped).
+	mapped bool
 }
 
 // NewLoader starts a pass over the file with no tensors routed.
@@ -89,6 +92,15 @@ func NewLoader(file *gguf.File) *Loader {
 func (l *Loader) Raw(store *DeviceWeights, infos []gguf.TensorInfo) {
 	for _, info := range infos {
 		l.route(info, route{store: store.deviceTensorStore})
+	}
+}
+
+// Mapped routes tensors into the store as the file stores them, in pinned host memory the card maps rather than on the
+// card, as Strata keeps its token embedding ("token embedding Q8_0 in mapped host memory"): a table whose rows a step
+// reads a few of at a time costs the card nothing, and leaves its memory to the expert cache.
+func (l *Loader) Mapped(store *DeviceWeights, infos []gguf.TensorInfo) {
+	for _, info := range infos {
+		l.route(info, route{store: store.deviceTensorStore, mapped: true})
 	}
 }
 
@@ -202,7 +214,7 @@ func (l *Loader) segments(shards []gguf.Shard) ([][]*segment, error) {
 		routed.shard = int(info.Shard)
 		routed.offset = shards[routed.shard].DataOffset + info.Offset
 		routed.length = info.Size
-		routed.pointers = make([]driver.DevicePtr, len(routed.routes))
+		routed.pointers, routed.hosts = make([]driver.DevicePtr, len(routed.routes)), make([][]byte, len(routed.routes))
 		perShard[routed.shard] = append(perShard[routed.shard], routed)
 	}
 	for _, routed := range perShard {
@@ -216,6 +228,16 @@ type heldTensor struct {
 	store *deviceTensorStore
 	name  string
 	value DeviceTensor
+	// host is a mapped tensor's pinned host bytes.
+	host []byte
+}
+
+// free frees the upload: a mapped tensor's host bytes, another's card allocation.
+func (h heldTensor) free(ctx context.Context) error {
+	if h.host != nil {
+		return h.store.mem.(hostMappedMemory).freeHosted(ctx, [][]byte{h.host})
+	}
+	return h.store.mem.free(ctx, []driver.DevicePtr{h.value.Pointer})
 }
 
 type loadRun struct {
@@ -254,12 +276,25 @@ func (r *loadRun) allocate(ctx context.Context) error {
 					}
 					value.Shape, value.Size, size = shape, bytes, bytes
 				}
+				if destination.mapped {
+					mapper, ok := destination.store.mem.(hostMappedMemory)
+					if !ok || destination.encode != nil {
+						return fmt.Errorf("%s tensor %q cannot be mapped from host memory", destination.store.kind, info.Name)
+					}
+					host, pointer, err := mapper.hostAlloc(ctx, size)
+					if err != nil {
+						return fmt.Errorf("allocate %s tensor %q in mapped host memory: %w", destination.store.kind, info.Name, err)
+					}
+					value.Pointer, piece.pointers[index], piece.hosts[index] = pointer, pointer, host
+					r.held = append(r.held, heldTensor{destination.store, info.Name, value, host})
+					continue
+				}
 				pointer, err := destination.store.mem.alloc(ctx, size)
 				if err != nil {
 					return fmt.Errorf("allocate %s tensor %q: %w", destination.store.kind, info.Name, err)
 				}
 				value.Pointer, piece.pointers[index] = pointer, pointer
-				r.held = append(r.held, heldTensor{destination.store, info.Name, value})
+				r.held = append(r.held, heldTensor{destination.store, info.Name, value, nil})
 			}
 		}
 	}
@@ -516,6 +551,10 @@ func (r *loadRun) upload(ctx context.Context, piece *segment, offset uint64, dat
 		if destination.encode != nil {
 			continue
 		}
+		if host := piece.hosts[index]; host != nil {
+			copy(host[offset:], data)
+			continue
+		}
 		if err := destination.store.mem.write(ctx, piece.pointers[index]+driver.DevicePtr(offset), data); err != nil {
 			return fmt.Errorf("upload tensor %q at %d: %w", info.Name, offset, err)
 		}
@@ -608,6 +647,12 @@ func (r *loadRun) publish(ctx context.Context) error {
 	}
 	for _, upload := range r.held {
 		upload.store.tensors[upload.name] = upload.value
+		if upload.host != nil {
+			if upload.store.hosted == nil {
+				upload.store.hosted = make(map[string][]byte)
+			}
+			upload.store.hosted[upload.name] = upload.host
+		}
 	}
 	r.held = nil
 	if r.experts != nil {
@@ -621,7 +666,7 @@ func (r *loadRun) publish(ctx context.Context) error {
 func (r *loadRun) release() error {
 	var errs []error
 	for _, upload := range r.held {
-		errs = append(errs, upload.store.mem.free(context.Background(), []driver.DevicePtr{upload.value.Pointer}))
+		errs = append(errs, upload.free(context.Background()))
 	}
 	r.held = nil
 	if residency := r.experts; residency != nil {

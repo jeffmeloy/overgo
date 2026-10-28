@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-006 identifies prompt whitespace lost by the shared chat composer. All 39 earlier findings and owner responses are preserved. Totals are 37 open and 3 deferred.",
-    "declined_candidates": "No measured token/pixel change or performance claim. Optional layout validation retains its source coordinate convention; no new parser, prompt normalization policy or MOSS-specific composer is recommended.",
-    "priority": "The new MOSS P2 transport defect follows existing MOSS P2 findings and precedes the P3 exact-comparison guard. Earlier relative ranks are unchanged."
+    "assessment": "New P2 SQA-MOSS-007 identifies an accepted image extent that panics during VAE shape construction. All 40 earlier findings and owner responses are preserved. Totals are 38 open and 3 deferred.",
+    "declined_candidates": "No resource measurement or arbitrary size limit is proposed. Large but representable allocation pressure remains outside this specific integer-overflow finding; the known scheduler cancellation defect remains SQA-MOSS-004.",
+    "priority": "The new MOSS P2 process-termination risk precedes the existing MOSS findings. All earlier findings retain their relative rank and disposition."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db",
+    "revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2219,6 +2219,74 @@
       ],
       "status": "open",
       "title": "Preserve prompt whitespace through the shared composer"
+    },
+    {
+      "category": "generation-geometry-validation",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "The existing host compiler test refuses plane, channel-product and packed-channel-product overflow with errors and no panic, without allocating tensors at those extents.",
+        "Both request-derived shape sites use checked construction, and the existing ordinary and packed decoder numerical cases retain their exact contracts.",
+        "A refused extent returns through the existing operation failure path; no MOSS-specific admission owner, arbitrary upper size or global panic suppression is introduced."
+      ],
+      "comparison": "Extend TestVAEProgramReferenceMatchesHost with host-only refusal rows. Its existing small synthetic decoder can demonstrate ordinary channel-product overflow with h=w=2^31 and ZDim=4, before any graph operations or large buffers; a tiny packed decoder description can target the second shape site while its first shape fits. Also retain the existing plane-overflow guard and valid graph/reference comparisons. Existing TestMOSSDecoderGolden, TestMOSSDecoderCUDAGolden and TestMOSSGeneratorLifecycle remain distinct numerical/device-lifetime evidence, not proof of this input refusal. Retained tmp/moss-merge/native-v2.log and browser-v2.log were reused with their original scope; diffusionimage reports no tests to run. SQA ran no test or model workload for this source-based finding.",
+      "displaced_surface": "Two unchecked request-dependent shape assertions become checked construction in the existing VAE compiler. No duplicate validator, test suite, fixture, configuration or recovery subsystem is needed. No existing test should disappear: extend the existing host compiler test with overflow rows. Small error-handling/test growth is expected; no net code, memory or latency reduction is measured.",
+      "evidence": "Source-confirmed counterexample on the Windows 64-bit serving path: prompt blue cube, width=height=17179869184 (2^34), steps=1 passes ValidateRequest and MOSS divisibility by 16. The pinned SFT VAE declares 32 latent channels and a 2-by-2 patch; the resolved spatial scale is 16. loadRotaryGenerator therefore passes h=w=1073741824 (2^30) to CompileVAEProgram. The checked h*w product is 1152921504606846976 (2^60), which fits int64. The first tensor.MustShape then requires 32*2^60=36893488147419103232 (2^65) elements, exceeding uint64. NewShape returns an error but MustShape panics. This happens before the request's GPU session is created; the operation runs in its own goroutine without a recovery boundary, so the panic can terminate the server rather than fail only that operation. These canvas values are exactly representable by the browser too, so SQA-MOSS-003 is not the cause. The arithmetic and caller chain were inspected; no large request, model execution, allocation experiment or crashing probe was run.",
+      "evidence_commit": "849360e45aa40d7da13773b3355ff5bb035ce8f5",
+      "expected_benefit": {
+        "outcome": "Reject impossible geometry without process termination or attempting its tensor allocation; preserve shared compiler ownership across MOSS and Krea.",
+        "uncertainty": "The failure is established from source and exact integer arithmetic, not a live server crash. This does not establish a safe capacity for large but representable requests, nor claim to solve all allocation-pressure or geometry issues."
+      },
+      "id": "SQA-MOSS-007",
+      "impact": "An admitted but unrepresentable image extent can end the serving process and interrupt unrelated requests. After repair the same input fails the current operation with a geometry explanation, and subsequent ordinary requests can still run. Supported extents, seeds, native numerical behavior and fixture tolerances remain unchanged.",
+      "likely_effort": "Small shared Go error-propagation change and additional rows in the existing host compiler test; no full-model run is needed to decide the overflow behavior.",
+      "plan_coverage": "The paused MOSS plan retains resource-boundedness work, but its remaining steps do not name this host shape-overflow boundary. The finding is advisory; no plan adoption or implementation is performed.",
+      "plan_references": [],
+      "recommended_change": "When implementation resumes, replace both request-derived MustShape calls in the existing CompileVAEProgram owner with tensor.NewShape and propagate a contextual error through its existing return path. Keep the existing checked plane and unpacking arithmetic. Let the current tensor builder and storage-byte validation reject later unrepresentable shapes through errors; retain valid graph construction and dtype behavior. Both packed MOSS and ordinary Krea callers must receive a refusal rather than a panic. Do not add an arbitrary canvas ceiling, a MOSS-only validator, a new resource manager or a broad recover that hides the arithmetic defect.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "Request at 23 and ValidateRequest at 54 accept positive integer extents; LoadGenerator at 70 routes the MOSS profile to loadRotaryGenerator; the Krea path also calls CompileVAEProgram at 121"
+        },
+        {
+          "path": "internal/media/codec.go",
+          "symbol": "ValidateSpatialGeometry at 376 checks positive sides, without multiplying them"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "loadRotaryGenerator at 31 validates divisibility and derives latent sides at 61-67, then calls CompileVAEProgram at 68 before NewResidentSession at 72"
+        },
+        {
+          "path": "internal/latentimage/vae_program.go",
+          "symbol": "CompileVAEProgram at 68 checks h*w at 78, then calls tensor.MustShape with ZDim*inputPlane at 98 and packed*inputPlane at 126"
+        },
+        {
+          "path": "internal/tensor/shape.go",
+          "symbol": "NewShape at 46 calls Elements; Elements at 100 returns element-count overflow; MustShape at 92 turns that error into a panic"
+        },
+        {
+          "path": "internal/server/generation_store_workspace.go",
+          "symbol": "ExecuteWorkflow at 196 calls the generation executor at 222; its error path expects an error return"
+        },
+        {
+          "path": "internal/operation/runtime.go",
+          "symbol": "Manager.start at 183 launches manager.run through wait.Go at 223; run at 232 directly invokes current.execute at 235 without panic recovery"
+        },
+        {
+          "path": "internal/mediacapability/image_cuda_windows.go",
+          "symbol": "pictureSessions at 32 passes the shared request to latentimage.LoadGenerator at 45"
+        },
+        {
+          "path": "internal/latentimage/decoder_verify_windows.go",
+          "symbol": "verifyMOSSDecoder at 25 also calls CompileVAEProgram at 37"
+        },
+        {
+          "path": "internal/latentimage/vae_program_test.go",
+          "symbol": "TestVAEProgramReferenceMatchesHost at 120 is the existing host compiler behavior owner"
+        }
+      ],
+      "status": "open",
+      "title": "Return a geometry error instead of panicking on VAE shape overflow"
     }
   ],
   "gate_test_assessment": {
@@ -2766,8 +2834,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-006. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
-    "checked_head": "3acbb325327bb7175c5f7dac3670600f4c40f9db",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-007. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "849360e45aa40d7da13773b3355ff5bb035ce8f5",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2804,6 +2872,7 @@
     "SQA-154",
     "SQA-161",
     "SQA-170",
+    "SQA-MOSS-007",
     "SQA-MOSS-001",
     "SQA-MOSS-003",
     "SQA-MOSS-004",
@@ -2834,21 +2903,23 @@
     "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain documented merge-baseline scope mismatches; no broad rerun or database mutation was performed.",
     "At 3acbb3253, SQA-MOSS-006 traces composer.submit's destructive trim through chat.submit and generation to the MOSS prompt. The generation form and HTTP regression preserve the whitespace-bearing request. Existing native tokenizer whitespace fixtures remain valid; no new model result is claimed.",
     "The smallest repair preserves raw submitted text in the shared composer and keeps trimming solely for blank-input admission. Both chat and agent consumers are affected; retain shared guards and extend the existing hermetic MOSS journey instead of duplicating its setup.",
-    "The two master-plan-dependent checks and live-store MOSS catalog omission remain accepted merge-baseline scope mismatches. No plan change, implementation, broad check or database mutation occurred."
+    "The two master-plan-dependent checks and live-store MOSS catalog omission remain accepted merge-baseline scope mismatches. No plan change, implementation, broad check or database mutation occurred.",
+    "At 849360e45, SQA-MOSS-007 traces a positive, divisible image extent through ValidateRequest to CompileVAEProgram. The plane fits int64 while its channel product overflows uint64; MustShape converts the existing shape error into an unrecovered operation-goroutine panic. No huge input was executed.",
+    "Use tensor.NewShape at the two request-derived VAE shape sites and return the existing error. Reuse the host compiler test for overflow refusal; keep native numerical fixtures and supported request behavior unchanged."
   ],
-  "reviewed_at": "2026-10-28T00:59:17Z",
+  "reviewed_at": "2026-10-28T17:11:27Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 3acbb325327bb7175c5f7dac3670600f4c40f9db on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
-    "Rotated sample covers optional layout validation, native whitespace fixtures, actual chat/generation-form callers and prompt restoration. Retained browser validation is reused with its original scope.",
-    "The new finding is source-based. No generation, training, performance sweep, test, service or production gate ran.",
+    "SQA-only review at 849360e45aa40d7da13773b3355ff5bb035ce8f5 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample covers request geometry, shared VAE shape construction, packed latent dimensions and the actual operation/session callers. Retained native and browser validation is reused with its original scope.",
+    "The new finding is source-based with exact integer arithmetic. No large request, generation, training, performance sweep, test, service or production gate ran.",
     "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-006: the shared chat composer silently trims MOSS prompt edges. Prior finding dispositions are unchanged; none adopted or closed by this review.",
-      "evidence": "composer.submit trims the entered value before chat.submit forwards it to generation. The generation form and existing HTTP regression preserve that same string; failed chat generation restores the trimmed value.",
+      "assessment": "New P2 SQA-MOSS-007: a request-derived VAE shape can panic and end the serving process. Prior finding dispositions are unchanged.",
+      "evidence": "The admitted 2^34-by-2^34 canvas becomes a 2^60 latent plane. Multiplying by 32 channels exceeds uint64, so MustShape panics before GPU session creation. The generation operation has no goroutine recovery boundary.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2857,14 +2928,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, preserve raw text in the shared composer and use trim only for blank-input admission. Extend the existing MOSS browser journey with exact whitespace transport and failure/retry preservation; inspect the shared agent caller.",
+      "recommendation": "When implementation resumes, return checked tensor.NewShape errors from both request-derived VAE shape sites and extend the existing host compiler test. Preserve MOSS/Krea callers and valid numerical contracts.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "Source confirms the request difference, not a measured token/pixel or resource effect. No tests or model execution ran. Retained fixtures keep their original scope; owner responses are untouched.",
+      "uncertainty": "Source and exact arithmetic confirm the failure path; no crashing request, test, model run or resource measurement was performed. Existing owner responses and retained evidence scopes are untouched.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db"
+      "reviewed_revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5"
     },
-  "reviewed_revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db"
+  "reviewed_revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5"
 }

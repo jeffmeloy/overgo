@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "37 open,3 deferred,21 resolved. Previously prepared P2 SQA-245 remains source-confirmed and is now included for publication. SQA-213 is partially addressed by measured host-slot admission; its remaining cost derivations stay open. No other new safe net reduction established.",
-      "priority": "SQA-245 request semantics, SQA-218 recovery and SQA-229/232 numerical acceptance remain P2. Existing reductions retain their relative order. Owner's separate draft-prompt repair is credited, without inventing an independent SQA reproduction or duplicate finding.",
-      "declined_candidates": "Keep the808-node prompt-race test despite its3-node production fix; its new signal covers previously missing ordering. Batching readback would keep808 AST and raise host buffer256bytes->2MiB, so transfer-count reduction alone is not a net reduction. Keep calibration math and real hardware measurement distinct. No blanket literal/geometry rule, new selector or confidence run."
+      "assessment": "38open,3deferred,21resolved. New246 is an admitted large-shape signed-total defect.232 expands to the newly served nine-column Kquant fallback.213 receives further partial credit for completed tuning table.236 now has two callers and54net test-node reduction, not76.245 remains open after inert-penalty repair.",
+      "priority": "245 request semantics,218 recovery and229/232 numerical acceptance remain P2;246 is P3 large-geometry boundary. Existing reductions otherwise keep relative order.",
+      "declined_candidates": "No new generic quantizer, numeric comparator, stats wrapper, tuning registry or confidence suite. Retain inert-penalty and own-draft tests despite production/test growth: distinct behavioral requirements. Exact1..8 native identity does not replace nine-column tolerance or FP64 transcription. No new safe net reduction beyond revised236 and existing candidates."
     },
   "committed_plan": {
-    "git_blob": "dd34544dbcc88ad034da85d1feca333d24879095",
+    "git_blob": "b1b3d6509f6590744c0e271be3674b6dc75976eb",
     "path": "docs/plan.json",
-    "revision": "38da7522e467f9026b67702edab5802e8c2bf82d",
-    "sha256": "82d19fad922b0fb4fec8e9f45e05bf097b022d03f382cab995a5fd8fa89f35ef",
+    "revision": "83378b5527add9b63718e8c6ea3287d267123d24",
+    "sha256": "78688c789a64676c9ab429787dfe6839b3cfb362537ad5eb3973158342078513",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -20,7 +20,7 @@
       "category": "request-sampling-correctness",
       "classification": "confirmed-source-chain-admission-gap",
       "title": "Preserve the declared sampler chain when selecting the Strata round",
-      "evidence_commit": "38da7522e467f9026b67702edab5802e8c2bf82d",
+      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
       "sources": [
         {
           "path": "internal/inference/strata_round_generate.go",
@@ -79,7 +79,7 @@
           "symbol": "TestFlashNextDecodeRoundIsStratas: sampled plain/draft arms share native lowering"
         }
       ],
-      "evidence": "The public server and sampling.New explicitly preserve a nonnil empty or repeated list as authoritative. strataSamplingOf instead uses len(c.Samplers)!=0, requires only temperature when nonempty, permits repeated active stages via at<next, and always fills native TopK/TopP/MinP/Temperature parameters. Native kernels always apply that fixed chain. Admitted finite counterexample: Config{Temperature:1,TopK:1,Samplers:[]SamplerStage{}} with all other filters neutral. On an admitted full vocabulary row with two equal leading finite logits and remaining finite lower logits, ordinary sampling gives both leaders positive probability; the eligible native path first truncates to one. A temperature-only list with the same fields is also admitted and changed. Omitting configured active top-p/min-p or repeating temperature0.5 likewise changes semantics; repetition applies twice in the ordinary owner but once natively. makeSampler accepts equivalent explicit JSON samplers:[], and Generate automatically enables the round when the eligible Flash-Next draft is loaded. This is a source-established mismatch, not a measured model failure. Existing native plain/draft sampled comparisons use the same incorrect lowering and cannot detect it.",
+      "evidence": "The public server and sampling.New explicitly preserve a nonnil empty or repeated list as authoritative. strataSamplingOf instead uses len(c.Samplers)!=0, requires only temperature when nonempty, permits repeated active stages via at<next, and always fills native TopK/TopP/MinP/Temperature parameters. Native kernels always apply that fixed chain. Admitted finite counterexample: Config{Temperature:1,TopK:1,Samplers:[]SamplerStage{}} with all other filters neutral. On an admitted full vocabulary row with two equal leading finite logits and remaining finite lower logits, ordinary sampling gives both leaders positive probability; the eligible native path first truncates to one. A temperature-only list with the same fields is also admitted and changed. Omitting configured active top-p/min-p or repeating temperature0.5 likewise changes semantics; repetition applies twice in the ordinary owner but once natively. makeSampler accepts equivalent explicit JSON samplers:[], and Generate automatically enables the round when the eligible Flash-Next draft is loaded. This is a source-established mismatch, not a measured model failure. Existing native plain/draft sampled comparisons use the same incorrect lowering and cannot detect it. Rechecked83378b552: PenaltiesIdle now correctly admits an inert penalty window, but explicit-empty, omitted active stages and duplicate-stage lowering are unchanged; this does not close245.",
       "impact": "Admitted custom sampling requests can produce a different distribution from their declared chain, including deterministic top-1 output for an explicitly unfiltered request. No data-loss/confidentiality issue asserted. The fixed native list64 bound is justified capacity; it does not authorize inserting absent stages.",
       "recommended_change": "Unnecessary behavior: accelerating declared chains the fixed native sampler cannot implement. Tighten the existing strataSamplingOf predicate once so a differing effective chain returns false and uses the retained ordinary sampling path. Distinguish nil default from explicit empty; require the effective top-k/temperature and active cuts in native order, rejecting semantically repeated active stages and omitted active cuts. Retain accepted canonical/default chains and disabled-stage no-ops. Reuse sampling's existing chain semantics; BoundedTopK can establish a prefix but alone does not prove the full chain. Do not rewrite a user's chain, add a new exported chain framework/option, alter CUDA arithmetic, or combine the distinct continuous batching gate without shared behavior.",
       "displaced_surface": "Replace the current permissive len/order/temperature eligibility block; no production path/test/fixture is retired. Retain ordinary sampling.New/sampleCandidatePipeline as authority, server omitted/empty/repeated-list tests, and all model round/cache/draft/callback coverage. One small host-only native inference eligibility table can cover nil/canonical positive cases plus empty/missing-active/repeated/reordered rejection using existing sampler construction. No model fixture/load, dependency, selector or suite. Fallback must be chosen consistently before prompt reservation and generation; preserve error/grammar/cancellation/resource lifetime and platform/build-tag contracts.",
@@ -219,8 +219,8 @@
       "severity": "P2",
       "category": "numerical-acceptance",
       "classification": "confirmed-source-acceptance-gap",
-      "title": "Reject unordered distances in GDN, attention-cell and picture parity",
-      "evidence_commit": "38da7522e467f9026b67702edab5802e8c2bf82d",
+      "title": "Reject unordered distances in GDN, cell, picture and K-quant parity",
+      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
       "sources": [
         {
           "path": "internal/cuda/executor/executor_windows_strata_gdn_test.go",
@@ -261,24 +261,28 @@
         {
           "path": "internal/inference/runner_generation.go",
           "symbol": "deviceGreedy opt-in:115; ordinary sampling and OnToken delivery:474-501"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_kquant_products_test.go",
+          "symbol": "TestKQuantSpansReadEachWeightOnce: columns=9 fallback, strataRelativeL1 bound"
         }
       ],
-      "evidence": "GDN's isolated tiny convolution still accepts one unexpected NaN readback: strataRelativeL1 and both rival distances become NaN, so d > bound and d < rival are false. Earlier slices.Equal checks do not cover this last readback. Newly served attention cells have the same gap in TestAttentionCellsMatchF32Decoding: one NaN in any cellLogits row makes difference=max(difference,abs(got-reference)) NaN; difference > 0.02*spread and lead > 2*difference both become false. The copied next-token feed comes from the F32 runner, so this comparison fault need not prevent later steps. The independent graph-launch and memory assertions do not constrain the logits. Finite fixture inputs are the admitted domain; this is an unexpected output counterexample, not permission for NaN input. Source establishes these acceptance holes; no actual CUDA failure was executed or observed. The adjacent cell-operation test and QSA ratio callers already reject unordered results through positive acceptance. Picture coverage admits a further counterexample: place +Inf at the reference-chosen token in the last aligned step's otherwise finite captured logit row. Its explicit Temperature0 sampler rejects NaN but accepts this greedy +Inf winner. OnToken is set and DeviceGreedy is not, so raw logits reach logProbability; Inf-Inf makes apart NaN even while every token ID remains expected. The final apart>tolerance is false and the case can pass. This is a hypothetical bad output, not an observed GPU failure or a nonfinite fixture. Text answer scoring does NOT share this admitted path: ScoreContinuationTokens and sequencescore reject nonfinite scores before its bounds, so no redundant repair there. Rechecked at8cc359: the original six GDN predicates, cell and picture sites are unchanged. The appended TestStrataGatedDeltaGatesMatchStrata adds two d>bound sites, but preceding exact slices.Equal checks reject NaN across their single/batched outputs, so no equivalent counterexample is established there. No expansion of this finding merely from similar syntax.",
-      "recommended_change": "Keep the existing numerical owners and arithmetic. At all six GDN sites reject !(d <= bound) or !(d >= rival), preserving inclusive thresholds and FP64 transcription. In TestAttentionCellsMatchF32Decoding replace difference > 0.02*spread with !(difference <= 0.02*spread). Retain its conditional greedy-identity check; the positive distance bound must pass first. No comparator framework, tolerance change or invented denominator floor. In the picture test replace apart>tolerance with !(apart<=tolerance). Keep local log-probability arithmetic and existing finite bands; no new sampler restriction, shared comparator export, validation wrapper or fixture.",
-      "displaced_surface": "Eight unordered-permitting predicates are replaced. No test, fixture, reference or unique case disappears. Retain GDN windows1..8, sequential/whole, state/truncation and decay/tap/epsilon rivals; cell prompt chunks, both geometries, logits, conditional identity, graph/ring/fork/stale-cache/memory checks; and all16 picture cases, exact prompt digests, greedy-prefix/margin checks, projected image input and resource cleanup. No production/export/config/build-tag, cancellation, allocation or lifetime change.",
-      "impact": "Three numerical acceptance owners can credit invalid outputs. These protect served consumers. No observed served defect, data loss or confidentiality effect is asserted.",
+      "evidence": "Existing GDN six, attention-cell and picture counterexamples remain: unexpected NaN distance satisfies neither >bound nor <rival; picture +Inf at its reference-chosen greedy token yields NaN log-probability distance. New f3219a174 adds the same hole to TestKQuantSpansReadEachWeightOnce for columns=9: only widths1..8 are checked with slices.Equal, so one NaN in a nine-column output makes strataRelativeL1 NaN and d>1e-2 false. Finite input and reference fixtures admit this hypothetical bad output. The test does not feed these results into another sampler/check that could reject it. Widths1..8 and the newer GDN gates test retain preceding exact checks and are not additional NaN holes. No CUDA/model failure was executed or observed.",
+      "recommended_change": "Keep the existing numerical owners and arithmetic. At all six GDN sites reject !(d <= bound) or !(d >= rival), preserving inclusive thresholds and FP64 transcription. In TestAttentionCellsMatchF32Decoding replace difference > 0.02*spread with !(difference <= 0.02*spread). Retain its conditional greedy-identity check; the positive distance bound must pass first. No comparator framework, tolerance change or invented denominator floor. In the picture test replace apart>tolerance with !(apart<=tolerance). Keep local log-probability arithmetic and existing finite bands; no new sampler restriction, shared comparator export, validation wrapper or fixture. In TestKQuantSpansReadEachWeightOnce replace d>bound with !(d<=bound); retain exact width1..8 equality and the distinct nine-column fallback comparison. No tolerance or shared ratio-helper change.",
+      "displaced_surface": "Nine unordered-permitting predicates are replaced across four test files; no fixture, test or unique numerical case disappears. Keep GDN sequential/window/state/rival cases, attention-cell geometry/logit/cache/lifetime cases, all16 picture cases, and all3 K-quant formats at widths1..9. No production/config/export/build-tag/cancellation/lifetime change.",
+      "impact": "Four numerical acceptance owners can credit invalid outputs. Newly widened K-quant fallback is now covered by this existing finding. No observed served failure, data loss or confidentiality effect asserted.",
       "expected_benefit": {
-        "outcome": "Production0. Current GDN3447->3459(+12), attention-cell840->842(+2), picture1120->1122(+2): total5407->5423(+16), using retained predicate replacement deltas on the current full-file baselines. No helper, fixture, setup or execution growth from these predicate changes.",
-        "uncertainty": "Current GDN baseline parsed; eight original predicate deltas retained from earlier parse, not an executed repair. New673-node gates test retained intact. SQA-233 separately removes18 GDN nodes; combined GDN3447->3441. Count any permanent self-check separately. No actual CUDA failure or performance effect measured."
+        "outcome": "Production0. Existing GDN3447->3459,cell840->842,picture1120->1122 plus current K-quant504->506: total5911->5929(+18 test AST). New K-quant replacement parsed in memory. No helper, fixture or setup growth from predicate repair.",
+        "uncertainty": "Correctness growth, not a reduction. Existing eight predicate deltas retained; current K-quant delta independently parsed. SQA-233's separate18-node GDN reduction remains. Any permanent self-check must be counted separately; no measured application/runtime effect."
       },
       "likely_effort": "Small correction to the existing numerical test owner.",
       "plan_references": [],
       "plan_coverage": "Retired strata-port/parity is no longer a valid row reference. Existing served-output numerical acceptance remains an advisory correctness obligation independent of the retired speed objective.",
       "closure_criteria": [
-        "All three existing test owners reject unordered distances before granting parity. The picture owner's admitted +Inf greedy row must fail its distance bound.",
-        "Original finite thresholds, conditional identity and state/layout/recovery cases remain; account for all actual test growth. Text continuation scoring retains its existing upstream finite validation."
+        "All four owners reject unordered distances before granting parity, including a nine-column K-quant NaN and picture's admitted +Inf row.",
+        "Finite thresholds, exact1..8 column identities and all numerical/state/layout/recovery cases remain; count actual test growth."
       ],
-      "comparison": "During implementation only, temporarily substitute one NaN in each GDN/cell readback and a reference-chosen +Inf in one picture logit row (or captured row before its comparison); require the existing assertion to fail, then restore. Use this smallest self-check in the existing test, not a new suite/model pass or SQA execution. Ordinary affected validation belongs to the implementation owner."
+      "comparison": "Implementation only: temporarily substitute one NaN into the nine-column fallback row before the existing bound, in addition to the existing GDN/cell NaN and picture +Inf deciding substitutions, require failure and restore. No extra SQA/model/gate run, permanent suite or selector."
     },
     {
       "id": "SQA-238",
@@ -388,13 +392,81 @@
       "comparison": "Use the existing no-generation count endpoint to establish the request's exact geometry, then the existing model-tagged acceptance is the deciding implementation check. A deliberately smaller context ceiling above the old exercised size but below the required size should not earn 262K acceptance. Retained counts suffice to identify this gap; SQA runs no model or calibration."
     },
     {
+      "id": "SQA-246",
+      "status": "open",
+      "severity": "P3",
+      "category": "tensor-geometry",
+      "classification": "confirmed-source-boundary-defect",
+      "title": "Bound flattened q8_1 activations before entering the signed native quantizer",
+      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
+      "sources": [
+        {
+          "path": "internal/cuda/executor/launch_strata_native_mmvq.go",
+          "symbol": "strataNativeShape; launchStrataNativeQuantizeQ81:116 and launchStrataNativeSwigluQuantizeQ81:128 int32 total"
+        },
+        {
+          "path": "internal/cuda/executor/launch_linear_layout.go",
+          "symbol": "launchLinearLayout K-quant dispatch; launchKQuantProduct; retained q8-input span fallback"
+        },
+        {
+          "path": "internal/cuda/executor/executor.go",
+          "symbol": "compileGraph q81Bytes/q81Offset; Execute/Compile exported graph boundary"
+        },
+        {
+          "path": "internal/cuda/executor/fallback.go",
+          "symbol": "checkLaunchWords: MulMat dimensions signed, total uncounted"
+        },
+        {
+          "path": "internal/tensor/shape.go",
+          "symbol": "NewShape; Elements uint64"
+        },
+        {
+          "path": "kernels/cuda/strata_native_mmvq.cuh",
+          "symbol": "native_quantize_q8_1_kernel:139-145; native_swiglu_quantize_q8_1_kernel:155-159"
+        },
+        {
+          "path": "internal/cuda/executor/strata_drafter_run.go",
+          "symbol": "strataDrafterRecord.front/rest/sharedExpert/recordRound call quantizers"
+        },
+        {
+          "path": "internal/cuda/executor/strata_round_window.go",
+          "symbol": "strataRoundWindow.lexical/gdnMixer/qsaMixer/sharedExpert/head call quantizers"
+        },
+        {
+          "path": "internal/cuda/executor/compile_test.go",
+          "symbol": "TestCompileHoldsLaunchWords retained no-device shape owner"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_strata_native_mmvq_test.go",
+          "symbol": "TestStrataNativeMMVQMatchesStrata retained precision/geometry owner"
+        }
+      ],
+      "evidence": "Admitted graph counterexample: Q4K weights[268435456,1], F32 activations[268435456,8], output[1,8]. Dimensions are below MaxInt32, inner is divisible by256, native width8 is allowed; NewShape/Elements and checkLaunchWords accept those extents (MulMat deliberately does not cap flattened elements). compileGraph uses uint64 activation/staging byte counts; launchKQuantProduct only checks inner/output rows individually. Both native quantizers then compute total:=nIn*ncols in int32:2147483648 becomes -2147483648. CUDA takes int n_in and returns at i>=n_in, so all launched threads return without writing q8_1 staging before MMVQ reads it. Activations8GiB plus each q8 staging2.25GiB and small-row weights can fit a sufficiently large device; no allocation ceiling in this path eliminates the admitted shape. This is a source-established conditional failure, not an observed GPU/model run. Current model dimensions are far smaller.",
+      "recommended_change": "Use the existing shape/dispatch owners. Bound the flattened extent before signed arithmetic in strataNativeShape, after positive nIn and1..8 columns are validated. At compileGraph and launchLinearLayout keep oversized K-quant activations on the existing q8-input span route and omit unused q8_1 reservation, rather than rejecting a shape that the retained uint32-block path supports. Apply the shared guard to both native quantizers and existing native callers. No new export, wrapper, option, kernel ABI or device capability policy.",
+      "displaced_surface": "Replace unchecked native eligibility at the existing compile and dispatch sites and add the missing signed-total bound in existing strataNativeShape. No kernel, fallback, test or fixture disappears; correctness requires net growth. Retain 32-value q8_1 blocks,256-value K blocks,36-byte q8_1 storage,1..8 native widths, nine-column fallback, column ordering, FP16 scale precision, Windows CUDA tags and synchronization/resource ownership. Existing drafter/round callers inherit the guard without per-caller branches.",
+      "impact": "A valid large rectangular tensor can launch a quantizer that writes nothing and then produce incorrect output from staging. No observed served-model failure or confidentiality/data-loss claim. P3 because the established boundary is much larger than current served shapes.",
+      "expected_benefit": {
+        "outcome": "Complete in-memory three-file candidate parses native1478->1495(+17), layout8480->8492(+12), executor17093->17099(+6): total27051->27086(+35productionAST). No helper/wrapper/import cost omitted. Existing tests unchanged at this stage; one retained host boundary table extension estimated40..100test nodes, not yet implemented/measured. Fixtures/setup0additional; no large tensor allocation required.",
+        "uncertainty": "Source/type/arithmetic evidence only; candidate not compiled as full CUDA packages or run. Exact test growth belongs to implementation. No speed/memory improvement claimed; oversized fallback avoids unnecessary native staging but bytes were not measured in a workload."
+      },
+      "likely_effort": "Small shared ABI-bound repair plus one existing host shape-table extension.",
+      "plan_references": [],
+      "plan_coverage": "New advisory correctness finding on completed widen-windows. Do not reopen the retired row or run a new SQA workload.",
+      "closure_criteria": [
+        "No supported native quantizer narrows a flattened extent beyond signed32; both quantizers and their callers share the checked boundary.",
+        "Oversized K-quant graphs retain the existing span path and its storage requirements; normal1..8 native routing and all precision/layout/lifetime coverage remain.",
+        "Count full production/test/setup cost; no claimed reduction from moving checks or adding helpers."
+      ],
+      "comparison": "During implementation extend TestCompileHoldsLaunchWords with shape-only checks below/at the aligned signed-total boundary, including268435456x8, and check the existing native shape refusal plus retained fallback reservation. No8GiB input allocation, GPU workload, benchmark or new framework is needed for the deciding comparison. Existing device numerical cases remain their owners."
+    },
+    {
       "id": "SQA-213",
       "status": "open",
       "severity": "P3",
       "category": "inference-policy-derivation",
       "classification": "bounded-derivation-gap",
-      "title": "Complete remaining tuning derivations after measured host-slot admission",
-      "evidence_commit": "38da7522e467f9026b67702edab5802e8c2bf82d",
+      "title": "Complete remaining tuning derivations after host calibration and the tuning table",
+      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
       "sources": [
         {
           "path": "internal/inference/device_prefill.go",
@@ -434,7 +506,7 @@
         },
         {
           "path": "internal/repoanalysis/tuning_values_test.go",
-          "symbol": "TestTuningValuesNameTheirCost; retained wording heuristic"
+          "symbol": "tuningConstants; tuningTableFindings; TestTuningValuesNameTheirCost replaces wording-only acceptance"
         },
         {
           "path": "internal/inference/device_prefill_windows_test.go",
@@ -475,21 +547,25 @@
         {
           "path": "internal/cuda/executor/executor_windows_machine_costs_test.go",
           "symbol": "TestLoadMeasuresTheMachineCosts"
+        },
+        {
+          "path": "internal/repoanalysis/tuning_table_test.go",
+          "symbol": "tuningTable: fixed format/kernel limits versus cost-trading policies"
         }
       ],
-      "evidence": "Partially addressed by71d192835: HostExpertSample finds an existing hosted expert; OpenWithProgram measures its pinned-copy rate and CPU1/32-slot calls, SetMachineCosts propagates them, and planHostExperts compares actual bytes against floor((copy-fixed)/slot). The fixed hostExpertSlots32 admission decision disappears;32 remains a staging ceiling/unmeasured fallback. Production+1130/test+500 is necessary implementation growth, not a reduction. The first hosted sample, best of4copy bursts and least mean of3x10CPU calls estimate low-interference affine costs, with zero activations and no cross-layer fit. They do not establish universal overlap/shape/workload optimality. No bad decision measured by SQA. Existing load-costs still owns prompt8192, residency/headrooms, port draft/EMA/min-p/resident choices and the wording heuristic. Credit host-slot derivation and repaired prompt-stream ordering; no further policy saving established.",
-      "recommended_change": "Continue only the remaining load-costs obligation in current runner/residency/executor/draft-policy owners. Keep measured host-slot admission; do not recommend rebuilding it. Use admitted tensor/resource geometry and retained measurements to justify remaining fixed choices and bound where the first-expert affine calibration applies. Replace displaced decisions/assertions in the same implementation and retain hardware calibration, numerical/cancellation/fallback contracts. No new controller, statistics framework, knob, registry, blanket scan or retired speed chase.",
+      "evidence": "Partially addressed:71d192835 measures first-hosted-expert copy/CPU costs and uses hostSlotLimit;83378b552 replaces the comment-wording acceptance with tuningTableFindings and a table binding fixed limits or cost/basis/open step. strataKVQ8Group64 and strataSamplerList64 are correctly identified as format/kernel bounds, not calibration targets. Table1116+1109=2225 test AST versus prior781, +1444 by retained gate; production0. The table's coverage selection still uses comment evidence, but its completed owner-requested contract is credited. Prompt chunk8192, residency/headrooms, draft depth/min-p/EMA and other marked costs remain under load-costs. Hardware/model-specific observations and Strata's coefficients are comparison evidence, not universal optima. No bad policy decision measured by SQA.",
+      "recommended_change": "Retain measured host-slot admission and the completed table. Continue only remaining load-costs derivations in existing runner/residency/executor/draft-policy owners using actual geometry and retained matching costs. Delete the displaced fixed decisions/pinning assertions if implementation changes them. Do not request another table, literal scan, controller, knob or retired Strata speed chase. Keep format/ABI bounds, calibration and numerical/cancellation/fallback contracts.",
       "impact": "Hardware/model/request-independent choices can trade latency, expert residency or first-output behavior across admitted memory and routing domains. Review establishes an evidence/derivation limit, not a measured loss or numerical defect. Keep this in the existing load-costs scope.",
-      "displaced_surface": "Fixed hostExpertSlots admission and its machine-specific derivation comment are already removed; credit that implementation, not future savings.32 still sizes the existing output reserve/fallback and cannot simply be deleted. Remaining replacements must remove their fixed decision/pinning assertions; the wording scan is conditionally removable only with its retained obligation. No newly proven net reduction or helper/fixture family.",
+      "displaced_surface": "Fixed hostExpertSlots admission and wording-only test acceptance are already displaced. The new table and its owner are retained;32 remains a staging/fallback ceiling. Remaining fixed-policy replacements have no established net saving yet. No additional abstraction, fixtures or recurring census recommended.",
       "expected_benefit": {
-        "outcome": "Completed host-slots carries+1130production/+500test AST from its gate. This review's remaining recommendation has no established net production/test reduction or elapsed/memory gain.",
-        "uncertainty": "Remaining runtime/calibration/test/setup cost unknown. Native caching and existing lane ownership retained. Single-expert best-case measurements are limited-domain inputs, not proof of whole-request optima."
+        "outcome": "Completed host-slots +1130production/+500test; completed tuning-table +0production/+1444test AST. Necessary/owner-requested growth is reported honestly. No remaining policy's net reduction or runtime gain established by SQA.",
+        "uncertainty": "First-expert low-interference calibration and table observations do not prove overlap, new hardware, skewed routing or larger-shape optima. Count complete production/test/calibration/setup costs for any proposed derivation."
       },
       "likely_effort": "Small evidence-scope correction; bounded cost derivation in existing owners before deciding runtime implementation size.",
       "plan_references": [
         "strata-port/load-costs"
       ],
-      "plan_coverage": "Partially addressed by completed strata-port/host-slots; current load-costs explicitly retains213 and broader pending policy derivations. No status closure, new plan work or SQA workload inferred.",
+      "plan_coverage": "Partially addressed by completed host-slots and tuning-table. Current strata-port/load-costs still explicitly carries213. Keep open for remaining policy derivations; no new plan work or SQA execution.",
       "closure_criteria": [
         "Keep best-tested-point and optimum distinct; state hardware, memory, prompt, decode and routing domain. Retire the pre-loan crossover as current evidence.",
         "Derivation uses units and exposed costs, actual geometry and evolving residency; overlapping CPU/copy work cannot be summed as serial latency or assumed free; charge the run cost with-copy minus without-copy under matching conditions. Do not equate output maximum with expected horizon.",
@@ -590,8 +666,8 @@
       "severity": "P3",
       "category": "test-consolidation",
       "classification": "source-opportunity",
-      "title": "Use the existing paired-binary tail in the held-out cells comparison",
-      "evidence_commit": "02d710357c9d384dfab2a4e71d290b18e5cea5ec",
+      "title": "Use the existing paired-binary tail for cells and K-quant held-out comparisons",
+      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
       "sources": [
         {
           "path": "internal/evaluation/attention_cells_heldout_windows_model_test.go",
@@ -612,24 +688,28 @@
         {
           "path": "internal/scorecard/record.go",
           "symbol": "paired comparison at680"
+        },
+        {
+          "path": "internal/evaluation/kquant_products_heldout_windows_model_test.go",
+          "symbol": "TestKQuantProductsHoldHeldOut:93, second signTest caller; MMLU-Pro/IFEval"
         }
       ],
-      "evidence": "The new Windows modeltest signTest sums a fair-discordant binomial tail with Lgamma and Exp. The existing tensorstats owner computes that same tail by relative terms and already serves instruction acceptance and scorecard comparisons. Its independent rational test checks all wins/losses through12, ties and arbitrary chances, with large-count bounds. The held-out caller requires a TWO-sided p value, while the retained API returns a ONE-sided upper tail: reuse requires orienting the larger discordant count as wins, doubling, then clamping to1. Keep losses>wins and the strict p<0.05 decision. No other signTest caller exists in the pinned tree.",
-      "recommended_change": "The second binomial implementation is unnecessary. Delete signTest and its math import. At its sole caller use min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses, wins)), uint64(min(losses, wins)), 0).Tail). Add only the existing tensorstats import. Keep answerCells and its BBH selected-answer/IFEval all-strict decoding: CaseOutcomes does not own the latter report contract. Do not add an adapter helper, statistics framework or option.",
+      "evidence": "signTest remains a second fair-discordant binomial implementation using Lgamma/Exp, beside tensorstats.ExactPairedBinary/BinomialUpperTail. It now has two concrete callers: attention-cell held-out and the newly landed K-quant products held-out comparison. Both use losses>wins and strict two-sided p<cellsChance(0.05). The retained owner is one-sided; orient max/min discordances, double and clamp to1. Existing instruction/scorecard callers and rational paired-binary tests retain independent ownership. No assumption that nonsignificance proves equivalence or that correlated suite cases establish population-wide independence.",
+      "recommended_change": "Delete signTest and its math import. At BOTH held-out callers use min(1, 2*tensorstats.ExactPairedBinary(uint64(max(losses,wins)), uint64(min(losses,wins)), 0).Tail), adding the existing import in each file. Retain direction and strict0.05 acceptance, answerCells' selected-answer/IFEval all-strict decoding, isolated stores and model lifetimes. No replacement wrapper or statistical framework.",
       "impact": "One numerical implementation and its maintenance disappear while the expensive held-out coverage remains. No user-visible production change, confidentiality change or measured speed/memory saving. Nonsignificance still means the specified test did not detect a difference; it does not prove equivalence.",
-      "displaced_surface": "Remove the96-node signTest declaration/doc and math import. Retain the existing416-node production owner and1248-node test file unchanged, including the rational oracle, ties/no-discordance, symmetry, bounds and large-count underflow cases. The caller's max/min, uint64 conversion, doubling/clamp and import cost are included. Zero production/helper/wrapper/config/export/fixture growth. Preserve windows && modeltest, runner closure, isolated answer stores, existing cancellation behavior, suite observation counts, prompt protocols and all model/case pairs.",
+      "displaced_surface": "The96-node signTest declaration/doc and math import disappear; both caller migrations/imports included. Existing416-node production statistics owner and1248-node test file remain unchanged, including rational oracle, ties/no-discordance, bounds and large-count cases. No production/helper/config/export/fixture growth. Keep windows && modeltest and all model/suite/case pairs.",
       "expected_benefit": {
-        "outcome": "Complete held-out file906->830(-76AST),production0delta.Including retained stats tests2154->2078;production416->416.Four runner loads,eight answer stores,two suite derivations unchanged.No fixture/setup/gate saving.",
-        "uncertainty": "Retained complete hypothetical parse;source unchanged.Original paired_binary.go prior full types41defs/125uses/213expressions.Current full types cover reasoning stream/marker declarations.Modeltest not run.Lgamma versus recurrence changes evaluation order,not mathematical tail;577/55cases do not establish arbitrary counts,independent task groups or general tails."
+        "outcome": "Complete two-file hypothetical parse: cells906->830(-76), Kquant458->480(+22), combined1364->1310(-54testAST). With retained stats tests2612->2558; production416->416. Current six runner loads,twelve answer stores,four suite derivations unchanged. No fixture/setup/gate saving.",
+        "uncertainty": "Variants parsed, not executed. Lgamma versus recurrence changes evaluation order, not the mathematical tail. Any additional permanent assertion must be charged against54; no new model pass warranted merely to re-prove the stats owner."
       },
       "likely_effort": "Small existing-call migration; batch with ordinary affected work.",
       "plan_references": [],
       "plan_coverage": "New advisory test consolidation, not adopted. The completed reductions row did not include this pending finding; no new step or framework requested.",
       "closure_criteria": [
-        "signTest is gone and the sole held-out caller uses the existing owner with max/min orientation, doubling/clamp, zero-discordance p=1 and strict two-sided0.05 decision preserved.",
-        "Existing one-sided instruction/scorecard callers remain unchanged. Full affected test surface falls by76nodes without new fixtures, helpers, setup or lost held-out cases."
+        "signTest removed and both held-out callers retain two-sided direction, clamp, no-discordance p=1 and strict0.05 decision through the existing owner.",
+        "Existing one-sided consumers and model/case fixtures unchanged; full replacement test surface falls54nodes before any necessary additional assertion."
       ],
-      "comparison": "During implementation, use the existing rational paired-binary test as the one small deciding self-check for the transformed tail: no discordance,8/0,10/9,1/3,20/21 and counts nearest the existing0.05 boundary. Preserve the caller's direction and strict inequality; count any permanent assertion growth against76. No new model pass, SQA confidence run, suite or selector."
+      "comparison": "Implementation only: use the retained rational paired-binary test for no-discordance,8/0,10/9,1/3,20/21 and nearest existing0.05 boundary. Preserve max/min orientation and strict decision in both callers. No SQA test/model/gate execution, new suite or selector."
     },
     {
       "id": "SQA-235",
@@ -2846,173 +2926,15 @@
     }
   ],
   "gate_test_assessment": {
-      "ast_sample": [
-        {
-          "path": "internal/cuda/executor/machine_costs.go",
-          "nodes": 764,
-          "functions": 3,
-          "bindings": 154
-        },
-        {
-          "path": "internal/cuda/executor/machine_costs_test.go",
-          "nodes": 145,
-          "functions": 1,
-          "bindings": 26
-        },
-        {
-          "path": "internal/cuda/executor/executor_windows_machine_costs_test.go",
-          "nodes": 355,
-          "functions": 1,
-          "bindings": 83
-        },
-        {
-          "path": "internal/cuda/executor/moe_host.go",
-          "nodes": 1712,
-          "functions": 6,
-          "bindings": 426
-        },
-        {
-          "path": "internal/modeldevice/expert_blobs.go",
-          "nodes": 645,
-          "functions": 8,
-          "bindings": 103
-        },
-        {
-          "path": "internal/cuda/executor/executor_windows_strata_drafter_prefill_test.go",
-          "nodes": 808,
-          "functions": 1,
-          "bindings": 209
-        },
-        {
-          "path": "internal/overgodb/blobs.go",
-          "nodes": 1184,
-          "functions": 11,
-          "bindings": 218
-        },
-        {
-          "path": "internal/overgodb/blobs_test.go",
-          "nodes": 581,
-          "functions": 1,
-          "bindings": 153
-        },
-        {
-          "path": "internal/server/event_hub.go",
-          "nodes": 735,
-          "functions": 11,
-          "bindings": 87
-        },
-        {
-          "path": "internal/server/one_event_stream_test.go",
-          "nodes": 601,
-          "functions": 1,
-          "bindings": 118
-        },
-        {
-          "path": "internal/landing/pins.go",
-          "nodes": 663,
-          "functions": 4,
-          "bindings": 162
-        },
-        {
-          "path": "internal/landing/pins_test.go",
-          "nodes": 193,
-          "functions": 1,
-          "bindings": 35
-        }
-      ],
-      "ast_comparison": {
-        "before_revision": "38da7522e467f9026b67702edab5802e8c2bf82d",
-        "after_revision": "hypothetical prefill readback only; not implemented",
-        "production_before": 5703,
-        "production_after": 5703,
-        "production_delta": 0,
-        "test_before": 2683,
-        "test_after": 2683,
-        "test_delta": 0,
-        "method": "Complete test text808->808 after hoisting MemcpyDtoH outside both loops and indexing the full key pool. Same4095-cell/all-head assertions and setup; host buffer rises256bytes->2097152bytes. No recommendation filed from that neutral syntax result. Previously measured219(-44 production) and233(-18 tests) remain valid in byte-identical files."
-      },
-      "type_resolution": "Original complete internal/landing/pins.go typechecks with standard-library importer:67 definitions,240 uses,330 expressions,9 selections. Tests were parsed, not executed. No cross-platform/driver/SSA proof. Additional caller excerpts and README test were not included in12-file totals.",
-      "test_dispositions": [
-        {
-          "classification": "retain",
-          "tests": [
-            "TestHostSlotLimitTradesACopyForTheCPU",
-            "TestLoadMeasuresTheMachineCosts"
-          ],
-          "requirements": "First test owns deterministic crossover arithmetic, zero-copy-choice, clamp and unmeasured fallback; second owns actual measurement/cleanup and producer-unit wiring. They are different requirements, not duplicate confidence tests. Its current1..100GB/s and1second bands constrain this hardware observation, not universal calibration validity."
-        },
-        {
-          "classification": "retain",
-          "tests": [
-            "TestPrefillStrataDrafterWritesEveryCell"
-          ],
-          "requirements": "Retain asynchronous same-stream ordering, every4095 written cell/all K heads, maxT6 groups with tail3, existing executor fixture and cleanup. Uniform ones/127 checks write coverage, not numerical parity.4GiB busy allocation is the retained producer's reproducer; no smaller equivalent bound established.808 test nodes for3 production nodes are necessary growth, not a reduction."
-        },
-        {
-          "classification": "retain",
-          "tests": [
-            "TestBlobStorePublicationContract"
-          ],
-          "requirements": "Retain wrong-identity refusal/no visibility, idempotent prepare, exact open/size refusal, deep corruption, invisible staging and same-size corrupt file retry. Shared blobStore/copyVerified/blobReader already own publication/verification/lifetime; do not remove trust-boundary checks as redundant hashing."
-        },
-        {
-          "classification": "retain",
-          "tests": [
-            "TestOneWorkbenchEventStream"
-          ],
-          "requirements": "Retain file/whole-percent publication table and actual initial/admit/cancel SSE delivery; direct callback checks alone do not cover endpoint streaming. Shared handler/server setup and close/body/transfer join remain."
-        },
-        {
-          "classification": "retain",
-          "tests": [
-            "TestPreflightNamesPinnedBytes"
-          ],
-          "requirements": "Retain coverage-input, capacity-harness CRLF normalization, document literal digest, unchanged/unpinned exclusion and exact ordered diagnostics. Existing writeModule fixture suffices; no additional record framework."
-        },
-        {
-          "classification": "retain",
-          "tests": [
-            "TestReadmeNamesEveryModelAndItsSamples"
-          ],
-          "requirements": "Secondary source read: retain requested modality/sample contract and malformed/missing/outside-assets/digest fixtures. Existing contentDigest/asset census reused.1146 test-node landing growth versus5 production nodes includes a documentation feature, not a5-node runtime fix; no complete net replacement established."
-        },
-        {
-          "classification": "simplify",
-          "tests": [],
-          "requirements": "No newly established simplification in this rotation. Existing219/233 and other ranked reductions remain; no new test/helper added by SQA."
-        },
-        {
-          "classification": "merge",
-          "tests": [],
-          "requirements": "No new merge with a complete displaced/retained contract and negative total surface established."
-        },
-        {
-          "classification": "remove",
-          "tests": [],
-          "requirements": "No existing test, recovery behavior or numerical acceptance requirement newly retired."
-        }
-      ],
-      "inference_memory": "OpenWithProgram takes one existing host expert through HostExpertSample, measures pinned HtoD and CPU1/32-slot costs, then SetMachineCosts feeds planHostExperts. actual expert byte lengths determine copy cost; output staging still caps at32. Calibration frees card/pinned buffers and closes its CPU pool. PrefillStrataDrafter now uploads records asynchronously on d.cs before same-stream copies/graph launches and synchronizes before caller storage dies. Existing gatherHostInputs/computeHostExperts gather each token once, join the read stream and reuse pinned buffers. No new lifetime wrapper justified.",
-      "database_storage": "blobStore.prepare verifies digest before durable temp/sync/rename/directory publication; corrupt same-size retries cannot silently succeed. verify and pack.copyVerified share bounded streaming and cancellation; openLocator shares blobReader for sealed-inline and loose/packed content, closing exactly at expected bytes or abandonment. VisitContent closes after callbacks; retention deletes published loose blobs idempotently and packing later drops released packed entries. Descriptor size, hash and publication checks have distinct roles. No safe net consolidation beyond existing owners established.",
-      "gui_responsiveness": "downloadRegistry.observe compares previous/new file and whole percentage, records current bytes then publishes a snapshot only on visible change. eventHub already coalesces sessions and replaces queue overflow with resync; runtimeActivityStream snapshots serving/sessions/downloads on resync. Existing SQA-218 inventory invalidation gap remains in unchanged source. Keep initial state, transfer lifetime and close ordering. No UI/service execution.",
-      "gate_efficiency": "Retained host-slots landing71d192835: invariants1m11.043s/4packages, host2m37.316s/63packages, lanes15m11.558s (discovery761ms,wait0; device10m23.789s,webui2m45.976s,CUDA4m47.007s/11executed5cached), verify2.533s. Latest README landing38da752: invariants1m6.865s,host1m57.538s,lanes748ms with device/webui/CUDA skipped,verify2.852s,scorecard not reached. No summed parallel durations or SQA validation. Native Go caching and existing lane/resume identity suffice.",
-      "retained_results": [
-        "ef1d55eb4 draft-prompt: production+3 nodes,tests+808,fixtures0. Producer reports old upload repeatedly left prompt cells empty and repaired same-stream upload writes them; alternating fixed-history replay improved first file turn about a fifth. Attributed implementation evidence, not independent SQA model execution.",
-        "71d192835 host-slots: production+1130 nodes,tests+500,fixtures0. It replaces the fixed32 admission decision, retaining32 as reserve/fallback. Load measurement adds time; the footer's Qwen0.5 scorecard does not measure this Flash-Next calibration overhead.",
-        "Latest inference scorecard from71d192835: identical Qwen2.5-0.5B outputs, peak1357530624bytes,first101.2172ms,load1247.1125ms,throughput502.1584714944074tok/s. No whole-round/custom-chain distribution conclusion follows.",
-        "38da752 README/assets migration: production+5,test+1146,fixtures0. Only retained gate/source evidence read. Pin owners admit raw or CRLF-normalized digests and distinguish current pins from historical digests; no new pin checker needed.",
-        "Prior port8cc359 growth remains+50586 production/+17711 tests,+4321 CUDA lines/+67 entries. Owner-ended Strata speed chase stays retired; numerical/request semantics and load-costs/portability remain obligations."
-      ],
-      "plan_assessment": "15 items/20 steps; draft-prompt and host-slots landed, no longer open rows. Credit prompt ordering repair and partial213 host-slot derivation. Do not restore retired parity/prompt-rest/speed work. Load-costs still explicitly carries213 and remaining policies; recipe-widen retains output contracts. No plan edits.",
-      "assumptions_audit": [
-        "MachineCosts units:bytes/bytes-per-second gives seconds; durations convert to nanoseconds before floor((copy-fixed)/slot), then clamp0..32.32 bounds allocated host output staging and is unmeasured fallback; it is no longer the sole measured routing decision.",
-        "Measurement uses first available hosted expert,4 copy bursts (minimum), three batches of10 CPU calls at1/32 slots (minimum mean), and zero activations. This estimates low-interference affine cost on that expert, not request-tail latency, a fit across heterogeneous layers or overlapped-copy cost. Small/censored minima, correlation and workload changes limit generality. No observed counter-decision or new statistical framework claimed; remaining justification stays213.",
-        "Actual measurement's1..100GB/s,positive slope/intercept and1second checks are retained hardware bands. Deterministic formula test separately admits a zero crossover and fallback. Do not infer portable domain coverage from those bands or introduce timing-based numerical acceptance.",
-        "Prefill fixture uses4GiB busy work to expose stream ordering; cells4096/maxT6 mean4095 writes and a3-row tail. All127 first key bytes prove placement of uniform rows, not complete key/value numerical equality. Existing round numerical coverage stays. Batching readback has a measured neutral AST and larger host buffer, so no saving claimed.",
-        "Blob fanout2 is256 hex buckets; SHA256 digest/descriptor size and packed offset are format/identity constraints. Different artifact kinds with equal payload digest are separate identities. Exact-size close and retained cancellation checks must remain.",
-        "Download100percent quantization is UI policy, not representative sampling; per-file changes must still publish. Queue limit is a resource bound with resync recovery, not a statistical tail guarantee.",
-        "Landing pins derive digest length from sha256.Size, normalize only CRLF and read literal document/digest pairs from AST. Symbol/type resolution is not claimed for that existing literal scan. Current owner supports these records; no broader parser framework justified.",
-        "SQA-245 finite full-vocabulary example with two equal leading logits still violates explicit empty/partial-chain semantics; source unchanged. SQA-229/232 acceptance gaps stay independent of performance timing."
+      "retained_results": "f3219a174:production+495/test+1109,CUDA+245lines/+1entry,fixtures0; host1m8.627s5packages,lanes10m54.619s(CUDA0executed16cached),verify45m54.933s.59e8bf5b6:+50/+236,host3m33.016s24packages,lanes3m31.14s(CUDA5executed11cached),verify1.988s.8bbe11de5:-40/+207,host2m47.738s76packages,lanes4m37.751s(CUDA7executed9cached),verify3.335s.83378b552:0/+1444,host4m2.073s8packages,lanes12m10.259s(CUDA0executed16cached),verify2.971s. These are producer footers, not SQA executions or isolated per-change runtime costs.",
+      "measured_vs_proxy": "Producer reports27B draft-default three alternating rounds62..71tok/s list and44..45prose vs37.5..37.6plain; inert-penalty two rounds42.5..42.8prose vs21.6..21.7 and68.6..69.2list vs26.7..27.0. Small-model scorecard peaks1357530624bytes unchanged. No SQA reproduction, universal optimality or measured large-shape failure. Timing does not relax numeric acceptance; native Go caches and existing gate/resume ownership credited.",
+      "sampled_tests": [
+        "retain: TestInertPenaltiesStayOnTheCard window0 versus64/raw-greedy versus sampled eligibility; one existing host table, no redundant device confidence run.",
+        "retain: TestOwnDraftLayerSpeculatesByDefault draft callback plus exact default/plain output, existing hermetic model/worker lifecycle.",
+        "retain/repair: TestKQuantSpansReadEachWeightOnce widths1..8 exact route identity, width9 numerical fallback; positive ordered acceptance needed at232. Native MMVQ test retains independent FP64 oracle.",
+        "simplify: attention-cell and Kquant heldout tests keep all cases; delete shared duplicate signTest and use tensorstats in both, net54nodes with conversions/imports.",
+        "retain: tuning table's fixed-versus-cost/trading and open-step fixture; +1444test nodes for owner-requested table is growth, not runtime saving.",
+        "retain: pack impossible-count/corruption/reopen/backup and generation-pump split-stop/count/empty-callback behavior. Existing223 owns cancellation-fixture consolidation; no additional deletion proven."
       ]
     },
   "hygiene_assessment": "Secondary only; no cleanup finding, repository scratch, dependency, framework, selector, telemetry or policy suite added.",
@@ -3386,10 +3308,9 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Fresh bounded static review; complete-file AST totals do not mean every semantic branch was reviewed. Pins original typecheck only; other caller resolution is source-based. No application/test/model execution.",
-      "Fresh provisional conclusions preceded reading current report. Prior response JSON/hash is unchanged since last published b0ec03; pending245 from the blocked22:34 review is rechecked at this pin. All existing finding sources reconciled against changed paths; changed executor/runner fields preserve217/219 identities/lifetime, and original numerical sites are unchanged.",
-      "All34 implementation comments, implementation_review, master_lead_triage and every implementation-owned/unknown field remain raw-byte exact. Calibration and prompt repair are reviewer assessments of commits, not rewritten owner responses.",
-      "Publication rereads HEAD/report under existing nonblocking locks and validates replacement JSON before a report-only commit. No unrelated index/worktree/plan/hook/security change."
+      "Bounded source/AST review, no recurring full census or application execution. CUDA kernels inspected only around changed dispatch and signed quantizer ABI.",
+      "No new measured latency, allocations, GPU memory or failure rates. Large geometry and unordered numerical cases are explicit source counterexamples, not observed hardware failures.",
+      "No independent third-party claim. Preserve historical implementation owner metadata and all raw fields; no plan changes or owner verdicts invented."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -3459,13 +3380,13 @@
       }
     }
   },
-  "next_finding_number": 246,
+  "next_finding_number": 247,
   "publication_context": {
-      "checked_head": "38da7522e467f9026b67702edab5802e8c2bf82d",
-      "committed_plan_git_blob": "dd34544dbcc88ad034da85d1feca333d24879095",
-      "assessment": "Publish rechecked pending P2 SQA-245, credit partial213 and draft-prompt repair, and replace scope with fresh rotated AST/type/caller evidence.",
-      "newer_commit_note": "ef1d55eb4/71d192835 implement prompt ordering/calibration;38da752 moves README/assets. Concurrent changes must be reconciled before writing.",
-      "publication": "Nonblocking existing landing/gate locks; re-read report, preserve raw owner fields, path-limited commit only."
+      "checked_head": "83378b5527add9b63718e8c6ea3287d267123d24",
+      "committed_plan_git_blob": "b1b3d6509f6590744c0e271be3674b6dc75976eb",
+      "assessment": "Publish new246, expanded232, partial213 and revised two-caller236 evidence. Substantive report change.",
+      "newer_commit_note": "Reviewed completed Kquant/draft-default/inert-penalty/tuning-table commits, not workers' uncommitted changes. Recheck HEAD and report immediately before writing.",
+      "publication": "Existing nonblocking landing/gate locks; re-read current report; raw owner/unknown fields protected; path-limited report-only commit."
     },
   "ranked_active_finding_ids": [
     "SQA-245",
@@ -3474,6 +3395,7 @@
     "SQA-232",
     "SQA-238",
     "SQA-215",
+    "SQA-246",
     "SQA-213",
     "SQA-223",
     "SQA-237",
@@ -3509,45 +3431,46 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "Previous publication was blocked before writing by an active landing lock. This review retains pending245, rechecks it and publishes only when ownership is available; no duplicate finding ID.",
-      "213 partially addressed: calibrated host-slot choice replaces the fixed admission threshold. Remaining prompt/residency/draft policy derivations and sampling-domain limitations keep it open.",
-      "No new safe net reduction established. Neutral808->808 readback experiment declined; necessary new recovery/calibration/document tests are reported as growth. Existing44/18-node reductions retain unchanged complete-source evidence."
+      "213 table and host calibration are partial completion; fixed format/kernel limits are not arbitrary thresholds. Remaining cost-policy choices stay with load-costs.",
+      "236 reuse is justified by two heldout callers and existing instruction/scorecard consumers; account for both adaptations and preserve two-sided semantics.",
+      "246 signed extent derives from real CUDA int ABI, not an arbitrary universal limit. Retained span fallback preserves larger admitted shapes.232 changes assertion acceptance, not numeric tolerances.",
+      "No implementation or new tests by SQA; report publication only."
     ],
-  "reviewed_at": "2026-10-28T00:42:31Z",
-  "reviewed_master": "38da7522e467f9026b67702edab5802e8c2bf82d",
+  "reviewed_at": "2026-10-28T04:45:03Z",
+  "reviewed_master": "83378b5527add9b63718e8c6ea3287d267123d24",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 38da7522e467f9026b67702edab5802e8c2bf82d; root skill.md blob a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan read first. Plan blobdd34544dbcc88ad034da85d1feca333d24879095,15 items/20 steps. Only load-costs,widen-windows,recipe-widen remain in strata-port.",
-      "Fresh rotation: load-time CPU/link calibration and host-expert admission; prompt-prefill race regression; blob publication/read/verification and query/retention callers; download/UI event streaming; landing byte-pin reuse. README test growth also inspected as secondary scope. Provisional conclusions recorded before current report.",
-      "Actual Go AST:12 committed files,8386 nodes (production5703,test2683),49 functions,1774 parser-local bindings. Complete hypothetical batched readback of the prefill fixture parses808->808, so it is not credited as a net code reduction.",
-      "Original pins.go successfully typechecked with installed go/types/importer:67 definitions,240 uses,330 typed expressions,9 selections. Remaining files use parser-local bindings/source callers; no full CUDA/inference/server package or SSA resolution.",
-      "This chat previously implemented Overgo changes; overlapping SQA, not independent third-party review. No agents, implementation, application tests/gates, models, services, benchmarks or profiles. Analysis helper files are outside the repository."
+      "Pinned master83378b5527add9b63718e8c6ea3287d267123d24; unchanged root skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan read first. Plan blobb1b3d6509f6590744c0e271be3674b6dc75976eb; strata-port now retains load-costs and recipe-widen.",
+      "Fresh rotation: K-quant dispatch/activation staging/flattened ABI, own-draft default and inert penalties, tuning table versus its previous wording rule, packed-blob verification/retention ordering, shared generation pump/stop filtering. Provisional conclusions recorded before prior report reconciliation.",
+      "Actual AST on12 committed Go files:9685nodes (production4052,test5633),51functions,1907parser-local bindings. Additional bounded caller/shape/kernel excerpts. Complete candidate comparisons:3 geometry-owner files27051->27086; Kquant predicate504->506;2 paired-tail consumers1364->1310.",
+      "go/types checks original native geometry constants plus4functions:50definitions,42uses,109typed expressions,0selections; no stubs. An initially overbroad subset included a driver-dependent function and failed; narrowed explicit subset succeeded. No full CUDA/inference/server package or SSA resolution.",
+      "This chat previously implemented changes and overlaps the review; not independent third-party verification. No agents, implementation, application tests/gates, services, models, benchmarks or profiles; analysis helpers only outside repository."
     ],
   "sqa_response": {
-      "reviewed_master": "38da7522e467f9026b67702edab5802e8c2bf82d",
-      "assessment": "37 open,3 deferred,21 resolved. Pending245 included;213 partially addressed and remains open. Existing relative ranking/statuses retained.",
-      "evidence": "12-file AST8386nodes/49functions/1774localbindings; pins.go typecheck67defs/240uses/330expressions/9selections. Hypothetical prefill readback808->808. Retained producer gates only.",
+      "reviewed_master": "83378b5527add9b63718e8c6ea3287d267123d24",
+      "assessment": "38open,3deferred,21resolved.246new,232expanded,213further partially addressed,236same opportunity now54net nodes across two callers;245not fixed by inert penalties.",
+      "evidence": "12-file AST9685/51functions/1907localbindings; original native-geometry subset types50defs/42uses/109expressions. Geometry candidate+35production, numerical predicate+2test, paired-tail migration-54test. Retained producer results only.",
       "resolved_findings": [],
       "partially_addressed_findings": [
         "SQA-213"
       ],
       "reopened_findings": [],
       "new_findings": [
-        "SQA-245"
+        "SQA-246"
       ],
       "implementation_response_context": {
-        "plan_git_blob": "dd34544dbcc88ad034da85d1feca333d24879095",
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "status": "Both owner objects,34 comments and all implementation-owned fields preserved raw. Historical owner metadata unchanged.",
-        "current_plan_note": "draft-prompt and host-slots landed; reviewed source and retained producer results, without executing their checks."
+        "plan_git_blob": "b1b3d6509f6590744c0e271be3674b6dc75976eb",
+        "status": "Both owner objects,34 comments and every implementation-owned field preserved raw; historical metadata unchanged.",
+        "current_plan_note": "widen-windows,draft-default,inert-penalties and tuning-table landed. load-costs/recipe-widen remain."
       },
-      "recommendation": "Correct strataSamplingOf once using ordinary sampler fallback for unsupported declared chains. Retain one small host eligibility table during implementation, existing numerical/recovery owners and the remaining load-costs scope. No extra validation demanded by this review.",
-      "next_action": "Lead owns adoption. SQA commits only the report; no implementation, tests, gates, models, selectors or new framework.",
-      "uncertainty": "245 is source-established, not observed by a new model run. Current213 calibration proves some inputs are now measured, not universal optimum. No new measured runtime/memory saving or net reduction from this review.",
+      "recommendation": "Correct request-chain eligibility and numerical acceptance in their current owners; bound native flattened ABI while retaining span fallback. Reuse existing paired-binary implementation in both heldout consumers. No new framework or extra SQA workload.",
+      "next_action": "Implementation lead owns adoption and ordinary affected validation. SQA publishes only this report.",
+      "uncertainty": "No actual GPU failure or new measured performance claim. Geometry repair needs small test growth; table is not a runtime derivation or universal-optimum proof.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "110/124/120 remain deferred with unchanged owner responses and admission consumers. Blob verification and current release handling do not establish complete-as-of historical contents."
+      "user_finding_assessment": "110/124/120 remain deferred; admission/consumer triggers and owner responses unchanged."
     }
 }

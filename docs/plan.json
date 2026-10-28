@@ -221,6 +221,13 @@
       },
       "steps": [
         {
+          "id": "tuning-table",
+          "title": "Hold each tuning value to the cost it trades in a table, ahead of its derivations",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestTuningValuesNameTheirCost$' -count=1",
+          "rationale": "Serves: every tuning value held to the cost it trades by name, where today a wording rule (TestTuningValuesNameTheirCost's regular expressions) asks a comment that cites a measurement or Strata to say \"trades\" or \"Provisional: the \u003cstep\u003e step\": of the 63 values it reads, 9 name a cost, 54 are provisional on load-costs, and about 15 of those trade nothing (units, formats, a kernel's register array or compiled query bound, flagged for citing Strata) while one (expertSpareSlots) names a step the plan does not hold and passes on its wording.\nBuild: the table load-costs names, ahead of its derivations: a row each - the value's file and name; the cost it trades and its basis (measured here, with what; Strata's, with its source; computed at load, with the function) and the open step that derives it, or, for a value that trades nothing, what fixes it (a unit, a format, a kernel's indexing). TestTuningValuesNameTheirCost holds the tree to it: every named numeric value of the tuning packages whose comment cites a measurement or the reference engine has a row; every row names a value the tree holds; a trading row names its basis, and its step is one the plan holds open; a comment naming a provisional step names the row's. load-costs stays open as the step that derives the values the table marks for it.\nCheck: TestTuningValuesNameTheirCost, its fixture refusing a value with no row, a row the tree lacks, a trading row with no basis, a row naming a closed step, and a comment disagreeing with its row.\nBatch: repoanalysis, and the comments of the values the table reclassifies."
+        },
+        {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",
           "status": "open",

@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "38 open, 3 deferred, 22 resolved. Publish pending 213 retirement and 247 (-12 test nodes), extend 232 to Qwen cell parity, and recount 236 across three callers: -32 test nodes, not -54.",
-      "priority": "245 request semantics, 218 recovery and 229/232 numerical acceptance remain P2 ahead of reductions. Qwen belongs to existing 232. 246 remains P3 large geometry; 247 stays last active.",
-      "declined_candidates": "No safe new production reduction established. Existing 234 owns cell steps/Reads reuse and 230 owns duplicate parity graph builds. answerCells already shares scoring setup; protocols, feature arms, roots and model lifetimes differ. No broader test-body merge or new evaluation wrapper established."
+      "assessment": "38 open, 3 deferred, 22 resolved; no new, resolved or reprioritized issue in this rotation. Reconcile SQA-240 against the enlarged current loader files: 9,439 to 9,364 total affected production/test AST, still a 75-node test reduction.",
+      "priority": "Declared sampling (245), stream recovery (218) and numerical acceptance (229/232) remain ahead of P3 consolidations. Changed campaign closure does not retire these served correctness contracts.",
+      "declined_candidates": "No additional safe net production/test reduction established. Loader failure-body and blob cancellation consolidation are already 240 and 223. Keep distinct streaming, corruption, allocation and cancellation requirements; no new wrapper, fixture framework or selector."
     },
   "committed_plan": {
-    "git_blob": "04fad1b5866aba854b7f8e695a04a616f2608ef6",
+    "git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
     "path": "docs/plan.json",
-    "revision": "a81aa20346eba74c2e2fc756525e9cfc2ef05acd",
-    "sha256": "e876c177064a986804f1bd227f89d35726425ddc0740da5ad52199cda020eeae",
+    "revision": "aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd",
+    "sha256": "04e5b0776027bb8cf96e7e121c7ee395f1b50377bc4baa8920d13c3919fb4af7",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -1663,7 +1663,7 @@
       "category": "test-consolidation",
       "classification": "source-opportunity",
       "title": "Share the loader allocation and write failure test body",
-      "evidence_commit": "f5de9b25e1032a0ecdadb042860346f39e829d9c",
+      "evidence_commit": "aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd",
       "sources": [
         {
           "path": "internal/modeldevice/device_load_test.go",
@@ -1682,12 +1682,12 @@
           "symbol": "loadHyperDraft routes draft tensors through the same loader"
         }
       ],
-      "evidence": "The existing allocation and write subtests independently repeat source.parse, newFakeDevice, newStores, NewLoader, source.route, Load and the zero-live/zero-published assertion for each claimed flag and failure position. They differ only in injected failure, write chunk size and OOM versus generic error acceptance. Both exercise the same Load cleanup owner. A complete hypothetical file with a local two-kind loop parses at 5154 to 5079 nodes; the existing failure test falls from 425 to 350. Other cases/helpers/fixtures/imports are unchanged. No application code was executed.",
+      "evidence": "The existing allocation and write subtests independently repeat source.parse, newFakeDevice, newStores, NewLoader, source.route, Load and the zero-live/zero-published assertion for each claimed flag and failure position. They differ only in injected failure, write chunk size and OOM versus generic error acceptance. Both exercise the same Load cleanup owner. A complete hypothetical file with a local two-kind loop parses at 5648 to 5573 nodes; the existing failure test falls from 425 to 350. Other cases/helpers/fixtures/imports are unchanged. No application code was executed. Recount includes the now-retained mapped tensor fixture/helper and all existing source; the 425-to-350 failure owner is unchanged.",
       "recommended_change": "The second copy of the common failure setup and cleanup assertion is unnecessary. Within TestLoaderReleasesEverythingOnFailure, iterate the existing allocation/write kinds inside the existing 1..7 loop, retaining one subtest body. Configure failAlloc for allocation; configure failWrite and 64-byte chunks for write. Require an error for both and driver.IsOutOfMemory for allocation. Keep the separate cancellation body, its 16-byte chunks, errors.Is(context.Canceled) and cleanup assertions.",
       "displaced_surface": "Delete one duplicate parse/store/loader/route/load/assertion body. The retained native test and existing mixedFixture, newStores and fakeDevice remain the only owners; no new helper or wrapper. No case disappears or moves between files: 14 allocation, 14 write and two cancellation cases stay. Preserve default allocation chunk size, write/cancel chunk differences, claimed/unclaimed identities, failure positions, error classification and resource publication/lifetime. Subtest names remain allocation/write plus failure index and claimed flag. No exports/config/build tags or production paths change.",
       "impact": "Small maintenance reduction in a cleanup test. No user-visible behavior, data or confidentiality change; all allocation cleanup, cancellation and unpublished-store checks remain. No measured memory, speed or setup saving.",
       "expected_benefit": {
-        "outcome": "Complete device_load_test.go 5154 to 5079 (-75 test AST); device_load.go 3496 to 3496. Total affected production/test surface 8650 to 8575. Replacement loop/branch/error diagnostics included. Zero new helpers/wrappers/imports/fixtures/configuration/schema or migration cost. One mixed fixture and one claimed digest remain; 30 parses/loads/fake devices and 90 store constructions remain. Gate/test invocation count unchanged.",
+        "outcome": "Complete current device_load_test.go 5648 to 5573 (-75 test AST); device_load.go 3791 to 3791. Total affected production/test surface 9439 to 9364. Replacement loop/branch/error diagnostics included. Zero new helpers/wrappers/imports/fixtures/configuration/schema or migration cost. One mixed fixture and one claimed digest remain; 30 parses/loads/fake devices and 90 store constructions in this owner remain. All other current tests, including mapped host/card lifetime, unchanged; gate invocation count unchanged.",
         "uncertainty": "Complete hypothetical source parsed only, not package-compiled or run. Failure acceptance compared from source: allocation remains OOM-specific, writes still require any error, cancellation remains exact errors.Is. Seven writes are a bounded existing sample; no exhaustive fault-coverage claim. No elapsed/allocation measurement."
       },
       "likely_effort": "Small local merge in one existing test; batch with ordinary affected work.",
@@ -2917,17 +2917,16 @@
     }
   ],
   "gate_test_assessment": {
-      "retained_results": "263d0eecb: +156 production/+1,189 test AST, +3 CUDA lines, zero added entry points/schemas/fixture files; host 2m53.696s (89 packages), lanes 17m42.282s (device 11m27.802s, webui 2m46.54s, CUDA 6m13.71s: 16 executed/0 cached), verify 38m43.912s. 1f965875e: +0/+176, host 1m39.263s (6 packages), lanes skipped in 736ms, verify 42m43.551s. 11d3ef375: +0/+12, host 1m42.163s (6 packages), lanes skipped in 728ms, verify 34m20.908s. e85499f87 plan-only verify 57ms. Producer footers only. Final a81aa2034: +0/+400 AST, host 1m40.869s (6 packages), lanes 1m0.551s (device 6.479s, CUDA 53.351s: 1 executed/15 cached; webui skipped), verify 2.577s.",
-      "measured_vs_proxy": "Cell widening/checks total +156 production/+1,377 test AST: coverage growth, not simplification. Producer's two alternating Qwen3.8-27B rounds report 22,746-token decode about 30.0 versus 13.7 tok/s and 30.4 versus 33.9 GB device use, but prompt read 16.8 versus 15.6..15.7s (about 8% worse); short-list decode also worsened. These limited observations are not SQA reproduction, the standing three-round comparison, or whole-journey/Strata acceptance. Qwen0.5 gate outputs and 1,357,530,624-byte peak were unchanged. Native Go caching, tagged cycle isolation and existing gate/resume ownership credited. Including the final routing fixture, completed widening and its checks grew tests by 1,777 nodes for 156 production nodes; necessary model-selection/precision coverage is counted honestly.",
+      "retained_results": "Latest aaaec7fe4 is plan-only: retained gate verify 75ms, no production/test change. Preceding a81aa2034: +0 production/+400 test AST; host 1m40.869s (6 packages), lanes 1m0.551s (device 6.479s; CUDA 53.351s, 1 executed/15 cached; webui skipped), verify 2.577s. Earlier cell widening and model checks together with this routing fixture grew +156 production/+1,777 test AST. These are producer results, not SQA runs.",
+      "measured_vs_proxy": "SQA-240's 75-node saving is a source-maintenance proxy; all 30 failure/cancellation setups remain. SQA-223's retained -300-node candidate removes duplicate blob setup while moving all three cancellation cases. No new measured elapsed, allocation or peak-memory saving. Credit native Go caching, existing cycle isolation and gate/resume owners. Current campaign measurement is not assigned a result here.",
       "sampled_tests": [
-        "retain/repair: TestQwen35CellsMatchF32Decoding keeps width 256/group 4, identical F32-fed tokens, 40-token prompt/20 decode steps and exact own-draft/plain output. The approximately 65-token finite fixture limit is not a production horizon. Replace only unordered distance acceptance (232), without a new fixture/test/tolerance.",
-        "retain: TestCellAttentionMatchesReference keeps five geometries, shuffled pages, 400-token prompt past a 192-token window, single/three-token decode, FP64 dequantized reference and bit-exact codes/scales. Qwen's default 1/sqrt(width) scale remains. These are not duplicates of whole-runner or held-out behavior.",
-        "simplify: all three held-out signTest callers use tensorstats (236). Keep gemma raw BBH/chat IFEval, Qwen MMLU-Pro/IFEval, F32 versus cell and span versus native arms, each model/root and all cases. Existing answerCells owns independent stores and scoring.",
-        "retain: TestProjectionQueryPlanEfficiency keeps kind/media/schema/seed planning, exact work counts, narrower actual candidate set, unowned-scan refusal and repeated-query determinism. The repeat is another query, not a value compared with itself. No new planner or fixture.",
-        "retain: typed-lineage, pinned/missing-root and store-local refusal tests; existing release/reintroduction and segmented-authority cases own durable cleanup. collectLiveSet/admitStoreLocalAliases already share behavior; journal-before-blob deletion remains.",
-        "retain: TestOneWorkbenchEventStream owns file/whole-percent coalescing, initial/admit/cancel delivery and body-close lifetime. Browser renderer/reconnect tests retain their distinct requirement.",
-        "retain: lane untagged production/test/data reach and tagged dependency/missing-import cases share writeModule but remain distinct. No new selector or confidence run. Pending 247 retains all quiet-test cases while removing one redundant clause.",
-        "retain: TestPortedMechanismsFollowModelFacts adds eight native runner-selection rows: instantiated/F32/unsupported qwen35, cell/shared-KV gemma, llama and QSA with/without verify geometry. Existing family fixtures reused; no forward wrapper or new fixture file. Its selection/fallback negatives are distinct from long-run parity/held-out correctness; no safe complete merger established."
+        "merge: TestLoaderReleasesEverythingOnFailure allocation/write bodies (240), retaining 14 allocation, 14 write and two cancellation subtests, OOM classification, claimed/unclaimed hashes, default/64/16-byte chunk differences and zero-live/zero-published assertions. No case, fixture, setup execution or gate disappears; just duplicated source.",
+        "retain: loader routed byte/conversion, randomized layout/hash, nonoverlapping reads, no-route verification, split-shard identity and mapped host/card lifetime cases. Existing writeFixture/check/checkFake own setup. Random byte/layout inputs are controlled parser/load coverage, not representative expert distributions or numerical golden evidence.",
+        "merge/remove: move empty, corrupt-pack and loose-blob cancellation precedence into TestSmallBlobsArePacked (223), then remove only TestBlobVerificationStopsWhenCancelled. Retain mixed kinds, repack, reopen/backup, exact readback, independent index corruption, impossible-count refusal and serial bounded-allocation check. Current files confirm the existing candidate's 1,807 to 1,507 test AST and unchanged 1,581 production AST.",
+        "retain: TestChatReasoningStreamPromptState's native tokens, prepared tool-template selection, immediate progress, all 12 marker/prompt rows and UTF-8 boundary partitions. Final-versus-emitted comparisons connect two outputs; they are not self-comparisons. No duplicate complete setup safely removable.",
+        "retain: TestStreamedThinkingStopsAndFlushesAsABufferedTurnDoes stop-tail, count/reason and cancellation checks; route errors return before completed blocks. Retain TestStreamedThinkingHoldsItsOutputOnce as the existing serial allocation-contract owner, with its process-counter limits disclosed. No new memory/timing ratchet.",
+        "retain: TestLandingRecordsItsWaitsByCause's preflight, refusal, moved tree, successful landing and measured wait; space/turn tests add different refusal/cross-worktree contracts. Existing newRowFixture, stateRecords and jsonfile remain owners. No new test retirement established.",
+        "retain: TestValidateSigmaSchedule valid/early-zero cases and latentvideo's existing scheduler/denoiser golden owners. No test removed or new schedule policy prescribed by this review."
       ]
     },
   "hygiene_assessment": "Secondary only; no cleanup finding, repository scratch, dependency, framework, selector, telemetry or policy suite added.",
@@ -3301,10 +3300,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded rotating source/AST review, not a recurring census. Full types cover paired_binary.go only; no full CUDA/inference/server package checking or application execution.",
-      "Qwen NaN is a source counterexample, not an observed hardware failure. AST counts are maintenance proxies, not new elapsed/memory measurements.",
-      "Statistical reuse preserves independent fair-discordance assumptions; nonsignificance does not prove equivalence or make correlated cases independent.",
-      "Implementation overlap disclosed. Both owner objects, all implementation comments and unknown fields preserved raw. Worker files and plan edits excluded."
+      "Bounded rotating review; source unchanged since the prior reviewed implementation revision was verified by Git diff. Historical closures and unsampled findings are carried on unchanged code, not newly workload-validated.",
+      "Only sigma/UniPC and their actual checked dependency received type resolution. Other files use parser bindings and manual caller tracing; no full-package CUDA/inference/server build.",
+      "AST/setup counts are proxies. No new elapsed, allocation, RSS, device-memory, statistical-equivalence or served-model failure measurement.",
+      "Implementation overlap disclosed. Both owner objects, all implementation-owned and unknown fields must remain byte-identical. Existing worker/measurement state and plan are not modified."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -3376,11 +3375,11 @@
   },
   "next_finding_number": 248,
   "publication_context": {
-      "checked_head": "a81aa20346eba74c2e2fc756525e9cfc2ef05acd",
-      "committed_plan_git_blob": "04fad1b5866aba854b7f8e695a04a616f2608ef6",
-      "assessment": "Substantive pending 213/247 plus expanded 232/recounted 236; 188's completed plan reference removed.",
-      "newer_commit_note": "Reconciled Bonsai, verify opt-in and final routing fixture/plan completion before publication. No production syntax changed after the initial cell-widening review.",
-      "publication": "Re-read report under nonblocking landing/gate byte locks, parse replacement, preserve raw owner/unknown fields and unrelated work, then commit only docs/sqa_findings.json."
+      "checked_head": "aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd",
+      "committed_plan_git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
+      "assessment": "Substantive correction to SQA-240's complete current production/test cost and reconciliation of the explicitly changed campaign-closeout target. No new finding or rank/status change.",
+      "newer_commit_note": "Only report and plan rationale changed since the prior reviewed implementation; no uncommitted worker code is reviewed.",
+      "publication": "Re-read report under nonblocking landing/gate byte locks; parse replacement and preserve raw owner/unknown fields, unrelated index/worktree and plan; commit only docs/sqa_findings.json."
     },
   "ranked_active_finding_ids": [
     "SQA-245",
@@ -3425,46 +3424,44 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "Cell geometry derives from CellAttentionGeometries (256-wide heads, groups 4/6), CellAttentionHolds and validateCellAttention. Page/quantization groups are 64; F16 scales two bytes; axes explicit. newAttentionCells refuses non-whole pages and capacity past MaxInt32. cellLayerSet refuses mixed token-aligned caches. No new admitted geometry defect established.",
-      "cellAttentionStep now uses spec.resolvedAttentionScale, matching gated F32 attention and gemma's declared scale. Existing copy/allocation cleanup uses context.WithoutCancel; no resource wrapper proposed.",
-      "Query selection uses actual media/schema candidate counts, not uniformity. Retention bisection derives from transactionFits. Store-local authority and release-class safeguards remain. Hub 100 is percentage units and unknown total maps to zero; display coalescing is not transfer correctness.",
-      "213 closes by explicit owner retirement, not optimality proof. 247 saves 12 test nodes; 232 needs 20 nodes of correctness growth across five files; 236's third migration leaves only 32 nodes saved. No implementation performed."
+      "Loader conversion sizes use tensor.NewShape/Elements and checked.Bytes; read ranges use checked.RoundUpMultiple. Four readers and two buffers describe current load concurrency; they are not proven universal optima. The owner-retired tuning derivations remain retired (213). Fake address spacing 512 is fixture separation, Q8_0 widths multiply its 32-value format block, and seven write failures are a bounded sample, not exhaustive coverage. Release joins stages and frees unpublished card/host ownership through a noncancelled context.",
+      "ExpertBlobLayer serves strata-round lookup and expert promotion; HostExpertSample is consumed by runner_lifecycle only after hostexpert.Supported. Its gate/up/down order and common layer geometry are format/consumer requirements, not reasons to add a generic bank abstraction. No measured reason to replace the existing lookup.",
+      "Blob pack widths derive from kind/digest/64-bit offset/32-bit length. readPackIndex divides available file bytes before sizing count*entryBytes. copyVerified already owns hashing/cancellation for verification and packing. OpenContent refuses released locators; Release commits release facts before physical deletion under write ownership; packed bytes remain until repacking. No duplicate production path established.",
+      "UniPC coefficients 1/2 and order 2 are arithmetic contracts; sigma validation explicitly enforces finite [0,1) with nonterminal positives. Adjacent repeated sigmas would make order-2 lambda denominators zero, but this review did not establish a currently served generated schedule with that condition. It is an unpromoted boundary hypothesis, not a new finding or permission for a workload; a future sampler change should decide it in the existing schedule test owner.",
+      "Reasoning streaming retains only undecided marker/UTF-8/trim fragments while the caller owns completed text and tools. Anthropic uses the generation pump's retained text once. Its allocation test uses the minimum of three process-wide deltas and half a 1 MiB payload as a duplicate-copy signal, not a confidence interval or normality assumption; background allocations remain a limit. The blob allocation check similarly detects whole-volume copying, not a population performance bound.",
+      "aaaec7fe4 records the owner's changed closeout target: the current model measurement, README scorecard, claims and owner-reviewed leftovers inventory. Strata parity is no longer required to close this campaign; no parity or optimality is thereby proved. Existing 215 remains accuracy of claimed context coverage, not revival of retired Strata speed work."
     ],
-  "reviewed_at": "2026-10-28T10:55:35Z",
-  "reviewed_master": "a81aa20346eba74c2e2fc756525e9cfc2ef05acd",
+  "reviewed_at": "2026-10-28T12:53:31Z",
+  "reviewed_master": "aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master a81aa20346eba74c2e2fc756525e9cfc2ef05acd; unchanged skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan read first. Initial 37be44c66 advanced during review: Bonsai model row, plan-only verify opt-in, then a81aa2034 routing test/recipe-widen completion all reconciled. Current plan blob 04fad1b5866aba854b7f8e695a04a616f2608ef6; strata-port has completed and is absent.",
-      "Fresh rotation follows cell storage/held-out callers, indexed query/retention, hub streams and lane selection. Provisional conclusions preceded prior report reconciliation. Later committed routing fixture read and parsed separately; no worker implementation edited.",
-      "Actual AST analysis of 14 committed files: internal/model/block_cells.go, internal/tensor/builder_cell.go, internal/inference/attention_cells.go, internal/inference/qwen35_cells_windows_test.go, internal/evaluation/qwen35_cells_heldout_windows_model_test.go, internal/evaluation/attention_cells_heldout_windows_model_test.go, internal/evaluation/kquant_products_heldout_windows_model_test.go, internal/overgodb/query.go, internal/overgodb/query_plan_test.go, internal/overgodb/retention.go, internal/server/hub_workspace.go, internal/server/one_event_stream_test.go, internal/landing/lanes.go, internal/landing/lanes_test.go. Total 20,565 nodes (14,098 production; 6,467 test), 109 functions, 4,019 parser-local bindings. Bonsai's changed file was reparsed; the other 13 are unchanged. Counts include comments; caller excerpts extend beyond these files. Final reconciliation adds internal/inference/ported_mechanisms_windows_test.go (400 nodes, one function, 60 bindings): total 15 files, 20,965 nodes (14,098 production; 6,867 test), 110 functions and 4,079 bindings.",
-      "Original complete tensorstats/paired_binary.go passed go/types: 41 definitions, 125 uses, 213 typed expressions, zero selections; 416 AST nodes. Standard-library imports only, no stubs. Other samples use parser bindings/manual caller tracing, not full package/SSA resolution. Complete hypothetical three-caller, Qwen predicate and quiet-test replacements parsed.",
-      "This chat previously implemented Overgo changes; not independent third-party review. No agents, production/test edits, application tests/gates, services, models, benchmarks or profiles. Analysis helpers only outside repository."
+      "Pinned committed master aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd; skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan 26d1b0268d8e79d94dfd478c908a2f96229d0188 read first. The only changes since a81aa2034 are the prior SQA report and the campaign-closeout plan rationale; implementation objects are unchanged.",
+      "Fresh bounded rotation followed Loader/shared cleanup and expert consumers, UniPC schedule arithmetic, blob/query/retention lifetime, reasoning/Anthropic streams and gate outcome/wait accounting. Provisional conclusions were recorded before reading the prior report. No recurring whole-repository census.",
+      "Go parser AST sample: internal/sampling/sigma.go, internal/sampling/sigma_test.go, internal/modeldevice/expert_blobs.go, internal/modeldevice/device_load.go, internal/modeldevice/device_load_test.go, internal/inference/chat_reasoning_stream.go, internal/inference/chat_reasoning_stream_test.go, internal/overgodb/blobs.go, internal/overgodb/blob_pack.go, internal/overgodb/blob_pack_test.go, internal/server/stream_events.go, internal/server/anthropic_thinking_stream_test.go, internal/landing/spent.go, internal/landing/spent_test.go. Fourteen files total 18,734 nodes (8,090 production; 10,644 test), 105 functions and 3,943 parser-local bindings. Counts include comments. Caller/source excerpts extend beyond these files.",
+      "Go types checked original complete sigma.go and unipc.go with the actual checked.go dependency and standard-library importer, without stubs: 141 definitions, 603 uses, 975 expressions and 80 selections. Sigma/UniPC total 1,560 nodes including sigma's 72 already sampled; checked.go 1,648. No full inference/server/CUDA type or SSA analysis. Complete hypothetical loader-test replacement parsed at 5,648 to 5,573.",
+      "This chat previously implemented Overgo changes; this is not independent third-party review. No agents, implementation edits, application tests/gates, services, model workloads, benchmarks or profiles. Analysis helpers only outside the repository."
     ],
   "sqa_response": {
-      "reviewed_master": "a81aa20346eba74c2e2fc756525e9cfc2ef05acd",
-      "assessment": "38 open, 3 deferred, 22 resolved. Resolve 213 by owner retirement; add pending 247; extend 232 to Qwen cell parity; recount 236 at three callers/-32 test AST. Other priorities/statuses unchanged. Remove 188's completed plan reference; its consolidation remains open.",
-      "evidence": "15 files including final reconciliation: 20,965 AST nodes, 110 functions, 4,079 parser-local bindings. Original paired_binary.go types: 41 defs/125 uses/213 expressions. Complete three-caller migration 1,996 to 1,964; Qwen predicate 690 to 692; quiet test 1,229 to 1,217. Retained producer results only.",
-      "resolved_findings": [
-        "SQA-213"
-      ],
+      "reviewed_master": "aaaec7fe4a16bd7cd9a1eb79dcb1f4617e0475cd",
+      "assessment": "38 open, 3 deferred, 22 resolved. No new, resolved, reopened or reprioritized issue. Existing 240 and 223 already own the fresh sample's safe reductions. Correct 240's stale full-file baselines; adopt the recorded closeout target in this review without claiming parity.",
+      "evidence": "Fourteen sampled files: 18,734 AST, 105 functions, 3,943 local bindings. Original sigma/UniPC type resolution: 141 definitions/603 uses/975 expressions/80 selections, using actual checked.go. Complete loader candidate: test 5,648 to 5,573; production 3,791 unchanged; total 9,439 to 9,364. No application execution.",
+      "resolved_findings": [],
       "partially_addressed_findings": [],
       "reopened_findings": [],
-      "new_findings": [
-        "SQA-247"
-      ],
+      "new_findings": [],
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "04fad1b5866aba854b7f8e695a04a616f2608ef6",
-        "status": "Both owner objects, 34 comments and every implementation-owned field preserved raw; historical metadata unchanged.",
-        "current_plan_note": "Load-costs retirement remains. Qwen-family/Bonsai precision checks and recipe-widen routing fixture have landed; strata-port is absent from the current plan. 188 remains advisory after its plan reference completed; no adoption or closure inferred."
+        "plan_git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
+        "status": "Both implementation-owned objects, 34 comments and every unknown/implementation field preserved raw; historical owner metadata not rewritten.",
+        "current_plan_note": "campaign-closeout/file-close records retirement of Strata parity as a target and the new model-measurement/claims/inventory close. Prior implementation findings remain advisory on unchanged source; no new adoption inferred."
       },
-      "recommendation": "Keep request/recovery/numerical repairs ahead of reductions. Correct Qwen acceptance in its existing test; reuse tensorstats at all three callers; batch quiet assertion deletion with ordinary work. No restored derivation scope or new suites.",
-      "next_action": "Implementation lead owns adoption and ordinary affected validation. SQA publishes only this report under existing locks.",
-      "uncertainty": "No measured performance gain from proposals. The complete three-caller migration saves only 32 nodes; Qwen repair grows tests. All model/case/setup obligations remain.",
+      "recommendation": "Keep served request/recovery/numerical correctness ahead of small reductions. Batch 240's local body merge and 223's fixture consolidation with ordinary affected work; preserve all unique cases. No new abstraction, test suite or workload.",
+      "next_action": "Implementation lead owns adoption and normal validation. SQA publishes only this report.",
+      "uncertainty": "No new safe reduction beyond existing findings; no measured effect from proposed consolidation. Current model measurement and retained producer statistics do not authorize extra confidence runs.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "110/124/120 remain deferred; owner responses and admission/consumer triggers unchanged."
+      "user_finding_assessment": "110/124/120 remain deferred with their recorded admission/consumer triggers; owner responses unchanged."
     }
 }

@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-007 identifies an accepted image extent that panics during VAE shape construction. All 40 earlier findings and owner responses are preserved. Totals are 38 open and 3 deferred.",
-    "declined_candidates": "No resource measurement or arbitrary size limit is proposed. Large but representable allocation pressure remains outside this specific integer-overflow finding; the known scheduler cancellation defect remains SQA-MOSS-004.",
-    "priority": "The new MOSS P2 process-termination risk precedes the existing MOSS findings. All earlier findings retain their relative rank and disposition."
+    "assessment": "New P2 SQA-MOSS-008 identifies absent device measurements being published as measured zero after successful MOSS loads. All 41 earlier findings and owner responses are preserved. Totals are 39 open and 3 deferred.",
+    "declined_candidates": "Missing full-model resource measurements are already owned by the paused MOSS plan. No new sampler, performance claim or model run is proposed. The CLI's actual process allocation ledger is distinct from the shared-server inference.",
+    "priority": "SQA-MOSS-008 follows the existing MOSS P2 findings and precedes P3 SQA-MOSS-002. All earlier findings retain their relative rank and disposition."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5",
+    "revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2287,6 +2287,78 @@
       ],
       "status": "open",
       "title": "Return a geometry error instead of panicking on VAE shape overflow"
+    },
+    {
+      "category": "serving-resource-evidence",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "Successful execution with Load \u003e 0 but no meter or a failing meter publishes no invented finish hardware sample; the scorecard remains unknown unless separate benchmark evidence exists.",
+        "A successful zero reading is explicitly present, nonzero readings retain their value, and replay does not borrow a prior session reading. Failure and cancellation behavior remains intact.",
+        "The shared server uses measurement presence rather than load duration; CLI process-ledger semantics and existing run/environment attribution remain covered by their current owners."
+      ],
+      "comparison": "Extend the existing TestMeasurementCarriesTheLoadWall and TestGenerationRunPublishesServingObservation owners with absent meter, meter-error, measured-zero and nonzero cases, preserving cold load, resident reuse and stored replay distinctions. A synthetic envelope with Load=2s and no peak reading must not create Hardware in the server's stored observation; explicit zero must remain distinguishable. Keep TestTerminalMeasurementRetainsPublishedRun, TestGenerationAttemptCitesTheRunItsExecutorMade and TestPeakMemoryReadsASampledZero. The latter alone ran here using go run ./tmp/moss-interface/_tools/check.go test ./internal/scorecard -count=1 -run '^TestPeakMemoryReadsASampledZero$' and passed; no new test or model run was added. TestCapabilityMeasurementRecordsLoadAndDevicePeak remains the CLI owner for process-versus-executor accounting. The accepted merge-baseline plan checks and live-store activation catalog mismatch were not reclassified or rerun.",
+      "displaced_surface": "Remove the server's load-duration-as-measurement inference and propagate one presence fact through existing owners. Reuse the current capabilityruntime measurement tests and generation serving-observation fixture, retaining the scorecard's existing sampled-zero test. No test is redundant and no separate fixture corpus, schema owner, sampler or resource subsystem is needed. Small field/propagation/test growth is expected; no net source-size reduction, latency or memory saving is measured.",
+      "evidence": "Source-confirmed serving path: a fresh successful MOSS request normally has a positive load duration. *latentimage.Generator does not implement capabilityruntime.deviceMeter, so measure leaves PeakDeviceBytes at zero without taking a reading. storeGenerationWorkspace.observe nevertheless sets PeakMeasured=true solely because cause is nil and Load \u003e 0. RecordWholeOutput then persists a zero finish hardware sample, and scorecard.peakMemoryCell labels it a measured zero with reason 0 bytes: runs on the host. The MOSS runtime actually executes through a CUDA ResidentSession. A deviceMeter error on another runtime follows the same absent-to-zero conversion. The existing focused TestPeakMemoryReadsASampledZero passed in 0.656s on this pin; it confirms the downstream interpretation, not an end-to-end MOSS reproduction. Log: tmp/moss-sqa/peak-presence-20261028-2104.log. No model or live database was run or inspected for occurrence frequency.",
+      "evidence_commit": "f974e826718ce8af55b21f4b8c27041e1ffd6393",
+      "expected_benefit": {
+        "outcome": "Keep resource evidence honest so unknown MOSS memory usage cannot masquerade as a measured zero or hide a retained benchmark.",
+        "uncertainty": "The caller chain and downstream interpretation are established from source plus the focused existing scorecard check. No fresh MOSS attempt or production-store audit was performed, and no host/device peak value or performance improvement was measured. Retained native parity and activation evidence retain their original scope."
+      },
+      "id": "SQA-MOSS-008",
+      "impact": "A fresh browser generation can persist a false zero-memory fact and make the scorecard describe a CUDA image model as running on the host. A sampled zero also takes precedence over a benchmark peak in peakMemoryCell. After repair, absent resource evidence remains a gap (or allows an existing benchmark fallback); real zero and nonzero measurements remain usable. This does not change image output, native parity, activation validity or numerical tolerances, and does not establish a model-memory regression or device leak.",
+      "likely_effort": "Small shared measurement-envelope and server propagation change with focused cases in existing test owners; no model execution is required to decide absent versus measured-zero behavior.",
+      "plan_coverage": "moss-evaluation/resources already owns future comparable memory and timing measurements. The finding is the current server's false evidence-presence inference, not the absence of that planned resource campaign. Advisory only; no adoption, plan edit or implementation is performed.",
+      "plan_references": [],
+      "recommended_change": "When implementation resumes, carry explicit peak-measurement presence in the existing capabilityruntime.Measured envelope, set only after a successful deviceMeter read (including a legitimate zero), and propagate it to WholeOutput.PeakMeasured in the server. Missing meters, meter errors and stored-answer replay stay absent regardless of load duration. A deliberate host-zero report needs explicit evidence from its owner. Keep nonzero readings and error handling intact. Do not add a MOSS-only recorder, infer device use from model names, or use process-wide peak memory to attribute a shared server's model. The CLI's actual process-ledger path has different evidence and should retain its documented one-process semantics; audit that caller when changing the envelope. Adding full MOSS peak collection belongs to the existing resource work, not to this minimal truthfulness repair.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/mediacapability/image_cuda_windows.go",
+          "symbol": "pictureSessions at 32 loads *latentimage.Generator through the shared ModelSessionDirector; imageCapability routes the latent-image module to it"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "Generator at 37 has no embedded device meter and no PeakDeviceBytes method; LoadGenerator at 70 selects the rotary MOSS runtime"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "loadRotaryGenerator at 31 creates a device ResidentSession at 72; decodeRotary at 216 executes the decoder through that session"
+        },
+        {
+          "path": "internal/capabilityruntime/session_director.go",
+          "symbol": "ModelSessionDirector execution calls measure at 602 with the successful load duration; lease at 613 times c.load"
+        },
+        {
+          "path": "internal/capabilityruntime/measured.go",
+          "symbol": "Measured at 34 represents missing peaks as zero; measure at 76 fills the peak only for a successful deviceMeter read and loses the presence distinction"
+        },
+        {
+          "path": "internal/server/generation_store_workspace.go",
+          "symbol": "ExecuteWorkflow at 196 passes the measured envelope to observe at 255; observe at 316 infers PeakMeasured from success and Load \u003e 0 at 326"
+        },
+        {
+          "path": "internal/servingattempt/servingattempt.go",
+          "symbol": "RecordWholeOutput at 53 emits a zero-valued finish hardware sample at 79-82 when PeakMeasured is true and peak bytes are zero"
+        },
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "serving summary marks any finish hardware sample as deviceSampled at 691; peakMemoryCell at 1098 turns sampled zero into the measured 0 bytes: runs on the host cell"
+        },
+        {
+          "path": "internal/server/generation_serving_observation_test.go",
+          "symbol": "TestGenerationRunPublishesServingObservation at 28 currently supplies a nonzero synthetic peak and does not cover an absent reading after a successful load"
+        },
+        {
+          "path": "internal/scorecard/scorecard_test.go",
+          "symbol": "TestPeakMemoryReadsASampledZero at 257 owns the distinction between absent, measured-zero and nonzero device peaks"
+        },
+        {
+          "path": "cmd/recipe/main.go",
+          "symbol": "attemptCapability at 466 calls devicePeak at 506 with processDevicePeak; the CLI has an actual process allocation ledger, unlike the shared-server inference"
+        }
+      ],
+      "status": "open",
+      "title": "Keep an absent MOSS device measurement distinct from measured zero"
     }
   ],
   "gate_test_assessment": {
@@ -2834,8 +2906,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-007. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
-    "checked_head": "849360e45aa40d7da13773b3355ff5bb035ce8f5",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-008. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "f974e826718ce8af55b21f4b8c27041e1ffd6393",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2878,6 +2950,7 @@
     "SQA-MOSS-004",
     "SQA-MOSS-005",
     "SQA-MOSS-006",
+    "SQA-MOSS-008",
     "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
@@ -2905,21 +2978,23 @@
     "The smallest repair preserves raw submitted text in the shared composer and keeps trimming solely for blank-input admission. Both chat and agent consumers are affected; retain shared guards and extend the existing hermetic MOSS journey instead of duplicating its setup.",
     "The two master-plan-dependent checks and live-store MOSS catalog omission remain accepted merge-baseline scope mismatches. No plan change, implementation, broad check or database mutation occurred.",
     "At 849360e45, SQA-MOSS-007 traces a positive, divisible image extent through ValidateRequest to CompileVAEProgram. The plane fits int64 while its channel product overflows uint64; MustShape converts the existing shape error into an unrecovered operation-goroutine panic. No huge input was executed.",
-    "Use tensor.NewShape at the two request-derived VAE shape sites and return the existing error. Reuse the host compiler test for overflow refusal; keep native numerical fixtures and supported request behavior unchanged."
+    "Use tensor.NewShape at the two request-derived VAE shape sites and return the existing error. Reuse the host compiler test for overflow refusal; keep native numerical fixtures and supported request behavior unchanged.",
+    "At f974e8267, SQA-MOSS-008 traces an unmetered successful MOSS load through observe's Load \u003e 0 inference into a zero hardware finish sample and the scorecard's measured host-only cell. Explicit measurement presence can flow through the existing envelope and recorder; native inference remains unchanged.",
+    "The existing TestPeakMemoryReadsASampledZero passed in 0.656s (tmp/moss-sqa/peak-presence-20261028-2104.log). This confirms downstream absent-versus-zero semantics, not full MOSS execution or resource usage. No existing finding or owner response is resolved by this review."
   ],
-  "reviewed_at": "2026-10-28T17:11:27Z",
+  "reviewed_at": "2026-10-28T21:09:40Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 849360e45aa40d7da13773b3355ff5bb035ce8f5 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
-    "Rotated sample covers request geometry, shared VAE shape construction, packed latent dimensions and the actual operation/session callers. Retained native and browser validation is reused with its original scope.",
-    "The new finding is source-based with exact integer arithmetic. No large request, generation, training, performance sweep, test, service or production gate ran.",
+    "SQA-only review at f974e826718ce8af55b21f4b8c27041e1ffd6393 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample follows MOSS session loading, shared measurement envelopes, server serving observations and scorecard memory cells, with the CLI process-ledger caller checked for differing semantics.",
+    "The new defect is source-confirmed. One existing focused scorecard check passed to verify downstream sampled-zero behavior. No generation, training, performance sweep, broad validation, service, production gate or live database mutation occurred.",
     "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-007: a request-derived VAE shape can panic and end the serving process. Prior finding dispositions are unchanged.",
-      "evidence": "The admitted 2^34-by-2^34 canvas becomes a 2^60 latent plane. Multiplying by 32 channels exceeds uint64, so MustShape panics before GPU session creation. The generation operation has no goroutine recovery boundary.",
+      "assessment": "New P2 SQA-MOSS-008: the server can publish an absent MOSS memory reading as measured zero. Prior finding dispositions are unchanged.",
+      "evidence": "The MOSS Generator has no deviceMeter; measure leaves its peak absent, but observe sets PeakMeasured after a successful positive load duration. The shared recorder emits a zero finish sample and the scorecard calls it host-only. The existing focused scorecard test passed in 0.656s.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2928,14 +3003,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, return checked tensor.NewShape errors from both request-derived VAE shape sites and extend the existing host compiler test. Preserve MOSS/Krea callers and valid numerical contracts.",
+      "recommendation": "When implementation resumes, retain explicit peak-reading presence in the existing Measured envelope and propagate it to the server recorder. Extend existing synthetic measurement/observation cases; keep actual CLI process-ledger semantics and native numerical contracts.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "Source and exact arithmetic confirm the failure path; no crashing request, test, model run or resource measurement was performed. Existing owner responses and retained evidence scopes are untouched.",
+      "uncertainty": "Source confirms the caller chain; the focused check confirms downstream interpretation only. No full-model execution, production-store occurrence audit, resource benchmark or performance claim was made. Retained evidence scopes and all owner responses remain unchanged.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5"
+      "reviewed_revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393"
     },
-  "reviewed_revision": "849360e45aa40d7da13773b3355ff5bb035ce8f5"
+  "reviewed_revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393"
 }

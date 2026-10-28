@@ -23,7 +23,7 @@ const (
 	strataGatherThreads = uint32(256)
 	strataGatherValues  = uint32(4)
 	// strataKVQ8Group is kv_q8.hpp's KV_Q8_GROUP, one fp16 scale a 64-value group of a cell's head, and the int8
-	// append's block. Provisional: the load-costs step; Strata's constant, tuned on its author's cards.
+	// append's block: the cells' format, which their kernels index.
 	strataKVQ8Group = uint32(64)
 	// strataKVHalves is the append grid's K and V planes.
 	strataKVHalves = uint32(2)

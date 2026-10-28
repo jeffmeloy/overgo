@@ -64,7 +64,7 @@ const (
 	expertPromotionsPerAdvance = 64
 	// expertSpareSlots: the free card slots a stride class takes at once (spare), which trades an allocation's cost (an
 	// allocation and Windows clearing it, about 18 ms a GB) against slots held empty until misses fill them; carved from
-	// lent memory it costs nothing. Provisional: the promotion step derives it with the admission it serves.
+	// lent memory it costs nothing. Provisional: the load-costs step derives it with the admission it serves.
 	expertSpareSlots = 64
 	// expertStreamNonBlocking is CU_STREAM_NON_BLOCKING: the residency's
 	// copies run beside the synchronous writes of the legacy stream, which

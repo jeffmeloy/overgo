@@ -47,7 +47,7 @@ func (r *Runner) strataRoundOn(options GenerateOptions, deviceGreedy bool) bool 
 }
 
 // strataSamplerList is the widest top_k list Strata's sampled path keeps (kSelMax): a request truncating to more, or
-// not at all, samples from more than it holds. Provisional: the load-costs step derives it.
+// not at all, samples from more than it holds: the list its kernel holds.
 const strataSamplerList = 64
 
 // strataSamplingOf is a sampled request's chain as Strata's sampler runs it (sampler.hpp's SamplerParams: top_k,

@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -23,25 +22,32 @@ var tuningPackages = []string{"internal/inference", "internal/modeldevice", "int
 // value chosen against measured costs does and a format's size or alignment does not.
 var tuningEvidence = regexp.MustCompile(`Strata|measured|sweep|percent|per second|\d ?(ms|us|tok/s|%|GB|GiB|MiB|MB|KiB)\b`)
 
-// tuningDerivation is a tuning value's comment naming the cost it trades, or the plan step that derives it.
-var (
-	tuningCost        = regexp.MustCompile(`minimiz|trades|outweigh|pays where|costs? (more|less) than`)
-	tuningProvisional = regexp.MustCompile(`Provisional: the ([a-z0-9-]+) step`)
-)
+// tuningProvisional is a comment naming the plan step that derives its value.
+var tuningProvisional = regexp.MustCompile(`Provisional: the ([a-z0-9-]+) step`)
 
-// UnderivedTuningValue is a named value of a tuning package whose comment cites a measurement or the reference
-// engine but names neither the cost it trades nor an open plan step that derives it.
-type UnderivedTuningValue struct {
-	File  string `json:"file"`
-	Name  string `json:"name"`
-	Cause string `json:"cause"`
+// tuningValue is a row of the tuning table (tuningTable): a named value of a tuning package whose comment cites a
+// measurement or the reference engine.
+//   - a value that trades costs names the cost (trades), what set it (basis: measured here and on what, Strata's and
+//     its source, or computed at load and by what) and, where its value waits to be derived, the open step that
+//     derives it (step)
+//   - a value that trades nothing names what fixes it (fixed): a unit, a format, a kernel's indexing
+type tuningValue struct {
+	file, name          string
+	trades, basis, step string
+	fixed               string
 }
 
-// UnderivedTuningValues lists the named numeric constants of the snapshot's files whose comments cite a measurement
-// or the reference engine and name neither the cost they trade nor a step open names (doctrine: a tuning value names
-// the cost it minimizes, and a reference's or a sweep's value is provisional with its derivation step filed).
-func UnderivedTuningValues(snapshot gosyntax.Snapshot, open map[string]bool) ([]UnderivedTuningValue, error) {
-	var found []UnderivedTuningValue
+// tuningConstant is a named numeric constant of a tuning package as the table reads it: whether its comments cite a
+// measurement or the reference engine, and the provisional step its comments name, all of them and its own.
+type tuningConstant struct {
+	cited             bool
+	step, ownStep     string
+	file, name, where string
+}
+
+// tuningConstants reads the snapshot's named numeric constants outside tests, by file and name.
+func tuningConstants(snapshot gosyntax.Snapshot) (map[string]tuningConstant, error) {
+	found := map[string]tuningConstant{}
 	for _, file := range snapshot.Files {
 		if strings.HasSuffix(file.Path, "_test.go") {
 			continue
@@ -60,27 +66,72 @@ func UnderivedTuningValues(snapshot gosyntax.Snapshot, open map[string]bool) ([]
 				if !numeric(value) {
 					continue
 				}
-				comment := commentText(group.Doc) + commentText(value.Doc) + commentText(value.Comment)
-				if !tuningEvidence.MatchString(comment) || tuningCost.MatchString(comment) {
-					continue
-				}
-				cause := "its comment cites a measurement or Strata and names neither the cost it trades nor its derivation step"
-				if step := tuningProvisional.FindStringSubmatch(comment); step != nil {
-					if open[step[1]] {
-						continue
-					}
-					cause = fmt.Sprintf("its comment names the %s step, which the plan holds no open step of", step[1])
+				own := commentText(value.Doc) + commentText(value.Comment)
+				all := commentText(group.Doc) + own
+				// A declaration of one value without parentheses carries the value's own comment.
+				if !group.Lparen.IsValid() {
+					own = all
 				}
 				for _, name := range value.Names {
-					found = append(found, UnderivedTuningValue{File: file.Path, Name: name.Name, Cause: cause})
+					found[file.Path+"#"+name.Name] = tuningConstant{
+						cited: tuningEvidence.MatchString(all), step: provisionalStep(all), ownStep: provisionalStep(own),
+						file: file.Path, name: name.Name,
+					}
 				}
 			}
 		}
 	}
-	slices.SortFunc(found, func(left, right UnderivedTuningValue) int {
-		return strings.Compare(left.File+"\x00"+left.Name, right.File+"\x00"+right.Name)
-	})
 	return found, nil
+}
+
+func provisionalStep(comment string) string {
+	if step := tuningProvisional.FindStringSubmatch(comment); step != nil {
+		return step[1]
+	}
+	return ""
+}
+
+// tuningTableFindings lists where the snapshot's values and the table part under the plan's open steps:
+//   - a value whose comments cite a measurement or the reference engine has a row
+//   - a row names a numeric value its file holds, and once
+//   - a trading row names its cost and basis and no fixing, a fixed row its fixing alone
+//   - a row's step is one the plan holds open, and a trading row's comment names no other provisional step; a fixed
+//     row's own comment names none
+func tuningTableFindings(snapshot gosyntax.Snapshot, table []tuningValue, open map[string]bool) ([]string, error) {
+	constants, err := tuningConstants(snapshot)
+	if err != nil {
+		return nil, err
+	}
+	var findings []string
+	rows := map[string]tuningValue{}
+	for _, row := range table {
+		key := row.file + "#" + row.name
+		constant, held := constants[key]
+		switch {
+		case rows[key] != (tuningValue{}):
+			findings = append(findings, key+": the table holds it twice")
+		case !held:
+			findings = append(findings, key+": the tree holds no such numeric value")
+		case row.fixed == "" && (row.trades == "" || row.basis == ""):
+			findings = append(findings, key+": a trading row names its cost and its basis")
+		case row.fixed != "" && (row.trades != "" || row.basis != "" || row.step != ""):
+			findings = append(findings, key+": a fixed row names what fixes it and nothing it trades")
+		case row.step != "" && !open[row.step]:
+			findings = append(findings, fmt.Sprintf("%s: its step %s is not one the plan holds open", key, row.step))
+		case row.fixed == "" && constant.step != "" && constant.step != row.step:
+			findings = append(findings, fmt.Sprintf("%s: its comment names the %s step and its row %q", key, constant.step, row.step))
+		case row.fixed != "" && constant.ownStep != "":
+			findings = append(findings, fmt.Sprintf("%s: its comment names the %s step, and it trades nothing", key, constant.ownStep))
+		}
+		rows[key] = row
+	}
+	for key, constant := range constants {
+		if constant.cited && rows[key] == (tuningValue{}) {
+			findings = append(findings, key+": its comment cites a measurement or Strata and the table holds no row of it")
+		}
+	}
+	slices.Sort(findings)
+	return findings, nil
 }
 
 // numeric reports a value spec whose values are numeric literals or expressions of them.
@@ -110,9 +161,11 @@ func commentText(group *ast.CommentGroup) string {
 	return group.Text() + "\n"
 }
 
-// TestTuningValuesNameTheirCost holds the tuning packages' named values to the doctrine: a value whose comment cites a
-// measurement or the reference engine names the cost it trades, or says it is provisional and names the open plan
-// step that derives it; a fixture's value with neither, and one naming a step the plan does not hold, are refused.
+// TestTuningValuesNameTheirCost holds the tuning packages' named values to the tuning table (tuningTable): every value
+// whose comment cites a measurement or the reference engine has a row naming the cost it trades and its basis, or what
+// fixes it, a row's step is open in the plan, and a comment's provisional step is its row's; a fixture refuses a value
+// with no row, a row the tree lacks, a row naming no basis, a row naming a closed step and a comment parting from its
+// row.
 func TestTuningValuesNameTheirCost(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -121,14 +174,23 @@ func TestTuningValuesNameTheirCost(t *testing.T) {
 // copied is Strata's 64.
 const copied = 64
 
-// derived trades a copy's 160 us against a miss's 50 us, which it minimizes.
+// derived trades a copy's 160 us against a miss's 50 us.
 const derived = 3
 
 // pending is a sweep's 8,192. Provisional: the chunk step derives it.
 const pending = 8192
 
-// gone is a sweep's 4,096. Provisional: the retired step derives it.
-const gone = 4096
+// parted is a sweep's 4,096. Provisional: the chunk step derives it.
+const parted = 4096
+
+// unit is a GB.
+const unit = 1e9
+
+// unrowed is a sweep's 2,048. Provisional: the chunk step derives it.
+const unrowed = 2048
+
+// widthGB is a GB. Provisional: the chunk step derives it.
+const widthGB = 1e9
 
 // format is a block's 32 values.
 const format = 32
@@ -139,12 +201,29 @@ const format = 32
 	if err != nil {
 		t.Fatal(err)
 	}
-	found, err := UnderivedTuningValues(fixture, map[string]bool{"chunk": true})
+	table := []tuningValue{
+		{file: "values.go", name: "derived", trades: "a copy against a miss"},
+		{file: "values.go", name: "pending", trades: "a chunk's reads", basis: "measured here", step: "chunk"},
+		{file: "values.go", name: "parted", trades: "a chunk's reads", basis: "measured here", step: "gone"},
+		{file: "values.go", name: "unit", fixed: "a unit"},
+		{file: "values.go", name: "absent", fixed: "a unit"},
+		{file: "values.go", name: "unrowed", trades: "a chunk's reads", basis: "measured here"},
+		{file: "values.go", name: "widthGB", fixed: "a unit"},
+	}
+	found, err := tuningTableFindings(fixture, table, map[string]bool{"chunk": true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if names := underivedNames(found); !slices.Equal(names, []string{"copied", "gone"}) {
-		t.Fatalf("the fixture's underived values = %v, want copied and gone", found)
+	want := []string{
+		"values.go#absent: the tree holds no such numeric value",
+		"values.go#copied: its comment cites a measurement or Strata and the table holds no row of it",
+		"values.go#derived: a trading row names its cost and its basis",
+		"values.go#parted: its step gone is not one the plan holds open",
+		`values.go#unrowed: its comment names the chunk step and its row ""`,
+		"values.go#widthGB: its comment names the chunk step, and it trades nothing",
+	}
+	if !slices.Equal(found, want) {
+		t.Fatalf("the fixture's findings = %q, want %q", found, want)
 	}
 
 	repository, err := filepath.Abs(filepath.Join("..", ".."))
@@ -167,18 +246,10 @@ const format = 32
 	if err != nil {
 		t.Fatal(err)
 	}
-	if found, err = UnderivedTuningValues(live, open); err != nil {
+	if found, err = tuningTableFindings(live, tuningTable, open); err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range found {
-		t.Errorf("%s %s: %s", path.Clean(value.File), value.Name, value.Cause)
+	for _, finding := range found {
+		t.Error(finding)
 	}
-}
-
-func underivedNames(values []UnderivedTuningValue) []string {
-	var out []string
-	for _, value := range values {
-		out = append(out, value.Name)
-	}
-	return out
 }

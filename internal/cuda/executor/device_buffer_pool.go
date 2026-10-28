@@ -50,7 +50,7 @@ const (
 	// what the card reports free: at an eighth, two 16K-token prompts left
 	// Flash-Next's pool 5.1 GB of idle buffers and the card 27% fewer experts.
 	// It trades the allocations a reuse saves (each cleared by Windows, about 18 ms a GB) against the experts idle
-	// buffers hold off the card. Provisional: the load-costs step derives it.
+	// buffers hold off the card.
 	deviceBufferFreeShare = uint64(64)
 )
 
@@ -213,7 +213,7 @@ func (p *deviceBufferPool) close(state *device.State) error {
 }
 
 // deviceBufferLendBytes is the smallest free buffer the pool lends the expert residency: one expert of Flash-Next's
-// widest stride (3.5 MB) fits it. Provisional: the load-costs step derives it.
+// widest stride (3.5 MB) fits it.
 const deviceBufferLendBytes = 4 << 20
 
 // lendFree lends the expert residency, through lend, the free buffers of deviceBufferLendBytes or more it has not lent,
@@ -258,7 +258,7 @@ func (p *deviceBufferPool) takeBack(state *device.State, pointer driver.DevicePt
 }
 
 // graphReserveBytes is the card memory a graph's instantiation is given room for before its capture: up to 16 MiB of
-// Flash-Next's card (its 2,673-launch span graphs 12 to 16 MiB). Provisional: the load-costs step derives it.
+// Flash-Next's card (its 2,673-launch span graphs 12 to 16 MiB).
 const graphReserveBytes = 32 << 20
 
 // reserveGraph makes room through the reservation for a graph about to be captured, whose instantiation allocates

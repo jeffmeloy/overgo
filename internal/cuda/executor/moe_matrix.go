@@ -36,12 +36,12 @@ const (
 	// moeCopyBytes: the staging routed experts copied from host memory take.
 	// The copy runs at the link's rate, where the kernels' own reads of host
 	// memory ran at 9 to 33 GB/s, and once a group, where they ran once a tile. It trades the copies a group's
-	// staging takes at once against the card memory it holds. Provisional: the load-costs step derives it.
+	// staging takes at once against the card memory it holds.
 	moeCopyBytes = uint64(128 << 20)
 	// moeCopyBuffers: a batch, 14 of Flash-Next's 2.33 MB experts, copies into each in turn, up to three batches ahead of
 	// the one the products read: at the x8 link's 13 GB/s a batch copies in about the time its products take, and with
 	// two buffers a batch's copy waited for the products two batches back (243 ms of a 16,718-token prompt): it trades a
-	// copy's overlap with the products against the staging the buffers hold. Provisional: the load-costs step derives it.
+	// copy's overlap with the products against the staging the buffers hold.
 	moeCopyBuffers = 4
 	moeBatchBytes  = moeCopyBytes / moeCopyBuffers
 	// moeMatrixStagingBytes bounds a prompt group's grouped-product staging:
@@ -50,7 +50,7 @@ const (
 	// set how often a prompt copies a layer's host experts; at 2 GiB a
 	// Flash-Next group holds about 20,000 tokens where 256 MiB held 1,962.
 	// The prompt's memory check still bisects a chunk the card cannot hold. It trades the copies of a layer's host
-	// experts a prompt makes against the card memory the staging holds. Provisional: the load-costs step derives it.
+	// experts a prompt makes against the card memory the staging holds.
 	moeMatrixStagingBytes = uint64(2 << 30)
 )
 
@@ -69,11 +69,10 @@ type moeMatrixGeometry struct {
 const (
 	// moeTensorCoreRows is the fewest routed rows an expert of a prompt group takes its products on tensor cores with,
 	// over its banks dequantized to f16, and fewer the grouped kernels: it trades an expert's dequantization and four
-	// launches against the grouped tiles' products. Provisional: the load-costs step derives it.
+	// launches against the grouped tiles' products.
 	moeTensorCoreRows = uint32(32)
 	// moeTensorCoreChunk is the most routed rows of an expert one pass of its tensor-core products takes, which sizes
-	// their scratch: it trades the scratch the staging holds against an expert's passes. Provisional: the load-costs
-	// step derives it.
+	// their scratch: it trades the scratch the staging holds against an expert's passes.
 	moeTensorCoreChunk = uint64(1024)
 )
 

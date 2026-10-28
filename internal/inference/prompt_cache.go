@@ -263,13 +263,12 @@ func (r *Runner) ownsDevicePromptCache(cache *deviceKVCache) bool {
 
 // promptBoundaryLimit bounds an entry's boundaries; each holds a recurrent model's fixed state (Strata keeps six of
 // about 118 MB for Flash-Next), which trades the reads a kept boundary saves against the card memory it holds.
-// Provisional: the load-costs step derives it from a boundary's bytes and a read's measured cost.
 const promptBoundaryLimit = 4
 
 // promptBoundaryTokens is the fewest tokens before a prompt's last turn for which its read keeps a boundary: the
 // turn's own read costs its graph again (a 42-token Flash-Next chat prompt read in 0.21 to 0.55 s against 0.16 to
 // 0.19 s whole), which a follow-up reading fewer tokens again does not repay: it trades the turn's read again against
-// the reads a kept boundary saves. Provisional: the load-costs step derives it from a read's measured cost.
+// the reads a kept boundary saves.
 const promptBoundaryTokens = 1024
 
 // readFromPromptBoundary keeps the entry's longest boundary within the common tokens as the entry itself, releasing its

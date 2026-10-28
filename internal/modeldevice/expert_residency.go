@@ -43,8 +43,7 @@ const (
 	// none after. At 2 GiB and 1 GiB the card held a gigabyte fewer experts and chats decoded 9.8% slower over three
 	// alternating rounds; Strata keeps 700 MiB free at its fill (--vram-reserve-mib) and serves with 324 MiB. At 512 MiB a
 	// round's refill left Flash-Next 460-634 MiB of its card unused, 200-280 experts in host memory, the reservations
-	// having freed whole layers' allocations past their need. Provisional: the load-costs step computes them from the
-	// measured bytes.
+	// having freed whole layers' allocations past their need.
 	expertFillHeadroomBytes  = 1 << 30
 	expertSpareHeadroomBytes = 256 << 20
 	// A decode's miss moves to the card on its first route, the most used first, at most expertPromotionsPerAdvance an
@@ -57,14 +56,13 @@ const (
 	// expertUsageRounds are Strata's adaptive tier's (src/program/generate.cpp: --adapt-decay 0.7, --adapt-every 4): an
 	// expert counts the decode runs that route it, the counts falling by expertUsageDecay every expertUsageRounds of them,
 	// which orders the misses an advance admits and the experts a release keeps. The bound binds rarely (the replay at 64
-	// and at 256 moved the same). Provisional: the load-costs step computes the threshold from a copy's and a miss's
-	// measured costs.
+	// and at 256 moved the same).
 	expertUsageDecay           = 0.7
 	expertUsageRounds          = 4
 	expertPromotionsPerAdvance = 64
 	// expertSpareSlots: the free card slots a stride class takes at once (spare), which trades an allocation's cost (an
 	// allocation and Windows clearing it, about 18 ms a GB) against slots held empty until misses fill them; carved from
-	// lent memory it costs nothing. Provisional: the load-costs step derives it with the admission it serves.
+	// lent memory it costs nothing.
 	expertSpareSlots = 64
 	// expertStreamNonBlocking is CU_STREAM_NON_BLOCKING: the residency's
 	// copies run beside the synchronous writes of the legacy stream, which

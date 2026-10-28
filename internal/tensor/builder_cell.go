@@ -16,8 +16,7 @@ import (
 // chunk as its prompt read does.
 
 // CellPageCells is a cell page's cells: the page table maps a sequence's pages to the pools' pages, and a sliding layer
-// takes back the pages its window has passed. Provisional: the load-costs step prices a page against the table it
-// sizes and the cells a sliding layer holds past its window.
+// takes back the pages its window has passed.
 const CellPageCells = 64
 
 // The geometries the cell attention's kernels are instantiated for (kernels/cuda/strata_qsa.cu STRATA_CELL_ENTRIES), a

@@ -17,8 +17,7 @@ import (
 // on both a predictable-text regime (28.5 tokens per second, 74-78 percent
 // chain acceptance) and open-ended prose (17.2, about 40 percent); two
 // under-drafts and four over-pays for decayed tail acceptance: it trades a
-// deeper chain's accepted drafts against its decayed tail's verify. Provisional:
-// the load-costs step derives it from the acceptance measured by depth.
+// deeper chain's accepted drafts against its decayed tail's verify.
 const deviceSpeculationDraftTokens = 3
 
 // hyperDraftTokens: a hyper-connection draft layer's depth per verify span.

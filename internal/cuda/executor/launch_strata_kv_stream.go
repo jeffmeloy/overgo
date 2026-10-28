@@ -20,7 +20,7 @@ type strataKVStreamMap struct {
 }
 
 // The stream's launch constants (kv_stream.cu): the resolve's one block of 1,024 threads (RT), whose clock sweep
-// would take a slot twice with fewer slots than threads; the copy's 96 blocks of 128 threads. Provisional: the load-costs step prices these launch shapes, Strata's as tuned on its author's cards.
+// would take a slot twice with fewer slots than threads; the copy's 96 blocks of 128 threads.
 const (
 	strataStreamResolveThreads = uint32(1024)
 	strataStreamCopyBlocks     = uint32(96)

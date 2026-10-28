@@ -49,8 +49,7 @@ const (
 const qsaPositionBase = 0
 
 // qsaSelectionBatch is the prompt read's queries scored and selected at once (prefill.cpp's sel_batch), which bounds
-// the scores' scratch. Provisional: the load-costs step derives it from the scores' memory against the launches it
-// saves.
+// the scores' scratch.
 const qsaSelectionBatch = int64(256)
 
 // qsaSelectionCapacity is a query's selected-cell capacity, qsa_selection_width at kTopkMaxCells: the budget's whole

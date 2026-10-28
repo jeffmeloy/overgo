@@ -379,7 +379,6 @@ func (r *Runner) beginStrataRound(ctx context.Context, past *deviceKVCache, firs
 
 // strataRoundPCIeShare is the PCIe share of the misses Strata starts a native pack at on a link of 20 GB/s or more
 // (generate.cpp: pcie_frac 0.55), in proportion below, before its PcieAuto refines it from the CPU pool's speed.
-// Provisional: the load-costs step derives it.
 const strataRoundPCIeShare = 0.55
 
 // strataRoundPCIeNum is pcie_frac's 256ths, rounded (drive.d.pcie_num).

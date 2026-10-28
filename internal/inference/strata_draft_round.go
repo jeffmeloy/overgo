@@ -18,7 +18,6 @@ import (
 // configuration: --spec 4 with the suffix drafter on loads the drafter at max_t 6 (mtp_t = o.spec once the suffix
 // drafter widens it to 6) and caps its chain at S_mtp - 1 = 3 drafts (set_max_drafts); --mtp-window 32768; --spec-min-p
 // 0.5 ends a chain at a draft below it and sizes the next window by the drafts at or above it.
-// Provisional: the load-costs step derives it.
 const (
 	strataDraftMaxTokens = 6
 	strataDraftMaxDrafts = 3

@@ -216,24 +216,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 17,
         "reason": "draft-default: Runner.ownDraftLayer, the default that a model's own next-token layer speculates, at the server and in the runner (50 production syntax nodes measured by the gate)."
       },
       "steps": [
-        {
-          "id": "retire-derivations",
-          "title": "Retire load-costs' derivations, the tuning table their record",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestTuningValuesNameTheirCost$' -count=1",
-          "rationale": "Serves: the owner's choice of 2026-10-28: widen the ported mechanisms to more models next and retire load-costs' per-machine derivations, the tuning table (tuning-table, 83378b552) keeping each value's cost and basis as their record. Measured on this PC the derivations buy little: the prompt chunk's computed optimum gains about 2% on 200,000-token prompts only, the residency's admission bound moved nothing between 64 and 256, and the rest are Strata's launch shapes and policy values, which no measurement here has shown a machine moves.\nBuild: the values the table marked for load-costs keep their rows' cost and basis without a step, their comments no longer naming one (\"Provisional: the load-costs step ...\" removed, the figures and the cost they trade kept); the landing retires load-costs. The table's check holds as before: a trading row names its cost and its basis, a step only where one is open.\nCheck: TestTuningValuesNameTheirCost.\nBatch: the comments of the tuning packages and repoanalysis' table."
-        },
-        {
-          "id": "load-costs",
-          "title": "Measure the machine's costs at load and compute the values that trade them",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -run '^TestLoadMeasuresTheMachineCosts$' -count=1 \u0026\u0026 go test ./internal/repoanalysis -run '^TestTuningValuesNameTheirCost$' -count=1",
-          "rationale": "Serves: every tuning value tied to the cost it trades on any machine, not this PC's figures (13.1 GB/s, 5 us a slot on 32 workers, 46 us an expert, 160 us a copy, written into comments and constants).\nBuild: the link's rate, the CPU's time a slot and an expert and the card's time a token of an expert's products, measured at load on the loaded model's own experts; computed from them hostExpertSlots (a copy's time over the CPU's time a slot), the prompt's chunk (the chunk derivation's formula), the residency's admission (expertPromotionsPerAdvance, expertSpareSlots) and the headrooms. The tuning values are held by name, a table row each naming the cost it trades with its measured inputs or the open step deriving it, a row naming a step the plan does not hold failing: the 67 of tmp/derive-tuning/inventory.txt and the port's own values as they land (min-p 0.5, four drafts, 32,768 resident cells, at least 20,480), replacing TestTuningValuesNameTheirCost's wording heuristic.\nFirst: the measurement's cost at load (a few milliseconds of copies and products), its spread over loads and its figures against the comments'.\nCarries SQA-213: no input-independent cap or policy is treated as a universal optimum.\nDisappears: hostExpertSlots and devicePromptChunkTokens as constants, the figures the comments carry, the wording heuristic.\nEvidence: TestLoadMeasuresTheMachineCosts (the costs measured at load against the comments' figures, the computed values against the chunk sweep's minimizer, 8,192, and the crossover's 32 here); TestTuningValuesNameTheirCost as the table; the bench over three alternating rounds.\nBatch: modeldevice, cuda/executor and inference; repoanalysis for the table.\n\nMap (2026-10-25, Strata at 296b59d2): Strata measures no cost at load; its values are its source's (the draft policy's shape table and EMA weights, --mtp-min-p, --kv-resident and the ring's floor, a layer's slot quota), each tuned on its author's cards. This step is ours alone: the values the steps before it bring as provisional land in its table with the cost each trades. Checks confirmed as filed."
-        },
         {
           "id": "recipe-widen",
           "title": "Choose each ported mechanism by recipe property and widen it model by model",

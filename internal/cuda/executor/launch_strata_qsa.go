@@ -13,8 +13,7 @@ import (
 // licenses/Strata-MIT.txt). These are Strata's host launch functions with its grids and blocks: kv_append_step and
 // kv_gather_step (src/kernels/cuda/qsa.cu), kv_append_q8_step, kv_append_q8_steps and kv_gather_q8_step
 // (src/kernels/cuda/kv_q8.cu). Every per-token count is read by the kernels from the device step state, so the
-// launches here are sized by capacities and stay constant across tokens. Provisional: the load-costs step prices these
-// launch shapes, Strata's as tuned on its author's cards.
+// launches here are sized by capacities and stay constant across tokens.
 const (
 	// strataAppendThreads is qsa.cu's THREADS, the fp16 append's block.
 	strataAppendThreads = uint32(128)
@@ -128,7 +127,6 @@ func launchStrataIndexerKeyAppend(
 // most 8 queries (MQ) on a fixed grid of 256 CTAs, the reference top-k's 256 threads (TOPK_T), the register and wide
 // top-k's 1,024 threads (TK_T) holding up to 33 blocks' keys a thread in registers (TK_PER, Strata's CUDA value), and
 // the 4,608 blocks below which a counted prompt batch past the register reach takes the reference (kWideMinBlocks).
-// Provisional: the load-costs step prices them; Strata's constants, tuned on its author's cards.
 const (
 	strataScoreWarps      = uint32(8)
 	strataScoreThreads    = strataScoreWarps * 32

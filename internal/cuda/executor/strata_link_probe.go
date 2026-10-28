@@ -9,7 +9,7 @@ import (
 
 // probe_pcie_h2d_gbps (Strata at 296b59d2, MIT: src/program/generate.cpp), the start-up probe of the link the round's
 // PCIe share crosses: 256 MiB of pinned host memory copied to the card four times back to back after a warm-up copy, each
-// burst timed by the events between them, the best burst's rate. Provisional: the load-costs step derives it.
+// burst timed by the events between them, the best burst's rate.
 const (
 	strataProbeBytes  = 256 << 20
 	strataProbeBursts = 4

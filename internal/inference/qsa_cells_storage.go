@@ -20,8 +20,7 @@ import (
 // rows, the block position and the image position table stay on the card.
 
 // qsaRingCells is the cells a layer keeps on the card once its sequence streams: Strata's benched --kv-resident,
-// above its qsa_kv_resident_min() of 20,480. Provisional: the load-costs step derives it from the card's room against
-// a resolve's misses.
+// above its qsa_kv_resident_min() of 20,480.
 const qsaRingCells = 32768
 
 // qsaCells is one sequence's QSA cells at a capacity: its card buffer and, when it streams, its host copy.

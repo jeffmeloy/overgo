@@ -23,8 +23,7 @@ import (
 // graphs, 46 frames) outnumbers both. Requests of several lengths cross more
 // capacities: the probe's third chat after two others recaptured six graphs
 // with sixteen kept and none with 48.
-// It trades a recapture (13 to 60 ms) against the card memory a kept graph holds (up to 16 MiB). Provisional: the
-// load-costs step derives it from a capture's and a graph's measured costs.
+// It trades a recapture (13 to 60 ms) against the card memory a kept graph holds (up to 16 MiB).
 const speculatingGraphExecs = 48
 
 // spanSlotAlignment: each output's offset in a span slot, the device allocation alignment.

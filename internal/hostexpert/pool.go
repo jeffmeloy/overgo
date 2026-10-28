@@ -64,7 +64,6 @@ func NewPool(workers int) *Pool {
 
 // coreTasksPerThread is Strata's tasks a phase for each of its pool's threads (phase_tasks): with a few tasks each, a
 // core the system slows takes fewer of them, where a task a thread ends the phase with the slowest.
-// Provisional: the load-costs step derives it.
 const coreTasksPerThread = 3
 
 // coreLogicalShare is the logical processors a worker takes where the system names no cores: the two threads of an

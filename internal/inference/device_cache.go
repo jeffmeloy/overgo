@@ -959,7 +959,6 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 //   - 35 span identities were measured across a 512-token run, so 64 holds every live combination of a generation before a full clear
 //   - reconsider when one generation clears the kept sessions
 //   - trades the sessions a generation recreates (a graph's capture, 13 to 60 ms) against the card memory kept ones hold.
-//     Provisional: the load-costs step derives it from a capture's measured cost and a session's bytes.
 const decodeSessionLimit = 64
 
 // keptDecodeSession finds the compiled session that serves the step's identity.

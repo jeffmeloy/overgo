@@ -219,7 +219,7 @@ const (
 
 // strataRoundLayerTimeout is how long the host waits for a layer's doorbell before it ends the window (run's 20 s);
 // strataRoundQueryEvery how many spins pass between looks at the clock, and strataRoundQueryInterval how long between
-// asks whether the graph has finished without ringing (run's 2 ms). Provisional: the load-costs step derives it.
+// asks whether the graph has finished without ringing (run's 2 ms).
 const (
 	strataRoundLayerTimeout  = 20 * time.Second
 	strataRoundQueryEvery    = 1 << 10

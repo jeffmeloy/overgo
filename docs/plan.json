@@ -221,6 +221,13 @@
       },
       "steps": [
         {
+          "id": "retire-derivations",
+          "title": "Retire load-costs' derivations, the tuning table their record",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestTuningValuesNameTheirCost$' -count=1",
+          "rationale": "Serves: the owner's choice of 2026-10-28: widen the ported mechanisms to more models next and retire load-costs' per-machine derivations, the tuning table (tuning-table, 83378b552) keeping each value's cost and basis as their record. Measured on this PC the derivations buy little: the prompt chunk's computed optimum gains about 2% on 200,000-token prompts only, the residency's admission bound moved nothing between 64 and 256, and the rest are Strata's launch shapes and policy values, which no measurement here has shown a machine moves.\nBuild: the values the table marked for load-costs keep their rows' cost and basis without a step, their comments no longer naming one (\"Provisional: the load-costs step ...\" removed, the figures and the cost they trade kept); the landing retires load-costs. The table's check holds as before: a trading row names its cost and its basis, a step only where one is open.\nCheck: TestTuningValuesNameTheirCost.\nBatch: the comments of the tuning packages and repoanalysis' table."
+        },
+        {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",
           "status": "open",

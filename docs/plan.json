@@ -221,13 +221,6 @@
       },
       "steps": [
         {
-          "id": "cells-heldout",
-          "title": "Hold Qwen3.5-9B's and Qwen3.5-4B's held-out answers over their new int8 cells",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestQwen35CellsHoldHeldOut$/^(Qwen3.5-9B|Qwen3.5-4B)$' -count=1 -timeout 180m",
-          "rationale": "Serves: the plan's rule for a precision change, a held-out check a model, for the two served models cells-qwen35 (263d0eecb) moved onto int8 cells beside Qwen3.8-27B: Qwen3.5-9B and Qwen3.5-4B share the geometry its kernels were instantiated for (heads of 256, 16 query heads over 4 K/V heads), so their attention layers now keep their K/V as cells, and only the 27B's held-out answers were held to the F32 cache's.\nBuild: TestQwen35CellsHoldHeldOut takes the family's served models as subtests, the 27B's file beneath a models root, the 9B's beneath a models root and the 4B's conversion beneath the checkpoints root; each answers MMLU-Pro and IFEval through the chat template over its cells and over its F32 cache, a two-sided sign test at 5%.\nCheck: the 9B's and the 4B's subtests.\nBatch: evaluation."
-        },
-        {
           "id": "recipe-widen",
           "title": "Choose each ported mechanism by recipe property and widen it model by model",
           "status": "open",

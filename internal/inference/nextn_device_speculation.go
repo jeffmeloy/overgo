@@ -73,10 +73,18 @@ func (r *Runner) SpeculativeDraftTokens() int {
 }
 
 // SpeculatesByDefault reports whether the runner's raw-greedy device decoding speculates unless a request decodes
-// plainly: a draft the runner was opened with - its draft layer, or the round's drafter - which a model's own draft
-// head is not.
+// plainly: a draft the runner was opened with - its draft layer, or the round's drafter - or its model's own next-token
+// layer (ownDraftLayer).
 func (r *Runner) SpeculatesByDefault() bool {
-	return (r.hyperDraft != nil || r.strataDraft != nil) && r.SpeculativeDraftTokens() > 0
+	return (r.hyperDraft != nil || r.strataDraft != nil || r.ownDraftLayer()) && r.SpeculativeDraftTokens() > 0
+}
+
+// ownDraftLayer reports whether the runner drafts through its model's own next-token layer, one its file carries (an
+// appended next-token layer, nextn_predict_layers, or a single-head MTP catalog), its weights on the card: Qwen3.8-27B's
+// drafted windows, their K-quant products read once a window, decode a predictable list at 68 to 72 tok/s and prose at
+// 45 to 46 against 37.7 plainly, the answers byte for byte the plain ones.
+func (r *Runner) ownDraftLayer() bool {
+	return r.hyperDraft == nil && r.strataDraft == nil && r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true})
 }
 
 func greedyTokenID(logits []float32) tokenizer.TokenID {

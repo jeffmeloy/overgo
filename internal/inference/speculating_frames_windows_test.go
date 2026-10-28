@@ -15,7 +15,7 @@ import (
 )
 
 // TestSpeculatingSessionReplaysItsFrames holds a NextN runner's speculation to replays of the graphs it captured.
-//   - a runner no request has asked to speculate keeps the default captured graphs, and the first speculative request raises them
+//   - a runner whose requests have decoded plainly keeps the default captured graphs, and the first speculative request raises them
 //   - the served speculative loop, its draft steps with its spans, captures nothing once two requests have warmed it, and keeps the plain greedy text
 //   - seven verify spans from a fresh prompt accept and reject drafts in a fixed pattern, so spans of two and three tokens read pasts that spans of either length made, at both slot parities, across three cache pages; run a second time they capture nothing, keep every selection's and hidden row's bits, and verify the plain greedy text
 func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
@@ -43,7 +43,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 				t.Fatal(err)
 			}
 			ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
-				MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative,
+				MaxNewTokens: tokens, Sampler: greedy, DeviceGreedy: true, SpeculativeDecode: speculative, PlainDecode: !speculative,
 				PromptTokenIDs: prompt, ContinueAfterEOG: true,
 			})
 			if err != nil {
@@ -57,7 +57,7 @@ func TestSpeculatingSessionReplaysItsFrames(t *testing.T) {
 		}
 		plain, _, kept := generate(false, 12)
 		if runner.speculating || kept >= speculatingGraphExecs {
-			t.Fatalf("%s: a runner never asked to speculate keeps %d graphs (speculating %v)", residency, kept, runner.speculating)
+			t.Fatalf("%s: a runner whose requests decoded plainly keeps %d graphs (speculating %v)", residency, kept, runner.speculating)
 		}
 
 		const served = 8

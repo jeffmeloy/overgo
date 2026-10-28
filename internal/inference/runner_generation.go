@@ -58,8 +58,9 @@ func (r *Runner) Generate(
 	// A request that decodes through Strata's round reads its prompt into a sequence sized as Strata's session is.
 	r.qsaStreamed = options.StrataRound && r.strataRoundModel()
 	defer func() { r.qsaStreamed = false }()
-	// A draft the runner was opened with speculates its greedy decoding unless the request decodes plainly.
-	options.SpeculativeDecode = !options.PlainDecode && (options.SpeculativeDecode || r.hyperDraft != nil)
+	// A draft the runner was opened with, and its model's own next-token layer, speculate its greedy decoding unless the
+	// request decodes plainly.
+	options.SpeculativeDecode = !options.PlainDecode && (options.SpeculativeDecode || r.hyperDraft != nil || r.ownDraftLayer())
 	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", err

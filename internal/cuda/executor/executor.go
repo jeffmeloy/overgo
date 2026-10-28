@@ -851,6 +851,9 @@ type CompiledGraph struct {
 	needBlas        bool
 	readsRoutes     bool
 	q8InputBytes    uint64
+	// q81Offset and q81Bytes place the K-quant products' q8_1 activations (kQuantProducts) in the q8 staging, past
+	// every q8 input the graph stages; q81Bytes is zero in a graph with no such product.
+	q81Offset, q81Bytes uint64
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
@@ -1411,7 +1414,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.q8InputBytes,
 				elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize,
 			)
+			if _, routed := kQuantProducts[node.Inputs[0].Type]; routed && node.Inputs[1].Shape.Dims[1] <= q8InputSpanColumns {
+				compiled.q81Bytes = max(compiled.q81Bytes, elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize)
+			}
 		}
+	}
+	if compiled.q81Bytes > 0 {
+		compiled.q81Offset = compiled.q8InputBytes
+		compiled.q8InputBytes += compiled.q81Bytes
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
 	for _, node := range order {
@@ -2479,7 +2489,10 @@ func execute(
 			blas.stagedNode = nil
 		}
 		if q8Input != nil {
-			q8Input.stagedNode = nil
+			q8Input.stagedNode, q8Input.stagedQ81, q8Input.q81 = nil, nil, 0
+			if compiled.q81Bytes > 0 && !q8Input.spanKernels {
+				q8Input.q81 = q8Input.staging + driver.DevicePtr(compiled.q81Offset)
+			}
 		}
 	}
 	resetStaged()
@@ -2773,6 +2786,27 @@ type q8InputState struct {
 	staging      driver.DevicePtr
 	stagingBytes uint64
 	stagedNode   *tensor.Tensor
+	// q81 is the run's q8_1 activations for its K-quant products (CompiledGraph.q81Offset), zero where it has none or
+	// spanKernels keeps them on the q8-input span kernels (KeepSpanKernels); stagedQ81 is the source whose columns it
+	// holds.
+	q81         driver.DevicePtr
+	stagedQ81   *tensor.Tensor
+	spanKernels bool
+}
+
+// KeepSpanKernels keeps the K-quant products of one to eight columns on the q8-input span kernels, where they take
+// Strata's native MMVQ (kQuantProducts): the path a held-out check holds the native products to.
+func (e *Executor) KeepSpanKernels() error {
+	if e == nil {
+		return errors.New("span kernels executor is unavailable")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.closed {
+		return errors.New("span kernels executor is closed")
+	}
+	e.resources.q8Input.spanKernels = true
+	return nil
 }
 
 func (e *Executor) ensureResources(

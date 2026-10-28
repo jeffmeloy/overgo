@@ -29,7 +29,8 @@
 // entry a template instance the round takes (the entry carries the template's launch bounds), and the host side's
 // dispatch (native_mmvq, small_mmvq, launch_multi_n, native_q6_k_mmvq, native_mmvq_il) is translated in
 // internal/cuda/executor/launch_strata_native_mmvq.go. The formats are the ones Flash-Next's dense projections and head
-// store: Q8_0 and Q6_K. Programmatic dependent launch is opt-in in Strata (STRATA_DF_PDL), so pdl_wait and pdl_trigger
+// store, Q8_0 and Q6_K, and Q4_K and Q5_K beside Q6_K for every K-quant product of one to eight columns
+// (strata-port/widen-windows). Programmatic dependent launch is opt-in in Strata (STRATA_DF_PDL), so pdl_wait and pdl_trigger
 // keep their bodies, which compile to nothing below sm_90, and STRATA_PDL_RESTRICT is empty, as on sm_70 and newer.
 
 #include <cstddef>
@@ -43,6 +44,9 @@ constexpr int WARPS = 4;
 constexpr int WARP = 32;
 constexpr int QUANT_THREADS = 256;
 constexpr int MAX_NCOLS = 8;
+// The K-quants' (Q4_K, Q5_K) ints of codes a block (QI) and blocks a thread takes an iteration (VDR).
+constexpr int QI = 32;
+constexpr int VDR = 2;
 
 #define STRATA_PDL_RESTRICT
 #define STRATA_DP4A(a, b, c) __dp4a((a), (b), (c))
@@ -76,7 +80,23 @@ struct Q80Block {
     half d;
     int8_t qs[32];
 };
+struct Q5KBlock {
+    half2 dm;
+    uint8_t scales[12];
+    uint8_t qh[32];
+    uint8_t qs[128];
+};
+struct Q4KBlock {
+    half2 dm;
+    uint8_t scales[12];
+    uint8_t qs[128];
+};
 static_assert(sizeof(Q81Block) == 36 && alignof(Q81Block) == 4);
+static_assert(sizeof(Q5KBlock) == 176 && alignof(Q5KBlock) == 4);
+static_assert(offsetof(Q5KBlock, scales) == 4 && offsetof(Q5KBlock, qh) == 16 &&
+              offsetof(Q5KBlock, qs) == 48 && offsetof(Q81Block, qs) == 4);
+static_assert(sizeof(Q4KBlock) == 144 && alignof(Q4KBlock) == 4 &&
+              offsetof(Q4KBlock, scales) == 4 && offsetof(Q4KBlock, qs) == 16);
 static_assert(sizeof(Q6KBlock) == 210 && alignof(Q6KBlock) == 2 &&
               offsetof(Q6KBlock, qh) == 128 && offsetof(Q6KBlock, scales) == 192 &&
               offsetof(Q6KBlock, d) == 208);
@@ -228,6 +248,153 @@ __device__ __forceinline__ void native_q6_k_mmvq_kernel(const Q6KBlock* __restri
     }
 }
 
+// Exact pinned vec_dot_q5_K_q8_1_impl_vmmq expression and integer dot order.
+__device__ __forceinline__ float q5_q8_dot_impl(
+    const int* __restrict__ vl, const int* __restrict__ vh, const int* __restrict__ u,
+    const uint8_t* __restrict__ sc, const uint8_t* __restrict__ m, const half2& dm5,
+    const float* __restrict__ d8) {
+    float sumf_d = 0.0f;
+    float sumf_m = 0.0f;
+#pragma unroll
+    for (int i = 0; i < 2; ++i) {
+        const int vl0i = (vl[0] >> (4 * i)) & 0x0f0f0f0f;
+        const int vl1i = (vl[1] >> (4 * i)) & 0x0f0f0f0f;
+        const int vh0i = ((vh[0] >> i) << 4) & 0x10101010;
+        const int vh1i = ((vh[1] >> i) << 4) & 0x10101010;
+        const int v0i = vl0i | vh0i;
+        const int v1i = vl1i | vh1i;
+        const int dot1 = STRATA_DP4A(v0i, u[2 * i], STRATA_DP4A(v1i, u[2 * i + 1], 0));
+        const int dot2 = STRATA_DP4A(0x01010101, u[2 * i], STRATA_DP4A(0x01010101, u[2 * i + 1], 0));
+        sumf_d += d8[i] * (dot1 * sc[i]);
+        sumf_m += d8[i] * (dot2 * m[i]);
+    }
+    const float2 dm5f = __half22float2(dm5);
+    return dm5f.x * sumf_d - dm5f.y * sumf_m;
+}
+
+// The 6-bit scale and min pair of a K-quant block's sub-block pair j (get_scale_min_k4 for two sub-blocks at once).
+__device__ __forceinline__ void k_scale_min_pair(const uint8_t* __restrict__ packed, int j, uint16_t aux[2]) {
+    const uint16_t* scales = reinterpret_cast<const uint16_t*>(packed);
+    const int jm = j & 1;
+    const uint32_t s0 = scales[jm];
+    const uint32_t s2 = scales[jm + 2];
+    const uint32_t s4 = scales[jm + 4];
+    const uint32_t hi = uint32_t(-int32_t(j >= 2));
+    aux[0] = uint16_t(((s0 & 0x3f3f) & ~hi) |
+                      ((((s4 >> 0) & 0x0f0f) | ((s0 & 0xc0c0) >> 2)) & hi));
+    aux[1] = uint16_t(((s2 & 0x3f3f) & ~hi) |
+                      ((((s4 >> 4) & 0x0f0f) | ((s2 & 0xc0c0) >> 2)) & hi));
+}
+
+// A K-quant dot's activation side: the two q8_1 blocks' codes at the thread's ints and their scales.
+__device__ __forceinline__ void k_q8_codes(const Q81Block* __restrict__ bq8, int bq8_offset, int iqs, int u[4],
+                                           float d8[2]) {
+#pragma unroll
+    for (int i = 0; i < 2; ++i) {
+        const Q81Block* bq8i = bq8 + bq8_offset + i;
+        d8[i] = __low2float(bq8i->ds);
+        const int* q8 = reinterpret_cast<const int*>(bq8i->qs) + ((iqs / 2) % 4);
+        u[2 * i] = q8[0];
+        u[2 * i + 1] = q8[4];
+    }
+}
+
+__device__ __forceinline__ float q5_q8_dot(const Q5KBlock* __restrict__ bq5,
+                                          const Q81Block* __restrict__ bq8, int iqs) {
+    int vl[2];
+    int vh[2];
+    int u[4];
+    float d8[2];
+    const int bq8_offset = 2 * ((iqs / 2) / 4);
+    const int* ql = reinterpret_cast<const int*>(bq5->qs + 16 * bq8_offset + 4 * ((iqs / 2) % 4));
+    const int* qh = reinterpret_cast<const int*>(bq5->qh + 4 * ((iqs / 2) % 4));
+    vl[0] = ql[0];
+    vl[1] = ql[4];
+    vh[0] = qh[0] >> bq8_offset;
+    vh[1] = qh[4] >> bq8_offset;
+    uint16_t aux[2];
+    k_scale_min_pair(bq5->scales, bq8_offset / 2, aux);
+    const uint8_t* sc = reinterpret_cast<const uint8_t*>(aux);
+    k_q8_codes(bq8, bq8_offset, iqs, u, d8);
+    return q5_q8_dot_impl(vl, vh, u, sc, sc + 2, bq5->dm, d8);
+}
+
+// Exact pinned vec_dot_q4_K_q8_1_impl_vmmq expression and integer dot order.
+__device__ __forceinline__ float q4_q8_dot_impl(
+    const int* __restrict__ v, const int* __restrict__ u,
+    const uint8_t* __restrict__ sc, const uint8_t* __restrict__ m, const half2& dm4,
+    const float* __restrict__ d8) {
+    float sumf_d = 0.0f;
+    float sumf_m = 0.0f;
+#pragma unroll
+    for (int i = 0; i < 2; ++i) {
+        const int v0i = (v[0] >> (4 * i)) & 0x0f0f0f0f;
+        const int v1i = (v[1] >> (4 * i)) & 0x0f0f0f0f;
+        const int dot1 = STRATA_DP4A(v1i, u[2 * i + 1], STRATA_DP4A(v0i, u[2 * i], 0));
+        const int dot2 = STRATA_DP4A(0x01010101, u[2 * i + 1], STRATA_DP4A(0x01010101, u[2 * i], 0));
+        sumf_d += d8[i] * (dot1 * sc[i]);
+        sumf_m += d8[i] * (dot2 * m[i]);
+    }
+    const float2 dm4f = __half22float2(dm4);
+    return dm4f.x * sumf_d - dm4f.y * sumf_m;
+}
+
+__device__ __forceinline__ float q4_q8_dot(const Q4KBlock* __restrict__ bq4,
+                                          const Q81Block* __restrict__ bq8, int iqs) {
+    int v[2];
+    int u[4];
+    float d8[2];
+    const int bq8_offset = 2 * ((iqs / 2) / 4);
+    const int* ql = reinterpret_cast<const int*>(bq4->qs + 16 * bq8_offset + 4 * ((iqs / 2) % 4));
+    v[0] = ql[0];
+    v[1] = ql[4];
+    uint16_t aux[2];
+    k_scale_min_pair(bq4->scales, bq8_offset / 2, aux);
+    const uint8_t* sc = reinterpret_cast<const uint8_t*>(aux);
+    k_q8_codes(bq8, bq8_offset, iqs, u, d8);
+    return q4_q8_dot_impl(v, u, sc, sc + 2, bq4->dm, d8);
+}
+
+// The K-quants' generic ncols=1 MMVQ (native_q5_k_mmvq_kernel, native_q4_k_mmvq_kernel): 4 warps and 1 row (or 4 rows
+// for small K), eight weight blocks per K iteration, warp-ascending shared sum, then XOR tree.
+template<typename Block, float (*Dot)(const Block*, const Q81Block*, int), bool SmallK>
+__device__ __forceinline__ void native_k_mmvq_kernel(const Block* __restrict__ w, const Q81Block* __restrict__ x,
+                                                     float* __restrict__ y, int n_in, int n_out) {
+    constexpr int ROWS = SmallK ? WARPS : 1;
+    constexpr int BLOCKS_PER_ITER = VDR * WARPS * WARP / QI;
+    const int tid = WARP * int(threadIdx.y) + int(threadIdx.x);
+    const int row0 = ROWS * int(blockIdx.x);
+    const int blocks_per_row = n_in / QK;
+    float tmp[ROWS] = {};
+    for (int kbx = tid / (QI / VDR); kbx < blocks_per_row; kbx += BLOCKS_PER_ITER) {
+        const int kby = kbx * (QK / Q8K);
+        const int kqs = VDR * (tid % (QI / VDR));
+#pragma unroll
+        for (int i = 0; i < ROWS; ++i) {
+            // The source assumes allocator padding for partial row groups. This
+            // guard preserves every valid row's math without an out-of-bounds read.
+            if (row0 + i < n_out) {
+                const std::size_t block = std::size_t(row0 + i) * blocks_per_row + kbx;
+                tmp[i] += Dot(w + block, x + kby, kqs);
+            }
+        }
+    }
+    __shared__ float partial[WARPS - 1][ROWS][WARP];
+    if (threadIdx.y > 0) {
+#pragma unroll
+        for (int i = 0; i < ROWS; ++i) partial[threadIdx.y - 1][i][threadIdx.x] = tmp[i];
+    }
+    __syncthreads();
+    if (threadIdx.y > 0) return;
+#pragma unroll
+    for (int i = 0; i < ROWS; ++i) {
+#pragma unroll
+        for (int l = 0; l < WARPS - 1; ++l) tmp[i] += partial[l][i][threadIdx.x];
+        tmp[i] = warp_sum(tmp[i]);
+        if (threadIdx.x == i && row0 + i < n_out) y[row0 + i] = tmp[i];
+    }
+}
+
 __device__ __forceinline__ float small_q8_dot(const Q80Block* __restrict__ w,
                                              const Q81Block* __restrict__ x, int iqs) {
     int sumi = 0;
@@ -307,6 +474,58 @@ struct Q6KTraits {
             d8[i] = __low2float(x[r.bq8_offset + 2 * i].ds);
         }
         return q6_q8_dot_impl(r.vl, r.vh, u, r.scales, r.d, d8);
+    }
+};
+
+// Q5_K's and Q4_K's split: `load` reads the codes and unpacks the scale and min pair, `apply` calls the same impl as
+// the ncols = 1 dot with the same values.
+struct Q5KTraits {
+    using Block = Q5KBlock;
+    static constexpr int DIV = QK, T = QI / VDR, KBY = QK / Q8K, BPI = VDR * WARPS * WARP / QI;
+    __device__ static int kqs(int tid) { return VDR * (tid % (QI / VDR)); }
+    struct W { int vl[2], vh[2]; uint16_t aux[2]; half2 dm; int bq8_offset; };
+    __device__ static W load(const Block* __restrict__ bq5, int iqs) {
+        W r;
+        r.bq8_offset = 2 * ((iqs / 2) / 4);
+        const int* ql = reinterpret_cast<const int*>(bq5->qs + 16 * r.bq8_offset + 4 * ((iqs / 2) % 4));
+        const int* qh = reinterpret_cast<const int*>(bq5->qh + 4 * ((iqs / 2) % 4));
+        r.vl[0] = ql[0];
+        r.vl[1] = ql[4];
+        r.vh[0] = qh[0] >> r.bq8_offset;
+        r.vh[1] = qh[4] >> r.bq8_offset;
+        k_scale_min_pair(bq5->scales, r.bq8_offset / 2, r.aux);
+        r.dm = bq5->dm;
+        return r;
+    }
+    __device__ static float apply(const W& r, const Q81Block* __restrict__ bq8, int iqs) {
+        int u[4];
+        float d8[2];
+        k_q8_codes(bq8, r.bq8_offset, iqs, u, d8);
+        const uint8_t* sc = reinterpret_cast<const uint8_t*>(r.aux);
+        return q5_q8_dot_impl(r.vl, r.vh, u, sc, sc + 2, r.dm, d8);
+    }
+};
+struct Q4KTraits {
+    using Block = Q4KBlock;
+    static constexpr int DIV = QK, T = QI / VDR, KBY = QK / Q8K, BPI = VDR * WARPS * WARP / QI;
+    __device__ static int kqs(int tid) { return VDR * (tid % (QI / VDR)); }
+    struct W { int v[2]; uint16_t aux[2]; half2 dm; int bq8_offset; };
+    __device__ static W load(const Block* __restrict__ bq4, int iqs) {
+        W r;
+        r.bq8_offset = 2 * ((iqs / 2) / 4);
+        const int* ql = reinterpret_cast<const int*>(bq4->qs + 16 * r.bq8_offset + 4 * ((iqs / 2) % 4));
+        r.v[0] = ql[0];
+        r.v[1] = ql[4];
+        k_scale_min_pair(bq4->scales, r.bq8_offset / 2, r.aux);
+        r.dm = bq4->dm;
+        return r;
+    }
+    __device__ static float apply(const W& r, const Q81Block* __restrict__ bq8, int iqs) {
+        int u[4];
+        float d8[2];
+        k_q8_codes(bq8, r.bq8_offset, iqs, u, d8);
+        const uint8_t* sc = reinterpret_cast<const uint8_t*>(r.aux);
+        return q4_q8_dot_impl(r.v, u, sc, sc + 2, r.dm, d8);
     }
 };
 
@@ -617,6 +836,18 @@ STRATA_Q6_K_MMVQ(strata_native_q6_k_mmvq, false)
 STRATA_Q6_K_MMVQ(strata_native_q6_k_mmvq_small_k, true)
 #undef STRATA_Q6_K_MMVQ
 
+#define STRATA_K_MMVQ(NAME, BLOCK, DOT, SMALLK)                                                                         \
+    extern "C" __global__ void __launch_bounds__(strata_native::WARPS * strata_native::WARP, 1) NAME(                  \
+            const strata_native::BLOCK * __restrict__ w, const strata_native::Q81Block * __restrict__ x,              \
+            float * __restrict__ y, int n_in, int n_out) {                                                             \
+        strata_native::native_k_mmvq_kernel<strata_native::BLOCK, strata_native::DOT, SMALLK>(w, x, y, n_in, n_out);  \
+    }
+STRATA_K_MMVQ(strata_native_q5_k_mmvq, Q5KBlock, q5_q8_dot, false)
+STRATA_K_MMVQ(strata_native_q5_k_mmvq_small_k, Q5KBlock, q5_q8_dot, true)
+STRATA_K_MMVQ(strata_native_q4_k_mmvq, Q4KBlock, q4_q8_dot, false)
+STRATA_K_MMVQ(strata_native_q4_k_mmvq_small_k, Q4KBlock, q4_q8_dot, true)
+#undef STRATA_K_MMVQ
+
 // launch_multi_n's exact layout: four warps, two rows a block (one row a block only where measured faster on a gfx12 or
 // sm_86 card, neither of which this is).
 #define STRATA_MMVQ_MULTI(NAME, TRAITS, NCOLS)                                                                          \
@@ -641,6 +872,20 @@ STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q6_k_c5, Q6KTraits, 5)
 STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q6_k_c6, Q6KTraits, 6)
 STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q6_k_c7, Q6KTraits, 7)
 STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q6_k_c8, Q6KTraits, 8)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c2, Q5KTraits, 2)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c3, Q5KTraits, 3)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c4, Q5KTraits, 4)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c5, Q5KTraits, 5)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c6, Q5KTraits, 6)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c7, Q5KTraits, 7)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q5_k_c8, Q5KTraits, 8)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c2, Q4KTraits, 2)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c3, Q4KTraits, 3)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c4, Q4KTraits, 4)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c5, Q4KTraits, 5)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c6, Q4KTraits, 6)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c7, Q4KTraits, 7)
+STRATA_MMVQ_MULTI(strata_native_mmvq_multi_q4_k_c8, Q4KTraits, 8)
 #undef STRATA_Q8_0_TRAITS
 #undef STRATA_MMVQ_MULTI
 

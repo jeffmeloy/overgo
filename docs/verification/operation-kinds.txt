@@ -74,7 +74,7 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1784
+lines: 1787
 functions: 10
 packages: 4
 constants: 75
@@ -99,11 +99,11 @@ row: the entry of each operation, while attention's choice of path is attention'
 table: yes
 
 switch: internal/cuda/executor/launch_linear_layout.go#launchLinearLayout
-lines: 413
+lines: 416
 constants: 11
 clauses: 12
 dispatch-lines: 15
-decides: the device launch of the three normalizations, softmax, the two slices, repeat_heads and transpose_2d as one kernel each, of get_rows by the table's element type, and of mul_mat and grouped_mul_mat by the weight's element type (half precision, FP8, quantized or F32) with each path's staging and its cuBLAS or span kernel
+decides: the device launch of the three normalizations, softmax, the two slices, repeat_heads and transpose_2d as one kernel each, of get_rows by the table's element type, and of mul_mat and grouped_mul_mat by the weight's element type (half precision, FP8, quantized or F32) with each path's staging and its cuBLAS or span kernel, a K-quant's of one to eight columns through Strata's native MMVQ
 row: the entry of each operation, while mul_mat's choice by element type is a decision over the tensor element types, which is another family of the shape reading, and stays whole
 table: yes
 

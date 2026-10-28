@@ -399,6 +399,20 @@ const (
 	kernelStrataNativeMmvqMultiQ6KC6
 	kernelStrataNativeMmvqMultiQ6KC7
 	kernelStrataNativeMmvqMultiQ6KC8
+	kernelStrataNativeMmvqMultiQ5KC2
+	kernelStrataNativeMmvqMultiQ5KC3
+	kernelStrataNativeMmvqMultiQ5KC4
+	kernelStrataNativeMmvqMultiQ5KC5
+	kernelStrataNativeMmvqMultiQ5KC6
+	kernelStrataNativeMmvqMultiQ5KC7
+	kernelStrataNativeMmvqMultiQ5KC8
+	kernelStrataNativeMmvqMultiQ4KC2
+	kernelStrataNativeMmvqMultiQ4KC3
+	kernelStrataNativeMmvqMultiQ4KC4
+	kernelStrataNativeMmvqMultiQ4KC5
+	kernelStrataNativeMmvqMultiQ4KC6
+	kernelStrataNativeMmvqMultiQ4KC7
+	kernelStrataNativeMmvqMultiQ4KC8
 	kernelStrataNativeMmvqMultiQ80C2
 	kernelStrataNativeMmvqMultiQ80C3
 	kernelStrataNativeMmvqMultiQ80C4
@@ -409,6 +423,10 @@ const (
 	kernelStrataNativeGrPost
 	kernelStrataNativeQ6KMmvq
 	kernelStrataNativeQ6KMmvqSmallK
+	kernelStrataNativeQ5KMmvq
+	kernelStrataNativeQ5KMmvqSmallK
+	kernelStrataNativeQ4KMmvq
+	kernelStrataNativeQ4KMmvqSmallK
 	kernelStrataNativeQ81Interleave
 	kernelStrataNativeQuantizeQ81
 	kernelStrataNativeSmallMmvqQ80
@@ -823,6 +841,20 @@ var kernelFunctionNames = [...]string{
 	"strata_native_mmvq_multi_q6_k_c6",
 	"strata_native_mmvq_multi_q6_k_c7",
 	"strata_native_mmvq_multi_q6_k_c8",
+	"strata_native_mmvq_multi_q5_k_c2",
+	"strata_native_mmvq_multi_q5_k_c3",
+	"strata_native_mmvq_multi_q5_k_c4",
+	"strata_native_mmvq_multi_q5_k_c5",
+	"strata_native_mmvq_multi_q5_k_c6",
+	"strata_native_mmvq_multi_q5_k_c7",
+	"strata_native_mmvq_multi_q5_k_c8",
+	"strata_native_mmvq_multi_q4_k_c2",
+	"strata_native_mmvq_multi_q4_k_c3",
+	"strata_native_mmvq_multi_q4_k_c4",
+	"strata_native_mmvq_multi_q4_k_c5",
+	"strata_native_mmvq_multi_q4_k_c6",
+	"strata_native_mmvq_multi_q4_k_c7",
+	"strata_native_mmvq_multi_q4_k_c8",
 	"strata_native_mmvq_multi_q8_0_c2",
 	"strata_native_mmvq_multi_q8_0_c3",
 	"strata_native_mmvq_multi_q8_0_c4",
@@ -833,6 +865,10 @@ var kernelFunctionNames = [...]string{
 	"strata_native_gr_post",
 	"strata_native_q6_k_mmvq",
 	"strata_native_q6_k_mmvq_small_k",
+	"strata_native_q5_k_mmvq",
+	"strata_native_q5_k_mmvq_small_k",
+	"strata_native_q4_k_mmvq",
+	"strata_native_q4_k_mmvq_small_k",
 	"strata_native_q8_1_interleave",
 	"strata_native_quantize_q8_1",
 	"strata_native_small_mmvq_q8_0",
@@ -1253,7 +1289,25 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
+	5,
 	7,
+	5,
+	5,
+	5,
+	5,
 	5,
 	5,
 	7,
@@ -1649,6 +1703,24 @@ var kernelFunctionModules = [...]uint8{
 	1,
 	1,
 	1,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
+	2,
 	2,
 	2,
 	2,

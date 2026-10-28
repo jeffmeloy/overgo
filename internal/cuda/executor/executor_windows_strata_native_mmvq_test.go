@@ -18,7 +18,8 @@ import (
 // TestStrataNativeMMVQMatchesStrata holds Strata's native MMVQ projections (strata_native_mmvq.cuh, from
 // native_mmvq.cu) to the checks Strata keeps beside them, over Flash-Next's dense formats and shapes: the q8_1 quantizer
 // gives each 32-value block the scale of its largest magnitude over 127 and codes within half a step of the values
-// (q8_1_finite.hpp); a projection is a float64 transcription's over the weights and the quantized activations within
+// (q8_1_finite.hpp); a projection, Flash-Next's formats' and the K-quants' Overgo routes through them (Q4_K, Q5_K), is a
+// float64 transcription's over the weights and the quantized activations within
 // float rounding, on the single-column kernel, its small-K form, and every column count of the multi-column kernel; every
 // column of a multi-column call is bitwise the single-column call on that column (bench/micro/native_mmvq_multi.cpp);
 // and Q6_K's interleaved kernels at two to four columns and one, two and four rows a warp are bitwise the multi-column
@@ -48,6 +49,10 @@ func TestStrataNativeMMVQMatchesStrata(t *testing.T) {
 		{"q8_0 small-K down", strataGGMLQ8_0, dtype.Q8_0, 640, 520},
 		{"q6_K head", strataGGMLQ6K, dtype.Q6K, 2560, 2100},
 		{"q6_K small-K", strataGGMLQ6K, dtype.Q6K, 768, 300},
+		{"q5_K projection", strataGGMLQ5K, dtype.Q5K, 5120, 1040},
+		{"q5_K small-K", strataGGMLQ5K, dtype.Q5K, 1536, 300},
+		{"q4_K projection", strataGGMLQ4K, dtype.Q4K, 5120, 1040},
+		{"q4_K small-K", strataGGMLQ4K, dtype.Q4K, 1536, 300},
 	} {
 		weights := strataRandomWeights(t, draws, s.storage, s.nIn, s.nOut, weightScale)
 		reference, err := quant.Dequantize(s.storage, weights, uint64(s.nIn)*uint64(s.nOut))
@@ -126,7 +131,8 @@ func TestStrataNativeMMVQMatchesStrata(t *testing.T) {
 }
 
 // strataRandomWeights draws a matrix of n_out rows of n_in values in storage's blocks: Q8_0's codes and fp16 scales,
-// Q6_K's codes, its signed 6-bit sub-block scales and its fp16 scale, each of the given magnitude.
+// Q6_K's codes, its signed 6-bit sub-block scales and its fp16 scale, Q4_K's and Q5_K's codes, packed 6-bit scales and
+// mins and their fp16 scale and min, each of the given magnitude.
 func strataRandomWeights(t *testing.T, draws *rand.Rand, storage dtype.Type, nIn, nOut int32, scale float32) []byte {
 	t.Helper()
 	traits, _ := storage.Traits()
@@ -145,6 +151,9 @@ func strataRandomWeights(t *testing.T, draws *rand.Rand, storage dtype.Type, nIn
 				data[at+192+index] = byte(int8(draws.IntN(63) - 31))
 			}
 			binary.LittleEndian.PutUint16(data[at+208:], quant.Float32ToFloat16(scale*draws.Float32()/(31*32)))
+		case dtype.Q4K, dtype.Q5K:
+			binary.LittleEndian.PutUint16(data[at:], quant.Float32ToFloat16(scale*draws.Float32()/(63*16)))
+			binary.LittleEndian.PutUint16(data[at+2:], quant.Float32ToFloat16(scale*draws.Float32()/(63*16)))
 		}
 	}
 	return data

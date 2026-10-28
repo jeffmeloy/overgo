@@ -290,6 +290,9 @@ func launchLinearLayout(
 					state, functions, blas, dequantKernel, left, right, output, inner, leftRows, rightRows,
 				)
 			}
+			if ggml, routed := kQuantProducts[leftNode.Type]; routed && rightRows <= q8InputSpanColumns && q8Input != nil && q8Input.q81 != 0 {
+				return launchKQuantProduct(state, functions, q8Input, ggml, rightNode, left, right, output, inner, leftRows, rightRows)
+			}
 			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast {
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
@@ -1568,6 +1571,37 @@ var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
 	dtype.Q4K:  kernelMulMatQ4KInputF32,
 	dtype.Q5K:  kernelMulMatQ5KInputF32,
 	dtype.Q6K:  kernelMulMatQ6KInputF32,
+}
+
+// kQuantProducts are the K-quants whose products of one to eight columns, a decode token's and a verify window's,
+// take Strata's native MMVQ by its GGML type: it reads a weight once for every column, where the q8-input span
+// kernels repeat their activation loads and dots column by column (on Qwen3.8-27B's Q6_K shapes out of cache, 77 to
+// 82 us at one column and 84 to 90 at four against 107 to 133 and 145 to 169). One kernel for a column and for eight
+// keeps each column of a window bitwise its token's. Q8_0 keeps its own kernel, as fast as Strata's at every count.
+var kQuantProducts = map[dtype.Type]int{dtype.Q4K: strataGGMLQ4K, dtype.Q5K: strataGGMLQ5K, dtype.Q6K: strataGGMLQ6K}
+
+// launchKQuantProduct is a K-quant product of one to eight columns through Strata's native MMVQ: the columns quantized
+// to q8_1 blocks once a source in the run's q8_1 staging (q8InputState.q81), then every column in one read of the
+// weight.
+func launchKQuantProduct(
+	state *device.State,
+	functions functionSet,
+	q8Input *q8InputState,
+	ggml int,
+	rightNode *tensor.Tensor,
+	left, right, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+) error {
+	if inner > math.MaxInt32 || leftRows > math.MaxInt32 {
+		return errors.New("the K-quant product shape exceeds int32")
+	}
+	if source := q8Source(rightNode); q8Input.stagedQ81 != source {
+		if err := launchStrataNativeQuantizeQ81(state, functions, right, q8Input.q81, int32(inner), int32(rightRows)); err != nil {
+			return err
+		}
+		q8Input.stagedQ81 = source
+	}
+	return launchStrataNativeMMVQ(state, functions, ggml, left, q8Input.q81, output, int32(inner), int32(leftRows), int32(rightRows))
 }
 
 // q8InputFastPathType reports storage types whose single-vector decode

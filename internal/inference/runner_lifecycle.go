@@ -194,6 +194,11 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
+	if options.SpanKernels && cuda != nil {
+		if err := cuda.KeepSpanKernels(); err != nil {
+			return fail(err)
+		}
+	}
 	realized, err := realizedResidencyForOpen(program.Residency, deviceWeights != nil, recovered, rawWeights.HasExpertResidency())
 	if err != nil {
 		return fail(err)

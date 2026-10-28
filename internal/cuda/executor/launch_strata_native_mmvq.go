@@ -10,12 +10,15 @@ import (
 // Strata's native MMVQ projections (kernels/cuda/strata_native_mmvq.cuh, ported from Strata at 296b59d2, MIT:
 // src/kernels/cuda/native_mmvq.cu): its host side's dispatch, translated - native_mmvq over the formats Flash-Next's
 // dense projections and head store (Q8_0 through small_mmvq, Q6_K through native_q6_k_mmvq, each to launch_multi at
-// two or more columns), native_quantize_q8_1, native_swiglu_quantize_q8_1, native_q8_1_interleave and native_mmvq_il
+// two or more columns) and the K-quants beside Q6_K (Q4_K and Q5_K through native_q4_k_mmvq and native_q5_k_mmvq),
+// native_quantize_q8_1, native_swiglu_quantize_q8_1, native_q8_1_interleave and native_mmvq_il
 // with its rows tables. Activations are q8_1 blocks, a column after another; outputs a column after another.
 
 // The GGML types native_mmvq takes here, by GGML's numbering.
 const (
 	strataGGMLQ8_0 = 8
+	strataGGMLQ4K  = 12
+	strataGGMLQ5K  = 13
 	strataGGMLQ6K  = 14
 )
 
@@ -29,7 +32,8 @@ const (
 	strataNativeMaxColumns   = 8   // MAX_NCOLS
 	strataNativeQ81Bytes     = 36  // sizeof(Q81Block): a half2 scale and sum, then 32 codes
 	strataNativeQ80Qi        = 8   // Q8_0's Qi (SmallTraits<Q80Block, 8>)
-	strataNativeVDR          = 2   // the blocks a thread of the 32-value formats takes an iteration (VDR)
+	strataNativeVDR          = 2   // the blocks a thread of the 32-value formats and the K-quants takes an iteration (VDR)
+	strataNativeQI           = 32  // a K-quant block's ints of codes (QI)
 	strataNativeMultiFirst   = 2   // the fewest columns launch_multi takes
 	strataNativeMultiRows    = 2   // launch_multi_n's rows a block (ROWS)
 )
@@ -126,8 +130,19 @@ func launchStrataNativeSwigluQuantizeQ81(state *device.State, functions function
 		driver.Dim3{X: strataNativeQuantThreads, Y: 1, Z: 1}, &gate, &up, &xq, &total)
 }
 
-// strataNativeMultiQ80 and strataNativeMultiQ6K are launch_multi's instances by columns, from two.
+// strataNativeMultiQ80, strataNativeMultiQ4K, strataNativeMultiQ5K and strataNativeMultiQ6K are launch_multi's instances
+// by columns, from two.
 var (
+	strataNativeMultiQ4K = [...]kernelFunctionID{
+		kernelStrataNativeMmvqMultiQ4KC2, kernelStrataNativeMmvqMultiQ4KC3, kernelStrataNativeMmvqMultiQ4KC4,
+		kernelStrataNativeMmvqMultiQ4KC5, kernelStrataNativeMmvqMultiQ4KC6, kernelStrataNativeMmvqMultiQ4KC7,
+		kernelStrataNativeMmvqMultiQ4KC8,
+	}
+	strataNativeMultiQ5K = [...]kernelFunctionID{
+		kernelStrataNativeMmvqMultiQ5KC2, kernelStrataNativeMmvqMultiQ5KC3, kernelStrataNativeMmvqMultiQ5KC4,
+		kernelStrataNativeMmvqMultiQ5KC5, kernelStrataNativeMmvqMultiQ5KC6, kernelStrataNativeMmvqMultiQ5KC7,
+		kernelStrataNativeMmvqMultiQ5KC8,
+	}
 	strataNativeMultiQ80 = [...]kernelFunctionID{
 		kernelStrataNativeMmvqMultiQ80C2, kernelStrataNativeMmvqMultiQ80C3, kernelStrataNativeMmvqMultiQ80C4,
 		kernelStrataNativeMmvqMultiQ80C5, kernelStrataNativeMmvqMultiQ80C6, kernelStrataNativeMmvqMultiQ80C7,
@@ -156,6 +171,12 @@ func launchStrataNativeMMVQ(state *device.State, functions functionSet, ggmlType
 	case strataGGMLQ6K:
 		single, smallK, multi = kernelStrataNativeQ6KMmvq, kernelStrataNativeQ6KMmvqSmallK, strataNativeMultiQ6K[:]
 		blockValues, smallBelow = strataNativeQK, strataNativeWarps*strataNativeWarp/strataNativeQ8K
+	case strataGGMLQ5K:
+		single, smallK, multi = kernelStrataNativeQ5KMmvq, kernelStrataNativeQ5KMmvqSmallK, strataNativeMultiQ5K[:]
+		blockValues, smallBelow = strataNativeQK, strataNativeVDR*strataNativeWarps*strataNativeWarp/strataNativeQI
+	case strataGGMLQ4K:
+		single, smallK, multi = kernelStrataNativeQ4KMmvq, kernelStrataNativeQ4KMmvqSmallK, strataNativeMultiQ4K[:]
+		blockValues, smallBelow = strataNativeQK, strataNativeVDR*strataNativeWarps*strataNativeWarp/strataNativeQI
 	default:
 		return fmt.Errorf("unsupported native MMVQ GGML type %d", ggmlType)
 	}

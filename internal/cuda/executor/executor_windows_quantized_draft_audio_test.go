@@ -384,8 +384,13 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 		wantRow[index] = -32
 	}
 	compare(t, results[rows].Data, wantRow, 0)
-	compare(t, results[product].Data, []float32{-8081, -8192}, 1e-5)
+	compare(t, results[product].Data, []float32{-8081, -8192}, 8192*q81ScaleError)
 }
+
+// q81ScaleError bounds a K-quant product's rounding against its exact value, relative to the sum of its terms'
+// magnitudes: the product takes q8_1 activations (kQuantProducts), whose block scale fp16 holds within half its ulp,
+// 2^-11 of itself, where the q8 inputs keep an F32 scale.
+const q81ScaleError = 1.0 / 2048
 
 func TestExecutorQ4KDeviceEmbeddingAndMulMat(t *testing.T) {
 	testExecutorKQuantEmbeddingAndMulMat(t, dtype.Q4K)
@@ -742,10 +747,18 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 	}
 	compare(t, results[rows].Data, expected[256:], 1e-5)
 	wantProduct := []float32{0, 0}
+	var magnitude float64
 	for row := range 2 {
+		var terms float64
 		for _, value := range expected[row*256 : (row+1)*256] {
 			wantProduct[row] += value
+			terms += math.Abs(float64(value))
 		}
+		magnitude = max(magnitude, terms)
 	}
-	compare(t, results[product].Data, wantProduct, 1e-4)
+	tolerance := 1e-4
+	if _, routed := kQuantProducts[dataType]; routed {
+		tolerance += magnitude * q81ScaleError
+	}
+	compare(t, results[product].Data, wantProduct, tolerance)
 }

@@ -11,7 +11,7 @@ const (
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
 	OpsF32SHA256         = "a90bfedc9d69934d12e8bf0ad07f4def5e3f1265a15f50c134efe47590ace53c"
 	StrataQsaSHA256      = "45525e4025aaa51671196084bdfe5e94f58ba685896b40e199b108ed44e00300"
-	StrataNativeSHA256   = "1a03351a2330589e816d61ffe3fee7f4b2d70e026fdec264419fc4dafcd35938"
+	StrataNativeSHA256   = "340c2ba09deddf93cc556578a364ee0e7ad0816136a569f96fc3c506c3ead954"
 )
 
 var bundleAssets = [...]bundleAsset{

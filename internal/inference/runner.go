@@ -338,6 +338,9 @@ type OpenOptions struct {
 	// F32Cache keeps every attention layer's K/V in the F32 cache, where a layer whose geometry Strata's cells hold
 	// would keep int8 cells: the path a held-out check holds the cells to.
 	F32Cache bool
+	// SpanKernels keeps the K-quant products of one to eight columns on the q8-input span kernels, where they would take
+	// Strata's native MMVQ (executor.KeepSpanKernels): the path a held-out check holds the native products to.
+	SpanKernels bool
 }
 
 func (r *Runner) Spec() model.Spec {

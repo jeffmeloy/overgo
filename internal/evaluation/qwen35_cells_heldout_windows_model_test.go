@@ -18,8 +18,8 @@ import (
 )
 
 // qwen35CellsModels are the qwen35 family's served models whose attention layers keep their K/V as int8 cells
-// (cells-qwen35), each a file beneath the roots that hold it: Qwen3.8-27B's and Qwen3.5-9B's beneath a models root,
-// Qwen3.5-4B's conversion beneath the checkpoints root.
+// (cells-qwen35), each a file beneath the roots that hold it: Qwen3.8-27B's, Qwen3.5-9B's and Bonsai-27B's beneath a
+// models root, Qwen3.5-4B's conversion beneath the checkpoints root.
 func qwen35CellsModels(roots dataroot.Roots) []struct {
 	name, file string
 	under      []string
@@ -31,6 +31,7 @@ func qwen35CellsModels(roots dataroot.Roots) []struct {
 		{"Qwen3.8-27B", kQuantModel, roots.ModelRoots()},
 		{"Qwen3.5-9B", "Qwen3.5-9B-Q8_0.gguf", roots.ModelRoots()},
 		{"Qwen3.5-4B", filepath.Join("overgo-hfconvert", "Qwen3.5-4B-f16.gguf"), []string{roots.Checkpoints}},
+		{"Bonsai-27B", filepath.Join("bonzai", "Bonsai-27B-Q1_0.gguf"), roots.ModelRoots()},
 	}
 }
 

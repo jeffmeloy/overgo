@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-005 identifies accumulated host allocation records across reused MOSS requests. All 38 earlier findings and owner responses are preserved. Totals are 36 open and 3 deferred.",
-    "declined_candidates": "No GPU leak or measured memory/time improvement is claimed. Existing stage residency and conditioning-cache proposals remain paused. Reclaim released trailing records in the shared owner before considering a separate free list, pool or forced model reload.",
-    "priority": "The new MOSS P2 resource-lifetime defect follows the existing MOSS P2 findings and precedes the P3 exact-comparison guard. Earlier relative ranks remain unchanged; no cross-campaign reprioritization."
+    "assessment": "New P2 SQA-MOSS-006 identifies prompt whitespace lost by the shared chat composer. All 39 earlier findings and owner responses are preserved. Totals are 37 open and 3 deferred.",
+    "declined_candidates": "No measured token/pixel change or performance claim. Optional layout validation retains its source coordinate convention; no new parser, prompt normalization policy or MOSS-specific composer is recommended.",
+    "priority": "The new MOSS P2 transport defect follows existing MOSS P2 findings and precedes the P3 exact-comparison guard. Earlier relative ranks are unchanged."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117",
+    "revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2159,6 +2159,66 @@
       ],
       "status": "open",
       "title": "Reuse released resident allocation records across MOSS requests"
+    },
+    {
+      "category": "generation-prompt-transport",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "The existing browser journey sends a nonblank prompt containing leading/trailing spaces and a terminal newline and observes exactly those bytes in the captured latentimage.Request, with Unicode and layout content unchanged.",
+        "A refused or cancelled generation restores the original prompt and retry submits it unchanged. Existing whitespace-only, required-field, attachment-only and busy/read-only behavior remains intact.",
+        "Review both shared composer callers for the intentional change to chat/agent outer-whitespace handling. Keep backend and generation-form transport unchanged and retain the existing native tokenizer and HTTP fixtures."
+      ],
+      "comparison": "Minimal deciding comparison: extend TestWebUIBrowserMOSSGeneration with the whitespace-bearing request already used by TestMOSSImageGenerationContract and assert exact request equality through the actual composer, then failure restoration/retry. Before, the captured prompt is trimmed; after, it equals the textarea value. Existing native whitespace/tokenizer fixtures remain the conditioning authority. No fresh full-model comparison, service, new browser suite or production gate is required for this SQA finding.",
+      "displaced_surface": "Remove destructive trim from the submitted value and retain it only in the blank check. Extend the existing MOSS browser journey with an outer-whitespace prompt and exact captured-request assertion, plus failure/retry preservation, rather than adding another browser suite or model fixture. Existing HTTP exact-transport, layout-coordinate and native tokenizer tests cover separate boundaries and should remain. No new schema, server route, runtime or cache is needed; production change is small, test growth is unmeasured.",
+      "evidence": "Source counterexample at the pinned revision: entering the HTTP regression's prompt, two leading spaces followed by blue cube and a trailing newline, into the chat image composer submits blue cube. composer.submit calls trim before the actual onSubmit chain. chat.submit and generation pass the altered value through to the declared prompt field; a failed operation restores the altered value as well. The generation form's controlValues and the HTTP regression preserve the original string. renderTextInput and the native tokenizer producer pass prompt content directly to the source template. Thus the two UI entry routes do not submit the same request bytes for the same entered prompt. No browser, tokenizer or image generation was run in this review; the string transformation and caller chain are established from source.",
+      "evidence_commit": "3acbb325327bb7175c5f7dac3670600f4c40f9db",
+      "expected_benefit": {
+        "outcome": "The composer, generation form and API deliver the same prompt bytes, allowing the existing request identity and source tokenizer to own reproducibility.",
+        "uncertainty": "The transport difference is source-confirmed. No token-sequence, pixel, latency, memory or usage-frequency comparison was measured. The shared repair also preserves outer whitespace for ordinary chat and agent messages; whitespace-only submission remains rejected without attachments. Native fixtures and retained browser passes do not establish this missing composer case."
+      },
+      "id": "SQA-MOSS-006",
+      "impact": "A MOSS request submitted through chat silently differs from the entered prompt and from the same prompt submitted through the generation form or API. Its request identity changes and native conditioning may differ. Leading/trailing whitespace in serialized layout prompts is also lost even though the inner JSON is not rewritten. This does not establish a particular pixel difference or a failure of the retained native numerical comparisons, which used their recorded requests.",
+      "likely_effort": "Small shared JavaScript edit and an extension of the existing hermetic browser journey; no model execution is needed to decide request transport.",
+      "plan_coverage": "The paused MOSS plan retains the completed interface contract for exact prompt transport, but its remaining resource/evaluation/closeout steps do not name this composer boundary. This is an advisory finding only; no plan adoption, reopening or implementation is performed.",
+      "plan_references": [],
+      "recommended_change": "When implementation resumes, keep input.value unchanged in the shared composer submission and use text.trim() only for the existing blank-input admission check. Pass the original text through onSubmit, generation, displayed request and failure restoration. Reuse the shared composer; do not add a MOSS-specific input reader, prompt serializer, normalization flag or backend trimming. Review the two actual shared callers, chat and agent, and retain the existing attachment-only, busy/read-only and required-input guards.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/server/webui/composer.js",
+          "symbol": "composer.submit at 832 trims input.value at 833 and passes that changed text to onSubmit at 836; generation at 148 assigns that text to the declared request field at 152"
+        },
+        {
+          "path": "internal/server/webui/mod/chat.js",
+          "symbol": "composer binds onSubmit at 473-474; submit at 959 passes text to overgo.generate at 1009 and restores that same text after failure at 1011"
+        },
+        {
+          "path": "internal/server/webui/mod/agent.js",
+          "symbol": "shared composer consumer at 124-128 also receives submitted content; a shared repair changes its outer-whitespace behavior too"
+        },
+        {
+          "path": "internal/server/webui/workflow.js",
+          "symbol": "controlValues at 248 retains string field values; workflowWorkspace.submission at 444 uses it for the generation form"
+        },
+        {
+          "path": "internal/latentimage/textinput.go",
+          "symbol": "renderTextInput at 55 supplies the prompt directly as template message content at 64"
+        },
+        {
+          "path": "internal/server/moss_generation_windows_test.go",
+          "symbol": "TestMOSSImageGenerationContract submits the whitespace-bearing prompt at 186 and requires exact transport at 192, but enters through HTTP"
+        },
+        {
+          "path": "internal/server/webui_browser_moss_generation_windows_test.go",
+          "symbol": "TestWebUIBrowserMOSSGeneration sends blue cube and Unicode layout at 87 and 105; exact assertions at 112 do not exercise outer whitespace"
+        },
+        {
+          "path": "scripts/python_golden_references/moss_tokenizer_layout.py",
+          "symbol": "native tokenizer producer includes a prompt with leading/trailing spaces at 31 and passes prompt content unchanged to apply_chat_template"
+        }
+      ],
+      "status": "open",
+      "title": "Preserve prompt whitespace through the shared composer"
     }
   ],
   "gate_test_assessment": {
@@ -2706,8 +2766,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-005. Prior findings and implementation-owned fields preserved. No implementation or MOSS plan changes.",
-    "checked_head": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-006. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "3acbb325327bb7175c5f7dac3670600f4c40f9db",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2748,6 +2808,7 @@
     "SQA-MOSS-003",
     "SQA-MOSS-004",
     "SQA-MOSS-005",
+    "SQA-MOSS-006",
     "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
@@ -2770,21 +2831,24 @@
     "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain the documented merge-baseline scope mismatches; no broad rerun or database mutation was performed.",
     "At 9200920f2, SQA-MOSS-005 traces append-only ResidentSession allocation bookkeeping through successful MOSS stage releases and resident reuse. Zero StaticBytes does not bound this host slice. Close releases it but scans the accumulated record history.",
     "The smallest demonstrated repair is released-suffix reclamation in the shared owner with live indices preserved. Seal clears byBinding while retaining live allocations, so an empty lookup map alone is not a safe reset criterion. No free-list subsystem or repeated model loading is recommended.",
-    "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain documented merge-baseline scope mismatches; no broad rerun or database mutation was performed."
+    "No implementation or plan changed. The two master-plan-dependent checks and live-store MOSS acceptance-catalog omission remain documented merge-baseline scope mismatches; no broad rerun or database mutation was performed.",
+    "At 3acbb3253, SQA-MOSS-006 traces composer.submit's destructive trim through chat.submit and generation to the MOSS prompt. The generation form and HTTP regression preserve the whitespace-bearing request. Existing native tokenizer whitespace fixtures remain valid; no new model result is claimed.",
+    "The smallest repair preserves raw submitted text in the shared composer and keeps trimming solely for blank-input admission. Both chat and agent consumers are affected; retain shared guards and extend the existing hermetic MOSS journey instead of duplicating its setup.",
+    "The two master-plan-dependent checks and live-store MOSS catalog omission remain accepted merge-baseline scope mismatches. No plan change, implementation, broad check or database mutation occurred."
   ],
-  "reviewed_at": "2026-10-27T10:48:05Z",
+  "reviewed_at": "2026-10-28T00:59:17Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 9200920f27d0ac1a4a0e7a59c199504bf7a4d117 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and the MOSS-focused plan were read; implementation remains paused.",
-    "Rotated sample covers resident bindings, shared references, release/close, MOSS stage cleanup, successful resident reset and the actual image-session director. Existing Go AST inspection and retained native validation evidence were reused.",
-    "The new host-metadata finding is source-based. No model generation, training, performance sweep, new test, service or production gate ran. Retained native and browser evidence keeps its original revision and scope.",
-    "This chat implemented the integration; the review is not independent. Only the advisory SQA report changes. Historical reviewed_master, gate_test_assessment and implementation-owned responses are preserved."
+    "SQA-only review at 3acbb325327bb7175c5f7dac3670600f4c40f9db on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample covers optional layout validation, native whitespace fixtures, actual chat/generation-form callers and prompt restoration. Retained browser validation is reused with its original scope.",
+    "The new finding is source-based. No generation, training, performance sweep, test, service or production gate ran.",
+    "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-005: fresh successful generations on a reused MOSS session accumulate released host allocation records. Prior findings remain open; none adopted or closed.",
-      "evidence": "Bind appends every cache miss; Release zeroes but does not truncate or reuse records; resetRotary preserves the runtime. The real image director reuses successful compatible sessions, as its existing MOSS test confirms. Existing static-device-byte assertions do not cover host bookkeeping growth.",
+      "assessment": "New P2 SQA-MOSS-006: the shared chat composer silently trims MOSS prompt edges. Prior finding dispositions are unchanged; none adopted or closed by this review.",
+      "evidence": "composer.submit trims the entered value before chat.submit forwards it to generation. The generation form and existing HTTP regression preserve that same string; failed chat generation restores the trimmed value.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -2793,14 +2857,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, reclaim fully released trailing records in ResidentSession.Release while preserving live indices and retained backing capacity. Verify fixed-size repeated lifecycle, partial sharing and Seal behavior in the existing runtime test home; retain MOSS integration coverage.",
+      "recommendation": "When implementation resumes, preserve raw text in the shared composer and use trim only for blank-input admission. Extend the existing MOSS browser journey with exact whitespace transport and failure/retry preservation; inspect the shared agent caller.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "Source inspection establishes record growth, not measured RSS, device leakage or speed impact. No generation or new test ran. Retained validation remains scoped to its original implementation and cases; owner responses are untouched.",
+      "uncertainty": "Source confirms the request difference, not a measured token/pixel or resource effect. No tests or model execution ran. Retained fixtures keep their original scope; owner responses are untouched.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117"
+      "reviewed_revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db"
     },
-  "reviewed_revision": "9200920f27d0ac1a4a0e7a59c199504bf7a4d117"
+  "reviewed_revision": "3acbb325327bb7175c5f7dac3670600f4c40f9db"
 }

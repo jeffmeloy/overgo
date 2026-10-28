@@ -221,6 +221,13 @@
       },
       "steps": [
         {
+          "id": "draft-default",
+          "title": "Draft by default through a model's own next-token layer",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestOwnDraftLayerSpeculatesByDefault$' -count=1",
+          "rationale": "Serves: Qwen3.8-27B's served decoding, the second half of the model fix the owner chose first on 2026-10-27. Its own next-token layer drafts losslessly and, with its K-quant products through Strata's MMVQ (widen-windows), pays on every text measured: 68 to 72 tok/s on a predictable list and 45 to 46 on prose against 37.7 plain, the answers byte for byte the plain ones. But a request drafts only when it asks: SpeculatesByDefault is true for a draft the runner was opened with (an attached draft layer, the round's drafter) and not for a model's own next-token layer, a rule from when that layer's windows cost more than they returned (28.5 and 17.2 tok/s against 31).\nBuild: a runner whose model carries its own next-token layer (the appended single draft, nextn_predict_layers) speculates by default, as an attached draft does; a request that says speculative false still decodes plainly. Of the served models only Qwen3.8-27B's file carries one (each served file's metadata read on 2026-10-27).\nCheck: TestOwnDraftLayerSpeculatesByDefault, the hermetic qwen35 fixture's runner, whose file appends a next-token layer, speculating by default and decoding its default request token for token as plainly.\nEvidence: the 27B's served default request, drafted, over three alternating rounds against the request that says speculative false.\nBatch: inference."
+        },
+        {
           "id": "load-costs",
           "title": "Measure the machine's costs at load and compute the values that trade them",
           "status": "open",

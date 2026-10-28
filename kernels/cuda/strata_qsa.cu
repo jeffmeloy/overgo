@@ -1424,7 +1424,8 @@ extern "C" __global__ void strata_prompt_attn_i8_smem(uint32_t * bytes) {
 // The cell attention's entries for an attention layer of HD-wide heads and G query heads a K/V head (widen-kv): the
 // int8 decode chunks and their merge, the int8 prompt attention and its shared memory's size, each Strata's body at
 // that geometry, reading a selection or a range of cells. Instantiated for gemma-4-12B's sliding (256, 2) and global
-// (512, 16) layers and a llama layer of 2 K/V heads of 128 (128, 8).
+// (512, 16) layers, a llama layer of 2 K/V heads of 128 (128, 8) and the qwen35 family's attention layers, 4 K/V heads of
+// 256 under 16 query heads (Qwen3.5-9B, 256, 4) and under 24 (Qwen3.8-27B, 256, 6).
 #define STRATA_CELL_ENTRIES(HD, G)                                                                                     \
     extern "C" __global__ void __launch_bounds__(STRATA_ATTN_THREADS) strata_cell_attn_chunk_q8_##HD##x##G(           \
             const float * __restrict__ q, const int8_t * k_q, const int8_t * v_q, const uint16_t * k_scale,          \
@@ -1455,6 +1456,8 @@ extern "C" __global__ void strata_prompt_attn_i8_smem(uint32_t * bytes) {
 
 STRATA_CELL_ENTRIES(128, 8)
 STRATA_CELL_ENTRIES(256, 2)
+STRATA_CELL_ENTRIES(256, 4)
+STRATA_CELL_ENTRIES(256, 6)
 STRATA_CELL_ENTRIES(512, 16)
 
 // ---- kv_stream.cu: KV streaming for a QSA layer whose cells outgrow its VRAM slots (kv_stream.hpp). The layer's

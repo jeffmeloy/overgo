@@ -783,12 +783,17 @@ func buildGatedProjectionMixCached(
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
-	rotary rotaryPlan,
+	plan LayerPlan,
 	indices *tensor.Tensor,
+	cells *CellBinding,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
 	}
+	if cells != nil && (pastKey != nil || indices != nil || sequences != tensor.SingletonExtent) {
+		return DenseBlockResult{}, errors.New("gated attention over cells holds no other cache and reads one sequence")
+	}
+	rotary := plan.Rotary
 	required := graphWeights{
 		weights.AttentionQ,
 		weights.AttentionK,
@@ -834,6 +839,14 @@ func buildGatedProjectionMixCached(
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	query, key = rotary.Apply(builder, query, key, positions, multiPositions, nil)
+	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
+	if cells != nil {
+		// The step's keys and values join the layer's cells, which its queries read in place.
+		attention := cellAttentionStep(builder, spec, plan, cells, query, key, value)
+		attention = builder.Reshape(attention, uint64(spec.HeadCount)*uint64(spec.ValueLength), tokens)
+		attention = builder.MulMat(weights.AttentionOutput, builder.Multiply(attention, builder.Sigmoid(gate)))
+		return DenseBlockResult{Output: attention}, builder.Err()
+	}
 
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
@@ -864,7 +877,6 @@ func buildGatedProjectionMixCached(
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),
 		tokens*sequences,
 	)
-	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
 	attention = builder.Multiply(attention, builder.Sigmoid(gate))
 	attention = builder.MulMat(weights.AttentionOutput, attention)
 	if err := builder.Err(); err != nil {

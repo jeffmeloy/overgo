@@ -14,16 +14,18 @@ type CellBinding struct {
 	FirstCell uint32
 }
 
-// HoldsAttentionCells reports whether a runner may build the layer over Strata's int8 cells: an attention layer of
-// gemma-4's shared-K/V adapter that holds its own keys and values, causal with no sinks, soft cap, ALiBi bias or block
-// selection, its sliding window read as a range of cells, its keys and values one width at a geometry the cell
-// attention's kernels are instantiated for.
+// HoldsAttentionCells reports whether a runner may build the layer over Strata's int8 cells: an attention layer that
+// holds its own keys and values, one width at a geometry the cell attention's kernels are instantiated for, either of
+// gemma-4's shared-K/V adapter, causal with no sinks, soft cap, ALiBi bias or block selection, its sliding window read
+// as a range of cells, or the qwen35 family's gated attention (buildGatedProjectionMixCached, causal with none of them)
+// with no block selection, which Flash-Next's QSA layers keep.
 func (p CompiledLayerProgram) HoldsAttentionCells() bool {
 	plan, attention := p.plan, p.plan.AttentionGraph
 	shapes := p.spec.TensorShapes(plan.Layer)
-	return slices.Contains(plan.Program.Instructions, attentionLayerStage(layerOperatorAttentionSharedKVQKNorm)) &&
-		plan.HasKV && !plan.SharedKV && !plan.Recurrent && attention.Causal && !attention.UseSinks &&
-		!attention.ChunkedWindow && attention.Softcap == 0 && attention.MaxALiBiBias == 0 && attention.BlockSize == 0 &&
+	adapter := slices.Contains(plan.Program.Instructions, attentionLayerStage(layerOperatorAttentionSharedKVQKNorm)) &&
+		attention.Causal && !attention.UseSinks && !attention.ChunkedWindow && attention.Softcap == 0 && attention.MaxALiBiBias == 0
+	gated := slices.Contains(plan.Program.Instructions, attentionLayerStage(layerOperatorAttentionGatedProjection))
+	return (adapter || gated) && plan.HasKV && !plan.SharedKV && !plan.Recurrent && attention.BlockSize == 0 &&
 		shapes.Key == shapes.Value && tensor.CellAttentionHolds(shapes.Key, shapes.QueryHeads, shapes.KVHeads)
 }
 
@@ -41,6 +43,6 @@ func cellAttentionStep(builder *tensor.Builder, spec Spec, plan LayerPlan, cells
 		steps[index] = cells.FirstCell + uint32(index)
 	}
 	return builder.CellAttention(query, key, value, cells.State, tensor.CellAttentionAttributes{
-		Cells: steps, Capacity: cells.Capacity, Window: plan.AttentionGraph.Window, Scale: spec.AttentionScale,
+		Cells: steps, Capacity: cells.Capacity, Window: plan.AttentionGraph.Window, Scale: spec.resolvedAttentionScale(query.Shape.Dims[0]),
 	})
 }

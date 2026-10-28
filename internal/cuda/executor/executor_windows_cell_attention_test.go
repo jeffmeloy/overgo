@@ -21,7 +21,8 @@ import (
 // each step's attention within 1e-3 of the output scale of the reference's float64 attention over the dequantized cells
 // and the state's codes and fp16 scales equal to the reference's bit for bit at the end. The geometries are gemma-4-12B's
 // sliding layers (8 K/V heads of 256 reading a window, here 192 cells), its global layers (one K/V head of 512 reading
-// every cell before it) and a llama layer (2 K/V heads of 128).
+// every cell before it), a llama layer (2 K/V heads of 128) and the qwen35 family's attention layers (4 K/V heads of 256
+// under 16 query heads, Qwen3.5-9B's, and under 24, Qwen3.8-27B's).
 func TestCellAttentionMatchesReference(t *testing.T) {
 	worker := newFixtureWorker(t)
 	cuda := newFixtureExecutorWithWorker(t, worker)
@@ -32,6 +33,8 @@ func TestCellAttentionMatchesReference(t *testing.T) {
 		{"gemma-4-12B sliding", 256, 16, 8, 192},
 		{"gemma-4-12B global", 512, 16, 1, 0},
 		{"llama", 128, 16, 2, 0},
+		{"Qwen3.5-9B", 256, 16, 4, 0},
+		{"Qwen3.8-27B", 256, 24, 4, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) { cellAttentionParity(t, cuda, c.width, c.heads, c.kvHeads, c.window) })
 	}

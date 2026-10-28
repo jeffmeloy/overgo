@@ -37,18 +37,25 @@ func writeHermeticQwen35GGUF(t *testing.T) string {
 // writeHermeticQwen35GGUFLast is writeHermeticQwen35GGUF with last as its last token's text.
 func writeHermeticQwen35GGUFLast(t *testing.T, last string) string {
 	t.Helper()
+	return writeHermeticQwen35GGUFShaped(t, last, hermeticContext, hybridHeadWidth, hybridHeads, hybridKVHeads)
+}
+
+// writeHermeticQwen35GGUFShaped is the hybrid at a context of context tokens, its attention layers' heads of width under
+// heads query heads over kvHeads K/V heads.
+func writeHermeticQwen35GGUFShaped(t *testing.T, last string, context uint32, width, heads, kvHeads uint64) string {
+	t.Helper()
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen35"),
 		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-hybrid"),
 		testutil.GGUFScalar("qwen35.block_count", gguf.ValueTypeUint32, uint32(5)),
 		testutil.GGUFScalar("qwen35.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
-		testutil.GGUFScalar("qwen35.context_length", gguf.ValueTypeUint32, hermeticContext),
+		testutil.GGUFScalar("qwen35.context_length", gguf.ValueTypeUint32, context),
 		testutil.GGUFScalar("qwen35.embedding_length", gguf.ValueTypeUint32, uint32(hybridEmbedding)),
 		testutil.GGUFScalar("qwen35.feed_forward_length", gguf.ValueTypeUint32, uint32(hybridFFN)),
-		testutil.GGUFScalar("qwen35.attention.head_count", gguf.ValueTypeUint32, uint32(hybridHeads)),
-		testutil.GGUFScalar("qwen35.attention.head_count_kv", gguf.ValueTypeUint32, uint32(hybridKVHeads)),
-		testutil.GGUFScalar("qwen35.attention.key_length", gguf.ValueTypeUint32, uint32(hybridHeadWidth)),
-		testutil.GGUFScalar("qwen35.attention.value_length", gguf.ValueTypeUint32, uint32(hybridHeadWidth)),
+		testutil.GGUFScalar("qwen35.attention.head_count", gguf.ValueTypeUint32, uint32(heads)),
+		testutil.GGUFScalar("qwen35.attention.head_count_kv", gguf.ValueTypeUint32, uint32(kvHeads)),
+		testutil.GGUFScalar("qwen35.attention.key_length", gguf.ValueTypeUint32, uint32(width)),
+		testutil.GGUFScalar("qwen35.attention.value_length", gguf.ValueTypeUint32, uint32(width)),
 		testutil.GGUFScalar("qwen35.rope.freq_base", gguf.ValueTypeFloat32, float32(10_000)),
 		testutil.GGUFScalar("qwen35.rope.dimension_count", gguf.ValueTypeUint32, uint32(4)),
 		testutil.GGUFArray("qwen35.rope.dimension_sections", gguf.ValueTypeInt32, []int32{1, 1, 0, 0}),
@@ -98,12 +105,12 @@ func writeHermeticQwen35GGUFLast(t *testing.T, last string) string {
 	// nextn projection tensors.
 	for _, attention := range []string{"blk.3.", "blk.4."} {
 		tensor(attention+"attn_norm.weight", hybridEmbedding)
-		tensor(attention+"attn_q.weight", hybridEmbedding, hybridHeads*hybridHeadWidth*2)
-		tensor(attention+"attn_k.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
-		tensor(attention+"attn_v.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
-		tensor(attention+"attn_output.weight", hybridHeads*hybridHeadWidth, hybridEmbedding)
-		tensor(attention+"attn_q_norm.weight", hybridHeadWidth)
-		tensor(attention+"attn_k_norm.weight", hybridHeadWidth)
+		tensor(attention+"attn_q.weight", hybridEmbedding, heads*width*2)
+		tensor(attention+"attn_k.weight", hybridEmbedding, kvHeads*width)
+		tensor(attention+"attn_v.weight", hybridEmbedding, kvHeads*width)
+		tensor(attention+"attn_output.weight", heads*width, hybridEmbedding)
+		tensor(attention+"attn_q_norm.weight", width)
+		tensor(attention+"attn_k_norm.weight", width)
 		tensor(attention+"post_attention_norm.weight", hybridEmbedding)
 		tensor(attention+"ffn_gate.weight", hybridEmbedding, hybridFFN)
 		tensor(attention+"ffn_up.weight", hybridEmbedding, hybridFFN)

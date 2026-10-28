@@ -212,7 +212,7 @@ func executeAttentionOperator(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.MultiPositions, c.Sequences,
 			operands.caches[runtimeCachePrimaryKey], operands.caches[runtimeCachePrimaryValue], c.CacheWrite,
-			plan.Rotary, indices,
+			plan, indices, c.Cells,
 		)
 		result.States = states
 		return result, err

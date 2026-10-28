@@ -20,18 +20,22 @@ import (
 const CellPageCells = 64
 
 // The geometries the cell attention's kernels are instantiated for (kernels/cuda/strata_qsa.cu STRATA_CELL_ENTRIES), a
-// head width and the query heads a K/V head each: a llama layer of 2 K/V heads of 128 under 16 query heads, and
-// gemma-4-12B's sliding layers (8 K/V heads of 256 under 16) and global layers (one K/V head of 512 under 16).
+// head width and the query heads a K/V head each: a llama layer of 2 K/V heads of 128 under 16 query heads,
+// gemma-4-12B's sliding layers (8 K/V heads of 256 under 16) and global layers (one K/V head of 512 under 16), and the
+// qwen35 family's attention layers, 4 K/V heads of 256 under 16 query heads (Qwen3.5-9B) and under 24 (Qwen3.8-27B).
 const (
 	cellLlamaWidth, cellLlamaGroup     = 128, 8
 	cellSlidingWidth, cellSlidingGroup = 256, 2
 	cellGlobalWidth, cellGlobalGroup   = 512, 16
+	cellQwenWidth                      = 256
+	cellQwen35Group, cellQwen38Group   = 4, 6
 )
 
 // CellAttentionGeometries are the geometries the cell attention's kernels are instantiated for, in the order of their
 // entries.
 var CellAttentionGeometries = [][PairedExtent]uint64{
 	{cellLlamaWidth, cellLlamaGroup}, {cellSlidingWidth, cellSlidingGroup}, {cellGlobalWidth, cellGlobalGroup},
+	{cellQwenWidth, cellQwen35Group}, {cellQwenWidth, cellQwen38Group},
 }
 
 // CellTokenAxis is the token axis of a cell attention step's rows, (width, heads, tokens), of cellRowRank axes.

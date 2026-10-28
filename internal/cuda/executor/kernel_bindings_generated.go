@@ -272,15 +272,23 @@ const (
 	kernelStrataBlockTopkWide
 	kernelStrataCellAttnChunkQ8128x8
 	kernelStrataCellAttnChunkQ8256x2
+	kernelStrataCellAttnChunkQ8256x4
+	kernelStrataCellAttnChunkQ8256x6
 	kernelStrataCellAttnChunkQ8512x16
 	kernelStrataCellAttnMerge128x8
 	kernelStrataCellAttnMerge256x2
+	kernelStrataCellAttnMerge256x4
+	kernelStrataCellAttnMerge256x6
 	kernelStrataCellAttnMerge512x16
 	kernelStrataCellPromptAttnI8128x8
 	kernelStrataCellPromptAttnI8256x2
+	kernelStrataCellPromptAttnI8256x4
+	kernelStrataCellPromptAttnI8256x6
 	kernelStrataCellPromptAttnI8512x16
 	kernelStrataCellPromptAttnI8Smem128x8
 	kernelStrataCellPromptAttnI8Smem256x2
+	kernelStrataCellPromptAttnI8Smem256x4
+	kernelStrataCellPromptAttnI8Smem256x6
 	kernelStrataCellPromptAttnI8Smem512x16
 	kernelStrataCopyIndexed
 	kernelStrataGateApplyF32
@@ -714,15 +722,23 @@ var kernelFunctionNames = [...]string{
 	"strata_block_topk_wide",
 	"strata_cell_attn_chunk_q8_128x8",
 	"strata_cell_attn_chunk_q8_256x2",
+	"strata_cell_attn_chunk_q8_256x4",
+	"strata_cell_attn_chunk_q8_256x6",
 	"strata_cell_attn_chunk_q8_512x16",
 	"strata_cell_attn_merge_128x8",
 	"strata_cell_attn_merge_256x2",
+	"strata_cell_attn_merge_256x4",
+	"strata_cell_attn_merge_256x6",
 	"strata_cell_attn_merge_512x16",
 	"strata_cell_prompt_attn_i8_128x8",
 	"strata_cell_prompt_attn_i8_256x2",
+	"strata_cell_prompt_attn_i8_256x4",
+	"strata_cell_prompt_attn_i8_256x6",
 	"strata_cell_prompt_attn_i8_512x16",
 	"strata_cell_prompt_attn_i8_smem_128x8",
 	"strata_cell_prompt_attn_i8_smem_256x2",
+	"strata_cell_prompt_attn_i8_smem_256x4",
+	"strata_cell_prompt_attn_i8_smem_256x6",
 	"strata_cell_prompt_attn_i8_smem_512x16",
 	"strata_copy_indexed",
 	"strata_gate_apply_f32",
@@ -1156,12 +1172,20 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	17,
 	17,
+	17,
+	17,
+	6,
+	6,
 	6,
 	6,
 	6,
 	13,
 	13,
 	13,
+	13,
+	13,
+	1,
+	1,
 	1,
 	1,
 	1,
@@ -1588,6 +1612,14 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
+	1,
 	1,
 	1,
 	1,

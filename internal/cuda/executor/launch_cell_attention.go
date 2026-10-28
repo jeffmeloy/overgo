@@ -42,6 +42,8 @@ var strataCellEntries = []strataCellKernels{
 	{kernelStrataCellAttnChunkQ8128x8, kernelStrataCellAttnMerge128x8, kernelStrataCellPromptAttnI8128x8, kernelStrataCellPromptAttnI8Smem128x8},
 	{kernelStrataCellAttnChunkQ8256x2, kernelStrataCellAttnMerge256x2, kernelStrataCellPromptAttnI8256x2, kernelStrataCellPromptAttnI8Smem256x2},
 	{kernelStrataCellAttnChunkQ8512x16, kernelStrataCellAttnMerge512x16, kernelStrataCellPromptAttnI8512x16, kernelStrataCellPromptAttnI8Smem512x16},
+	{kernelStrataCellAttnChunkQ8256x4, kernelStrataCellAttnMerge256x4, kernelStrataCellPromptAttnI8256x4, kernelStrataCellPromptAttnI8Smem256x4},
+	{kernelStrataCellAttnChunkQ8256x6, kernelStrataCellAttnMerge256x6, kernelStrataCellPromptAttnI8256x6, kernelStrataCellPromptAttnI8Smem256x6},
 }
 
 // strataCellKernelsOf is the entries instantiated for a geometry, if any.

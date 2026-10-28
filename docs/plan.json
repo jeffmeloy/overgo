@@ -216,17 +216,10 @@
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",
       "budget": {
-        "nodes": 17,
-        "reason": "draft-default: Runner.ownDraftLayer, the default that a model's own next-token layer speculates, at the server and in the runner (50 production syntax nodes measured by the gate)."
+        "nodes": 0,
+        "reason": "cells-qwen35: the cell attention's bindings at the qwen35 family's two geometries (8 entries generated), the gated attention's cell step and the widened cell rule (156 production syntax nodes measured by the gate)."
       },
       "steps": [
-        {
-          "id": "cells-qwen35",
-          "title": "Hold the qwen35 family's attention layers as int8 cells, Qwen3.8-27B first",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestCellAttentionMatchesReference$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestQwen35CellsMatchF32Decoding$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestQwen35CellsHoldHeldOut$' -count=1 -timeout 180m",
-          "rationale": "Serves: the owner's choice of 2026-10-28 to widen the ported mechanisms to more models, the first being the one recipe-widen's order names after gemma-4: the int8 K/V cells for the qwen35 family's attention layers (Qwen3.8-27B: 16 of its 64 layers, 24 query heads over 4 K/V heads of 256; Qwen3.5-9B: 8 of 32, 16 over 4). In F32 the 27B's attention holds about 131 KB a token, 34 GB at its 262,144-token context and 4.3 GB at a 16K prompt's 32,768-token page beside 21 GB of weights; the cells hold a quarter of it.\nBuild: the cell attention's kernels instantiated at width 256 with 4 and 6 query heads a K/V head (tensor.CellAttentionGeometries beside gemma-4's and a llama layer's); model.CompiledLayerProgram.HoldsAttentionCells widened from gemma-4's shared-K/V adapter to the gated projection's attention with no block selection (Flash-Next's QSA layers keep theirs), its keys and values one width at an instantiated geometry, causal with no sinks, soft cap or ALiBi; buildGatedProjectionMixCached reading and appending the cells (cellAttentionStep) where its runner binds them, its gate and output projection as before. A qwen35 runner's gated-delta layers hold fixed state only, so its attention layers' cells are its sequences' only token-aligned storage, as attention_cells.go requires.\nCheck: TestCellAttentionMatchesReference at the two new geometries; TestQwen35CellsMatchF32Decoding, a miniature qwen35 at an instantiated geometry over cells against its F32 cache through a prompt and its decode, greedy plainly and drafted through its next-token layer, the drafted tokens the plain ones; the precision change's held-out check, TestQwen35CellsHoldHeldOut: Qwen3.8-27B's MMLU-Pro and IFEval over the cells against the F32 cache (inference.OpenOptions.F32Cache), a two-sided sign test at 5%, as gemma-4-12B's cells were held.\nEvidence: the 27B's peak device memory and its prompt and decode rates at 4K and 16K, cells against the F32 cache, three alternating rounds.\nBatch: model, tensor and the cell kernels, inference, evaluation."
-        },
         {
           "id": "recipe-widen",
           "title": "Choose each ported mechanism by recipe property and widen it model by model",

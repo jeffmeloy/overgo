@@ -77,7 +77,7 @@
       "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
       "references": [
         {
-          "path": "docs/media_samples/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif",
+          "path": "assets/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif",
           "sha256": "6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33"
         }
       ],

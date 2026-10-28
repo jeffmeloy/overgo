@@ -26,7 +26,7 @@ import (
 // mediaSamplesDir holds the exported generation outputs the media
 // report links: every file is store content named by its SHA-256, so a
 // sample is checkable against the evidence that produced it.
-const mediaSamplesDir = "docs/media_samples"
+const mediaSamplesDir = "assets"
 
 // speechAudioSchema recognizes the speech pipeline's typed audio
 // output so it can be exported as a playable WAV.
@@ -37,7 +37,7 @@ const speechAudioSchema = "overgo.speech-audio.v1"
 const generatedVideoSchema = "overgo.generated-video.v1"
 
 // exportMediaSamples writes each healthy media activation's succeeded
-// generation outputs under docs/media_samples as decodable files --
+// generation outputs under assets as decodable files --
 // PNG and GIF bytes exactly as the store holds them, speech audio
 // re-encoded as 16-bit PCM WAV -- named by content SHA-256. Nothing is
 // exported that a run did not publish.

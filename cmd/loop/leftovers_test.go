@@ -157,8 +157,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 	}
 	// Source reads the record, and the record carries one sample's digest; nothing carries the other's name.
 	write("repo/internal/x/x.go", "// Package x names experiments/coded/out.\npackage x\n\nconst record = \"docs/verification/run-record.txt\"\n")
-	write("repo/docs/media_samples/"+sampled+".dat", "a sample its record names\n")
-	write("repo/docs/media_samples/sample.dat", "sample\n")
+	write("repo/assets/"+sampled+".dat", "a sample its record names\n")
+	write("repo/assets/sample.dat", "sample\n")
 	git(repo, "add", "-A")
 	git(repo, "commit", "-q", "-m", "base")
 	trunk := git(repo, "rev-parse", "HEAD")
@@ -421,8 +421,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			"python-place|repo/scripts/python_golden_references|never|kept",
 			"checkout-store|repo/overgodb-store|never|kept",
 			"docs-untracked|repo/docs/local.json|never|kept",
-			"media-samples|repo/docs/media_samples/" + sampled + ".dat|report|held",
-			"media-samples|repo/docs/media_samples/sample.dat|report|finished",
+			"media-samples|repo/assets/" + sampled + ".dat|report|held",
+			"media-samples|repo/assets/sample.dat|report|finished",
 			"verification|repo/docs/verification/run-record.txt|never|kept",
 			"verification|repo/docs/verification/old-probe.txt|never|kept",
 			"verification|repo/docs/verification/chart.dat|never|kept",
@@ -498,8 +498,8 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 			{"store-backup", "backups/sealed", "sealed-backup"},
 			{"tmp", "repo/tmp/tool.exe", "docs/plan.json"},
 			{"temporary-build", "temporary/go-build2", "this command's own executable"},
-			{"media-samples", "repo/docs/media_samples/" + sampled + ".dat", "named by docs/verification/run-record.txt"},
-			{"media-samples", "repo/docs/media_samples/sample.dat", "nothing reads it"},
+			{"media-samples", "repo/assets/" + sampled + ".dat", "named by docs/verification/run-record.txt"},
+			{"media-samples", "repo/assets/sample.dat", "nothing reads it"},
 			{"verification", "repo/docs/verification/run-record.txt", "none: a record is kept"},
 			{"verification", "repo/docs/verification/old-probe.txt", "history: it names what the tree no longer has: TestGone, cmd/gone"},
 			{"verification", "repo/docs/verification/chart.dat", "none: a record is kept"},

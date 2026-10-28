@@ -27,7 +27,7 @@ import (
 )
 
 // Preserve the historical declaration without activating retired task kinds.
-const imageVideoInventorySHA256 = "970714bb1fa52f4b7474e0b2e90739ac989d77fb7ab4a311b5e9c7cf457c1a49"
+const imageVideoInventorySHA256 = "6e9a3eed18b36574393ef1264d64adbff9b94fae5b34c0f9117a17d37e88e205"
 
 type imageVideoInventory struct {
 	Version  uint16                    `json:"version"`

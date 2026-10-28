@@ -177,7 +177,7 @@ func TestImageVideoReportContract(t *testing.T) {
 		t.Fatal("fixture activation or generated sample gained acceptance credit")
 	}
 	text := string(first.Markdown)
-	for _, required := range []string{"# Media capability report", "## Current validation checkpoint", "(image_video_protocol.json)", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "](media_samples/", "`speech`"} {
+	for _, required := range []string{"# Media capability report", "## Current validation checkpoint", "(image_video_protocol.json)", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "](assets/", "`speech`"} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("report omits %q:\n%s", required, text)
 		}

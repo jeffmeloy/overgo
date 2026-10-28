@@ -25,7 +25,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	var coverage imageVideoCoverage
 	// The digest is written here and not through a constant: the commit checks read a pin only
 	// from a call that names its document and its digest as literals (internal/landing pins).
-	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "fa1a9f87b7c54030ad438e95f2c92b7c1b48f94e568a33d6ba6dbd957fea2713", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", "5fe2574e4793923a7c1d2a684bdffbf2a6552f4dce1abfbbcf6e12eb11990913", &coverage)
 	var protocol imageVideoProtocol
 	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 				t.Fatal(err)
 			}
 			name, want, ok := sampleFile(content)
-			actual, err := os.ReadFile(filepath.Join(root, "docs/media_samples", name))
+			actual, err := os.ReadFile(filepath.Join(root, mediaSamplesDir, name))
 			if !ok || err != nil || !bytes.Equal(actual, want) {
 				t.Fatalf("exported sample missing or changed: %v", err)
 			}

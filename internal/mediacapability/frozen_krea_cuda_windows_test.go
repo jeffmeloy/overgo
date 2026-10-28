@@ -64,7 +64,7 @@ func TestFrozenKreaGeneration(t *testing.T) {
 	// The accepted sample, with its run and review: docs/verification/image-video-coverage.json.
 	// docs/image_video_latent_images.json keeps the acquisition of the picture it replaced.
 	const outputHash = "4844851dc3b37f5ec51704cc74f4863f53077ff903efde231daa482d834fc327"
-	want, err := os.ReadFile(filepath.Join(root, "docs/media_samples", outputHash+".png"))
+	want, err := os.ReadFile(filepath.Join(root, "assets", outputHash+".png"))
 	if err != nil {
 		t.Fatal(err)
 	}

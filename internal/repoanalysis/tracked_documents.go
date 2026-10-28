@@ -410,10 +410,15 @@ func CheckoutDocuments(ctx context.Context, root string) ([]TrackedDocument, err
 	})
 }
 
+// assetsRoot holds the media samples the README shows, each named by the
+// digest of its bytes.
+const assetsRoot = "assets"
+
 // documentPathspecs select what the census covers: documents by their
-// extension wherever they are, and everything beneath docs and beneath
-// fixtures whatever it is: a golden tensor is held to a reader as a page is.
-var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documentsRoot, fixturesRoot}
+// extension wherever they are, and everything beneath docs, beneath fixtures
+// and beneath assets whatever it is: a golden tensor and a sample are held to
+// a reader as a page is.
+var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documentsRoot, fixturesRoot, assetsRoot}
 
 // TrackedDocuments lists the documents of the checkout at root: what git
 // tracks and what it would track if added, so a stray document is measured

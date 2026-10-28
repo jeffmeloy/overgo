@@ -109,7 +109,7 @@ func TestFrozenDiffusionGeneration(t *testing.T) {
 			if input.Descriptor.ID.String() != "file:sha256:"+tc.input {
 				t.Fatal("frozen request changed")
 			}
-			want, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/media_samples", tc.output+".png"))
+			want, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "assets", tc.output+".png"))
 			if err != nil {
 				t.Fatal(err)
 			}

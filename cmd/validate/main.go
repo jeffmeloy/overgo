@@ -75,7 +75,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
 	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
-	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
+	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under assets")
 	mediaScope := flags.String("media-scope", "all", "with -export-samples: the samples exported: all for every run's output, image-video for the frozen requests, measured for the attempt each scorecard cell is measured on; the media report always renders every media task")
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
@@ -107,7 +107,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
-			"-models, -media, -check-census and -check-census-binding read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
+			"-models, -media, -check-census and -check-census-binding read the store; -export-samples writes only under assets; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
 			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
 			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
 			"help opens no store and reads nothing",

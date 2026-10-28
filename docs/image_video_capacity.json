@@ -122,7 +122,7 @@
   "source_files": {
     "internal/oscillatorimage/resources_test.go": {
       "evidence": "evidence:sha256:c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96",
-      "sha256": "c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96"
+      "sha256": "ffa39c3237ab8741d28787591584778661511da96c197d13b83b38d31a416b42"
     },
     "internal/sensenovarecipe/runtime_resources_cuda_windows_test.go": {
       "evidence": "evidence:sha256:888854b590aeb73a4bae4fa8f5ea6480ff04f694cd296c5d2c1861853766e027",

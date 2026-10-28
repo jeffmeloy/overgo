@@ -37,12 +37,12 @@ func TestDocsHoldNothingSupersededOrDangling(t *testing.T) {
 	unnamed, planned, embedded, walked, strayed := digest('1'), digest('2'), digest('f'), digest('4'), digest('5')
 	// As long as a digest, and no number: a name, read as any other.
 	lettered := digest('z')
-	samples := "docs/media_samples/"
+	samples := "assets/"
 
 	t.Run("a sample is read by what carries its digest and by nothing else", func(t *testing.T) {
 		snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
 			"cmd/export/samples.go": []byte("package main\n" +
-				"var sampleRoot, pictureRoot = \"docs/media_samples\", \"docs/pictures\"\n" +
+				"var sampleRoot, pictureRoot = \"assets\", \"docs/pictures\"\n" +
 				"var read = []string{\"docs/verification/coverage.json\", \"docs/validation.json\", \"docs/processing.json\", \"docs/plan.json\"}\n"),
 			"internal/frozen/frozen_test.go": []byte("package frozen\n" +
 				"var want = map[string]string{\"" + worded + "\": \"" + filed + ".gif\"}\n"),

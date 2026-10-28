@@ -22,11 +22,11 @@ func TestArtifactThreadCountAndShapeResources(t *testing.T) {
 		t.Skip(testevidence.ShortIntegrationSkip + ": resource transitions use the real Un-0 artifact")
 	}
 	root := testutil.RepoRoot(t)
-	wantImage, err := os.ReadFile(filepath.Join(root, "docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png"))
+	wantImage, err := os.ReadFile(filepath.Join(root, "assets/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantClip, err := os.ReadFile(filepath.Join(root, "docs/media_samples/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif"))
+	wantClip, err := os.ReadFile(filepath.Join(root, "assets/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif"))
 	if err != nil {
 		t.Fatal(err)
 	}

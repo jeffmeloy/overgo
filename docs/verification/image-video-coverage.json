@@ -177,13 +177,13 @@
     "docs/image_video_protocol.json": "def4f5e35c40adaa5b2c07bbd44c9e8ee8ca7c09e976195f4e2fc8cd1b73f932",
     "docs/image_video_resources.json": "bc7fee6bfc70de33a64ca840f667bdf807914e341907bb96bbea94d1b18fe833",
     "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
-    "docs/image_video_validation.json": "b68b5a3308e78c0dc9df260d6d75bb9aedfeba59ea2d7524993865f65dad8c6b",
+    "docs/image_video_validation.json": "3a17ed182dd4baa5b56bdbd269d4263e470cd55cf4a3d486aafd43c1b4a5fbda",
     "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
-    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "9af5385fc7a7622740e3d4a1d732fc89de8f92faac13c334bb48a0d8f4facdef",
-    "internal/latentvideo/frozen_generation_cuda_windows_test.go": "89b6c8660e1cdc829efad7a3a43d96862051c0397de5f24fde72d4f3fedea325",
-    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "7e03196f082e97c0726f9805310afaefec01beb12ed5a2d180bee4e323c3b1a4",
-    "internal/oscillatorimage/frozen_modalities_test.go": "18b376a50a7a2eb9a612ec4d22e64d7f33895cefc946027f2efac74498343dd0",
-    "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "85f13920ad55a945c9dbdbc6eaae05e9e54bd16513b390d029f436b3cc188930"
+    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "3430161d198e6556bfb1a9b2ee1d3d7aa767a630323a220ce526881beb71a5b5",
+    "internal/latentvideo/frozen_generation_cuda_windows_test.go": "ab8063dbacb714ffbe46deef83b13912263a3676e26702af1cec514b07f7b63d",
+    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "4251fc456553427181a32f115ef88ee1fa2ad3688420db4b4f1ab3f83eba507f",
+    "internal/oscillatorimage/frozen_modalities_test.go": "d572d9550567e80cf482f3cc087ffaaf23b42a1b7b370668021e4291fe43d468",
+    "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "76e9fc81383c50f1ed78699af516d3f5330a880eb9e295ec22185a8e26e9885a"
   },
   "Cases": [
     {

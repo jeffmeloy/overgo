@@ -105,7 +105,7 @@ func TestFrozenLatentVideoGeneration(t *testing.T) {
 						}
 						inputs[index] = content
 					}
-					want, err := os.ReadFile(filepath.Join(root, "docs/media_samples", tc.output+".gif"))
+					want, err := os.ReadFile(filepath.Join(root, "assets", tc.output+".gif"))
 					if err != nil {
 						t.Fatal(err)
 					}

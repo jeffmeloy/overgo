@@ -105,7 +105,7 @@ func TestFrozenUn0Modalities(t *testing.T) {
 				if input.Descriptor.ID.String() != "file:sha256:"+tc.input {
 					t.Fatal("frozen input changed")
 				}
-				want, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/media_samples", tc.sample))
+				want, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "assets", tc.sample))
 				if err != nil {
 					t.Fatal(err)
 				}

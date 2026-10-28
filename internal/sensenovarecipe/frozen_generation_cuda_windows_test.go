@@ -138,7 +138,7 @@ func TestFrozenSenseNovaGeneration(t *testing.T) {
 			if err := strictjson.DecodeBytes(input.Data, &request); err != nil {
 				t.Fatal(err)
 			}
-			want, err := os.ReadFile(filepath.Join(root, "docs/media_samples", tc.output+".png"))
+			want, err := os.ReadFile(filepath.Join(root, "assets", tc.output+".png"))
 			if err != nil {
 				t.Fatal(err)
 			}

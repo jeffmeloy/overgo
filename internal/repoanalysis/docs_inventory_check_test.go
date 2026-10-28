@@ -34,7 +34,7 @@ func ValidateDocsInventory(root string) error {
 		case ".png", ".gif", ".wav", ".svg":
 			area, _, _ := strings.Cut(relative, "/")
 			switch area {
-			case "assets", "media_samples", "verification":
+			case "assets", "verification":
 				return nil
 			}
 		}

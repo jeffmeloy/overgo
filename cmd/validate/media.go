@@ -354,7 +354,7 @@ func writeMediaInventories(
 }
 
 // writeMediaSamplesSection links the exported generation outputs
-// under docs/media_samples: images and clips embed inline, audio links
+// under assets: images and clips embed inline, audio links
 // as playable WAV. Only files that exist on disk are linked, and each
 // is named by its content SHA-256 so it is checkable against the run
 // that produced it.
@@ -393,8 +393,8 @@ func writeMediaSamplesSection(
 		name := row.model
 		fmt.Fprintf(output, "### %s (`%s`)\n\n", escapeMarkdown(name), row.task)
 		for _, sample := range present {
-			// The report's links resolve from docs/, where the samples sit.
-			relative := path.Join(path.Base(mediaSamplesDir), sample.Name)
+			// The report's links resolve from the checkout's root, as the README's do.
+			relative := path.Join(mediaSamplesDir, sample.Name)
 			switch {
 			case strings.HasSuffix(sample.Name, ".wav"):
 				fmt.Fprintf(output, "- Audio clip: [%s](%s)\n", sample.Name, relative)

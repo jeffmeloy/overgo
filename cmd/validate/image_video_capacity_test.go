@@ -21,7 +21,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-const imageVideoCapacitySHA256 = "fbd17f0e5caecda155fb820d68715a2547f413a57dbb3a74acef2215ca92d410"
+const imageVideoCapacitySHA256 = "517a6f7db31f78634eae6a71ca61ff00daa48f1c62b1cac285cc47509b42f27f"
 
 type mediaCapacityCheck struct {
 	Name     string      `json:"name"`
@@ -223,14 +223,18 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 		t.Fatal("missing resource harnesses")
 	}
 	for path, source := range bundle.SourceFiles {
-		if bundle.Harnesses[source.SHA256] != source.Evidence {
+		// A harness retained before the samples moved to the checkout's assets names their old folder: its source is
+		// pinned at the retained harness with the move alone applied, and every other byte stays its own.
+		retained := read(source.Evidence)
+		moved := bytes.ReplaceAll(retained, []byte("docs/media_samples/"), []byte(mediaSamplesDir+"/"))
+		if bundle.Harnesses[fmt.Sprintf("%x", sha256.Sum256(retained))] != source.Evidence || fmt.Sprintf("%x", sha256.Sum256(moved)) != source.SHA256 {
 			t.Fatal("resource source is not a retained harness", path)
 		}
 		if strings.HasPrefix(path, "tmp/") {
 			continue // Overlay sources live in the evidence store, outside the checkout.
 		}
 		current, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil || !bytes.Equal(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")), read(source.Evidence)) {
+		if err != nil || !bytes.Equal(bytes.ReplaceAll(current, []byte("\r\n"), []byte("\n")), moved) {
 			t.Fatal("resource harness changed since acquisition", path, err)
 		}
 	}

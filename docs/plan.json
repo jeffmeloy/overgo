@@ -212,19 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-models",
-      "title": "Name every implemented model and its modality in the README, its multimodal samples under ./assets",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name every implemented model and its modality in the README, its multimodal samples under ./assets",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestReadmeNamesEveryModelAndItsSamples$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "strata-port",
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",

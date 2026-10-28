@@ -24,7 +24,7 @@ func TestDocsInventoryPolicy(t *testing.T) {
 		{"nested/readme.md", true}, {"plan.json", true}, {"records.jsonl", true},
 		{"notes.txt", true}, {"template.jinja", true}, {".loop_state", false},
 		{".dispatch", false}, {"assets/nested/view.PNG", true},
-		{"media_samples/speech.wav", true}, {"verification/trace.svg", true},
+		{"media_samples/speech.wav", false}, {"verification/trace.svg", true},
 		{"assets/demo.gif", true}, {"gui/screens/view.png", false},
 		{"assets-extra/view.png", false}, {"assets/paper.pdf", false},
 		{"nested/.loop_state", false}, {"paper.pdf", false},

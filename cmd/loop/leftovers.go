@@ -163,7 +163,7 @@ var leftoverPlaces = []place{
 	{"python-place", "checkout:scripts/python_golden_references/", "the scripts that produce golden references", "none: the one place for Python", actionNever, wholeDirectory, nil},
 	{"checkout-store", "checkout:" + gitauthority.CanonicalOvergoDBDirectory + "/", "a store inside the checkout", "none: a store is never deleted", actionNever, wholeDirectory, nil},
 	{"docs-untracked", "checkout:docs/", "files under docs that git does not track", "none: listed, never deleted", actionNever, untrackedUnder, nil},
-	{"media-samples", "checkout:docs/media_samples/", "media samples, each named by the digest of its bytes", "nothing reads it: no test and no read document carries its digest", actionReport, samples, nil},
+	{"media-samples", "checkout:assets/", "media samples, each named by the digest of its bytes", "nothing reads it: no test and no read document carries its digest", actionReport, samples, nil},
 	{"verification", "checkout:docs/verification/", "committed records of runs", "none: a record is kept, and one that names what the tree no longer has is history", actionNever, records, nil},
 	{"process-state", "checkout:" + processlock.StateDirectory + "/", "locks, markers and the cycle checkout", "none: the processes that write it own it", actionNever, wholeDirectory, nil},
 	{"undeclared", "elsewhere:", "directories under the checkout or the data root that no line above names", "none: give it a line, or remove it by hand", actionReport, undeclared, nil},

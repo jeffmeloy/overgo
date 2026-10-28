@@ -221,6 +221,13 @@
       },
       "steps": [
         {
+          "id": "cells-bonsai",
+          "title": "Hold Bonsai-27B's held-out answers over its new int8 cells",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestQwen35CellsHoldHeldOut$/^Bonsai-27B$' -count=1 -timeout 180m",
+          "rationale": "Serves: the plan's rule for a precision change, a held-out check a model, for a third served model cells-qwen35 (263d0eecb) moved onto int8 cells: Bonsai-27B (Q1_0) is a qwen35 model at Qwen3.8-27B's attention geometry (24 query heads over 4 K/V heads of 256), so its attention layers keep their K/V as cells, unheld. Each other served language model was read on 2026-10-28: gemma-4-E4B shares K/V across 18 layers and keeps its F32 cache; MiniCPM5, Qwen2.5, Carbon and Unlimited-OCR build no attention the cell rule takes.\nBuild: TestQwen35CellsHoldHeldOut takes Bonsai-27B's file beneath a models root as a subtest, MMLU-Pro and IFEval through the chat template over its cells and over its F32 cache, a two-sided sign test at 5%.\nCheck: its subtest.\nBatch: evaluation."
+        },
+        {
           "id": "recipe-widen",
           "title": "Choose each ported mechanism by recipe property and widen it model by model",
           "status": "open",

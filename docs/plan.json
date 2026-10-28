@@ -212,20 +212,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "inert-penalties",
-      "title": "Keep a request whose penalties its window leaves inert on the card",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep a request whose penalties its window leaves inert on the card",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestInertPenaltiesStayOnTheCard$' -count=1",
-          "rationale": "Serves: every served model's default chat request whose declared sampling carries a penalty its window leaves inert: Qwen3.8-27B's model config declares Qwen's non-thinking presence penalty of 1.5 (modelrecipe model_config_sampling), the runtime policy's penalty window is 0, and the sampler applies no penalty over a window of 0 (sampling.applyPenalties returns at once), yet every check that keeps decoding on the card reads the penalty's value alone: raw greedy (greedyBeyondGrammar), the penalty stage's idleness (stageIdle) and the round's sampler (strataSamplingOf) each refuse a presence penalty, so the request samples on the host. Measured 2026-10-27 (finding evidence:sha256:f1a7d0fa): the 27B's default chat request decoded prose at 18.2 tok/s with its slot speculating false, against 37.7 plain and 44 to 45 drafted for the same request with the penalty off.\nBuild: one predicate, sampling.PenaltiesIdle, a penalty window of 0 or every penalty neutral (repeat 0 or 1, presence and frequency 0): the penalty stage's idleness, raw greedy and the round's sampler read it, as applyPenalties already does. No answer changes: a penalty a window of 0 leaves inert is inert on the card as on the host. Whether Qwen's recommended presence penalty should apply (a window that is not 0) is a sampling change of its own, not this row's.\nCheck: TestInertPenaltiesStayOnTheCard: a sampler with a presence penalty over a window of 0 is raw greedy at temperature 0 and its penalty stage idle, a window of 64 is neither, and the round's sampler takes the first and refuses the second.\nEvidence: the 27B's served default chat request (the model's declared sampling, thinking off) over three alternating rounds, before and after.\nBatch: sampling and inference."
-        }
-      ]
-    },
-    {
       "id": "strata-port",
       "title": "Port Strata's decode path as one unit, its source the specification",
       "status": "open",

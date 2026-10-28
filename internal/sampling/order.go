@@ -49,13 +49,20 @@ func configuredOrder(config Config) []SamplerStage {
 	})
 }
 
+// PenaltiesIdle reports whether the penalty stage leaves every logit as it found it under config: a window of 0
+// (RepeatLastN) penalizes no token, whatever the penalties, as llama.cpp's penalty_last_n of 0 disables them, and
+// neutral penalties (repeat 0 or 1, presence and frequency 0) change none over any window.
+func PenaltiesIdle(config Config) bool {
+	return config.RepeatLastN == 0 ||
+		(config.RepeatPenalty == 0 || config.RepeatPenalty == 1) && config.PresencePenalty == 0 && config.FrequencyPenalty == 0
+}
+
 // stageIdle reports whether a stage leaves every candidate as it found it under config, whether a chain names it or
 // not.
 func stageIdle(stage SamplerStage, config Config) bool {
 	switch stage {
 	case SamplerPenalties:
-		return (config.RepeatPenalty == 0 || config.RepeatPenalty == 1) &&
-			config.PresencePenalty == 0 && config.FrequencyPenalty == 0
+		return PenaltiesIdle(config)
 	case SamplerDry:
 		return config.DryMultiplier == 0
 	case SamplerTopNSigma:

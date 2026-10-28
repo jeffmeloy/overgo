@@ -333,8 +333,7 @@ func (s *Sampler) greedyBeyondGrammar() bool {
 	}
 	config := s.config
 	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == mirostatDisabled &&
-		(config.RepeatPenalty == 0 || config.RepeatPenalty == 1) && config.PresencePenalty == 0 &&
-		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
+		PenaltiesIdle(config) && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
 		config.XTCProbability == 0 && len(config.LogitBiases) == 0 && config.Infill == nil &&
 		slices.Contains(s.stages, SamplerTemperature) &&
 		!slices.Contains(s.stages, SamplerAdaptiveP) &&
@@ -1433,10 +1432,7 @@ func sampleCandidateIndex(random float64, candidates []candidate, total float64)
 }
 
 func (s *Sampler) applyPenalties(logits []float32, history []int) error {
-	if len(history) == 0 || s.config.RepeatLastN == 0 ||
-		(s.config.RepeatPenalty == 1 &&
-			s.config.PresencePenalty == 0 &&
-			s.config.FrequencyPenalty == 0) {
+	if len(history) == 0 || PenaltiesIdle(s.config) {
 		return nil
 	}
 	first := 0

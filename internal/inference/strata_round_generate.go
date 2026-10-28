@@ -61,7 +61,7 @@ func strataSamplingOf(options GenerateOptions) (executor.StrataSampling, bool) {
 	c := sampler.Config()
 	if c.Temperature <= 0 || c.DynatempRange != 0 || c.Mirostat != 0 || c.TopK < 1 || c.TopK > strataSamplerList ||
 		c.Grammar != nil || c.GBNF != nil && !sampler.AwaitsTrigger() || len(c.LogitBiases) != 0 || c.Infill != nil || c.NoRepeatNgramSize != 0 ||
-		c.RepeatPenalty != 0 && c.RepeatPenalty != 1 || c.PresencePenalty != 0 || c.FrequencyPenalty != 0 ||
+		!sampling.PenaltiesIdle(c) ||
 		c.DryMultiplier != 0 || c.TopNSigma > 0 || c.TypicalP > 0 && c.TypicalP < 1 || c.XTCProbability > 0 {
 		return executor.StrataSampling{}, false
 	}

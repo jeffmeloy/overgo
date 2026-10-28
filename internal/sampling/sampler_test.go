@@ -142,7 +142,7 @@ func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
 
 func TestBoundedTopKRejectsPrefixTransforms(t *testing.T) {
 	for name, config := range map[string]Config{
-		"penalty": {Temperature: 0.8, TopK: 3, RepeatPenalty: 1.1},
+		"penalty": {Temperature: 0.8, TopK: 3, RepeatPenalty: 1.1, RepeatLastN: 64},
 		"bias": {
 			Temperature: 0.8, TopK: 3,
 			LogitBiases: []LogitBias{{Token: 4, Bias: 1}},

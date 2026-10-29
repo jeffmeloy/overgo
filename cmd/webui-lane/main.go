@@ -38,6 +38,17 @@ import (
 // someone killed the run. It is the lane's declaration, which -wait replaces.
 const waitBudget = 4 * time.Minute
 
+// journeyWait is how long a model journey may wait for one answer from its page, which may build, serve or validate a
+// model meanwhile, before the wait fails with what the page showed: the longest the journeys have taken in all on
+// record, 6 m 44 s on 2026-10-25, which no single wait of a healthy journey outlasts. Unbounded, a journey whose
+// registration the page refused waited 10 h 21 m on 2026-10-28 until it was killed.
+const journeyWait = 7 * time.Minute
+
+// journeyBudget is how long the model journeys may run in all before go test stops them and prints every goroutine's
+// stack, which bounds the waits that are not the page's (an operation's state, a child's exit): a little over twice
+// the longest the journeys have taken on record.
+const journeyBudget = 14 * time.Minute
+
 func main() {
 	clioptions.MainNamed("webui lane", run)
 }
@@ -65,17 +76,20 @@ func run() error {
 		return writeDesign()
 	}
 	var extra []string
+	// Each wait for the page's answer is bounded in the wait's owner (waitBudget, a journey's journeyWait), where the
+	// failure can say what the page showed; the page acceptances take no go test timeout, and the journeys, whose other
+	// waits are not the page's, are bounded as a whole (journeyBudget).
+	timeout, pageWait := time.Duration(0), *wait
 	if *journeys {
+		timeout, pageWait = journeyBudget, journeyWait
 		if *run == "^"+webuilane.BrowserTestPrefix {
 			*run = "^" + webuilane.ModelJourneyPrefix
 		}
 		// A journey runs the recorded models and stores it names, so it
 		// opts into the store acceptances its fixtures are held behind.
 		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1", testskip.StoreAcceptanceEnv+"=1")
-	} else {
-		// A journey builds, serves or hashes a model inside one wait, so only the page acceptances are bounded.
-		extra = append(extra, webuilane.WaitBudgetEnvironment+"="+wait.String())
 	}
+	extra = append(extra, webuilane.WaitBudgetEnvironment+"="+pageWait.String())
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)
 		if err != nil {
@@ -83,7 +97,7 @@ func run() error {
 		}
 		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
 	}
-	return runLane(ctx, os.Stdout, *run, extra, required)
+	return runLane(ctx, os.Stdout, *run, extra, required, timeout)
 }
 
 // captureLive captures and audits a running server's page: every tab and
@@ -118,8 +132,8 @@ func captureLive(ctx context.Context, stdout io.Writer, pageURL, dir string) err
 // by its typed report and leg records against the required legs, so a plan
 // verify naming the lane gets evidence, never a silent pass. No browser is
 // a typed unavailable outcome, never a pass. extra carries the screens
-// test's capture directory and page address.
-func runLane(ctx context.Context, stdout io.Writer, run string, extra, required []string) error {
+// test's capture directory and page address; timeout is go test's, zero for none.
+func runLane(ctx context.Context, stdout io.Writer, run string, extra, required []string, timeout time.Duration) error {
 	var listing bytes.Buffer
 	if !strings.Contains(run, "/") {
 		// Empty -list executes tests instead of listing them.
@@ -169,11 +183,8 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser, webuilane.LegRecordsEnvironment+"="+legs)
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
-	// No go test timeout, as the gate's other lanes run: a limit on the whole run had no derivation.
-	// What is bounded is each wait for the page's answer (waitBudget), in the wait's owner, where the
-	// failure can say what the page showed; a clock on the run could only kill it.
 	// Browser processes share host transport buffers, so test packages and bodies run serially.
-	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json", "-p=1", "-parallel=1")
+	args = append(args, "-run", run, "-count=1", "-timeout="+timeout.String(), "-json", "-p=1", "-parallel=1")
 	report, runErr := testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args, Env: env}, testevidence.GoTestOptions{
 		DiagnosticBytes: clioptions.DiagnosticTailBytes,
 		Progress: func(done testevidence.PackageProgress) {

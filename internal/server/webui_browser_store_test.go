@@ -58,6 +58,14 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 	} else if found {
 		pending = append(pending, memo)
 	}
+	// The Library registers a model against its architecture's registered profile, which an activated definition names
+	// only until a profile change republishes the registry: the registry's profiles are copied whole.
+	if err := store.VisitAliases(ctx, modelrecipe.RegisteredProfileAliasPrefix, func(alias overgodb.AliasView) error {
+		pending = append(pending, alias.Target)
+		return nil
+	}); err != nil {
+		return err
+	}
 	batch := artifact.Batch{Key: "browser-journey/inputs", ExpectedHead: new(artifact.CommitID)}
 	seen := map[artifact.ID]bool{}
 	for len(pending) > 0 {
@@ -158,6 +166,15 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated historical result")
 	testutil.PublishArtifact(t, store, unrelated)
+	// A registered profile no activated definition names: the registry republished after the model's activation.
+	registered := testutil.ArtifactID(t, artifact.KindProfile, "republished registered profile")
+	testutil.PublishArtifact(t, store, registered)
+	registeredAlias := modelrecipe.RegisteredProfileAliasPrefix + "fixture"
+	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+		Key: "browser-fixture/registry", Aliases: []artifact.AliasBinding{{Name: registeredAlias, Target: registered}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	aliasBatch := artifact.Batch{Key: "browser-fixture/many-aliases"}
 	for index := range laneCatalogLimit + 1 {
 		aliasBatch.Aliases = append(aliasBatch.Aliases, artifact.AliasBinding{Name: fmt.Sprintf("browser-fixture/alias/%d", index), Target: manifest.ID})
@@ -202,6 +219,9 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	if _, found, err := private.Artifact(ctx, unrelated); err != nil || found {
 		t.Fatalf("unrelated history copied: %t %v", found, err)
+	}
+	if copied, found, err := artifact.ResolveAlias(ctx, private, registeredAlias); err != nil || !found || copied != registered {
+		t.Fatalf("the registered profile the Library registers against was not copied: %s %v", copied, err)
 	}
 	if copied, found, err := artifact.ResolveAlias(ctx, private, discovery.IdentityEvidenceAlias); err != nil || !found || copied != memoID {
 		t.Fatalf("exact digest memo was not reused: %s %v", copied, err)

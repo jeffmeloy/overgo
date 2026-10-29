@@ -218,16 +218,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "draft-pays: the runner's judgement of its own draft layer (its tally, the refusal flag, observeOwnDrafts and the default's check of it) and the converter's unit shift of the draft layer's input norms; a load-time check of the norms would name one converter's defect where the tally judges any draft layer by what its trunk keeps"
+        "reason": "journey-budget: the lane's two journey bounds (journeyWait, journeyBudget) and the timeout handed to runLane; the bounds are the lane's own declarations, as waitBudget is"
       },
       "steps": [
-        {
-          "id": "journey-budget",
-          "title": "The model journeys bounded, and the wait the library-validation journey hung in fixed",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -journeys",
-          "rationale": "The model-journey lane ran 10 h 21 m in TestModelJourneyLibraryValidation until it was killed: go test runs the journeys with no timeout and the journey's waits (browser Eventually, the operation-state wait) are bounded only by the test's context, so the hang printed nothing and its stack was lost. The journeys get a budget (journeyBudget, a little over twice their longest run on record), past which go test prints every goroutine's stack; the hung leg is then run alone to find the wait it sits in, and that wait is fixed.\nServes: the measurement run finishes, and a hung journey says where it hangs."
-        },
         {
           "id": "close",
           "title": "Close only after multimodal delivery and Strata parity are established",

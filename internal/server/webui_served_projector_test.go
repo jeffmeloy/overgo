@@ -131,8 +131,8 @@ func smallestDeclaredProjector(t *testing.T, ctx context.Context, store string) 
 		for _, capability := range entry.Capabilities {
 			inference = inference || capability.Task == recipe.TaskInference && capability.Stale == ""
 		}
-		info, statErr := os.Stat(entry.Location)
-		if !inference || statErr != nil {
+		size, sizeErr := modelBytes(entry.Location)
+		if !inference || sizeErr != nil {
 			continue
 		}
 		declared, ok, err := discovery.ActiveProjector(ctx, db, entry.Model, memo)
@@ -143,8 +143,8 @@ func smallestDeclaredProjector(t *testing.T, ctx context.Context, store string) 
 		if !ok {
 			continue
 		}
-		if location == "" || info.Size() < best {
-			name, location, projectorPath, best = filepath.Base(entry.Location), entry.Location, declared, info.Size()
+		if location == "" || size < best {
+			name, location, projectorPath, best = filepath.Base(entry.Location), entry.Location, declared, size
 		}
 	}
 	return name, location, projectorPath

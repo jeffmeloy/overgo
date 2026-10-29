@@ -472,28 +472,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-1644fca48df4f0b9",
-      "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.818181818 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "judge",
-          "title": "Judge the IFEval declines by their prompts",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$' -count=1",
-          "rationale": "The run's three IFEval declines are judged by their prompts, as the scorecard now pairs them (ifeval-paired, 421d06ab9): Qwen3.8 Flash Next lost 3 of 55 prompts and gained 1 (p 0.312), Bonsai-27B lost 1 (p 0.5), gemma-4-12B-it-fp8-native lost 1 (p 0.5), against the 0.0228 a decline stands at. The check holds the rule that drops them."
-        },
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.818181818 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1644fca48df4f0b9 -target 0.8181818181818182",
-          "rationale": "- Qwen3.8 Flash Next held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.818181818 to 0.781818182 (-0.0363636364, -4.4%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-50f41f360f714051",
       "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
       "owner": "master-lead",
@@ -505,21 +483,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-50f41f360f714051 -target 2.2728320128e+10",
           "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.39868589e+10 (+1.25853882e+09, +5.5%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-77d9896eda0bdac5",
-      "title": "Restore Bonsai-27B-Q1_0 inference held-out-quality to 0.672727273 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Bonsai-27B-Q1_0 inference held-out-quality to 0.672727273 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-77d9896eda0bdac5 -target 0.6727272727272727",
-          "rationale": "- Bonsai-27B-Q1_0 held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.672727273 to 0.654545455 (-0.0181818182, -2.7%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -550,21 +513,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8b083b7b94e498e7 -target 8.848448256e+09",
           "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 9.57364851e+09 (+725200256, +8.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-bb68e1e58205bdab",
-      "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb68e1e58205bdab -target 0.8909090909090909",
-          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.890909091 to 0.872727273 (-0.0181818182, -2.0%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

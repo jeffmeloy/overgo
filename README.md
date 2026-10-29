@@ -101,7 +101,7 @@ measurement.
 
 ### Served models
 
-Every model with an active recipe, as the record `scorecard-20261025T021213Z`
+Every model with an active recipe, as the record `scorecard-20261028T150740Z`
 measured it: one measurement run on the reference PC (Ryzen 9 9950X, RTX 4090 D
 with 48 GiB, Windows 11), every row served and scored on this machine. Modality
 is the kind of data a model works in; input → output is what a request gives it
@@ -114,38 +114,38 @@ architecture profiles are registered (`go run ./cmd/validate -models -repo <stor
 
 | Model | Modality | Input → output | First output | Throughput | Held-out quality | Peak device memory |
 | --- | --- | --- | --- | --- | --- | --- |
-| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | 0.94 s; 1.66 s at a 4K prompt; 5.5 s at 16K | 73 tok/s | MMLU-Pro 0.62 on 1,209 cases; image questions 0.47 on 64 | 45.9 GiB |
-| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | 112 ms; 2.1 s at 4K; 8.5 s at 16K | 31 tok/s | MMLU-Pro 0.59; image and video questions 0.92 on 64 | 21.2 GiB |
-| Qwen3.5-9B (Q8_0) | text | text → text | 38 ms; 0.74 s at 4K; 2.8 s at 16K | 97 tok/s | MMLU-Pro 0.50 | 9.1 GiB |
-| Qwen3.5-4B | text | text → text | 131 ms; 0.38 s at 4K; 1.9 s at 16K | 97 tok/s | MMLU-Pro 0.48; 0.75 on 40 questions when left to think | 8.3 GiB |
-| gemma-4-12B-it (fp8, native) | text | text → text | 173 ms; 1.1 s at 4K; 5.1 s at 16K | 50 tok/s | MMLU-Pro 0.49 | 14.4 GiB |
-| gemma-4-12B-it (fp8 unpacked to bf16) | text | text → text | 168 ms; 1.3 s at 4K | 37 tok/s | MMLU-Pro 0.49 | 22.3 GiB |
-| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | 148 ms; 0.52 s at 4K; 2.4 s at 16K | 76 tok/s | MMLU-Pro 0.44; 1.9% word error rate on 32 clips | 14.0 GiB |
-| Bonsai-27B (Q1_0) | text | text → text | 101 ms; 2.2 s at 4K; 8.9 s at 16K | 51 tok/s | MMLU-Pro 0.43 | 4.3 GiB |
-| MiniCPM5-1B | text | text → text | 113 ms; 0.10 s at 4K; 0.59 s at 16K | 365 tok/s | MMLU-Pro 0.30 | 2.1 GiB |
-| Qwen2.5-0.5B (f16) | text | text → text | 112 ms; 0.15 s at 4K; 1.2 s at 16K | 516 tok/s | MMLU-Pro 0.17 | 1.0 GiB |
-| Unlimited-OCR (bf16) | text | text → text | 133 ms; 0.26 s at 4K; 0.97 s at 16K | 435 tok/s | BBH 0.30, within noise of a constant answer | 5.7 GiB |
-| Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | 114 ms; 0.37 s at 4K | 506 tok/s | perplexity 910 on 128 sequences (a draft model; not what it is for) | 1.0 GiB |
-| Fractale-350M-base | text | text → text, carrying notes between chunks | 4.8 s | 4.1 tok/s | carried gain 5.6 on 37 documents | host |
-| needle | function calling | text → function call | 487 ms | 221 tok/s | 0.255 on 400 calls | host |
-| Hy-Embodied-RxBrain-1.0 | vision-language | image + question → answer | 9.8 s | 182 tok/s | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
-| Krea-2-Turbo | text-to-image | text → image | 13.9 s | — | 0.94 on 415 prompts | 25.1 GiB |
-| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | 13.1 s | — | 100 of 100, the suite's ceiling | 15.5 GiB |
-| SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | 0.92 s | — | no caption suite applies | 0.6 GiB |
+| Qwen3.8 Flash-Next (80B MoE, UD-IQ4_XS) | text, vision-language | text → text; image → text | 1.74 s; 2.84 s at a 4K prompt; 8.6 s at 16K | 67 tok/s | MMLU-Pro 0.66 on 1,209 cases; image questions 0.47 on 64 | 46.0 GiB |
+| Qwen3.8-27B (Q6_K) | text, vision-language, video-language | text → text; image or video → text | 127 ms; 2.3 s at 4K; 9.8 s at 16K | 31 tok/s | MMLU-Pro 0.60; image and video questions 0.92 on 64 | 22.3 GiB |
+| Qwen3.5-9B (Q8_0) | text | text → text | 39 ms; 0.79 s at 4K; 3.3 s at 16K | 97 tok/s | MMLU-Pro 0.49 | 9.0 GiB |
+| Qwen3.5-4B | text | text → text | 143 ms; 0.42 s at 4K; 2.2 s at 16K | 97 tok/s | MMLU-Pro 0.49; 0.75 on 40 questions when left to think | 8.9 GiB |
+| gemma-4-12B-it (fp8, native) | text | text → text | 168 ms; 1.1 s at 4K; 5.1 s at 16K | 51 tok/s | MMLU-Pro 0.49 | 14.3 GiB |
+| gemma-4-12B-it (fp8 unpacked to bf16) | text | text → text | 195 ms; 1.3 s at 4K; 5.8 s at 16K | 37 tok/s | MMLU-Pro 0.49 | 22.2 GiB |
+| gemma-4-E4B-it | text, vision-language, audio-language | text → text; audio or image → text | 152 ms; 0.59 s at 4K; 2.6 s at 16K | 76 tok/s | MMLU-Pro 0.44; 1.9% word error rate on 32 clips | 13.9 GiB |
+| Bonsai-27B (Q1_0) | text | text → text | 109 ms; 2.2 s at 4K; 9.6 s at 16K | 56 tok/s | MMLU-Pro 0.42 | 4.2 GiB |
+| MiniCPM5-1B | text | text → text | 113 ms; 0.22 s at 4K; 1.7 s at 16K | 372 tok/s | MMLU-Pro 0.30 | 2.0 GiB |
+| Qwen2.5-0.5B (f16) | text | text → text | 117 ms; 0.23 s at 4K; 2.2 s at 16K | 524 tok/s | MMLU-Pro 0.17 | 0.9 GiB |
+| Unlimited-OCR (bf16) | text | text → text | 128 ms; 0.27 s at 4K; 1.1 s at 16K | 446 tok/s | BBH 0.30, within noise of a constant answer | 5.5 GiB |
+| Carbon-500M (f16) | genomic | DNA sequence → DNA sequence | 117 ms; 0.66 s at 4K | 509 tok/s | perplexity 910 on 128 sequences (a draft model; not what it is for) | 1.0 GiB |
+| Fractale-350M-base | text | text → text, carrying notes between chunks | 4.9 s | 4.1 tok/s | carried gain 5.6 on 37 documents | host |
+| needle | function calling | text → function call | 489 ms | 220 tok/s | 0.255 on 400 calls | host |
+| Hy-Embodied-RxBrain-1.0 | vision-language | image + question → answer | 9.5 s | 181 tok/s | 0.63 on 64 questions (chance 0.25) | 3.5 GiB |
+| Krea-2-Turbo | text-to-image | text → image | 13.9 s | — | 0.94 on 415 prompts | 25.0 GiB |
+| SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | 13.1 s | — | 100 of 100, the suite's ceiling | 15.4 GiB |
+| SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | 0.84 s | — | no caption suite applies | 0.5 GiB |
 | MOSS-Image-SFT | text-to-image | text → image | not yet measured | — | — | — |
-| Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | 12 ms; 29 ms | — | no caption suite applies | host |
+| Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | 12 ms; 30 ms | — | no caption suite applies | host |
 | Wan2.1-T2V 1.3B | text-to-video | text → video | 13.0 s | — | 0.91 on 128 clips | 3.6 GiB |
-| LiveEdit | video editing | video + instruction → video | 9.5 s | — | 0.84 on 64 clips | 3.5 GiB |
+| LiveEdit | video editing | video + instruction → video | 9.6 s | — | 0.84 on 64 clips | 3.5 GiB |
 | Wan2.1 VAE | video autoencoder | video frame → frame (reconstruction) | 1.4 s | — | 41.4 dB PSNR on 128 | 4.4 GiB |
-| ViTXL_n08 | image autoencoder | image → image (reconstruction) | 7.9 s | — | 20.5 dB PSNR on 128 | host |
+| ViTXL_n08 | image autoencoder | image → image (reconstruction) | 8.0 s | — | 20.5 dB PSNR on 128 | host |
 | webssl-dino300m-full2b-224 | image embedding | image → embedding | 4.5 s | — | retrieval 0.46 on 483 | host |
-| webssl-dino-to-rae-bridge | image autoencoder | image → image through a fitted bridge | 10.5 s | — | 18.2 dB PSNR on 128 | host |
-| granite-speech 470M | speech recognition | speech → text | 2.8 s | — | 0.9% word error rate on 32 clips | 1.1 GiB |
-| nemotron-3.5-asr-streaming-0.6b | speech recognition | speech → text, streaming | 4.3 s | — | 3.1% word error rate on 32 clips | host |
-| pocket-tts | speech synthesis | text → speech | 2.6 s | — | 2.2% word error rate, re-transcribed, on 64 texts | host |
-| timesfm-2.5-200m | time series | numeric series → forecast | 0.69 s | — | mean absolute error 2.24 on 11 series | host |
-| timesfm-3.0 | time series | numeric series → forecast | 0.93 s | — | mean absolute error 2.18 on 30 series | host |
-| tabfm-1.0.0 | tabular | table → class | 2.4 s | — | 0.72 on 7 tables, within noise of a constant answer | host |
+| webssl-dino-to-rae-bridge | image autoencoder | image → image through a fitted bridge | 10.8 s | — | 18.2 dB PSNR on 128 | host |
+| granite-speech 470M | speech recognition | speech → text | 2.8 s | — | 0.9% word error rate on 32 clips | 1.0 GiB |
+| nemotron-3.5-asr-streaming-0.6b | speech recognition | speech → text, streaming | 4.2 s | — | 3.1% word error rate on 32 clips | host |
+| pocket-tts | speech synthesis | text → speech | 2.8 s | — | 2.2% word error rate, re-transcribed, on 64 texts | host |
+| timesfm-2.5-200m | time series | numeric series → forecast | 0.66 s | — | mean absolute error 2.24 on 11 series | host |
+| timesfm-3.0 | time series | numeric series → forecast | 0.92 s | — | mean absolute error 2.18 on 30 series | host |
+| tabfm-1.0.0 | tabular | table → class | 2.6 s | — | 0.72 on 7 tables, within noise of a constant answer | host |
 
 Training recipes with a completed proof on this machine: Qwen2.5-0.5B (token
 accuracy 0.508 against its base 0.500 on 24 held-out cases), Qwen3.5-4B,
@@ -159,7 +159,10 @@ Warm, served, against Strata's frozen bench suite on the same PC and model
 token in 1.46 s against 2.2 s and a 16K prompt in 5.3 s against 5.0 s, and
 decodes agent turns at 91 to 93 tok/s against 145 to 146; a conversation of
 237,290 tokens is read in 2m16s with every later question answered in about
-0.8 s. The remaining decode gap is the Strata port, the plan's next campaign.
+0.8 s. Strata's decode round was then ported (2026-10-27) and landed as it stood:
+closing the remaining gap is no longer this campaign's target, by the owner's
+decision of 2026-10-27, and a question that branches off an earlier turn of such
+a conversation is answered from the context already read, in about 1.3 s.
 
 ### Sample outputs
 

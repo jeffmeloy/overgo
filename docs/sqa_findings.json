@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P3 SQA-MOSS-010 identifies a duplicate VAE weight materialization path that can reuse safetensors.ReadF32. All 43 earlier findings and owner responses are preserved. Totals are 41 open and 3 deferred.",
-    "declined_candidates": "No new buffer cache, loader framework or whole-catalog traversal change is required. The final weight slab and GPU memory remain necessary; no model-wide performance improvement is inferred from a source-level allocation reduction.",
-    "priority": "SQA-MOSS-010 follows SQA-MOSS-002. Every earlier finding retains its relative rank and disposition."
+    "assessment": "New P2 SQA-MOSS-011 identifies late cancellation being masked by an empty completion when final generation publication is refused. All 44 earlier findings and owner responses are preserved. Totals are 42 open and 3 deferred.",
+    "declined_candidates": "MOSS stage cleanup, PNG rounding and workflow refusal/replay retain their existing contracts. No duplicate publication owner, automatic retry, new polling mechanism or model execution is proposed.",
+    "priority": "SQA-MOSS-011 follows existing MOSS P2 findings and precedes P3 SQA-MOSS-002. Earlier findings retain their relative rank and disposition."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "5176792f059e23ddb800dbdc6396aa01dbc30888",
+    "revision": "e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2498,6 +2498,84 @@
       ],
       "status": "open",
       "title": "Reuse the existing final-slab reader for VAE weights"
+    },
+    {
+      "category": "generation-publication-cancellation",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "With a valid tiny PNG returned by the existing hermetic executor, cancel deterministically at the output-conversion/final-publication boundary. The admitted operation settles cancelled with an actually stored cancelled run when cleanup publication succeeds, instead of 'completion lacks durable run'.",
+        "Cancellation during execution, ordinary successful PNG/request publication and publication refusal keep their distinct outcomes. Original publication errors remain inspectable; a second failure while recording the error never produces a false durable-run claim.",
+        "Request/source provenance remains valid, completed native workflow artifacts remain accessible, and no automatic second inference is introduced. Existing operation resource-release and native pixel/lifecycle contracts remain intact."
+      ],
+      "comparison": "Extend TestGenerationWorkspaceListsAndRunsStoreActivations or the existing newMOSSGenerationFixture with a deterministic barrier/hook after successful output and before final publication (for example, cancel in the fixture's OutputContent wrapper). Exercise the actual operation wrapper/manager, then read the resulting run from the store and assert cancelled state, no fabricated success outputs and preserved cause. Keep the existing early-cancel and success cases, TestOperationCancellationReleasesResources and TestRuntimeResultDoesNotClaimRefusedRunPublication. Reuse existing store-failure injection where available for a separate refusal case; no timing sleeps or native inference are required. This review only inspected these checks. Retained lifecycle-v1.log (8.812s), session-v3.log (mediacapability 6.650s, latentimage 7.611s) and pixels.safetensors were rehashed and match the import-evidence receipt; their original scopes do not cover the new interval.",
+      "displaced_surface": "Replace the empty-completion early return after final publication with the existing shared failure completion mechanism. Keep normal success batching, run durability validation, stage replay and every numerical/lifecycle test. Extend the existing hermetic generation fixture at this boundary; no current behavioral test can be removed. Small control-flow/test growth may be necessary, with no measured net code, memory or elapsed-time saving claimed.",
+      "evidence": "Source-confirmed sequence: the admitted MOSS executor finishes and returns a valid measured image; cancellation arrives after that return (or during OutputContent) and before the final artifact.Publish call. CommitBatch returns context.Canceled. ExecuteWorkflow returns Completion{} with that error instead of using its existing failure-recording branch. ExecuteHeld and executeObservedOperation preserve the empty completion. Manager.run checks validateCompletion first, sets StateFailed with 'operation: completion lacks durable run', and never reaches its cancellation branch. The operation has no run link. Where serving observation is emitted, it can still say cancelled because executionOutcome reads the original error. This is a caller-traced counterexample, not an observed browser failure. No new test or model run was performed.",
+      "evidence_commit": "e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09",
+      "expected_benefit": {
+        "outcome": "Keep late cancellation, the operation's terminal state and its durable evidence consistent, and retain useful publication-failure information through the existing workflow owner.",
+        "uncertainty": "The interval is established from source and explicit context guards. Its frequency and browser presentation have not been measured. Retained lifecycle checks cover cancellation inside model stages, not cancellation after a successful executor return. Failure recording must not weaken the distinction between a constructed run ID and a committed run."
+      },
+      "id": "SQA-MOSS-011",
+      "impact": "A valid Stop in the final publication window is displayed as a generic failure with no run reference instead of cancellation. Other final-publication errors can likewise lose their useful error text at this validation boundary. Already durable native workflow image/run artifacts are not deleted, and resource cleanup still follows the shared session path; no output corruption, GPU leak or measured occurrence rate is established. The repair changes the terminal status/evidence for this late failure interval, not native inference or PNG bytes.",
+      "likely_effort": "Small shared server error-path consolidation with a deterministic case in the existing hermetic generation tests; no model execution or new infrastructure is needed to decide it.",
+      "plan_coverage": "The MOSS closeout contract includes cancellation and the request-to-image journey, but does not name the final publication interval. This advisory is distinct from SQA-MOSS-001 inventory cancellation, SQA-MOSS-004 schedule cancellation, SQA-MOSS-009 stream recovery and accepted merge-baseline plan/catalog mismatches. No implementation adoption or plan change occurs.",
+      "plan_references": [
+        "moss-closeout/close"
+      ],
+      "recommended_change": "When implementation resumes, consolidate final-publication errors in ExecuteWorkflow with the existing failure-recording path. For cancellation, use the existing non-cancellable cleanup publication to retain a durable cancelled run and return its completion with the original cancellation error. Preserve the recipe and durable request/source provenance; do not claim or link a success run merely because its ID was constructed. If recording the failure itself cannot commit, preserve the underlying cause and expose that persistence failure rather than inventing a durable completion. Keep Manager's durable-completion validation and the normal atomic success publication. Do not add a MOSS-only operation manager, retry queue or automatic regeneration.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/server/generation_store_workspace.go",
+          "symbol": "storeGenerationWorkspace.ExecuteWorkflow:196 handles execution/output-conversion errors through failWorkflow, but returns an empty Completion directly when artifact.Publish of the final request/output run fails"
+        },
+        {
+          "path": "internal/artifact/schema.go",
+          "symbol": "Publish:324 delegates to CommitBatch:308, which refuses a cancelled context before validating or committing the batch"
+        },
+        {
+          "path": "internal/server/generation_workspace.go",
+          "symbol": "workflow submission wraps ExecuteWorkflow in operation.ExecuteHeld and executeObservedOperation; failWorkflow:182 already records cancellation with context.WithoutCancel"
+        },
+        {
+          "path": "internal/server/serving_observation.go",
+          "symbol": "executeObservedOperation:94 records an observation from the execution error and returns the same completion/error; it does not fill a missing run"
+        },
+        {
+          "path": "internal/operation/runtime.go",
+          "symbol": "Manager.run:233 evaluates validateCompletion before the cancellation branch; validateCompletion:308 rejects an absent run; ExecuteHeld passes through errored completions unchanged"
+        },
+        {
+          "path": "internal/server/operations.go",
+          "symbol": "operationCancel:159 calls Manager.Cancel on an active operation, including the interval before final publication"
+        },
+        {
+          "path": "internal/server/webui/workflow.js",
+          "symbol": "renderOperation exposes the operation's state and failure text; failed and cancelled are distinct terminal states"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "decodeRotary:216 checks cancellation before and after encodeUnitPNG and releases latent/program resources without cancellation; the later workspace publication interval is outside those checks"
+        },
+        {
+          "path": "internal/capabilityruntime/session_director.go",
+          "symbol": "ModelSessionDirector.serve returns a measured workflow run after execution; a completed native MOSS workflow can already have durable output before the server's final publication"
+        },
+        {
+          "path": "internal/server/moss_generation_windows_test.go",
+          "symbol": "newMOSSGenerationFixture and TestMOSSImageGenerationContract supply real registration/activation plus a hermetic executor; current cancel branch returns an execution error before final publication"
+        },
+        {
+          "path": "internal/server/generation_store_workspace_test.go",
+          "symbol": "TestGenerationWorkspaceListsAndRunsStoreActivations supplies a tiny PNG executor and recorded input for extending publication-boundary coverage without native generation"
+        },
+        {
+          "path": "internal/workflowruntime/runtime_test.go",
+          "symbol": "TestRuntimeResultDoesNotClaimRefusedRunPublication preserves the separate invariant that an uncommitted run is never reported durable and a durable stage survives retry"
+        }
+      ],
+      "status": "open",
+      "title": "Preserve cancellation when final generation publication is refused"
     }
   ],
   "gate_test_assessment": {
@@ -3045,8 +3123,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P3 SQA-MOSS-010. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
-    "checked_head": "5176792f059e23ddb800dbdc6396aa01dbc30888",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-011. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -3091,6 +3169,7 @@
     "SQA-MOSS-006",
     "SQA-MOSS-008",
     "SQA-MOSS-009",
+    "SQA-MOSS-011",
     "SQA-MOSS-002",
     "SQA-MOSS-010"
   ],
@@ -3125,21 +3204,23 @@
     "At 4026df4b9, SQA-MOSS-009 traces a previously observed generation through terminal-event queue overflow and retention eviction. A same-connection resync snapshot omits the target while waitOperation's reconnect-only missing branch stays disabled, so the composer can remain pending.",
     "Reuse waitOperation's existing recovery/cleanup path for disappearance from a later live snapshot. Preserve cached-initial-snapshot races and blocked/abort/terminal behavior; extend the existing background stream and flush-controlled fixtures. This is distinct from SQA-218 inventory invalidation. No new execution or resolved finding is claimed.",
     "At 5176792f0, SQA-MOSS-010 identifies loadVAEWeights staging each selected tensor in a 4*N byte F32 buffer before allocating/decoding the final float32 slice. The existing safetensors.ReadF32 owner can remove that block and two imports for production MOSS, native verification and Krea/Qwen.",
-    "Focused existing safetensors promotion/refusal checks passed in 0.262s; log retained at tmp/moss-sqa/read-f32-20261029-0715.log. This is functional evidence only. No loader change, numerical golden rerun, model execution or measured performance gain is claimed. Existing decoder goldens bypass the file loader, so loading selection/error coverage remains part of the deciding comparison."
+    "Focused existing safetensors promotion/refusal checks passed in 0.262s; log retained at tmp/moss-sqa/read-f32-20261029-0715.log. This is functional evidence only. No loader change, numerical golden rerun, model execution or measured performance gain is claimed. Existing decoder goldens bypass the file loader, so loading selection/error coverage remains part of the deciding comparison.",
+    "At e9b48ed88, SQA-MOSS-011 traces cancellation after a successful generation return into artifact.Publish's context refusal and ExecuteWorkflow's empty completion. The actual ExecuteHeld/executeObservedOperation wrappers do not repair that completion; Manager.run validates its absent run before checking cancellation and publishes a failed status.",
+    "Use the existing failure-recording path for final publication errors while preserving durable-run validation and original causes. Existing model-stage cancellation/PNG/session evidence remains valid but does not cover this interval. Lifecycle-v1, session-v3 and pixels fixture hashes matched their retained receipt; no new execution or numerical/performance claim was made."
   ],
-  "reviewed_at": "2026-10-29T07:23:20Z",
+  "reviewed_at": "2026-10-29T11:18:57Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 5176792f059e23ddb800dbdc6396aa01dbc30888 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
-    "Rotated sample covers VAE weight materialization, production/native-verification callers, existing safetensors reader ownership and decoder fixture coverage.",
-    "One focused existing safetensors check passed (0.262s package duration). No model generation, training, GPU execution, performance sweep, broad validation, service, production gate or live database mutation occurred.",
+    "SQA-only review at e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample covers MOSS decode/PNG cleanup, workflow output durability, final server publication, operation cancellation and existing hermetic fixtures.",
+    "Source-confirmed late-cancellation finding; retained lifecycle/session/pixel evidence was checked against its receipt. No new test, model generation, training, GPU execution, performance sweep, broad validation, service, production gate or live database mutation occurred.",
     "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P3 SQA-MOSS-010 recommends reusing the existing final-slab reader in the shared VAE loader. Prior finding dispositions are unchanged.",
-      "evidence": "loadVAEWeights has a tensor-sized F32 staging buffer and manual bit loop despite an existing safetensors.ReadF32 owner. Its production MOSS, native verifier and Krea/Qwen callers were traced. Four focused existing reader checks passed (0.262s package duration).",
+      "assessment": "New P2 SQA-MOSS-011: late generation cancellation can become an absent-run failure at final server publication. Prior finding dispositions are unchanged.",
+      "evidence": "The final artifact.Publish observes cancellation and ExecuteWorkflow returns an empty completion. The real wrappers pass it through, and Manager.run validates completion before considering cancellation. Retained stage/lifecycle evidence does not cover this later interval.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -3148,14 +3229,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, replace only the duplicate materialization block with ReadF32, keep selection/lifetime/error context, and remove its two unused imports. Extend existing reader/decoder tests only for the missing deciding cases.",
+      "recommendation": "When implementation resumes, consolidate final publication errors into the existing durable failure-completion path; preserve cancellation, original causes and valid provenance without weakening committed-run checks or regenerating the image.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "Source establishes a removable 4*N byte staging allocation per selected tensor. Actual speed, process peak memory and full-model effects remain unmeasured. Current checks do not establish an unimplemented replacement's loader-boundary or complete numerical equivalence.",
+      "uncertainty": "This is a source-confirmed sequence, not a new browser or model reproduction. No test, service, performance run or implementation change occurred. The deciding case belongs in the existing hermetic generation fixture.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "5176792f059e23ddb800dbdc6396aa01dbc30888"
+      "reviewed_revision": "e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09"
     },
-  "reviewed_revision": "5176792f059e23ddb800dbdc6396aa01dbc30888"
+  "reviewed_revision": "e9b48ed88a1bdcb7eb00c79dca4a9629edbbae09"
 }

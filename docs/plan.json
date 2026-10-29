@@ -218,13 +218,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "samples-tracked",
-          "title": "The README's samples carried by git again, the processing protocol at its acquired bytes",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestReadmeNamesEveryModelAndItsSamples$' -count=1 \u0026\u0026 go test -tags modeltest ./cmd/validate -run '^TestImageVideoProcessingOptimizationAcceptance$' -count=1",
-          "rationale": "readme-models (38da7522e) moved the 36 exported samples from docs/media_samples to ./assets, which .git/info/exclude ignores: the commit deleted them from git, so the cycle checkout (only what git carries) and a clone lack them, and the run failed the frozen-generation tests of latentvideo and diffusionimage and cmd/validate's accepted-coverage and inventory tests, each opening a sample under assets. The same commit repinned docs/image_video_processing_protocol.json to the inventory's new bytes, but that document is the processing comparison's frozen acquisition, which TestImageVideoProcessingOptimizationAcceptance holds it to: it returns to its acquired bytes. The ignore rule goes, the samples are tracked again (the same blobs git held), and TestReadmeNamesEveryModelAndItsSamples also requires every sample the README links to be one git carries.\nServes: the README's samples on GitHub and in every checkout; the run's model lane."
-        },
-        {
           "id": "batch-capacity",
           "title": "The fused continuous-batch test decodes past its cache's first capacity",
           "status": "open",

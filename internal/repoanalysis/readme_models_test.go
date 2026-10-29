@@ -58,8 +58,8 @@ func readmeSection(text, heading string) []string {
 }
 
 // readmeModelFindings reads the README at root and says each way it fails to name a served model with its modality, or
-// to show a sample under assets.
-func readmeModelFindings(root string) ([]string, error) {
+// to show a sample under assets that the repository carries (carried: what git tracks or would track if added).
+func readmeModelFindings(root string, carried []string) ([]string, error) {
 	data, err := os.ReadFile(filepath.Join(root, "README.md"))
 	if err != nil {
 		return nil, err
@@ -143,6 +143,9 @@ func readmeModelFindings(root string) ([]string, error) {
 		if digest := sha256.Sum256(bytes); hex.EncodeToString(digest[:]) != contentDigest(target) {
 			findings = append(findings, fmt.Sprintf("sample %s is not named by the SHA-256 of its bytes", target))
 		}
+		if !slices.Contains(carried, target) {
+			findings = append(findings, fmt.Sprintf("sample %s is on disk but git ignores it, so a clone lacks it", target))
+		}
 	}
 	return findings, nil
 }
@@ -152,19 +155,26 @@ func readmeModelFindings(root string) ([]string, error) {
 //   - each row names a model once, its modality from readmeModalities
 //   - a measured model whose modality makes a picture, a clip or speech has a sample: a paragraph of Sample outputs that
 //     opens with its name in bold and links one
-//   - every picture, clip and recording the README links is under assets, there, and named by the SHA-256 of its bytes
+//   - every picture, clip and recording the README links is under assets, there, named by the SHA-256 of its bytes, and
+//     carried by git: an ignore rule over assets once left a clone without the samples the checkout showed
 func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 	t.Parallel()
-	findings, err := readmeModelFindings(filepath.Join("..", ".."))
+	root := filepath.Join("..", "..")
+	carried, err := TrackedDocuments(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings, err := readmeModelFindings(root, carried)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, finding := range findings {
 		t.Error(finding)
 	}
-	picture := []byte("a picture")
-	digest := sha256.Sum256(picture)
+	picture, ignored := []byte("a picture"), []byte("an ignored picture")
+	digest, ignoredDigest := sha256.Sum256(picture), sha256.Sum256(ignored)
 	named := assetsRoot + "/" + hex.EncodeToString(digest[:]) + ".png"
+	hidden := assetsRoot + "/" + hex.EncodeToString(ignoredDigest[:]) + ".png"
 	misnamed := assetsRoot + "/" + strings.Repeat("0", hex.EncodedLen(sha256.Size)) + ".png"
 	table := "### Served models\n\n| Model | Modality | Input → output | First output |\n| --- | --- | --- | --- |\n"
 	reader := "| Reader | text | text → text | 1 s |\n"
@@ -179,6 +189,7 @@ func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 		{"a sample outside assets", table + reader + "\n### Sample outputs\n\n![fox](docs/media_samples/fox.png)\n", "is not under assets"},
 		{"a sample not named by its bytes", table + reader + "\n### Sample outputs\n\n![fox](" + misnamed + ")\n", "not named by the SHA-256"},
 		{"a sample that is not there", table + reader + "\n### Sample outputs\n\n![fox](" + assetsRoot + "/gone.png)\n", "gone.png"},
+		{"a sample git ignores", table + reader + "\n### Sample outputs\n\n![fox](" + hidden + ")\n", "git ignores it"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -186,12 +197,13 @@ func TestReadmeNamesEveryModelAndItsSamples(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(root, assetsRoot), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			for name, data := range map[string][]byte{"README.md": []byte(test.readme), named: picture, misnamed: picture} {
+			for name, data := range map[string][]byte{"README.md": []byte(test.readme), named: picture, misnamed: picture, hidden: ignored} {
 				if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(name)), data, 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
-			findings, err := readmeModelFindings(root)
+			// The fixture's git carries its named pictures; the hidden one is on disk under an ignore rule.
+			findings, err := readmeModelFindings(root, []string{named, misnamed})
 			if err != nil {
 				t.Fatal(err)
 			}

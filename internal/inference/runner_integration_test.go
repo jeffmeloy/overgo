@@ -12,6 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -793,17 +794,20 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 6 {
+	// The session is rebuilt each time the sequence outgrows its cache's capacity and replayed between, so the sequence
+	// decodes past its first capacity, whichever storage the runner keeps: an int8 cell page holds 64 tokens.
+	var session *deviceDecodeSession
+	for step := 0; session == nil || session.rebuilds < 2 && step <= tensor.CellPageCells; step++ {
 		sessionOutput, err = sessionBatch.StepGreedy(t.Context(), []SequenceBatchInput{{
 			ID: 50, Tokens: []tokenizer.TokenID{sessionOutput[0].Token},
 		}})
 		if err != nil {
 			t.Fatal(err)
 		}
+		sessionBatch.mu.Lock()
+		session = sessionBatch.sequences[50].device.session
+		sessionBatch.mu.Unlock()
 	}
-	sessionBatch.mu.Lock()
-	session := sessionBatch.sequences[50].device.session
-	sessionBatch.mu.Unlock()
 	if session == nil || session.rebuilds < 2 || session.replays < 1 ||
 		session.program.identity.capacity < 8 {
 		t.Fatalf("parameterized decode session = %+v", session)

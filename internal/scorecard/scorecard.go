@@ -161,6 +161,11 @@ func (c Cell) QualityText() string {
 // answered right, whose standard error follows from the share and the cases.
 const shareMetric = "accuracy"
 
+// promptStrictMetric is IFEval's share of prompts every instruction of which
+// held strictly: a share of cases answered right that states no standard
+// error, whose prompts two readings pair as a share's cases do.
+const promptStrictMetric = "prompt-strict"
+
 // shareError is the standard error of a share of cases answered right.
 func shareError(share float64, cases uint64) float64 {
 	if cases == 0 || share < 0 || share > 1 {

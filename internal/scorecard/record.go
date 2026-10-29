@@ -659,7 +659,7 @@ func judgeQuality(ctx context.Context, store *overgodb.Store, unopened error, de
 	switch {
 	case unopened != nil:
 		unpaired = "the store cannot be opened (" + unopened.Error() + ")"
-	case then.Contract.Metric != shareMetric:
+	case then.Contract.Metric != shareMetric && then.Contract.Metric != promptStrictMetric:
 		unpaired = "a " + then.Contract.Metric + " is no share of cases answered right"
 	default:
 		before, beforeRead := evaluation.CaseOutcomes(ctx, store, then.Source)

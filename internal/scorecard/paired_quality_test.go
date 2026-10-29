@@ -149,6 +149,17 @@ func TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently(t *testing.T) {
 		}
 	}
 
+	// A prompt-strict reading, IFEval's share of prompts every instruction of which held, states no standard error and
+	// pairs its prompts as an accuracy pairs its cases.
+	strict := func(cell Cell) Cell {
+		cell.Contract.Metric, cell.Noise = promptStrictMetric, 0
+		return cell
+	}
+	if kept, dropped := judge(root, strict(baseline), strict(oneLost)); len(kept) != 0 || len(dropped) != 1 ||
+		!strings.Contains(dropped[0], "is not filed because 1 of the 40 cases both readings answered went from right to wrong") {
+		t.Errorf("a prompt-strict decline of one prompt: kept %+v and dropped %q, want it dropped by what its prompts say", kept, dropped)
+	}
+
 	// unstored is a reading no stored record names, with the value and standard error given.
 	unstored := func(name string, value, noise float64) Cell {
 		cell := baseline

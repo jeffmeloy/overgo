@@ -245,7 +245,8 @@ func TestScoringFixRunsNoCaseAgain(t *testing.T) {
 // of a stored reading was answered right, by the case's name, from the report
 // the reading's run wrote. A choice is right when it selected the answer, and
 // a tie that selected the answer is right only under a scorer that takes the
-// first of tied candidates. A generated answer is right when it was accepted.
+// first of tied candidates. A generated answer is right when it was accepted, an
+// instruction-following prompt when every instruction it gave held strictly.
 // A record the store does not hold names no outcome.
 func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 	t.Parallel()
@@ -307,6 +308,16 @@ func TestCaseOutcomesAreReadFromTheReportThatScoredThem(t *testing.T) {
 	}}
 	if outcomes, read := read(generated); !read || !maps.Equal(outcomes, map[string]bool{"said": true, "unsaid": false}) {
 		t.Fatalf("a generated-answer report reads %v (%t), want the accepted answer right and the other wrong", outcomes, read)
+	}
+	contains := func(word string) instructionRule {
+		return instructionRule{Name: "contains " + word, Kind: ruleContainsAll, Values: []string{word}}
+	}
+	instructions := instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/outcomes/v1", Source: "fixture/outcomes", Cases: []instructionRulesCase{
+		{Name: "kept", Prompt: "say ok", MaxTokens: 2, Rules: []instructionRule{contains("ok")}},
+		{Name: "broken", Prompt: "say ok and banana", MaxTokens: 2, Rules: []instructionRule{contains("ok"), contains("banana")}},
+	}}
+	if outcomes, read := read(instructions); !read || !maps.Equal(outcomes, map[string]bool{"kept": true, "broken": false}) {
+		t.Fatalf("an instruction-rules report reads %v (%t), want the prompt whose every instruction held right and the other wrong", outcomes, read)
 	}
 	if outcomes, read := CaseOutcomes(ctx, store, planID(t, artifact.KindEvaluation, "absent")); read {
 		t.Fatalf("a record the store does not hold reads %v", outcomes)

@@ -218,16 +218,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "journey-budget: the lane's two journey bounds (journeyWait, journeyBudget) and the timeout handed to runLane; the bounds are the lane's own declarations, as waitBudget is"
+        "reason": "ifeval-paired: CaseOutcomes reads an instruction-rules report's prompts (its schema, the strict verdicts, a switch over the report kinds) and the scorecard's prompt-strict metric joins the paired test"
       },
       "steps": [
-        {
-          "id": "ifeval-paired",
-          "title": "The scorecard pairs an IFEval decline's prompts as it pairs an accuracy's cases",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/scorecard -run '^(TestCaseOutcomesAreReadFromTheReportThatScoredThem|TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently)$' -count=1",
-          "rationale": "The 2026-10-28 run filed IFEval declines of one and two prompts of 55 (Qwen3.8 Flash Next, Bonsai-27B, gemma-4-12B-it-fp8-native) because a prompt-strict reading states no standard error and is no accuracy, so the scorecard judged it by its value; past runs retired such rows by hand after comparing the prompts (bbbded7fe, db7d572fc). prompt-strict is a share of prompts every instruction of which held, and an IFEval report keeps each prompt's strict verdicts: the scorecard pairs its prompts between readings as it pairs an accuracy's cases, by the same exact sign test.\nServes: held-out-quality judged by what the prompts say, no row filed for a decline within chance."
-        },
         {
           "id": "close",
           "title": "Close only after multimodal delivery and Strata parity are established",

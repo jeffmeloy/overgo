@@ -226,6 +226,7 @@ var acceptedReportSchemas = []string{
 //   - run that carried an earlier result forward => followed to the run that scored it (scoredReport)
 //   - choice report => right <=> the selected candidate is the answer, a tie counted by the tie break of the scoring plan's scorer (choiceCorrect)
 //   - report that accepts or refuses each answer => right <=> accepted
+//   - instruction-rules report => right <=> every instruction of the prompt held strictly, the case prompt-strict counts
 //   - read = false <=> the record, a run, the report or a tie's scorer cannot be read, or the report is of another kind or names no case.
 func CaseOutcomes(ctx context.Context, store *overgodb.Store, record artifact.ID) (outcomes map[string]bool, read bool) {
 	evaluated, err := runrecord.RequireEvaluation(ctx, store, record)
@@ -238,12 +239,14 @@ func CaseOutcomes(ctx context.Context, store *overgodb.Store, record artifact.ID
 	}
 	scoring, report, read := scoredReport(ctx, store, bound)
 	choice := slices.Contains(choiceReportSchemas, report.Descriptor.Schema)
-	if !read || !choice && !slices.Contains(acceptedReportSchemas, report.Descriptor.Schema) {
+	instructions := report.Descriptor.Schema == instructionRulesReportContract.Schema
+	if !read || !choice && !instructions && !slices.Contains(acceptedReportSchemas, report.Descriptor.Schema) {
 		return nil, false
 	}
 	type answered struct {
 		choiceObservation
-		Accepted bool `json:"accepted"`
+		Accepted bool   `json:"accepted"`
+		Strict   []bool `json:"strict"`
 	}
 	var answers struct {
 		Observations []answered `json:"observations"`
@@ -259,9 +262,13 @@ func CaseOutcomes(ctx context.Context, store *overgodb.Store, record artifact.ID
 	}
 	outcomes = make(map[string]bool, len(answers.Observations))
 	for _, answer := range answers.Observations {
-		outcomes[answer.Name] = answer.Accepted
-		if choice {
+		switch {
+		case choice:
 			outcomes[answer.Name] = choiceCorrect(answer.choiceObservation, tieBreak)
+		case instructions:
+			outcomes[answer.Name] = allTrue(answer.Strict)
+		default:
+			outcomes[answer.Name] = answer.Accepted
 		}
 	}
 	return outcomes, true

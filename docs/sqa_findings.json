@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "43 open,3 deferred,22 resolved. Add252: reuse existing controlled runtime-stream probe, net127 test AST with all download cases retained. No new production reduction established.251 and expanded226 remain recommendations, not completed changes.",
-      "priority": "Served sampler-chain245, inventory resync218 and numerical229/232 remain ahead of test-assurance251 and maintenance reductions. Only docs/plan changed since prior report, so prior code evidence remains applicable. Fresh blob tests have different publication/journal failure contracts and stay separate.",
-      "declined_candidates": "Do not inline PromptReader into callers or load model weights for prompt inspection; it already shares Runner behavior. Do not merge expert tensor blobs with database payload blobs, discard checksum/atomic publication coverage, or replace native evidence package/event-order cases with string assertions."
+      "assessment": "43 open,3 deferred,22 resolved. Refine235 to use two existing test owners, removing124 test AST nodes instead of93. No new safe production reduction or finding closure established.",
+      "priority": "Sampler-chain245, GUI resync218, numerical acceptance229/232 and NextN oracle251 still carry behavioral risk above this maintenance-only refinement. Newly committed cold-request/scorecard rows are implementation planning, not SQA closures. Source is identical to the prior reviewed pin; no ranking change is supported.",
+      "declined_candidates": "Do not add a generic callback fixture to merge different dataset/profile authority publishers; they already share releaseEverything. Do not collapse load read-once/hash/failure/split-shard checks or HTTP shutdown/caller-budget coverage. Do not replace browser remount/abort/visibility behavior with direct handler assertions."
     },
   "committed_plan": {
-    "git_blob": "4dd9163aae7ed966f0854fd9b379a53fd813fc62",
+    "git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
     "path": "docs/plan.json",
-    "revision": "a148d5db99849a4ce675746bfa0cc896770cf57d",
-    "sha256": "2dcd31f999952394377b887a3ebcf030c2f2534bcff038e96c39ad4d16811842",
+    "revision": "cd7285195fdb46c8cc74149e7f932d3912623e7a",
+    "sha256": "7e54ec527b5277a260766a21c89483d5303fb2f7f3c339cf6709f30690e0e2d1",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -686,20 +686,20 @@
       "severity": "P3",
       "category": "test-consolidation",
       "classification": "source-opportunity",
-      "title": "Keep decode page-identity checks in the existing page-class test",
-      "evidence_commit": "f5de9b25e1032a0ecdadb042860346f39e829d9c",
+      "title": "Merge decode identity checks and page cases into their existing owners",
+      "evidence_commit": "cd7285195fdb46c8cc74149e7f932d3912623e7a",
       "sources": [
         {
           "path": "internal/inference/decode_session_identity_test.go",
-          "symbol": "TestDecodeSessionIdentityDistinguishesSourcePageCapacity10"
+          "symbol": "TestDecodeSessionIdentityDistinguishesSourcePageCapacity"
         },
         {
           "path": "internal/inference/device_decode_session_test.go",
-          "symbol": "TestParameterizedDecodeCapacityStaysWithinPageClass56; TestParameterizedDecodeAttributesCoverDynamicNodes"
+          "symbol": "TestParameterizedDecodeCapacityStaysWithinPageClass; TestParameterizedDecodeAttributesCoverDynamicNodes"
         },
         {
           "path": "internal/inference/device_decode_session.go",
-          "symbol": "decodeSessionIdentity44; matches65"
+          "symbol": "decodeSessionIdentity; matches"
         },
         {
           "path": "internal/inference/device_cache.go",
@@ -718,22 +718,22 @@
           "symbol": "TestDecodeSessionServesOnlyItsOwnPastPage"
         }
       ],
-      "evidence": "Two native unit tests construct an identity and check own-class success plus rejection when only source capacity differs. The retained page-class test derives 8/4 and8/8 from cacheAppendPlan, while the standalone test constructs512/256 and512/512 directly. matches uses equality, with no size-dependent branch. Its production caller is executeParameterizedDecodeSession; keptDecodeSession independently compares the complete identity, so these unit checks are not a substitute for actual lookup/binding recovery tests. The standalone target-capacity and block-selection negatives and exact256/300/257 page examples are unique in this pair and must move. Bounded caller search found no exact standalone test-name selector outside its declaration/report.",
-      "recommended_change": "The second identity fixture and repeated source/self assertions are unnecessary. Delete decode_session_identity_test.go after moving its target-capacity negative, block-selection negative and three exact page-capacity assertions into TestParameterizedDecodeCapacityStaysWithinPageClass. Reuse compiledBeyond/plan/lora; use the existing contextTokens16 versus beyond8 for the target mismatch. Keep the existing source rejection and own-class success. No helper, fixture, new test, selector or production change.",
-      "impact": "One retained behavioral owner for this unit contract, with93 fewer test AST nodes overall. No speed or memory gain claimed. The retained positive check catches always-refusing matches, and source check catches loss of source discrimination; dropping both would weaken coverage.",
-      "displaced_surface": "Remove the whole186-node standalone test file, its testing import, function, identity construction and two duplicate assertions. Move five assertions into the existing owner (+93nodes,461->554); target changes from1024/512 to16/8 but remains a pure unequal-field check, block-selection stays false-versus-true, and256->256,300->512,257->512 with4096limit stay verbatim. Both unit files have no platform/build constraint. Keep the Windows device alternating page test, cache binding half/full-extent checks, page policy table, dynamic state/position checks, all production validation/errors/cancellation, layouts and resource lifetimes. No exports/config/fixture files change.",
+      "evidence": "The standalone identity test and TestParameterizedDecodeCapacityStaysWithinPageClass both construct an identity and check own-class success plus rejection when only source capacity differs. The latter derives8/4 and8/8 through cacheAppendPlan; matches tests equality without a size-dependent branch. Its target-capacity and block-selection negatives are unique and must move. Separately, TestCachePageCapacityFollowsSessionPolicy already owns seven exact session-policy/rounding/cap cases; the standalone256/300/257 examples belong in that table. Full caller search found no exact standalone-name selector outside its declaration/report. Production executeParameterizedDecodeSession calls matches; keptDecodeSession compares full identities. The Windows page-pair test separately owns real reuse and undersized-source recovery.",
+      "recommended_change": "Delete decode_session_identity_test.go. Move only its target-capacity and block-selection negatives into TestParameterizedDecodeCapacityStaysWithinPageClass, reusing compiledBeyond/plan/lora and existing contextTokens16 versus beyond8 for unequal target capacity. Move256/4096->256,300/4096->512 and257/4096->512 into TestCachePageCapacityFollowsSessionPolicy by adding a per-row limit field; retain all seven old rows with limit10. Keep the existing own-class positive and source rejection. No helper, new test, selector, fixture or production change.",
+      "impact": "One redundant identity setup disappears; exact page rounding cases use the existing arithmetic table. Complete three-file test surface falls124 AST nodes,31 more than the previous235 proposal. This is an alternative complete migration, not two additive findings. No runtime speed or memory gain measured.",
+      "displaced_surface": "Remove the whole186-node standalone file, testing import, function, identity construction and duplicate own-class/source assertions. The retained page-class function gains only36 nodes(461->497; file2152->2188). The existing capacity table gains26 nodes including its limit field and all ten rows(file2012->2038). Exact256/300/257 results with4096 cap stay; target mismatch1024/512 becomes16/8, still pure inequality. All three native files are unconstrained by platform/build tags. Keep Windows TestDecodeSessionServesOnlyItsOwnPastPage, dynamic state/position tests and half/full-extent binding checks. Production validation, cancellation, layouts, resource lifetime, exports and configuration stay unchanged.",
       "expected_benefit": {
-        "outcome": "Complete affected test files2152+186=2338 ->2245 (-93AST); production0delta. Two top-level unit bodies become one, identity constructions2->1 and matches assertions6->4; all three large-page assertions retained. One runner/recipe setup stays one; zero GPU/model/file setups added or removed. Helper/wrapper/migration cost included (+93in retained file), fixtures/import additions0, gate/package invocations unchanged. Maintenance loses a redundant owner without inventing an abstraction.",
-        "uncertainty": "Complete candidate parsed at bc9488bbe; both files and cited production/test owners are object-identical at this pin. Previous publication attempts met worker-owned locks. No repeat analysis or test run needed. Parser-local symbols and committed callers establish the migration; this run's go/types check covers original grammar.go. AST is a maintenance proxy, not measured elapsed/memory."
+        "outcome": "Complete affected tests186+2152+2012=4350 ->0+2188+2038=4226(-124AST). Affected production files0->0; retained cache_paging.go114->114. Including that arithmetic owner4464->4340. Three unit bodies become two, identity constructions2->1, matches calls6->4; seven existing capacity rows plus three migrated cases become ten, and the three page-class wiring comparisons remain. One runner/recipe setup stays one; no GPU/model/file fixtures or setup executions removed/added. New helper/wrapper/fixture/import cost0, migration growth+62 included. Native package/gate invocations unchanged; no new selector.",
+        "uncertainty": "Source-only whole-file candidate parsed at cd7285195. Exact readRecorder declaration/method from the independent load sample typechecked against standard library(9defs/32uses/46expressions/8selections); the proposed inference merge is syntax-counted, not package-typechecked or executed. AST and setup counts are maintenance proxies. The additional31-node saving supersedes235's prior93-node candidate, not a measured performance gain."
       },
-      "likely_effort": "Small test-only migration; batch with an adopted inference production reduction rather than a separate confidence run.",
+      "likely_effort": "Small test-only migration; batch with adopted inference work under normal affected verification.",
       "plan_references": [],
-      "plan_coverage": "New advisory test consolidation, not adopted. The completed reductions row did not include this pending finding; no new step or framework requested.",
+      "plan_coverage": "Advisory unadopted consolidation. New scorecard/cold-request plan rows do not implement or retire this requirement.",
       "closure_criteria": [
-        "The standalone file is gone; retained page-class test keeps source/own-class assertions and all five unique migrated assertions.",
-        "Actual device page switching, complete identity lookup and undersized input binding retain their existing owners; total production unchanged and affected test AST below2338 with no new fixture/helper/setup."
+        "Standalone file removed; existing page-class owner keeps own-class/source checks and both unique target/block negatives; existing capacity table retains all seven rows and exact256/300/257 cases with4096 limit.",
+        "Windows real page-switch recovery and dynamic binding coverage remain. Complete three-file test AST below4350, production unchanged, no new helper/fixture/setup."
       ],
-      "comparison": "Inspect the merged existing test against the seven original assertions and producer-derived page cases; its ordinary package verification must still fail if source discrimination is removed or matches always refuses, and preserve target/block negatives and exact page boundaries. Keep the existing device/binding regressions in their normal lane. No SQA confidence run or new test prescribed."
+      "comparison": "Review the merged two tests against all original assertions and literal rounding cases. Normal affected implementation verification must retain failure for loss of source/target/block discrimination or always-refusing matches; existing arithmetic table must retain the exact page boundaries. Keep real Windows page-reuse and binding tests in their existing lane. No SQA confidence run, new workload or selector."
     },
     {
       "id": "SQA-216",
@@ -3249,15 +3249,14 @@
     }
   ],
   "gate_test_assessment": {
-      "retained_results": "Latest a148d5db is plan-only: producer verify3.364s, production/test delta0. Its filing c9045265 verify53ms. Prior f29 closeout (+0/+0) host3m27.149, lane discovery756ms all skipped, verify6.175; prior421d06 +51production/+190test with host2m9.409, lanes3m38.111, CUDA4executed/12cached and output-identical Qwen0.5 slice. No SQA validation runs.",
-      "measured_vs_proxy": "252 predicts127 fewer test AST nodes, one less listener/client/scanner setup, and unchanged one handler/stream/scenario. Recorder/channels add local setup; no elapsed/peak-memory gain measured. Production delta0, no extra gate or fixture.251/226 prior savings remain unimplemented; no double counting as new savings.",
+      "retained_results": "cd7285195 plan-only footer: verify95ms, production/test delta0. Earlier a148d5db plan-only verify3.364s and c9045265 filing53ms. Previous retained full f29 footer host3m27.149, lane discovery756ms all skipped, verify6.175; prior421d06 +51production/+190test, host2m9.409, lanes3m38.111, CUDA4executed/12cached, output-identical Qwen0.5 slice. None rerun by SQA.",
+      "measured_vs_proxy": "235 whole-file source candidate4350->4226(-124testAST), superseding -93. Production delta0; no new helper/fixture/gate/setup. Unit identity construction2->1; no measured elapsed/peak-memory saving. Loader, catalog, stream lifecycle and other sampled tests are retained; no quota-based deletion.",
       "sampled_tests": [
-        "simplify: TestOneWorkbenchEventStream uses existing runtimeServingProbe; remove local listener/client/scanner/parser, retain its four progress cases and empty/admitted/cancelled snapshots. No behavioral test retired.",
-        "retain: TestRuntimeStreamDeliversServingObservation owns durable publication, failure, reconnect/restart, controlled slow-reader overflow and snapshot overlap; TestWebUIBrowserServingStream owns actual transport/authentication/live/reconnect.",
-        "retain: TestPromptReaderReadsAPromptWithoutTheModel keeps exact shaped text, nonempty generation, candidate continuation composition, close and absent file. Underlying tokenizer correctness has its own owner.",
-        "retain: TestBlobStorePublicationContract identity/hash/idempotence/size/staging/corrupt retry; TestExternalBlobCommitAtomicity compact journal, missing committed blob, append-fault orphan and replay. Similar initial payload setup does not make failures redundant.",
-        "retain: TestLaneJudgesTypedLegOutcomes keeps typed package identities, event-order permutations, zero-pass/skipped/failed/unfinished and leg-presence requirements in one existing setup.",
-        "merge/remove: no new whole-test deletion. Only252's local parser/network setup disappears; retained226 serializer and251 shared NextN recommendations remain unchanged."
+        "merge/remove: delete TestDecodeSessionIdentityDistinguishesSourcePageCapacity only after two unique identity negatives move to TestParameterizedDecodeCapacityStaysWithinPageClass and three exact rounding cases move to TestCachePageCapacityFollowsSessionPolicy. Retained positive/source rejection replace duplicate assertions.",
+        "retain: all other device_cache_paging and device_decode_session tests, plus Windows TestDecodeSessionServesOnlyItsOwnPastPage. Group offsets, rectangular widths, fixed/token state, page views, dynamic attributes and actual device reuse are distinct requirements.",
+        "retain: LoaderUploadsEachRoutedTensor, DigestMatchesIdentifyForRandomLayouts, RefusesATamperedByteAnywhere, RefusesClaimsThatDoNotFit, ReadsEachByteOnce, ReleasesEverythingOnFailure, RejectsRoutesThatCannotLoad, VerifiesWithoutRoutes, VerifiesEverySplitShard and MapsATensorFromHostMemory; common fixtures already own setup.",
+        "retain: TestDatasetCatalogCompactionRetainsAuthorityAndLocation and TestProfileCatalogReleaseRetainsArchitectureAuthority; no demonstrated common publication/inspection contract. TestProjectionQueryPlanEfficiency retains owned-index, cardinality, seed, catalog/refusal and deterministic-plan cases.",
+        "retain: TestCancelledDownloadHoldsItsSlotUntilItFinishes, TestDownloadShutdownOwnership and TestDownloadJobCallerBudget; registry admission and HTTP/filesystem cancellation evidence differ. TestWebUIBrowserStreamLifecycle retains real browser transport/remount/visibility requirements. No new native audio-stream test recommended absent changed behavior."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -3631,10 +3630,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded source/AST review; no production change, agent dispatch, test, gate, model, service, benchmark or profile. Missing guessed filenames were not treated as read evidence; only actual owners listed are used.",
-      "Go type resolution covers exact blobReader/backupReader declarations, not complete application dependencies. Hypothetical252 replacement is syntax-counted only; transport/cleanup equivalence must be assessed in normal affected implementation validation.",
-      "Only plan changed since last report. Unchanged prior findings retain evidence without a full recurring re-review/ranking census. Strata is a comparison, not presumed optimal.",
-      "Implementation-owned objects,34 comments and unknown fields are preserved exactly. Source facts and setup counts are proxies, not runtime measurements."
+      "Bounded read-only source/AST review. No implementation, agent dispatch, test/gate/model/service/benchmark/profile runs. Broad application package typing and runtime equivalence are not claimed.",
+      "Type resolution covers exact stdlib-only readRecorder sample; inference proposal was parsed/count-compared only. Existing normal implementation validation owns the deciding check.",
+      "Prior source findings remain applicable by full committed-tree comparison excluding only report/plan; this is not a repeated exhaustive re-review. No new measured performance evidence; Strata is comparison only.",
+      "Both implementation-owned objects, all34 comments and unknown fields remain raw-identical. Worker-modified plan remains excluded. Only report publication is authorized."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -3706,11 +3705,11 @@
   },
   "next_finding_number": 253,
   "publication_context": {
-      "checked_head": "a148d5db99849a4ce675746bfa0cc896770cf57d",
-      "committed_plan_git_blob": "4dd9163aae7ed966f0854fd9b379a53fd813fc62",
-      "assessment": "Substantive new252 identifies existing shared probe, actual consumers and whole-file127-node test reduction with retained transport owner. Three IFEval plan retirements reconciled; no SQA finding closure inferred.",
-      "newer_commit_note": "Only docs/plan.json differs from prior report publication4ea2ab3f0; code and prior251/226 proposals unchanged.",
-      "publication": "Re-read under nonblocking existing landing/gate byte locks, parse replacement, preserve raw implementation/unknown fields and unrelated work; commit docs/sqa_findings.json only."
+      "checked_head": "cd7285195fdb46c8cc74149e7f932d3912623e7a",
+      "committed_plan_git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
+      "assessment": "Substantive235 refinement identifies the existing arithmetic owner, preserves ten cases and reduces complete replacement cost by31 more AST nodes. No new finding or priority change.",
+      "newer_commit_note": "Only report/plan differ from a148d5db; cd7285195 files three scorecard/cold-request rows without source changes.",
+      "publication": "Re-read under nonblocking existing landing/gate locks, parse replacement, preserve raw implementation/unknown fields and unrelated work; commit report only."
     },
   "ranked_active_finding_ids": [
     "SQA-245",
@@ -3760,45 +3759,43 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "252 shares actual named SSE frame decoding between download and serving-observation consumers. Keep production endpoint/event vocabulary unchanged. Browser owner retains real authenticated HTTP/live/reconnect coverage; direct handler probe does not independently establish transport correctness.",
-      "PromptReader has two real eval consumers (readPrompts and chat-mode model comparison) and forwards template/token/continuation behavior to Runner while opening only GGUF metadata/vocabulary. Its wrapper expresses a cheaper resource lifetime. Prompt-reader expected template text plus vocabulary encoding checks wiring; it is not an independent tokenizer oracle and need not become one.",
-      "ExpertBlobLayer is used by Strata-round construction and SwapExperts; pointer/residency views change between runs. HostExpertSample supplies measured host-expert calibration at Runner.Open; gate/up/down formats and row extents remain explicit. This is a hardware calibration sample, not evidence of representative routing or a universally optimal first expert. No calibrated owner is removed.",
-      "blobStore.verify and packing already reuse copyVerified and backupReader for bounded hashing/cancellation. blobReader also owns sealed-segment reads and closes at exact expected size or EOF; a plain LimitReader would lose handle lifetime. Publication durability/hash checks and journal atomicity remain different obligations.",
-      "Blob fanout2 means256 hex buckets; placement remains identity-derived, not a uniformity/timing claim. Pack count allocation is bounded by actual file bytes/entry width before multiplication. Packed size is uint32 into int64; loose size comes from file.Stat. Exact extent and end-of-content checks remain. No new geometry branch or literal lint proposed.",
-      "wholePercent's100 is percent units and unknown/nonpositive totals return0; test transitions0/9/10 of1000 distinguish below/exact1-percent plus file change. These are display thresholds, not probabilistic/performance acceptance. Keep the progress table unchanged.",
-      "Typed lane tests retain same-name tests in different packages, skipped/failed/unfinished/zero-pass and both interleavings. The existing event builder/judge shares setup; no safe additional merge was established. Native Go caching and existing gate/resume own reuse.",
-      "Plan-only a148d5db retires three IFEval rows using existing paired prompt evidence: Flash-Next3 losses/1 gain of55 (reported p0.312), Bonsai and gemma one loss each (p0.5), existing boundary0.0228. This establishes failure to reject those declines under that contract, not proof of equal quality or independent population sampling. Five other regression rows and MOSS remain; source unchanged."
+      "235 now keeps rounding examples in TestCachePageCapacityFollowsSessionPolicy and identity negatives in TestParameterizedDecodeCapacityStaysWithinPageClass. Own-class success is necessary to catch an always-refusing predicate; it is not a vacuous self-comparison. Real Windows page-pair recovery remains a separate owner.",
+      "Loader is already shared by runner_lifecycle, hyper_draft and strata_round. Raw/mapped/converted/expert routes share one pass and per-shard hashing; converted payload decodes once before each encoding. Unpublished allocations release with uncancelled contexts; pinned-host and card frees are distinct. Keep hash-before-publication and cancellation joins.",
+      "Loader tests reuse gguf.Write, mixedFixture, fixture.check and fakeDevice. Fixed seeded layouts exercise sizes/routes/chunks, not a representative workload distribution or probability of correctness. The converted-byte comparison uses the production encoder and proves routing/storage wiring; it is not an independent numerical oracle. Hash/extent/tamper/release cases remain distinct.",
+      "loadReaders4/loadReaderBuffers2 are read concurrency and double-buffer choices, not format limits or presumed optimum. Actual file-handle alignment flows through checked.RoundUpMultiple; converted storage uses checked.Bytes. Q8_0 fixture width32 multiples are format blocks; rectangular raw/converted shapes and non-divisible chunk sizes exercise different boundaries. No speculative hardware retuning.",
+      "Cache arithmetic uses uint32 token counts and uint64 ceiling/cap math. SessionRequest retains exact capacity; capacity sessions round by page class. The proposed table preserves1/3/5/9/10 and256/257/300 with explicit limits. Key/value widths2/3, fixed state and token-last-axis views remain covered; fake pointers are identity fixtures, not measured GPU geometry.",
+      "Retention shares admitStoreLocalAliases between rebuild/release, and releaseEverything across the external catalog tests. Dataset location/inventory and architecture-profile authority have different publishers/consumers; similar setup is insufficient to delete either. Release keeps expected-head checks and commits before deleting blobs. Query selection uses actual index cardinality at the head, not uniformity estimates; repeated-plan equality can expose map-order nondeterminism.",
+      "Download slot release, real HTTP shutdown/resume and caller timeout remain distinct. Browser lifecycle11-second wait crosses boot.js statusRefreshMS10000 and tests hidden-page behavior; three remounts probe successive aborts. Native transcription uses httpstream/strictjson; activation rechecks, admitted byte/sample spans and uncancelled session Close protect lifetime/trust boundaries.",
+      "cd7285195 files scorecard-blind-declines, scorecard-warm-request and flashnext-first-request. The plan attributes missing declines to recipe-scoped contracts and fewer than five earlier readings, and separates cold/warm requests. These are retained implementation claims/targets, not fresh SQA measurements or proof Strata is optimal. No additional scorecard framework, fixed significance threshold or workload proposed."
     ],
-  "reviewed_at": "2026-10-29T11:08:59Z",
-  "reviewed_master": "a148d5db99849a4ce675746bfa0cc896770cf57d",
+  "reviewed_at": "2026-10-29T13:12:44Z",
+  "reviewed_master": "cd7285195fdb46c8cc74149e7f932d3912623e7a",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master a148d5db99849a4ce675746bfa0cc896770cf57d; clean checkout at start. Root skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan 4dd9163aae7ed966f0854fd9b379a53fd813fc62 read before source. Only plan changes since report commit4ea2ab3f0; no worker source used.",
-      "Fresh rotation starts from prompt-reader eval callers, model-device expert views, external/packed blob read and publication owners, download SSE tests and typed browser-lane evidence. Provisional conclusions recorded before prior findings/implementation responses.",
-      "Actual Go AST sample: internal/inference/prompt_reader.go, internal/inference/prompt_reader_test.go, internal/modeldevice/expert_blobs.go, internal/overgodb/blobs.go, internal/overgodb/blobs_test.go, internal/overgodb/blob_commit_test.go, internal/server/stream_events.go, internal/server/one_event_stream_test.go, internal/server/runtime_serving_test.go, internal/server/webui_browser_serving_stream_test.go, internal/webuilane/legs.go, cmd/webui-lane/typed_legs_test.go. 12 files8004 AST (2747 production/5257 test),43 functions,1683 parser-local identifier bindings; comments included. Named caller reads supplement the sample; no full census.",
-      "Exact blobReader and backupReader declarations/all methods typechecked with standard-library imports:20 definitions,76 uses,99 expressions,18 selections. Hypothetical download test parses601->474. No full application package typecheck, SSA, CGo or complete call graph.",
-      "Prompt/load/transfers/resource lifetime and blob/query/GUI/gate paths reviewed through fresh sources plus retained unchanged evidence. Retention/corrupt-checkpoint and broad gate results reused, not rerun. This chat previously implemented Overgo changes; review is not independent third-party work."
+      "Pinned committed master cd7285195fdb46c8cc74149e7f932d3912623e7a; worker-modified docs/plan.json excluded. Root skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88 read first. Since reviewed a148d5db only report and committed plan changed; no production/test source changes.",
+      "Fresh rotation: cache paging and identity callers, routed load/hash/upload/cleanup, catalog retention/query plans, download cancel/shutdown, browser stream lifecycle and audio-stream admission. Provisional conclusions formed before prior report/responses; the fresh31-node table candidate overlapped235, so the report refines that stable finding instead of adding a duplicate.",
+      "Actual Go parser/AST analysis on14 committed files:6320 production+13605 test=19925 nodes,88 functions,4210 parser-local identifier bindings; comments included. Files: internal/inference/cache_paging.go, internal/inference/device_cache_paging_test.go, internal/modeldevice/device_load.go, internal/modeldevice/device_load_test.go, internal/overgodb/retention.go, internal/overgodb/dataset_catalog_retention_test.go, internal/overgodb/profile_catalog_retention_test.go, internal/overgodb/query_plan_test.go, internal/server/download_cancel_slot_test.go, internal/server/download_shutdown_test.go, internal/server/webui_browser_stream_lifecycle_test.go, internal/server/streaming_transcriptions.go, internal/inference/decode_session_identity_test.go, internal/inference/device_decode_session_test.go. Named caller/owner reads supplement this fixed sample; no full census.",
+      "Exact readRecorder struct and ReadAt method extracted unchanged and go/types checked with io/sync:9 definitions,32 uses,46 expressions,8 selections. Whole three-file hypothetical235 replacement parses4350->4226. No complete application typecheck, CGo/SSA/call graph or code execution.",
+      "Gate/test costs use retained commit footers and unchanged gate/resume evidence. This chat previously implemented Overgo changes; this is not an independent third-party review."
     ],
   "sqa_response": {
-      "reviewed_master": "a148d5db99849a4ce675746bfa0cc896770cf57d",
-      "assessment": "43 open,3 deferred,22 resolved. New252 removes duplicated download stream test setup through existing serving-stream probe (-127 test AST). No new safe production reduction;251/226 remain open.",
-      "evidence": "12 committed files8004 AST, exact blob/backup reader type resolution. Complete compared stream test/retained-owner/browser surface2852->2725.",
+      "reviewed_master": "cd7285195fdb46c8cc74149e7f932d3912623e7a",
+      "assessment": "43 open,3 deferred,22 resolved. No new finding. Fresh candidate overlaps235; refine its migration to remove124 test AST nodes rather than93, using existing identity and arithmetic owners.",
+      "evidence": "14 committed files19925AST; exact readRecorder type resolution. Complete235 candidate186+2152+2012 ->0+2188+2038; all unique assertions retain an owner.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "reopened_findings": [],
-      "new_findings": [
-        "SQA-252"
-      ],
+      "new_findings": [],
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "4dd9163aae7ed966f0854fd9b379a53fd813fc62",
-        "status": "Both implementation-owned objects and all34 comments preserved raw; no new response or adoption inferred.",
-        "current_plan_note": "Three IFEval regression rows retired by implementation using existing paired outcomes; five other regressions and MOSS remain. No change to SQA statuses from plan retirement alone."
+        "plan_git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
+        "status": "Both implementation-owned objects and34 comments preserved raw; no new response or adoption inferred.",
+        "current_plan_note": "Three scorecard/cold-request rows filed plan-only; source unchanged. Worker plan edits excluded; no finding closure from filing."
       },
-      "recommendation": "Reuse unchanged openRuntimeServingProbe for the download test and remove displaced parser/network setup. Preserve the native download cases and browser transport owner; no new abstraction, test or selector.",
-      "next_action": "Implementation lead owns adoption/normal affected validation; SQA writes only the report.",
-      "uncertainty": "No elapsed/memory measurement; recorder/channel setup replaces actual socket/client setup in one native test. Browser transport coverage remains separately required.",
+      "recommendation": "For235 reuse the existing page-policy table as well as the existing identity test; delete the standalone file only after all unique cases migrate. Other sampled tests retain distinct behavioral requirements.",
+      "next_action": "Implementation lead owns adoption and ordinary affected verification. SQA changes only this report.",
+      "uncertainty": "124 AST nodes are a maintenance proxy, not measured speed/memory;31 nodes improve the prior proposal without being a second saving.",
       "user_findings": [
         "SQA-110"
       ],

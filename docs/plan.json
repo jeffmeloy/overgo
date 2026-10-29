@@ -214,8 +214,44 @@
     {
       "id": "campaign-closeout",
       "title": "Retain the accepted evidence and remove completed campaign work",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
+        {
+          "id": "samples-tracked",
+          "title": "The README's samples carried by git again, the processing protocol at its acquired bytes",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestReadmeNamesEveryModelAndItsSamples$' -count=1 \u0026\u0026 go test -tags modeltest ./cmd/validate -run '^TestImageVideoProcessingOptimizationAcceptance$' -count=1",
+          "rationale": "readme-models (38da7522e) moved the 36 exported samples from docs/media_samples to ./assets, which .git/info/exclude ignores: the commit deleted them from git, so the cycle checkout (only what git carries) and a clone lack them, and the run failed the frozen-generation tests of latentvideo and diffusionimage and cmd/validate's accepted-coverage and inventory tests, each opening a sample under assets. The same commit repinned docs/image_video_processing_protocol.json to the inventory's new bytes, but that document is the processing comparison's frozen acquisition, which TestImageVideoProcessingOptimizationAcceptance holds it to: it returns to its acquired bytes. The ignore rule goes, the samples are tracked again (the same blobs git held), and TestReadmeNamesEveryModelAndItsSamples also requires every sample the README links to be one git carries.\nServes: the README's samples on GitHub and in every checkout; the run's model lane."
+        },
+        {
+          "id": "batch-capacity",
+          "title": "The fused continuous-batch test decodes past its cache's first capacity",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest,integration ./internal/inference -run '^TestNativeQwen35FusedContinuousBatch$' -count=1",
+          "rationale": "TestNativeQwen35FusedContinuousBatch failed with rebuilds 1: it requires the parameterized decode session to be rebuilt as its sequence outgrows its capacity, but the qwen35 fixture now keeps int8 attention cells (cells-qwen35), whose capacity is a 64-cell page, and the test decodes six tokens after a two-token prompt, inside the first page. The test decodes past the first capacity of whichever storage the runner keeps, so the rebuild and the replays it holds are exercised again.\nServes: the continuous batch's retained decode session stays held by its check."
+        },
+        {
+          "id": "stale-boundary",
+          "title": "A Flash-Next request off an earlier turn reads on from a boundary that holds its state",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestFlashNextLongContextAcceptance$' -count=1",
+          "rationale": "TestFlashNextLongContextAcceptance failed after its cancelled generation: the next question, which branches off the conversation before the cancelled turn, answered 500 (the sequence's live state holds other tokens than the cache). A QSA runner's decode moves its sequence's live state (qsa_window.go, 598f94abb, after the last good run); a decoded prompt-cache entry names that live state, and when a later entry replaces it, inheritPromptBoundaries keeps it as a boundary of the new entry. After the live state moves on, that boundary's fixed state is gone, but readFromPromptBoundary still picks it as the longest boundary within the shared prefix, and the read refuses it. Any request that branches off an earlier turn of a Flash-Next conversation fails so. The boundary choice skips a boundary whose state is gone, reading on from the longest one that holds its state, or from the start.\nServes: failure-rate for Flash-Next conversations that branch, regenerate or follow a cancelled reply."
+        },
+        {
+          "id": "draft-pays",
+          "title": "A model's own draft layer drafts by default only where drafting pays, Qwen3.5-4B's decode back above its floor",
+          "status": "open",
+          "verify": "go run ./cmd/longform -guard -corpus cmd/longform/testdata/guard-corpus.txt -budget 25m C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
+          "rationale": "Qwen3.5-4B's long-form decode fell from 88 tok/s (2026-10-25) to 38 tok/s, below its guard's floor: draft-default (59e8bf5b6) drafts by default wherever a model's file carries its own next-token layer, believing only Qwen3.8-27B's did, but the 4B's file carries one too (blk.32.nextn). Its drafted decode costs 105 launches, 6.9 syncs and 3 MB read back a token against 6, 1 and 4 bytes plain, and about one graph launch a token says its drafts are almost all refused. The step finds why the 4B's drafts are refused, and drafts by default only where drafting pays by the model's facts, never by its name.\nServes: throughput for Qwen3.5-4B (restored) and peak-device-memory (its draft buffers)."
+        },
+        {
+          "id": "journey-budget",
+          "title": "The model journeys bounded, and the wait the library-validation journey hung in fixed",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -journeys",
+          "rationale": "The model-journey lane ran 10 h 21 m in TestModelJourneyLibraryValidation until it was killed: go test runs the journeys with no timeout and the journey's waits (browser Eventually, the operation-state wait) are bounded only by the test's context, so the hang printed nothing and its stack was lost. The journeys get a budget (journeyBudget, a little over twice their longest run on record), past which go test prints every goroutine's stack; the hung leg is then run alone to find the wait it sits in, and that wait is fixed.\nServes: the measurement run finishes, and a hung journey says where it hangs."
+        },
         {
           "id": "close",
           "title": "Close only after multimodal delivery and Strata parity are established",
@@ -551,6 +587,126 @@
           "depends_on": [
             "moss-closeout/close"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-1644fca48df4f0b9",
+      "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.818181818 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.818181818 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1644fca48df4f0b9 -target 0.8181818181818182",
+          "rationale": "- Qwen3.8 Flash Next held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.818181818 to 0.781818182 (-0.0363636364, -4.4%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-50f41f360f714051",
+      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-50f41f360f714051 -target 2.2728320128e+10",
+          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.39868589e+10 (+1.25853882e+09, +5.5%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-77d9896eda0bdac5",
+      "title": "Restore Bonsai-27B-Q1_0 inference held-out-quality to 0.672727273 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Bonsai-27B-Q1_0 inference held-out-quality to 0.672727273 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-77d9896eda0bdac5 -target 0.6727272727272727",
+          "rationale": "- Bonsai-27B-Q1_0 held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.672727273 to 0.654545455 (-0.0181818182, -2.7%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8717ab7fdec84b32",
+      "title": "Restore Qwen3.5-4B inference held-out-quality to 0.450785773 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-4B inference held-out-quality to 0.450785773 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8717ab7fdec84b32 -target 0.4507857733664185",
+          "rationale": "- Qwen3.5-4B held-out-quality, {Metric:accuracy Origin:evaluation Suite:store/mmlu-pro Protocol:raw-completion Comparison:profile:sha256:ac33f7681f628aa5704b073b0d0ec8ef3a6eb19d70ebbbaee00b907ac5fbaa99 Scope:}: 0.450785773 to 0.444995864 (-0.00578990902, -1.3%, allowed 5e-05; accuracy, store/mmlu-pro (raw-completion))\n- the decline stands because 7 of the 1209 cases both readings answered went from right to wrong and 0 from wrong to right, and so many go wrong with chance 0.00781 where either way is as likely, against the 0.0228 a decline stands at\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8b083b7b94e498e7",
+      "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8b083b7b94e498e7 -target 8.848448256e+09",
+          "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 9.57364851e+09 (+725200256, +8.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-bb68e1e58205bdab",
+      "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-12B-it-fp8-native inference held-out-quality to 0.890909091 ",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-bb68e1e58205bdab -target 0.8909090909090909",
+          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality, {Metric:prompt-strict Origin:evaluation Suite:store/ifeval Protocol:chat-template Comparison:profile:sha256:6f2116e85efe74bf4b9b2cfce46ef2fbf2a4a622842b598e79b154989b6d3432 Scope:}: 0.890909091 to 0.872727273 (-0.0181818182, -2.0%, allowed 5e-05; prompt-strict, store/ifeval (chat-template))\n- the decline stands because a prompt-strict is no share of cases answered right, and no standard error is stated, so it is judged by its value\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-edf3e00d1014c7a8",
+      "title": "Restore Qwen3.8-27B inference load-time to 9811.1048 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference load-time to 9811.1048 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-edf3e00d1014c7a8 -target 9811.104800000012",
+          "rationale": "- Qwen3.8-27B load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 8903.802 to 9866.1434 (+962.3414, +10.8%, allowed 907.3028; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f150c20a36aed39b",
+      "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f150c20a36aed39b -target 102.68100000000001",
+          "rationale": "- Bonsai-27B-Q1_0 first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 97.9666 to 108.8949 (+10.9283, +11.2%, allowed 4.7144; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

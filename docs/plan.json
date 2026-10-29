@@ -478,6 +478,13 @@
       "status": "open",
       "steps": [
         {
+          "id": "judge",
+          "title": "Judge the IFEval declines by their prompts",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently$' -count=1",
+          "rationale": "The run's three IFEval declines are judged by their prompts, as the scorecard now pairs them (ifeval-paired, 421d06ab9): Qwen3.8 Flash Next lost 3 of 55 prompts and gained 1 (p 0.312), Bonsai-27B lost 1 (p 0.5), gemma-4-12B-it-fp8-native lost 1 (p 0.5), against the 0.0228 a decline stands at. The check holds the rule that drops them."
+        },
+        {
           "id": "do",
           "title": "Restore Qwen3.8 Flash Next inference held-out-quality to 0.818181818 ",
           "status": "open",

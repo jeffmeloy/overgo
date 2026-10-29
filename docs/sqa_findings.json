@@ -1,18 +1,94 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "44 open,3 deferred,22 resolved. New253 removes a count-only query wrapper: -24 production AST, no test growth or setup change. No additional safe test retirement or closure established.",
-      "priority": "Sampler-chain245, GUI resync218, numerical acceptance229/232 and NextN oracle251 retain priority over maintenance reductions.253 is last and should be batched with ordinary query work; no new workstream or validation quota.",
-      "declined_candidates": "Retain repeated query-plan assertion: exact index/counters anchor it and the contract requires deterministic same-head plans. Retain profile/dataset retention tests and registry cancel versus real shutdown/resume/deadline tests; similar setup does not establish interchangeable behavior. Feeds and ResidentSession already have different binding/lifetime responsibilities."
+      "assessment": "45 open,3 deferred,22 resolved. New254 prioritizes a potential Windows recovery gap and reuse of fsatomic.Replace. Direct substitution removes4 production AST nodes but complete retry repair may grow; no overall saving claimed. No new safe test retirement established.",
+      "priority": "254 ranks first because journal-referenced content durability precedes maintenance reductions. Existing245/218/229/232/251 remain next; unchanged source supplies no new closure or other reprioritization.",
+      "declined_candidates": "The runtime-stream probe reduction is already252 (-127testAST); do not duplicate it. A redundant blobReader done guard offers only6AST with no behavioral/setup benefit and receives no standalone finding. Do not merge browser transport/DOM/authentication with handler-only tests, remove corruption/retry assertions or generalize PlaceRows from one production caller."
     },
   "committed_plan": {
-    "git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
+    "git_blob": "920bdde6a453c1aa75240ccc94045f7dc30b49ac",
     "path": "docs/plan.json",
-    "revision": "89c64daa159d3844434453b4da827ab865ae49ad",
-    "sha256": "7e54ec527b5277a260766a21c89483d5303fb2f7f3c339cf6709f30690e0e2d1",
+    "revision": "eaa3278f0b7e0be29d661e6aa380601d7ee08f94",
+    "sha256": "d0cc271a3f8283d4a4fa59599ee40c012535b30593908d6f5f2d05fa70c6765f",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
+    {
+      "id": "SQA-254",
+      "status": "open",
+      "severity": "P2",
+      "category": "durable-publication-common-owner",
+      "classification": "source-confirmed-contract-gap",
+      "title": "Publish loose blobs through the existing durable namespace owner",
+      "evidence_commit": "eaa3278f0b7e0be29d661e6aa380601d7ee08f94",
+      "sources": [
+        {
+          "path": "internal/overgodb/blobs.go",
+          "symbol": "blobStore.prepare: existing loose/packed verification, staging Sync/Close, os.Rename and final SyncDirectory"
+        },
+        {
+          "path": "internal/overgodb/commit_coordinator.go",
+          "symbol": "commitCoordinator.commit: prepare each external content before recordLog.append"
+        },
+        {
+          "path": "internal/overgodb/store.go",
+          "symbol": "encodeTransaction inlineContentLimit; Store.openLocator; Commit/Rebuild coordinator consumers"
+        },
+        {
+          "path": "internal/fsatomic/replace_windows.go",
+          "symbol": "Replace; replace; posixRename"
+        },
+        {
+          "path": "internal/fsatomic/replace_unix.go",
+          "symbol": "Replace"
+        },
+        {
+          "path": "internal/fsatomic/sync_windows.go",
+          "symbol": "SyncDirectory explicitly no-op; SyncFile"
+        },
+        {
+          "path": "internal/overgodb/blob_pack.go",
+          "symbol": "packBlobsUnder durable pack publication"
+        },
+        {
+          "path": "internal/overgodb/backup.go",
+          "symbol": "Backup; writeBackupFile fsatomic.Replace callers"
+        },
+        {
+          "path": "internal/overgodb/blob_commit_test.go",
+          "symbol": "TestExternalBlobCommitAtomicity"
+        },
+        {
+          "path": "internal/overgodb/blobs_test.go",
+          "symbol": "TestBlobStorePublicationContract"
+        },
+        {
+          "path": "internal/fsatomic/replace_windows_test.go",
+          "symbol": "TestReplaceRequestsWriteThrough; TestReplaceSupportsExtendedLengthPath"
+        },
+        {
+          "path": "internal/fsatomic/fsatomic_test.go",
+          "symbol": "TestReplacePublishesExactFile; TestSyncFilePersistsHardLinkMetadata"
+        }
+      ],
+      "evidence": "prepare flushes the staging file, closes it, calls os.Rename, then fsatomic.SyncDirectory. The Windows SyncDirectory implementation returns nil and explicitly requires namespace publication through Replace or a surviving-link SyncFile. Installed Go's os.rename delegates to windows.Rename, which uses MoveFileEx with MOVEFILE_REPLACE_EXISTING alone. commitCoordinator.commit then appends the referencing journal frame. Existing packBlobsUnder and backup publishers already call fsatomic.Replace, whose Windows owner requests write-through (and flushes its POSIX-rename fallback); Unix owner syncs affected directories. Unsupported assumption: plain rename plus a no-op supplies the same publication durability. Admitted scenario: a Windows Commit with external content (at least4096 bytes) succeeds and power is lost after the journal flush while the blob namespace move has not persisted. This lost-blob outcome is a hypothesis, not a reproduced incident. Official flag semantics: https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw .",
+      "impact": "Potential committed content loss after power interruption; subsequent OpenContent reports the missing required blob rather than recovering its bytes. This is a durability contract repair, not a speed optimization. No confidentiality issue established. Error-path retries also matter: existing loose files currently return after hash verification, so a prior publication/sync error must not be treated as proof of durable publication.",
+      "recommended_change": "Reuse fsatomic.Replace for the staging-to-destination transition in blobStore.prepare and remove its separate final SyncDirectory call. Keep payload hashing, conflicting-size/corrupt-orphan refusal, staging write/Sync/Close, error wrapping and cleanup. Before closing the finding, reconcile the existing-loose retry path after a namespace-persistence failure using the existing fsatomic persistence operations or explicit refusal; do not assume readable bytes prove durable naming. Packed content keeps its existing verified pack owner. Do not add a blob-specific publication abstraction, journal, configuration option or framework.",
+      "displaced_surface": "Displace the loose-blob os.Rename-plus-SyncDirectory publication path with the same fsatomic owner used by pack and backup publishers. Fresh-path-only whole-file AST1184->1180(-4), including return nil; imports unchanged. Including unchanged fsatomic Windows/Unix replacement and Windows sync owners plus commitCoordinator gives production3066->3062. Existing blobs/commit/fsatomic/Windows tests total2170 unchanged for this substitution, combined5236->5232. This is not a complete repair-cost saving claim: any retry persistence work and its needed test extension are additional and must be counted. No existing assertion/fixture/setup is retired or moved.",
+      "expected_benefit": {
+        "outcome": "One retained platform owner for durable namespace publication, deleting the bypass. No measured elapsed or memory benefit; write-through can increase Windows publication latency as required by the contract.",
+        "uncertainty": "The4-node source reduction covers only the direct owner substitution. Complete retry handling may erase it or require net growth; its additional production/test AST is unpriced until the existing-owner retry path is chosen. No complete net reduction is established. No new helper/wrapper/config/fixture/gate is required merely to route fresh publication through Replace. Retain current fixtures and count any necessary retry assertion/setup growth. No power-loss or filesystem fault run performed."
+      },
+      "likely_effort": "Small shared-owner correction plus bounded retry-path review; retain required recovery growth honestly.",
+      "plan_references": [],
+      "plan_coverage": "New advisory recovery finding; no current committed plan adoption. Do not modify plan or run gates to publish this review.",
+      "closure_criteria": [
+        "Fresh external blob publication completes the existing platform durability owner before the journal append; no plain-rename/no-op-sync bypass remains.",
+        "An existing loose blob following a failed namespace-persistence attempt cannot advance a referencing commit on verification alone without the required durability being established; preserve corruption/conflicting-size refusal and packed-content semantics.",
+        "Retain TestExternalBlobCommitAtomicity and TestBlobStorePublicationContract. Retain the small Windows TestReplaceRequestsWriteThrough as the OS flag/error self-check and confirm the blob caller routes through that owner. If retry semantics change, extend the existing publication test with that one failure/retry case rather than adding a suite; count its full cost."
+      ],
+      "comparison": "Smallest deciding comparison: source trace from commitCoordinator through both new/existing loose preparation paths to the platform persistence operation, plus existing Windows TestReplaceRequestsWriteThrough during normal implementation validation. Existing commit fault/reopen coverage owns journal ordering, not power-loss proof; do not mislabel it as such. Exact direct substitution parsed1184->1180. No SQA test, service, model, benchmark, profile or crash experiment."
+    },
     {
       "id": "SQA-245",
       "status": "open",
@@ -3288,13 +3364,13 @@
     }
   ],
   "gate_test_assessment": {
-      "retained_results": "Unchanged cd7285195 plan-only footer: verify95ms, production/test delta0. Historical46914bb6 footer: production+81/test+297, host3m0.215, lane discovery723ms all skipped, verify224ms. These are retained implementation results, not current measurements or permission to remove tests by growth alone. Native Go caching and existing gate/resume mechanisms already avoid eligible repeated execution; none rerun.",
-      "measured_vs_proxy": "253 production3720->3696(-24); query tests3763->3763; complete affected7483->7459. No new helper, fixture, migration, setup or gate selection; planning call count unchanged. No elapsed/peak-memory claim. No additional safe test reduction established.",
+      "retained_results": "Relevant retained footers:35e0c02d5 head-columns production+932/test+354, host3m6.908, lanes12m57.846 with CUDA16executed/0cached;2b032e49b fast-load production+1486/test+1714, host3m29.306, lanes12m1.811 CUDA16/0. Both retained Qwen0.5 scorecard slices report identical outputs. These are historical implementation results; no SQA rerun or attribution of whole-request savings to the sampled helpers. Native Go caching, actual lane dependency selection and existing gate/resume mechanisms retain credit. Publication-time eaa3278f0 is plan-only; retained verify1m0.692. No SQA verifier run.",
+      "measured_vs_proxy": "254 direct owner substitution is -4productionAST; complete retry/test costs unknown and may be positive.252 remains a known -127testAST proposal including its migrations, with one loopback setup removed; no new duplicate finding. No additional safe test deletion or measured elapsed/memory benefit.",
       "sampled_tests": [
-        "retain: TestHostFeedsExecute and TestFeedsReuseCompiledOutputGraph own host results, compiled graph/output identity and replacement input. Windows TestCompiledFeedsUseIndexedInputs owns indexed dynamic/static slots. Their build tags and lifetime contracts differ; no cases move.",
-        "retain: TestProjectionQueryPlanEfficiency owns kind/media/schema/seed/catalog planning, exact counters, index refusal and same-head determinism. TestQueryBoundsAndCycleRejection, TestServingObservationDescriptorIndexes, TestQueryCursorBindsHeadAndContract and TestQueryProjectionReturnsRequestedFactsOnly retain cancellation, bounds/cycles, filtering, stale cursors and requested facts.253 removes no tests or assertions.",
-        "retain: TestProfileCatalogReleaseRetainsArchitectureAuthority and TestDatasetCatalogCompactionRetainsAuthorityAndLocation already share releaseEverything; unique authority versus location/inventory requirements have no smaller shared test owner demonstrated.",
-        "retain: TestCancelledDownloadHoldsItsSlotUntilItFinishes pins cancel-versus-unwind admission/history. TestDownloadShutdownOwnership pins HTTP shutdown/join/no partial publish/exact resumed range/ETag and refusal after shutdown. TestDownloadJobCallerBudget pins optional deadline/invalid-budget behavior. Similar setup is insufficient to merge them."
+        "retain: TestPlaceRowsGathersRowsInTheirOrder keeps exact stored bytes, repeated/non-file-order rows, chunk edges, invalid row, duplicate name and live allocation count. Existing memory/file expert-fill callers keep read-once/hash/cancellation/release evidence; no new fixture.",
+        "retain: TestBlobStorePublicationContract keeps identity/hash, size, idempotency, orphan invisibility and same-sized corrupt KindFile retry. TestExternalBlobCommitAtomicity keeps missing blob refusal, append-fault orphan and reopen behavior. Retain TestReplaceRequestsWriteThrough as the small OS-flag/error self-check plus exact-file/path tests. No assertion removed or moved for254; retry changes may need one existing-test extension.",
+        "retain: TestRSIStorageClassContract pins canonical/blob/projection/operational ownership, with no workload distribution assumption. No obsolete schema exemption removed absent consumer migration.",
+        "simplify (existing252): TestOneWorkbenchEventStream reuses openRuntimeServingProbe and removes its local scanner/listener/client; all four progress cases and initial/admit/cancel payloads stay. Retain TestWebUIBrowserServingStream for real bearer transport, DOM, bounded rows, interleaved operations and reconnect. Do not add a second selector or browser confidence run."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -3668,10 +3744,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded source/AST review only. No implementation, agents, tests, gates, model workloads, services, benchmarks or profiles. Runtime equivalence and broad application/CGo/SSA typing are not claimed.",
-      "Type resolution covers exact stdlib-only registry core/cancel-slot sample. Other conclusions use parser-local bindings and concrete caller reads.253 was only parsed/count-compared; normal implementation validation owns execution.",
-      "Source identity supports retaining previously established findings, not a repeated exhaustive re-review. No measured speed/memory improvement. Strata remains a comparison, not presumed optimal.",
-      "Implementation-owned/unknown fields remain raw-identical. Worker plan edits excluded. Only report publication authorized."
+      "Read-only review and external source/AST analysis only; no development, agents, tests, gates, workloads, services, benchmarks, profiles or crash experiments.",
+      "19 selected files, not a full recurring census. Exact type resolution limited to stdlib-only blobReader and shard files. No application package build or execution.",
+      "Unchanged committed source supports carrying prior dispositions; this is not an independent re-review of every prior finding. Concurrent plan-only landing was read/reconciled before publication. No new runtime performance measurement or claim that Strata is optimal.",
+      "Direct publication substitution count excludes unresolved retry work, whose growth must be included before any net-reduction claim. Both implementation-owned objects, comments and unknown fields preserved. Worktree clean after worker's plan-only landing; no worker files edited."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -3741,15 +3817,16 @@
       }
     }
   },
-  "next_finding_number": 254,
+  "next_finding_number": 255,
   "publication_context": {
-      "checked_head": "89c64daa159d3844434453b4da827ab865ae49ad",
-      "committed_plan_git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
-      "assessment": "Substantive new253 identifies one removable production wrapper and accounts for its complete24-node reduction, with no test growth. Existing priorities unchanged.",
-      "newer_commit_note": "Only report content differs from prior reviewed cd7285195; committed source/plan unchanged.",
-      "publication": "Re-read under nonblocking existing landing/gate locks, parse replacement, preserve raw implementation/unknown fields and unrelated work; commit report only."
+      "checked_head": "eaa3278f0b7e0be29d661e6aa380601d7ee08f94",
+      "committed_plan_git_blob": "920bdde6a453c1aa75240ccc94045f7dc30b49ac",
+      "assessment": "Substantive new254 publication/recovery finding; shared-owner substitution accounts for4 fewer nodes but no complete net saving is asserted. Existing252 overlap disclosed.",
+      "newer_commit_note": "Publication initially deferred for the worker's OS lock. Its eaa3278f0 landing changes only docs/plan.json: one load-time row retired and six measured-decline rows filed. Read the new plan diff and retained footer; reviewed production/tests are bit-identical to the original f059da908 pin.",
+      "publication": "Re-read/reconcile under existing nonblocking publication locks; parse replacement and preserve all implementation/unknown fields. Report-only Git commit; worker work/index/plan preserved."
     },
   "ranked_active_finding_ids": [
+    "SQA-254",
     "SQA-245",
     "SQA-218",
     "SQA-229",
@@ -3798,28 +3875,31 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "Feeds serves inference graph runtime and projector graph callers. ResidentSession serves latent image, diffusion and speech with shared immutable input identity/refcounts, uploaded storage and dynamic slot cleanup. Bind derives byte size from typed shape/type and validates payload length; bindDynamic checks pointer count/nonzero/unoccupied slots and unwinds partial bindings. Sampled callers bind before execution; no admitted rebinding defect established.",
-      "queryIndexPlan uses actual index cardinalities at the locked head, not distribution estimates. Fixture counts8/10 are exact scenarios, not workload assumptions; zero-result bounds and head/contract-bound cursors keep their existing validation.253 changes no arithmetic, invocation count or candidate ordering.",
-      "Retention's shared admitStoreLocalAliases/releaseEverything already own common work. Profile authority and dataset location/inventory publication have distinct requirements. collectLiveSet retains alias admission, rooted closures, manifest/lineage/causality and cancellation checks. No new generic callback fixture or catalog test deletion justified.",
-      "GUI downloads publish through the retained event hub. Cancelled jobs retain their slot until unwound; shutdown cancels then joins without holding the registry lock; runHubDownload defers slot release before wait completion. Registry-only admission tests and HTTP partial-file/resume/ETag/deadline tests cross different boundaries.",
-      "wholePercent100 expresses display units; maxHubSearch20/100 are explicit bounded product limits, not measured optima. The1s download-budget test exercises caller deadline policy independently of numerical acceptance. No admitted extreme-size overflow or unsupported distribution/geometry decision established in this sample. No threshold naming-only change, telemetry or tuning proposed."
+      "readerAtFile already serves memory-backed and buffered files with borrowed versus owned Close semantics. Windows unbufferedFile has a distinct alignment and EOF contract; loadRun closes all opened handles, joins stages and checks aligned extents. Preserve platform tags and partial-read handling; no additional adapter justified.",
+      "PlaceRows is called by loadHyperDraft; the fixture reuses writeFixture/newFakeDevice and independently compares stored source bytes in repeated/out-of-order/chunk-boundary positions. Width64 is a Q8_0-compatible fixture, not a general geometry limit. The4096-row chunk is batching policy; retained head-column landing reports actual workload costs, not universal optimality. No retuning without a deciding comparison.",
+      "unbufferedAlignment4096 is the current documented sector/page assumption; retained file/memory expert-fill coverage is not proof for every device/filesystem. FILE_FLAG_NO_BUFFERING and the32-bit OVERLAPPED split are OS/ABI values. No admitted unsupported geometry counterexample established; preserve calibrated behavior rather than renaming literals or adding impossible-state branches.",
+      "blobReader is already shared by loose blobs, packed bytes and sealed inline segments. Its remaining-byte cap and automatic close are necessary for bare io.Reader callers; copyVerified shares bounded hashing/cancellation with pack verification. Keep corruption and same-sized corrupt KindFile retry tests; similar setup does not make these contracts redundant.",
+      "Runtime snapshots use bounded newest-first typed document owners; streams and the browser share one event vocabulary and fold serving updates by identity/cursor. Browser authentication, DOM continuity, bounded rows, reconnect and operation-state interleaving remain distinct from handler-frame assertions.252 reuses the existing probe without retiring those requirements.",
+      "254 distinguishes durable publication from visibility. Source tests confirm file bytes and missing-blob refusal, not recovery after power loss. fsatomic.Replace adds Windows write-through/fallback flush and Unix directory persistence, preserving native platform ownership; sync errors may now be wrapped as publication errors and must still stop journal append. Existing-loose retry cannot rely solely on digest verification after a failed persistence attempt.",
+      "Publication reconciliation: eaa3278f0 cites scorecard-20261029T123721Z at a148d5db9, Qwen3.8-27B load9254ms versus9811ms target, and files throughput/first-output declines for six cells. These are retained implementation measurements, not new SQA observations or proof of stationary workload. Source unchanged; no performance reclassification inferred."
     ],
-  "reviewed_at": "2026-10-29T21:17:23Z",
-  "reviewed_master": "89c64daa159d3844434453b4da827ab865ae49ad",
+  "reviewed_at": "2026-10-29T23:14:39Z",
+  "reviewed_master": "eaa3278f0b7e0be29d661e6aa380601d7ee08f94",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 89c64daa159d3844434453b4da827ab865ae49ad; root skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88 read first. Worker-modified docs/plan.json excluded. Since the prior reported cd7285195 only this report changed; production/tests and committed plan are identical.",
-      "Fresh rotation: graph feeds and resident input/transfer lifetimes; catalog query planning, bounds and retention; GUI download events, cancellation and shutdown; retained gate results. Provisional conclusions formed before reading prior findings/responses. New candidate253 was checked for overlap; no new safe test deletion established.",
-      "Actual Go AST analysis on12 committed files:9609 production+6321 test=15930 nodes,91 functions,3008 parser-local identifier bindings; comments included. Files: internal/graphruntime/feeds.go, internal/graphruntime/feeds_test.go, internal/graphruntime/resident.go, internal/graphruntime/resident_windows_test.go, internal/overgodb/query.go, internal/overgodb/query_plan_test.go, internal/overgodb/query_test.go, internal/overgodb/profile_catalog_retention_test.go, internal/overgodb/dataset_catalog_retention_test.go, internal/server/hub_workspace.go, internal/server/download_cancel_slot_test.go, internal/server/download_shutdown_test.go. Selected query_test functions and concrete caller/owner reads supplement the bounded sample; not an exhaustive package review.",
-      "Exact download registry core structs/methods and download_cancel_slot_test.go resolved with stdlib go/types:90 definitions,353 uses,499 expressions,98 selections. hfhub-dependent observation/Handler routes excluded without stubs. Remaining files use parser-local bindings and caller inspection; no whole-application/CUDA typecheck or execution.",
-      "This chat previously implemented Overgo changes; this is not an independent third-party review. Existing findings rechecked by source identity against the prior pin plus selected owner/caller reads; rankings are unchanged except adding253 last."
+      "Analysis pinned f059da9086d9b68b69decc8f6ade99aed2e0d606 after reading root skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and plan1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88. Before publication the worker landed plan-only eaa3278f0b7e0be29d661e6aa380601d7ee08f94; full tree diff proves all reviewed source/tests identical. Reconciled the new committed plan920bdde6a453c1aa75240ccc94045f7dc30b49ac (26 open rows); worktree is clean. Publication review identity advances only on that source-equivalence check.",
+      "Fresh rotating sample: shard readers/alignment and draft row placement; loose blob publication/read lifetime/storage classes; runtime snapshot/stream/browser callers; retained gate footers. Provisional source conclusions preceded reading current findings/responses. New254 is a recovery/common-owner gap; download-probe consolidation overlaps252.",
+      "Actual Go AST: initial12 files5845 nodes (3682production+2163test),33 functions,1125 parser-local bindings. Seven targeted publication-owner/commit/test files extend this to19 files9316 nodes (5564production+3752test),55 functions,1866 bindings. Comments included. No full census.",
+      "Initial files: internal/modeldevice/shard_file.go, internal/modeldevice/shard_file_windows.go, internal/modeldevice/shard_file_other.go, internal/modeldevice/device_rows.go, internal/modeldevice/device_rows_test.go, internal/overgodb/blobs.go, internal/overgodb/blobs_test.go, internal/overgodb/storage_classes.go, internal/overgodb/storage_classes_test.go, internal/server/runtime_activity.go, internal/server/one_event_stream_test.go, internal/server/webui_browser_serving_stream_test.go. Targeted additions: internal/overgodb/commit_coordinator.go, blob_commit_test.go; internal/fsatomic/replace_windows.go, replace_unix.go, sync_windows.go, fsatomic_test.go, replace_windows_test.go. Concrete caller/retention/pack/backup reads supplement this fixed sample.",
+      "Exact stdlib go/types checks: blobReader type/methods13 definitions/58 uses/76 expressions/14 selections; complete shared+Windows shard files46/163/208/7. No functions or tests executed. Remaining files use parser-local resolution and manual caller tracing, not full application/CUDA typing.",
+      "This chat previously implemented Overgo changes; not an independent third-party review. Installed Go rename source and official MoveFileExW documentation were read to distinguish the concrete missing durability operation from an untested power-loss outcome."
     ],
   "sqa_response": {
-      "reviewed_master": "89c64daa159d3844434453b4da827ab865ae49ad",
-      "assessment": "44 open,3 deferred,22 resolved. Add low-priority253 for a net24-node production reduction; no new test reduction, closure or priority escalation.",
-      "evidence": "12 committed files15930AST; exact registry type resolution. Source-only253 comparison includes the whole query.go3720->3696 and unchanged query tests3763. No application/test workloads run.",
+      "reviewed_master": "eaa3278f0b7e0be29d661e6aa380601d7ee08f94",
+      "assessment": "45 open,3 deferred,22 resolved. Add254, a source-confirmed publication-contract gap with unmeasured power-loss risk; retain all other statuses.",
+      "evidence": "19 committed files9316AST; exact blobReader and Windows/shared shard typing. Blob prepare uses os.Rename plus Windows no-op directory sync before referencing journal append. Existing pack/backup use durable fsatomic.Replace. Fresh-path source-only substitution1184->1180; retry cost remains explicit.",
       "new_findings": [
-        "SQA-253"
+        "SQA-254"
       ],
       "resolved_findings": [],
       "partially_addressed_findings": [],
@@ -3827,16 +3907,16 @@
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "1d3ce4b0d0002dbbc2e1ccb5123ad9a168bf3b88",
-        "status": "Both implementation-owned objects and34 comments preserved raw. No new implementation response, adoption or closure inferred.",
-        "current_plan_note": "Committed plan unchanged;21 open rows remain. Worktree plan edits are excluded."
+        "plan_git_blob": "920bdde6a453c1aa75240ccc94045f7dc30b49ac",
+        "status": "Both implementation-owned objects and all34 comments preserved raw. No new response or adoption. Publication-time plan-only landing changes no reviewed source.",
+        "current_plan_note": "Concurrent eaa3278f0 retires the Qwen3.8-27B load-time row using retained scorecard evidence and files six declines;26 committed open rows. No SQA finding closure inferred."
       },
-      "recommendation": "Delete only the redundant query count wrapper when batching normal query work. Existing queryIndexPlan owns the behavior for reporting, iteration and candidate count. Keep every sampled test requirement; previous test-reduction findings retain their full migration costs.",
-      "next_action": "Implementation lead owns adoption and ordinary affected verification. SQA publishes only this report.",
-      "uncertainty": "24 AST nodes are a maintenance proxy, not measured elapsed/memory savings. No broader reuse or test retirement is justified by this sample.",
+      "recommendation": "Use the existing durable namespace owner at the loose-blob publication root and account for failed-persistence retries before claiming closure. Keep existing corruption, append fault/reopen and OS flag/error checks.252 remains the supported sampled test consolidation.",
+      "next_action": "Implementation lead owns adoption and normal validation. SQA only commits this report; no extra tests, gate, model run or fault campaign.",
+      "uncertainty": "No data loss reproduced. Missing requested durability is established by source; the power-loss outcome is conditional. Four nodes saved on direct substitution do not price a complete retry repair or any necessary test growth.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "110/124/120 remain deferred under unchanged responses/triggers."
+      "user_finding_assessment": "110/124/120 remain deferred under their unchanged implementation responses/triggers."
     }
 }

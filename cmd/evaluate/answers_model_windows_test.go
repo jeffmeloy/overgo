@@ -66,6 +66,14 @@ var knownAnswerDifferences = map[string]struct {
 	"gemma-4-12B-it-fp8-native": {0.3, 2.5, "over a prompt of 32 tokens or more this build rounds what goes into each feed-forward product to fp8, " +
 		"a scale to a token, as the checkpoint's quantization declares; the reference and the bf16 build round the weights alone. Measured: " +
 		"0.223 a token on one answer, and one of 24 second tokens other than the reference's, which held it 1.86 above its next (finding 170f2bfa)"},
+	"gemma-4-12B-it-fp8": {answerTolerance, 0.45, "its attention layers keep their keys and values as int8 cells, an fp16 scale to a " +
+		"64-value group (237b60f02), which the reference's cache does not round. Measured over the cells: 21 of 24 answers the reference's " +
+		"token for token, within 0.039 a token, and one third token other than the reference's, which held it 0.396 above its next; with the " +
+		"cells off, 24 of 24 within 0.0072. The cells hold the held-out answers of the F32 cache (TestAttentionCellsHoldHeldOut)"},
+	"gemma-4-12B-it-fp8-native.conversations": {answerTolerance, 0.4, "its attention layers keep their keys and values as int8 cells, an fp16 " +
+		"scale to a 64-value group (237b60f02), which the reference's cache does not round. Measured over the cells: 9 of 10 answers the " +
+		"reference's token for token, within 0.0086 a token, and one tenth token other than the reference's, which held it 0.358 above its next; " +
+		"with the cells off, 10 of 10 within 0.0052. The cells hold the held-out answers of the F32 cache (TestAttentionCellsHoldHeldOut)"},
 	"Qwen3.8-Flash-Next": {0.2, 0.6, "its reference is Strata on the same IQ4_XS file, not the model's own code: both compute the experts a token " +
 		"routes to on the card or, where their cache does not hold them, on the CPU, the two rounding otherwise, and which experts sit where is " +
 		"each engine's own and moves between runs, so near ties fall either way (Strata's greedy run and its teacher-forced rerun part at 6% of " +

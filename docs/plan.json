@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "gemma-cells-reference",
-      "title": "Hold gemma-4-12B's reference answers to the int8 cells it serves over",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name gemma-4-12B's int8 cells among the known answer differences, at the margins measured over them",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./cmd/evaluate -run '^TestModelsAnswerAsTransformersDoes$' -count=1",
-          "rationale": "TestModelsAnswerAsTransformersDoes has failed in every run since 2026-10-28 (the run of 2026-10-25 passed it): gemma-4-12B-it-fp8 answers 21 of its 24 MMLU-Pro questions as transformers does, its question 4812's third token 108 where the reference's 45518 stood 0.396 above its next, and gemma-4-12B-it-fp8-native's conversations 9 of 10, a tenth token 9279 where the reference's 2541 stood 0.358 above its next; both past decisiveMargin (0.25). Three runs at HEAD fail identically, and so does 9a0748d4d, before 2026-10-29's commits. The cause is the int8 attention cells widen-kv-op (237b60f02) gave gemma-4's layers, an fp16 scale to each 64-value group of keys and values: the same test with the cells off (runner_lifecycle.go taking no cell layers, a scratch build) passes all four gemma fixtures, 24 of 24 and 10 of 10 answers the reference's token for token, within 0.0016 to 0.0072 a token, where over the cells the fp8 build's MMLU-Pro answers stand 0.039 a token from it. The cells are kept: without them gemma-4-12B's 16,384-token prompt was refused for memory (the scorecard's 50% failures), and their held-out check passed (TestAttentionCellsHoldHeldOut, 4b25f6d1c; the records read MMLU-Pro 0.490 to 0.492 and BBH 0.657 to 0.655 for the fp8 build across them). knownAnswerDifferences is the test's place for a way of computing that is the file's own and the reference does not share: the two fixtures enter it, each at a margin a little past the one measured over the cells, and the entry fails the test once the difference is gone."
-        }
-      ]
-    },
-    {
       "id": "soak-model-choice",
       "title": "Soak the smallest servable model by its bytes on disk, not by its first file's",
       "owner": "master-lead",

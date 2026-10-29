@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "41 open, 3 deferred, 22 resolved. New 250 removes 16 production AST through an existing digest predicate. No new test retirement or test-body merge is justified in this sample.",
-      "priority": "Served correctness/recovery and numerical/geometry issues 245/218/229/232/238/215/246 retain priority. Larger test reductions, including 223 and249, remain ahead of this small cleanup. Other relative rankings and statuses unchanged after current-source reconciliation.",
-      "declined_candidates": "Host/device cache lifetime and capacity adjustment, recent/historical queries, monitor/stream tests and JSON file-error contracts differ materially. Existing 224/227 already cover the sampled SSE body and compressed-position clone. Do not create another abstraction or duplicate finding."
+      "assessment": "42 open,3 deferred,22 resolved. New251 repairs a false plain oracle through one retained selected test, net155 test AST reduction including stronger refusal coverage. Expanded226 adds host writer reuse to existing device proposal, net202 test AST. Combined proposed changed-test reduction357; production unchanged. No implementation or measured speed/memory gain.",
+      "priority": "Sampler-chain245, GUI resync218 and numerical229/232 still outrank cleanup on retained and rechecked evidence.251 is test-assurance plus consolidation; broader default/plain coverage already exists, so no served-output failure is inferred. Other relative priorities/statuses unchanged; unvisited findings retain earlier evidence, not a fresh ranking census.",
+      "declined_candidates": "Do not combine distinct QSA capacity/live-boundary recovery tests just because setup resembles; retain their added coverage. Query shapes and event overflow-versus-inventory recovery have different contracts. Do not collapse host sequential floats with device uint32 payload bits."
     },
   "committed_plan": {
-    "git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
+    "git_blob": "b22487fd0c2d6524e56bfb8b31e39f24ba8399f5",
     "path": "docs/plan.json",
-    "revision": "bd11f84d254dd1e89a7d2579dbd3e7c142483b31",
-    "sha256": "04e5b0776027bb8cf96e7e121c7ee395f1b50377bc4baa8920d13c3919fb4af7",
+    "revision": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
+    "sha256": "93ee5aef62dfe5f433caef69956abba566b3459e0e714ddea7e01521b8de23ce",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -291,6 +291,78 @@
         "Finite thresholds, exact 1..8 identities, forced-token/own-draft and all numerical/state/layout/recovery cases remain; count test growth."
       ],
       "comparison": "Implementation only: one temporary NaN substitution in Qwen's cell-logit row before the bound must fail, then restore; retain the previous GDN/cell/K-quant NaN and picture +Inf deciding comparisons. No extra SQA run, permanent suite, framework or timing-dependent tolerance."
+    },
+    {
+      "id": "SQA-251",
+      "status": "open",
+      "severity": "P2",
+      "category": "test-oracle-consolidation",
+      "classification": "source-established",
+      "title": "Merge the duplicate NextN fixture into its selected acceptance with a real plain oracle",
+      "evidence_commit": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
+      "sources": [
+        {
+          "path": "internal/inference/nextn_device_speculation_windows_test.go",
+          "symbol": "TestNextNMTPDeviceSpeculationLossless"
+        },
+        {
+          "path": "internal/inference/own_draft_layer_windows_test.go",
+          "symbol": "TestOwnDraftLayerSpeculatesByDefault"
+        },
+        {
+          "path": "internal/inference/nextn_mtp_test.go",
+          "symbol": "TestOwnDraftsRefusedWhereFewAreKept"
+        },
+        {
+          "path": "internal/inference/runner_generation.go",
+          "symbol": "Runner.Generate:63 normalizes SpeculativeDecode from ownDraftLayer unless PlainDecode"
+        },
+        {
+          "path": "internal/inference/nextn_device_speculation.go",
+          "symbol": "deviceSpeculationReady; ownDraftLayer; SpeculatesByDefault; observeOwnDrafts"
+        },
+        {
+          "path": "internal/inference/runner_inputs.go",
+          "symbol": "hasPreloadedWeights"
+        },
+        {
+          "path": "internal/inference/device_recurrent_checkpoint_windows_test.go",
+          "symbol": "writeHermeticQwen35GGUF; writeHermeticQwen35GGUFShaped"
+        },
+        {
+          "path": "internal/inference/runner_fixture_test.go",
+          "symbol": "requireIntegration; openF32FixtureRunner"
+        },
+        {
+          "path": "internal/devicescope/device_scope.go",
+          "symbol": "deviceLaneScopes names TestNextNMTPDeviceSpeculationLossless"
+        },
+        {
+          "path": "internal/devicescope/device_scope_test.go",
+          "symbol": "existing required inference test list"
+        },
+        {
+          "path": "cmd/device-lane/evidence_test.go",
+          "symbol": "inferenceDeviceStep requires retained test name"
+        }
+      ],
+      "evidence": "Both Windows tests build the same hermetic Qwen3.5 fixture, open an F32 device runner, use greedy temperature0, prompt[1,4,5] and eight new tokens. The old named device-lane acceptance clears only SpeculativeDecode for its supposed plain arm. Generate restores it through ownDraftLayer; fewer than48 drafts in these short requests cannot trigger refusal. Its readiness check occurs before that normalization, so it does not establish a plain oracle. The newer default test correctly uses PlainDecode=true and counts actual drafts. Separately, the host threshold test's final ownDraftLayer assertion on &Runner{} cannot fail: hasPreloadedWeights is false even if the refusal flag is ignored. No application/test execution was performed.",
+      "recommended_change": "Retain the selected name TestNextNMTPDeviceSpeculationLossless and its file. Fold the newer default test's body into it, deleting own_draft_layer_windows_test.go. Use one runner/fixture: default generation with observed drafts; PlainDecode=true generation as the oracle; then set ownDraftsRefused, require SpeculatesByDefault=false and explicitly request speculation, observing drafts despite refusal. Compare both speculative results' token IDs and decoded text with the plain result. Keep raw readiness checks for explicit/disabled options. Delete the powerless final assertion from the host threshold table; retain all four tally/freeze cases. No new helper, wrapper, selector or fixture.",
+      "displaced_surface": "Remove the separate TestOwnDraftLayerSpeculatesByDefault body/file, duplicate integration/CUDA admission, GGUF construction, runner opening/closing, sampler setup and old length/per-token comparison loop; slices.Equal plus exact text equality owns comparison. Retain every unique default, explicit opt-in, plain-token and text requirement in TestNextNMTPDeviceSpeculationLossless. Add meaningful refusal wiring/explicit override to that existing ready-runner self-check, replacing the dead empty-runner assertion. Keep Windows tags, serial GPU ownership, requireIntegration/cudatest.Require, error handling, t.Context and deferred Close. Existing gate test name and all three selector consumers stay unchanged. No production export/configuration/user-data/confidentiality change.",
+      "impact": "Repairs a selected acceptance's false plain comparison while reducing duplicate test surface. Existing newer test already covers default/plain identity; this is an assurance defect, not evidence of incorrect served tokens. Consolidation preserves token ordering, cancellation/error/lifetime owners and does not loosen tolerances.",
+      "expected_benefit": {
+        "outcome": "Syntax-counted complete three-file test replacement1000->845(-155 AST): two Windows files490->351(-139), host threshold table file510->494(-16). The retained Windows test file grows258->351(+93), with all moved/default/refusal/text checks counted, while the other232-node file disappears. Existing fixture/helper and three selection-owner files3189 AST unchanged, giving full compared surface4189->4034; production246 unchanged within that comparison. Fresh17-file sample production11715 unchanged, test8739->8584.",
+        "uncertainty": "A normal run selecting both Windows tests changes two GGUF writes/runner loads/sampler setups/closes to one and four Generate calls to three. The narrow device lane currently selects only the old name: its one setup remains and Generate calls increase2->3 to cover explicit/default/plain distinctly. No extra lane or recurring confidence run; existing native caching/resume remains. No elapsed/peak-memory savings measured. One runner lives through three arms; existing CachePrompt=false options and explicit plain flag remain. Hypothetical replacement parsed/counts only, not package-typechecked or run; no CGo/GPU validation claimed."
+      },
+      "likely_effort": "Small local test merge across three files; existing fixture and selected acceptance retain ownership.",
+      "plan_references": [],
+      "plan_coverage": "Advisory; no active plan row adopts this merge. Keep the existing device-lane selector instead of creating or changing a selector.",
+      "closure_criteria": [
+        "Only selected TestNextNMTPDeviceSpeculationLossless owns this shared fixture; default and explicit generations compare with actual PlainDecode=true output including text.",
+        "The ready runner proves default refusal and explicit override; host tally/freeze cases remain, and the empty-runner assertion is gone.",
+        "Full test AST falls with all migrated checks/imports counted; selector names, native admission, error propagation and resource cleanup remain. No new fixture/helper/framework or validation campaign."
+      ],
+      "comparison": "During normal affected implementation validation, use the existing selected native acceptance to establish actual default/explicit drafts and token/text equality to PlainDecode. Its retained callback and ready-runner refusal check are the smallest deciding self-checks; do not add a separate test or SQA confidence run. Static before/after comparison is already retained."
     },
     {
       "id": "SQA-238",
@@ -1362,8 +1434,8 @@
       "severity": "P3",
       "category": "test-fixture-consolidation",
       "classification": "source-opportunity",
-      "title": "Delete the device-weight test's manual GGUF writer",
-      "evidence_commit": "02d710357c9d384dfab2a4e71d290b18e5cea5ec",
+      "title": "Use the existing GGUF writer in host and device weight fixtures",
+      "evidence_commit": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
       "sources": [
         {
           "path": "internal/modeldevice/device_weights_windows_test.go",
@@ -1384,24 +1456,45 @@
         {
           "path": "internal/modeldevice/device_tensor_store.go",
           "symbol": "deviceTensorStore.place;Lookup;Close;workerMemory.write"
+        },
+        {
+          "path": "internal/model/host_weights_test.go",
+          "symbol": "hostTensorFixture; TestLoadHostTensor; TestLoadHostRowsAndDotRows; TestHostRowsPrefetchesReadTogether"
+        },
+        {
+          "path": "internal/model/host_tensor_store_test.go",
+          "symbol": "TestHostTensorStoreRetainsLoadedTensor"
+        },
+        {
+          "path": "internal/model/layer_schema_test.go",
+          "symbol": "TestHostLayerGraphInputsAliasLoadedTensors"
+        },
+        {
+          "path": "internal/model/block_ngram_test.go",
+          "symbol": "RunFlashNextNGram already uses gguf.Write with an in-memory F32 buffer"
+        },
+        {
+          "path": "internal/gguf/writer_oracle_test.go",
+          "symbol": "TestWriterAcceptedByPinnedLlamaCPPGGUFHash; existing external-format acceptance owner"
         }
       ],
-      "evidence": "weightFixture is a single-caller196-node serializer duplicating GGUF magic/version/counts,string lengths,shape/type/offset and alignment. The package's writeFixture and TestWriteRoundTripsMetadataAndTensors already use gguf.Write for that same serialization. A syntax-only replacement deletes weightFixture and writes its four uint32 bit patterns into a bytes.Buffer with binary.Write,then passes one F32 shape[4] tensor to gguf.Write directly in TestDeviceWeightsIntegration. Complete test file486->374(-112); retained test268->352(+84) includes all inline migration cost. Default metadata remains empty; default alignment pads the16-byte payload by16 bytes,as the old helper did. Byte equivalence follows source reading; it has not been executed.",
-      "recommended_change": "Delete weightFixture. In TestDeviceWeightsIntegration use the existing gguf.Write owner with nil metadata,default WriteOptions and the same weight tensor. Encode []uint32{1,2,3,4} with binary.LittleEndian into a local bytes.Buffer; pass that buffer as TensorData.Data. Parse the encoded buffer with the same gguf.Parse options. Keep the original device upload/download and uint32 comparison loop unchanged. No new helper or fixture file.",
-      "displaced_surface": "Remove weightFixture and its local write/writeString helpers,manual GGUF header/directory writes and padding loop. Retain gguf.Write,existing parser/writer tests and device integration owner. Preserve four exact little-endian subnormal F32 bit patterns (do not turn them into float32 values1..4),rank1/extent4,zero metadata,32-byte alignment,16 bytes of terminal zero padding,Lookup,device readback and Close. Default gguf.Write supplies terminal padding; adding another16 bytes would change the fixture. Existing writeFixture random payloads were not selected because they change these bytes. No unique case moves to another test.",
-      "impact": "Small test-code maintenance reduction. Device behavior,public API,configuration,Windows/device admission,worker serialization,errors/cancellation and resource lifetime stay unchanged. No data-loss or confidentiality contract change; no production speed/memory gain claimed.",
+      "evidence": "The same framing is duplicated in two sampled fixture owners: hostTensorFixture (219 AST, five callers across three test files) and device weightFixture (196 AST, one caller). Both manually write GGUF magic/version/counts, names, dimensions, type, zero offset and alignment. Existing gguf.Write already serves RunFlashNextNGram and modeldevice.writeFixture. Fresh whole host replacement parses1743->1653 (-90); current device file remains486, with the retained complete replacement486->374 (-112). The host helper remains a129-node sequential-payload generator; the device helper disappears. No fixture or application execution was performed.",
+      "recommended_change": "Use gguf.Write with nil metadata and default WriteOptions in both fixtures. In hostTensorFixture retain the five caller signatures, dimension product and checked binary.Write of float32(index+1) into a local payload buffer, then serialize its one F32 TensorData. In TestDeviceWeightsIntegration inline the existing four uint32 bit patterns into a buffer and pass one F32 shape[4] tensor; delete weightFixture. Keep existing errors and assertions. No shared fixture framework or new helper.",
+      "displaced_surface": "Delete both manual header/directory/padding implementations and their local write/writeString closures. Retain hostTensorFixture only for its five callers' sequential values, gguf.Write as format owner, and every behavioral test. Host payloads are float32 values1..4 or1..600 (shapes[4] and[2,300]); device payloads are uint32 bits1..4 interpreted as subnormal F32, so do not merge their generators. Preserve zero metadata, default 32-byte alignment, payload order and terminal padding. Default alignment adds no metadata. Keep Windows/device admission, upload/download, host row handles/cancellation/prefetch, store release/reuse, layer-feed aliases, Close and error propagation. No export/configuration/build-tag/data/confidentiality change.",
+      "impact": "A net test-maintenance reduction using an existing production owner. It removes no model load, device transfer, fixture execution or validation requirement. Production unchanged; no speed or memory saving established.",
       "expected_benefit": {
-        "outcome": "Production delta0; complete changed test486->374(-112 AST),including inline payload/writer setup. Full fresh test sample3840->3728; production sample3756 unchanged. Existing GGUF writer and other test owners unchanged. One helper and its two local helpers disappear; no wrapper/dependency/fixture file or gate addition. One in-memory96-byte GGUF,one worker/load/download remain.",
-        "uncertainty": "The proposed setup adds a16-byte payload buffer and calls existing writer preparation instead of manual serialization; allocation/setup elapsed effects are unmeasured and may increase. This is a maintenance reduction,not an execution reduction. Whole replacement parses; no CUDA/package execution or typecheck of that hypothetical test. Existing production dependency closure already includes gguf."
+        "outcome": "Host helper219->129 (-90); whole host_weights_test1743->1653. Other two host caller files202+416 unchanged, so host callers2361->2271. Device test486->374 (-112) includes all inline migration. Combined affected tests2847->2645 (-202). Unchanged writer3025 plus writer tests1760+818 gives complete compared surface8450->8248.",
+        "uncertainty": "Existing imports and dependency closure suffice; no new helper/wrapper/fixture file/schema/test/gate. Five host GGUF constructions and one device fixture/load/readback stay. Host replacement adds a payload buffer of at most2400 logical bytes for current callers; device replacement adds16 bytes, plus existing writer preparation/padding costs. Buffer capacities, allocation count and elapsed/peak effects are unmeasured and may increase. Host replacement is syntax-counted only; type resolution in the originating rotation covers reasoning-stream code, not the hypothetical GGUF caller packages. External oracle remains opt-in; no oracle execution claimed."
       },
-      "likely_effort": "Small local reuse; no new test needed for unchanged fixture semantics.",
+      "likely_effort": "Small changes in two existing test files, with no test retirement or caller migration.",
       "plan_references": [],
-      "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
+      "plan_coverage": "Advisory only; no active plan row adopts this expanded cleanup. Committed campaign-closeout scope and implementation-owned responses are unchanged.",
       "closure_criteria": [
-        "weightFixture and manual GGUF framing/alignment code are gone; retained integration test uses gguf.Write with all setup counted.",
-        "The same payload bits,zero metadata,geometry,padding and device readback remain; no added helper,fixture file,model load,selector or test."
+        "Both manual GGUF serializers are gone. Existing host payload helper and device integration test call gguf.Write with complete setup cost counted; total test AST falls202 without new scaffolding.",
+        "All five host callers retain exact values, row ordering/duplicates, cache/read counts, cancellation, prefetch concurrency, file-handle lifetime, release/reuse and feed alias checks. Device readback retains original subnormal bit patterns and its Windows/device boundary.",
+        "Format validation and existing independent writer-oracle coverage remain owned by gguf tests. No new permanent comparison, fixture, selector, confidence run or weaker assertion."
       ],
-      "comparison": "Smallest deciding comparison during implementation is the existing fixture's encoded bytes versus the proposed buffer,then existing native device integration coverage under its current gate. No new permanent assertion or SQA execution. The full-file AST comparison is already retained."
+      "comparison": "The deciding source comparison is default-version/default-alignment empty-metadata framing and exact payload order. During normal implementation work, compare existing fixture bytes with the replacement once if needed, then use existing native affected coverage. No SQA test/fixture execution or new permanent test is authorized. Retained device112-node evidence is unchanged; fresh host90-node evidence is additive to this same shared-owner finding."
     },
     {
       "id": "SQA-227",
@@ -3104,15 +3197,16 @@
     }
   ],
   "gate_test_assessment": {
-      "retained_results": "Latest aaaec7fe4 is plan-only: retained gate verify 75ms, no production/test change. Preceding a81aa2034: +0 production/+400 test AST; host 1m40.869s (6 packages), lanes 1m0.551s (device 6.479s; CUDA 53.351s, 1 executed/15 cached; webui skipped), verify 2.577s. Earlier cell widening and model checks together with this routing fixture grew +156 production/+1,777 test AST. These are producer results, not SQA runs.",
-      "measured_vs_proxy": "250 changes only 16 production AST, with zero test/fixture/setup/gate reduction and no measured timing/memory gain. Retained +1777 test growth buys new behavior and is not simplification. Native Go caching and existing gate/resume mechanisms remain; SQA executed no validation.",
+      "retained_results": "421d06ab producer: +51 production/+190 test AST, host2m9.409, lanes3m38.111, verify3.798, CUDA4executed/12cached, Qwen0.5 outputs identical. Previous batch-capacity +0/+30; stale-boundary +14/+318; draft-pays +138/+365; journey-budget +50/+129. Timings/numerical outputs are retained producer results, not SQA runs. Latest f29b5f34 is README/plan-only (+0/+0); producer host3m27.149, lanes discovery756ms all skipped, verify6.175, scorecard not reached.",
+      "measured_vs_proxy": "251 and226 offer357 net test AST reduction, zero production delta; setup counts are static proxies.251 removes one setup and one Generate when both originals are selected but adds one Generate to the narrow device lane.226 removes no setup execution and adds payload buffers. No elapsed/memory improvement measured; native Go caching and gate/resume credited.",
       "sampled_tests": [
-        "retain: cache_position_invariant_test sequential tokens/position versus sectioned-RoPE nonzero-coordinate cases; sampled cache_state_test family-specific roundtrip, named-state ordering/aliasing and invalid modes/shapes. No cases move; new code reduction250 touches none.",
-        "retain: recent_test introduction order, kind filtering, producer lineage, absent kind and zero limit. Separate commits establish history; batching setup would erase that requirement.",
-        "retain: TestDocumentHistoricalContentCutoff and document query byte-budget cases. Keep delayed content, cutoff/cursor mismatch, future cutoff, aliases, snapshot/reopen and below/exact budgets with bounded/cursor pages in existing documentQueryFixture.",
-        "retain: request-monitor HTTP result/order/token capacity, unauthorized record, admission wait accounting, controlled streaming inflight/final boundary, method-length bound and health exclusions.170 remains resolved; no shared setup/body deletion supported.",
-        "retain: TestPreflightNamesPinnedBytes uses existing writeModule and keeps coverage inputs, normalized harness, literal document digest and unchanged/unpinned cases. TestValidHexDigest keeps uppercase/lowercase, empty/short/long/nonhex/prefix refusals.",
-        "simplify: production predicate only(250). merge/remove: none newly established; existing224/227 and test reductions remain recommendations with their own retained owners. No new assertion, helper, fixture or suite."
+        "merge/remove: fold TestOwnDraftLayerSpeculatesByDefault into retained selected TestNextNMTPDeviceSpeculationLossless, then delete former file. Move default callback and actual PlainDecode oracle; retain explicit opt-in, token/text parity, Windows admission/Close.251 counts migrated refusal/override coverage.",
+        "simplify: TestOwnDraftsRefusedWhereFewAreKept loses only powerless empty-runner ownDraftLayer assertion. Four tally/freeze cases remain; meaningful ready-runner wiring moves to selected acceptance.",
+        "simplify:226 host/device serializers use gguf.Write. Retain five host callers, numeric values/row cache/cancellation/prefetch/alias lifetimes and device bit patterns/readback. No behavioral test removed.",
+        "retain: QSA cold/warm stale-boundary parity, one-capacity across turns and int8/streamed ring selection are distinct. Batch-capacity test must reach actual page64; restored coverage growth is necessary.",
+        "retain: query index/cardinality/seed/refusal/repeat-contract checks; event fanout sequence/coalescing/resync emission and browser inventory recovery have separate owners.",
+        "retain: browser-store registered-profile alias roots, full alias visitation, exact memo/local paths, private mutation/reopen, populated/source-destination refusals. No extra fixture/setup abstraction.",
+        "retain: previous segmented-retention physical cleanup/corrupt-checkpoint repair and transcription duplex/resume/authorization/download shutdown are unchanged retained evidence, not repeated runs."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -3486,10 +3580,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded rotating source/AST review; unsampled unchanged findings retain earlier evidence, not fresh execution. No full census or statistical equivalence claim.",
-      "Type resolution covers actual artifact id/enum and standalone whole pins.go before/after; other files use parser-local bindings and manual tracing.",
-      "AST and setup/operation counts are proxies. No new elapsed/allocation/peak-memory measurement; timing fixtures and format literals are not calibrated performance evidence.",
-      "Raw implementation_review, master_lead_triage and unknown implementation fields retained; prior implementation overlap disclosed and worker plan excluded."
+      "Source/AST establishes surface and control-flow facts, not measured performance. Hypothetical merged test syntax-counted, not typechecked/run against GPU dependencies. Type resolution limited to exact standard-library-backed statusRecorder declarations.",
+      "Bounded sample/named callers only; no whole-repository clone census, blanket literal lint or complete alias/call graph. Unsampled findings retain prior evidence; no blanket revalidation claim.",
+      "Prior06:56 expanded226 candidate was not published because a worker held the publication turn. It is reconciled here, not claimed implemented. All implementation-owned fields preserved exactly.",
+      "Recent repairs' gates/measurements come from implementation. No new confidence/broad runs; Strata is a comparison, not presumed optimal."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -3559,19 +3653,20 @@
       }
     }
   },
-  "next_finding_number": 251,
+  "next_finding_number": 252,
   "publication_context": {
-      "checked_head": "bd11f84d254dd1e89a7d2579dbd3e7c142483b31",
-      "committed_plan_git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
-      "assessment": "Substantive new 250: one actual duplicated predicate, shared owner/callers and whole-file 16-node production reduction including import; tests unchanged. No closure or other priority change.",
-      "newer_commit_note": "Only report changed since prior reviewed pin; worker code and dirty plan excluded.",
-      "publication": "Immediately re-read under nonblocking landing/gate byte locks, parse replacement, preserve raw owner/unknown fields and unrelated index/worktree/plan; commit only docs/sqa_findings.json."
+      "checked_head": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
+      "committed_plan_git_blob": "b22487fd0c2d6524e56bfb8b31e39f24ba8399f5",
+      "assessment": "Substantive new251 plus expanded226; total357 proposed test AST reduction, no production change. All implementation and unknown fields preserved raw.",
+      "newer_commit_note": "Initial ef29 sample repinned after421d06 IFEval and f29b5f34 README/plan-only closeout; sampled/reduction files unchanged. Campaign-only doctrine/closeout row removed by implementation; eight regression rows and MOSS remain. No SQA plan change.",
+      "publication": "Immediately re-read under nonblocking existing landing/gate byte locks; parse replacement, preserve unrelated index/worktree/plan; force-add/path-limit commit to docs/sqa_findings.json only."
     },
   "ranked_active_finding_ids": [
     "SQA-245",
     "SQA-218",
     "SQA-229",
     "SQA-232",
+    "SQA-251",
     "SQA-238",
     "SQA-215",
     "SQA-246",
@@ -3613,47 +3708,51 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "250: SHA-256's 32 decoded bytes and 64 hex characters are format identities. Existing predicates admit both cases and reject invalid/odd/short/long strings; no normalization or robustness gain is claimed. Landing already reaches artifact through plan. The remaining benchmark token-digest errors carry decode details; they are not silently replaced by this boolean predicate.",
-      "Cache bindings already share bindLayerGraphCacheInputs. Host values and device pointers/zero feeds retain distinct ownership; fixed-capacity device shape adjustments are necessary. Compressed-position validation still clones its read-only first-layer reference (227); materialization/edit copies must remain owned.",
-      "Cache deserialization checks remaining bytes, checked float32 byte counts, rank/dimensions, value counts, names/modes and trailing bytes before acceptance. Header/value field widths follow the existing serialized format. Sequential positions and sectioned-RoPE coordinates have different invariants; the sectioned fixture is not evidence of a universal context limit.",
-      "RecentArtifacts uses introduction order, kind/producers and its own positive limit. Document queries enforce cutoff/cursor identity and payload budgets before visiting. Present released-content filtering remains 120's deferred retained-before-cutoff contract; no new affected releasable consumer was found. Prior blob/recovery review is retained on unchanged source.",
-      "Unnamed/named emitter delivery remains 224; synchronized SSE mutex/sticky errors, ping comment, context cleanup and literal DONE are distinct. Monitor capacity 256 is a finished-record product bound, not a statistical threshold; cap+8 tests pruning. Admission-time sum slack 1e-9 ms checks arithmetic rounding, independent of timing variation. Controlled prefix/release streaming still supports 170's closure.",
-      "Do not replace decodeRecord with jsonfile.Decode directly: decode errors lose the record filename, while wrapping all errors would alter the optional-file os.IsNotExist path. No smaller complete replacement established. Native Go caching, existing gate reach/resume and retained test owners receive credit.",
-      "Committed campaign-closeout/file-close retired the Strata parity target; measurement/README/claims/inventory close remains. Strata is a comparison, not presumed optimal. Historical implementation responses are unchanged; no new adoption inferred."
+      "251 starts from two actual Generate callers sharing the same fixture/options. Preserve the old selected test name: devicescope and device-lane tests explicitly require it. Its raw-option readiness check precedes Generate's default normalization and cannot prove that the supposed plain request stays plain.",
+      "226 reuses gguf.Write, already used by model RunFlashNextNGram and modeldevice.writeFixture. Retain five-caller host payload helper, delete duplicated format serialization and device single-caller wrapper. Whole replacement includes payload buffers and canonical-writer preparation; allocations may increase.",
+      "Draft policy48 drafts/0.1 kept share comes from first16 full depth3 windows, persists for the runner, and affects subsequent default requests; an explicit request still drafts. Retained poor4B evidence concerns an unshifted-norm artifact, while27B prose/list keep rates differ. It does not establish a universal cost break-even or representative future workloads. Workload-shift/tail risk is a performance hypothesis, not a measured regression; no new adaptive/statistical framework or configuration proposed.",
+      "Draft depth3 and q8 span8 are existing calibrated/dispatch choices. Generation bounds room by output/context remaining and pending+depth; spanHiddenRow checks bounds and copies a row before cache release. Fixed hermetic dimensions are admitted fixture geometry, not claims about all models; preserve native declared layout.",
+      "Query planner uses actual byMedia/bySchema widths at the current head, including empty intersection, rather than independence/uniformity estimates. Query tests retain distinct candidate/returned/loaded counts and repeat-head determinism. sortLineage remains shared by both callers (154 resolved).",
+      "eventHub emits one resync after overflow; runtimeActivityStream snapshots sessions/activity/operations/downloads but still does not invalidate tracked inventories.218 remains open; producer overflow coverage cannot replace browser resynchronization coverage.",
+      "Recent repairs: stale-live/stale-cell prompt-boundary exclusion adds14 production/318 test AST; batch-capacity loop adds30 test AST. These restore recovery and real page-boundary checks, not test bloat. Draft norm/policy landing adds138/365, journey-budget50/129. Browser fixture retains registered-profile alias roots, source immutability and durable private reopen; projector size reuses modelBytes across shards.",
+      "Journey7min page/14min total budgets are operational stop bounds based on retained6m44 maximum and10h21 stuck journey, not statistical guarantees or numerical acceptance. Existing page diagnostics/process owner and native cache/resume remain.",
+      "Concurrent421d06ab uses existing CaseOutcomes/allTrue and exact paired-binary owner for IFEval prompt-strict declines, +51 production/+190 test AST. Retained producer gate: tests2m9.409, lanes3m38.111 (webui2m51.403,CUDA3m37.355;4 executed/12 cached), verify3.798; Qwen0.5 slice output-identical. No SQA reproduction or population-independent quality claim.236's separate three held-out signTest callers remain unchanged.",
+      "Owner retired Strata parity as closeout target. Concurrent f29b5f34 updates README from scorecard-20261028T150740Z and closes campaign-closeout/removes campaign-only doctrine; +0 production/+0 test AST. Eight measurement regression rows remain for the next owned run; MOSS intake also remains. Retained close gate host3m27.149, lane discovery756ms with all lanes skipped, verify6.175. No SQA model rerun or claim that all performance obligations are resolved."
     ],
-  "reviewed_at": "2026-10-29T05:04:40Z",
-  "reviewed_master": "bd11f84d254dd1e89a7d2579dbd3e7c142483b31",
+  "reviewed_at": "2026-10-29T09:16:23Z",
+  "reviewed_master": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master bd11f84d254dd1e89a7d2579dbd3e7c142483b31; unchanged skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and plan 26d1b0268d8e79d94dfd478c908a2f96229d0188 checked before code. Only report changes since prior reviewed 683190d4d; dirty worker plan excluded.",
-      "Fresh rotation: shared host/device cache binding, serialized cache bounds/positions; recent artifacts and cutoff/payload-budget queries; GUI emitter and monitor; landing byte-pin discovery. Provisional conclusions formed before reading prior findings/implementation responses. Load/transfers, blob/retention and gate outcomes also use retained results on unchanged code.",
-      "Go parser sample: internal/inference/layer_cache_inputs.go, internal/inference/cache_state.go, internal/inference/cache_position_invariant_test.go, internal/overgodb/recent.go, internal/overgodb/recent_test.go, internal/overgodb/documents.go, internal/overgodb/documents_cutoff_test.go, internal/server/protocol_io.go, internal/server/request_monitor.go, internal/server/request_monitor_test.go, internal/landing/pins.go, internal/landing/pins_test.go, internal/jsonfile/decode.go, internal/artifact/id.go, internal/artifact/enum_json.go, internal/artifact/valid_hex_digest_test.go. 16 files, 14347 AST (10765 production/3582 test), 109 functions, 2736 parser-local bindings; comments included. Bounded manual caller reads supplement this sample.",
-      "Actual artifact id/enum files typechecked:146 definitions/460 uses/673 expressions/26 selections. Whole pins.go before:67/240/330/9; hypothetical after:65/232/319/9, with the real artifact declarations. No full landing/application build, CGo, SSA or complete call graph.",
-      "This chat previously implemented Overgo changes; this is not independent third-party review. Only source/AST/type analysis and report publication; no agents, implementation, tests, gates, models, services, benchmarks or profiles."
+      "Pinned committed master f29b5f344e3080b3c0243cf7ccf7b6144e517177; initial source pin ef29e0c50a635a2ed04827395ce297371941f317. Read unchanged skill.md a81b403c183378ba9a3aa11ca0328acfffd7c531 and committed plan before source. Concurrent IFEval421d06ab and documentation closeout f29b5f34 reconciled; all17 AST sample files and both reductions unchanged. Final committed plan b22487fd0c2d6524e56bfb8b31e39f24ba8399f5; worktree edits excluded.",
+      "Fresh rotation: NextN default/explicit/plain generation and draft-refusal tests, prompt-boundary lifetime/QSA recovery, projection query planner, GUI event fanout, browser-store preparation and journey budgets. Concrete provisional conclusions recorded before reading prior report/implementation responses.",
+      "Actual Go parser sample: internal/inference/nextn_device_speculation.go, internal/inference/nextn_mtp_test.go, internal/inference/nextn_device_speculation_windows_test.go, internal/inference/own_draft_layer_windows_test.go, internal/inference/prompt_cache.go, internal/inference/qsa_decode_windows_test.go, internal/overgodb/query.go, internal/overgodb/query_plan_test.go, internal/server/event_hub.go, internal/server/event_hub_test.go, cmd/webui-lane/main.go, internal/server/webui_browser_store_test.go, internal/inference/device_recurrent_checkpoint_windows_test.go, internal/inference/runner_fixture_test.go, internal/devicescope/device_scope.go, internal/devicescope/device_scope_test.go, cmd/device-lane/evidence_test.go. 17 files20454 AST (11715 production/8739 test),111 functions,4400 parser-local identifier bindings; comments included. Manual caller reads supplement this bounded sample; no recurring census.",
+      "Actual statusRecorder declaration and WriteHeader/Unwrap/Flush typechecked with standard net/http:12 definitions,23 uses,27 expressions,6 selections. Hypothetical three-file NextN consolidation parses and counts1000->845. No full application typecheck, SSA, CGo or complete call graph.",
+      "Carry forward uncommitted06:56 host/device GGUF reduction into226 after verifying source/owners unchanged:202 net test AST, no production saving. Blob/retention and converted transfer/lifetime conclusions use retained prior source/AST evidence on unchanged files, not fresh execution.",
+      "This chat previously implemented Overgo changes; this is not independent third-party review. Only source/AST/type analysis and report publication; no agents, implementation, model workloads, services, tests, gates, benchmarks or profiles."
     ],
   "sqa_response": {
-      "reviewed_master": "bd11f84d254dd1e89a7d2579dbd3e7c142483b31",
-      "assessment": "41 open, 3 deferred, 22 resolved. Add 250 for landing digest-predicate reuse (-16 production AST, zero test delta); no new safe test deletion. Rechecked 224/227 open, 170 resolved and 120 deferred.",
-      "evidence": "16 committed files:14347 AST; actual identity and before/after pin source typechecked. Complete proposed production+retained-test comparison2410->2394 includes import and unchanged owners.",
+      "reviewed_master": "f29b5f344e3080b3c0243cf7ccf7b6144e517177",
+      "assessment": "42 open,3 deferred,22 resolved. Add251 for shared selected NextN acceptance with genuine plain oracle (-155 test AST); extend226 to host writer callers (-202 combined test AST). No production reduction/execution gain claimed.",
+      "evidence": "17 committed files20454 AST; exact statusRecorder type resolution. Full NextN changed test cost1000->845, including unchanged owners4189->4034. Prior host/device GGUF whole-cost8450->8248 remains source-identical.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "reopened_findings": [],
       "new_findings": [
-        "SQA-250"
+        "SQA-251"
       ],
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "26d1b0268d8e79d94dfd478c908a2f96229d0188",
-        "status": "Both implementation-owned objects, 34 comments and every unknown/implementation field preserved raw; historical owner metadata not rewritten.",
-        "current_plan_note": "campaign-closeout/file-close records retirement of Strata parity as a target and the new model-measurement/claims/inventory close. Prior implementation findings remain advisory on unchanged source; no new adoption inferred."
+        "plan_git_blob": "b22487fd0c2d6524e56bfb8b31e39f24ba8399f5",
+        "status": "Both implementation-owned objects,34 comments and every unknown/implementation field preserved raw; historical metadata not rewritten.",
+        "current_plan_note": "421d06 completed ifeval-paired; f29b5f34 closes campaign under changed owner target. Eight measured regression rows and MOSS remain. No adoption of251/expanded226 inferred."
       },
-      "recommendation": "Keep larger shared-fixture/test-body reductions ahead of this trivial predicate reuse. Preserve correctness/recovery coverage and distinct error/ownership contracts; no new test, framework or extra run.",
-      "next_action": "Implementation lead owns adoption and normal affected validation; SQA changes only this report.",
-      "uncertainty": "No elapsed/memory improvement measured. Unchanged unsampled findings retain earlier evidence, not fresh validation.",
+      "recommendation": "Retain existing selected acceptance name and merge actual shared behavior; preserve unique oracle/refusal/default/explicit requirements. Apply226 only with exact host numeric/device bit payloads and full writer cost counted.",
+      "next_action": "Implementation lead owns adoption/normal affected validation. SQA edits only this report.",
+      "uncertainty": "No SQA execution or elapsed/memory measurement. Narrow selected device acceptance gains one generation despite lower combined test/setup cost.",
       "user_findings": [
         "SQA-110"
       ],
-      "user_finding_assessment": "110/124/120 remain deferred under their existing triggers and unchanged owner responses."
+      "user_finding_assessment": "110/124/120 retain deferred status under unchanged owner triggers; no new evidence reopens them."
     }
 }

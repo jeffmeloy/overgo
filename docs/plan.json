@@ -545,6 +545,51 @@
           "rationale": "- Bonsai-27B-Q1_0 first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 97.9666 to 108.8949 (+10.9283, +11.2%, allowed 4.7144; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
+    },
+    {
+      "id": "scorecard-blind-declines",
+      "title": "File a served model's declines across a change of its recipe and before its fifth reading",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Judge a serving cell across its model's recipes and before its fifth reading, and key its decline without the recipe",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestAServedModelsDeclineIsFiledAcrossARecipeChange$' -count=1",
+          "rationale": "The reviewer's finding F1 (P1), confirmed and narrowed. From the record of 2026-10-25 (scorecard-20261025T194250Z) to the record of 2026-10-28 (scorecard-20261028T150740Z), Qwen3.8 Flash Next's inference row got worse: first output 1128.1 to 1742.1 ms (+54%), its 4,096-token first output 1669.5 to 2078.5 ms (+24%), its 16,384-token first output 5563.9 to 8613.5 ms (+55%), load 29.75 to 34.96 s (+18%), and throughput 73.06 to 66.84 tok/s (-9%). No row was filed, for two reasons in internal/scorecard/record.go. First, the rows did pair (same model and task, Pairs), but e0a7e5113 activated a new recipe (recipe:sha256:81d75bcb... to recipe:sha256:c45e957c...). A serving cell's contract carries its recipe as its scope, so holds() read every cell as measured on another contract (Unknown: reported, never filed), and judged() counts only the readings taken on the same contract. Second, even had the recipe held, those cells had two distinct earlier readings (first output 936.2 and 1128.1 ms), fewer than fewestReadings (5), so judged() would leave them Unknown too. Each recipe activation restarts that count, so a model a campaign keeps changing is never judged. Flash-Next is the only model whose recipe changed between the two records.\nThe change has three parts. A serving cell's readings become its model's and task's under any recipe, in one environment, so a recipe change is judged against the level the earlier recipes held. A cell with fewer than fewestReadings readings is judged, not left Unknown, by an allowance stated for it (for example its attempts' spread with a floor), chosen by replaying the published records as the four constants of Reference were, with rows in the tuning table. A serving decline's key leaves out the recipe, so its row is found again after a later activation; today validate -scorecard -gap reports such a row open for ever ('no cell of the scorecard is measured on the contract it named'). Any open serving decline row is re-keyed in the same change. The check is a test that replays Flash-Next's readings: two on one recipe, then a third on another at +54%, files a scorecard-regressed row, and a move within the allowance files none. The landing message lists the rows a replay of the published records then files."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-warm-request",
+      "title": "Score a warm request beside the cold one, so a trade between them shows both sides",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure the same request again on the loaded model and score its throughput and follow-up first output beside the cold cells",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestAWarmRequestIsScoredBesideTheColdOne$' -count=1",
+          "rationale": "The reviewer's finding F3 (P2). measureInference (cmd/recipe/inference_measure.go) records the first request its verification ran, right after load, and then only 24-token reads at each prompt length (observeLengths), so the scorecard's throughput and first output come from a cold request. Warm decode, which a conversation gets, rose with the Strata port to Strata's rate on the round's bench (chat 99-104 to 136 tok/s greedy and 88-95 to 143 sampled, agent turns 98-108 to 135), while the scorecard read Flash-Next's throughput falling from 73.1 to 66.8 tok/s. The change measures the same request a second time on the loaded model (journeyInference already lists 'the same request again on a loaded model' as one of its ways), and scores that request's throughput, and its first output as a follow-up's, as cells on their own contracts beside the cold ones. Compare holds a cell its reference did not measure, so the new cells file no decline when they first appear. The lead's call: this P2 ranks before flashnext-first-request, which is to hold warm decode while it brings the cold request back, and only this row makes the scorecard read that side."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-first-request",
+      "title": "Bring Flash-Next's first request after load back to its 2026-10-25 figures, keeping warm decode",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The reviewer's finding F2 (P1), confirmed from the records. Flash-Next's first request after load got slower across the Strata port (8cc359407, 2026-10-27). From the record of 2026-10-25 to the record of 2026-10-28: first output 1128.1 to 1742.1 ms, 4,096-token first output 1669.5 to 2078.5 ms, 16,384-token first output 5563.9 to 8613.5 ms, load 29.75 to 34.96 s, throughput 73.06 to 66.84 tok/s; held-out MMLU-Pro held (0.660 to 0.662). The reviewer's reading of the round's bench (scratchpad round/alt62, ours1-3) puts the 16,384-token first token at 5.93-5.97 s, against 5.30-5.35 s before the port and Strata's 4.94-5.04 s. 8cc359407's message calls the short-chat loss deliberate (its read takes back the lent staging and refills the experts it moved before the first window) and parks the fix. e0a7e5113 (2026-10-26, before the port) read the 4,096-token first output at 1.625 s at its own code.\nTargets, each the cell in the record of 2026-10-25: first output at most 1128.1209 ms, load at most 29749.2492 ms, throughput at least 73.0619 tok/s, 16,384-token first output at most 5563.9 ms. They are read by validate -scorecard -gap -target once scorecard-blind-declines keys a serving decline without its recipe. Until then the check is false, and it is set before any code lands. Warm decode is held: chat 136 tok/s greedy and 143 sampled, agent turns 135 (the round's bench), and the warm cells once scorecard-warm-request lands. First suspects, from the reviewer and unconfirmed: the parked fix (read a short prompt part through the round's windows, as Strata does, so the refill does not wait in front of the first window); for the load and the 16,384-token read, the embedding in mapped host memory and the lent prompt buffers. Each cause is measured before it is changed. A part that cannot come back without giving up warm decode is stated as a deliberate worsening, its target re-set, and the owner told."
+        }
+      ]
     }
   ],
   "decisions": [

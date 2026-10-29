@@ -233,3 +233,52 @@ func TestQSACellsHoldOneCapacity(t *testing.T) {
 	}
 	t.Logf("four turns decoded through %d sessions at %d cells", sessions, ring)
 }
+
+// TestQSABranchReadsOnFromAHeldBoundary: a turn that branches off before the conversation's last question reads on
+// from a boundary whose fixed state its sequence still holds, to the tokens a cold read decodes. A decoded entry names
+// its sequence's live state and stays a boundary of the entries after it; the next turn's decode moves that state on.
+func TestQSABranchReadsOnFromAHeldBoundary(t *testing.T) {
+	requireIntegration(t)
+	cudatest.Require(t)
+	greedy, err := sampling.New(sampling.Config{Temperature: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := openFixtureRunnerWithResidency(writeFlashNextFixture(t, strataFlashNextWindows), OpenOptions{PromptCacheEntries: 1},
+		recipe.ResidencyDeviceNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := runner.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	generate := func(prompt []tokenizer.TokenID, cached bool) []tokenizer.TokenID {
+		t.Helper()
+		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
+			MaxNewTokens: 12, Sampler: greedy, DeviceGreedy: true, CachePrompt: cached, PromptTokenIDs: prompt,
+			ContinueAfterEOG: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+	history := make([]tokenizer.TokenID, 40)
+	for index := range history {
+		history[index] = tokenizer.TokenID(3 + (index*11+index/3)%int(flashNextVocab-3))
+	}
+	// Serial: the turns share one runner, its prompt cache and its sequence's live state.
+	first := generate(history, true)
+	generate(append(slices.Clone(first), 21, 30, 7), true)
+	if !runner.windowsDecode() || !slices.ContainsFunc(runner.promptCaches[0].Boundaries, (*deviceKVCache).staleLive) {
+		t.Fatal("the second turn left no boundary naming a live state it moved on")
+	}
+	branch := append(slices.Clone(first), 22, 31, 8)
+	warm := generate(branch, true)
+	clearPromptCaches(t, runner)
+	if cold := generate(branch, false); !slices.Equal(warm, cold) {
+		t.Fatalf("the branch decoded %v, a cold read %v", warm[len(branch):], cold[len(branch):])
+	}
+}

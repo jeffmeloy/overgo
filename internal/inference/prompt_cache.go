@@ -271,12 +271,14 @@ const promptBoundaryLimit = 4
 // the reads a kept boundary saves.
 const promptBoundaryTokens = 1024
 
-// readFromPromptBoundary keeps the entry's longest boundary within the common tokens as the entry itself, releasing its
-// longer caches, and answers the tokens it keeps; zero where none fits.
+// readFromPromptBoundary keeps the entry's longest boundary within the common tokens that still holds its state as the
+// entry itself, releasing its longer caches, and answers the tokens it keeps; zero where none fits. A decoded entry
+// kept as a boundary names its sequence's live state, which the next decode moves on (staleLive), and a sliding cell
+// layer's later steps write over its ring (staleCells): such a boundary holds its tokens no longer.
 func (r *Runner) readFromPromptBoundary(ctx context.Context, entry *cachedPrompt, common int) (int, error) {
 	index := -1
 	for at, boundary := range entry.Boundaries {
-		if int(boundary.Tokens) <= common {
+		if int(boundary.Tokens) <= common && !boundary.staleLive() && !boundary.staleCells() {
 			index = at
 		}
 	}

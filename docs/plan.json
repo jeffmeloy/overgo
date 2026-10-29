@@ -216,14 +216,11 @@
       "title": "Retain the accepted evidence and remove completed campaign work",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "stale-boundary: the boundary choice skips a boundary whose live state moved on or whose sliding cells were written over, two calls in its condition (14 nodes); deleting the stale boundaries instead would add more"
+      },
       "steps": [
-        {
-          "id": "stale-boundary",
-          "title": "A Flash-Next request off an earlier turn reads on from a boundary that holds its state",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./internal/evaluation -run '^TestFlashNextLongContextAcceptance$' -count=1",
-          "rationale": "TestFlashNextLongContextAcceptance failed after its cancelled generation: the next question, which branches off the conversation before the cancelled turn, answered 500 (the sequence's live state holds other tokens than the cache). A QSA runner's decode moves its sequence's live state (qsa_window.go, 598f94abb, after the last good run); a decoded prompt-cache entry names that live state, and when a later entry replaces it, inheritPromptBoundaries keeps it as a boundary of the new entry. After the live state moves on, that boundary's fixed state is gone, but readFromPromptBoundary still picks it as the longest boundary within the shared prefix, and the read refuses it. Any request that branches off an earlier turn of a Flash-Next conversation fails so. The boundary choice skips a boundary whose state is gone, reading on from the longest one that holds its state, or from the start.\nServes: failure-rate for Flash-Next conversations that branch, regenerate or follow a cancelled reply."
-        },
         {
           "id": "draft-pays",
           "title": "A model's own draft layer drafts by default only where drafting pays, Qwen3.5-4B's decode back above its floor",

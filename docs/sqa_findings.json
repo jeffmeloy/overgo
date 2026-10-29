@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-008 identifies absent device measurements being published as measured zero after successful MOSS loads. All 41 earlier findings and owner responses are preserved. Totals are 39 open and 3 deferred.",
-    "declined_candidates": "Missing full-model resource measurements are already owned by the paused MOSS plan. No new sampler, performance claim or model run is proposed. The CLI's actual process allocation ledger is distinct from the shared-server inference.",
-    "priority": "SQA-MOSS-008 follows the existing MOSS P2 findings and precedes P3 SQA-MOSS-002. All earlier findings retain their relative rank and disposition."
+    "assessment": "New P2 SQA-MOSS-009 identifies a generation wait that cannot settle after same-connection resynchronization loses a terminal operation beyond retention. All 42 earlier findings and owner responses are preserved. Totals are 40 open and 3 deferred.",
+    "declined_candidates": "Committed MOSS stage projection and shared abort/reconnect handling retain existing evidence. The new absence case is separate from SQA-218's inventory invalidation. No new stream, poller, timeout, retention expansion or model run is proposed.",
+    "priority": "SQA-MOSS-009 follows the existing MOSS P2 findings and precedes P3 SQA-MOSS-002. All earlier findings retain their relative rank and disposition."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393",
+    "revision": "4026df4b90d9944a01f21ea3c0123cfe79033156",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2359,6 +2359,78 @@
       ],
       "status": "open",
       "title": "Keep an absent MOSS device measurement distinct from measured zero"
+    },
+    {
+      "category": "operation-stream-recovery",
+      "classification": "confirmed-source-defect",
+      "closure_criteria": [
+        "After a waiter has observed its target, a subsequent authoritative same-connection snapshot without it settles via the existing recovery/not-found path and unsubscribes instead of remaining pending.",
+        "A cached pre-submission snapshot does not reject a newly accepted operation. Present running or blocked operations keep waiting; terminal transitions, terminal snapshots, reconnect absence and explicit abort keep their current behavior.",
+        "The existing controlled stream fixture demonstrates a lost terminal event followed by retention eviction and a fresh missing-target snapshot without a reconnect. Durable run/image artifacts remain available and no automatic second generation is started."
+      ],
+      "comparison": "Extend the current background browser stream probe: establish a live running target, keep the same connection, send the authoritative empty snapshot that follows overflow/retention, and assert the waiter settles with the existing recovery status and releases its listener. Retain the initial stale snapshot, blocked, abort, terminal-order and reconnect cases. Use the existing runtimeServingProbe's flush/release channels and operation retention to establish the server half without timing sleeps; no new browser suite or model fixture is needed. TestMOSSGenerationProgress and the hermetic MOSS generation journey remain distinct stage/transport/UI coverage. Retained tmp/moss-merge/browser-v2.log records its original browser pass; it does not prove this absent case. No check was rerun in this review.",
+      "displaced_surface": "Replace the reconnect-only absence decision in the shared waiter with evidence of disappearance from a later live snapshot. Retain the existing stream, bounded event hub and operation manager. Extend the background browser probe and existing flush-controlled stream fixture; no current behavioral test is redundant. SQA-218 remains an inventory invalidation finding: its proposed marker alone does not settle this waiter. Small state/predicate/test growth is expected, without a measured net source reduction, memory saving or latency gain.",
+      "evidence": "Concrete source-supported sequence: waitOperation has observed its MOSS operation running on a connected stream. While that stream's writer is held, the operation completes; its terminal event is queued. Further publications overflow the bounded event queue, replacing that terminal event with hubResync. Enough other admitted operations exceed the manager's retention limit and trimLocked removes the completed target before the writer resumes. runtimeActivityStream then sends a fresh operation.snapshot without that target on the same connection. waitOperation's reconnected flag is still false because connect emits stream.ready only for the first event of each connection. The missing target is ignored, and subsequent same-connection snapshots cannot settle this waiter. The server can already hold the completed run and image while the composer remains awaiting run. This sequence is established from source, not an observed browser failure; no new browser, service, model or test execution occurred.",
+      "evidence_commit": "4026df4b90d9944a01f21ea3c0123cfe79033156",
+      "expected_benefit": {
+        "outcome": "Release a stale generation wait after an authoritative resynchronization reveals that its observed operation has left retention, without rerunning inference or adding another event mechanism.",
+        "uncertainty": "Source establishes the admitted event sequence and missing branch. No new browser reproduction, production-frequency audit or timing measurement was performed. Cached initial snapshots and queued transitions require preservation in the deciding comparison; an arbitrary absent initial snapshot is not sufficient evidence to refuse a new operation."
+      },
+      "id": "SQA-MOSS-009",
+      "impact": "A slow reader plus normal operation retention can leave an image submission waiting indefinitely while the connection stays open, even after the backend has finished. New generation through that composer can remain busy and its image is not delivered through the pending request. Reconnect or navigation can release/recover the UI through other paths; the ordinary Stop action is not asserted to recover an already-evicted operation. No image corruption, output deletion, repeated GPU execution or measured frequency is established. The repair changes this specific stale wait into the existing explicit recovery outcome and leaves normal progress and native image output unchanged.",
+      "likely_effort": "Small shared JavaScript state/cleanup change and added cases within existing browser and stream fixtures. No native MOSS execution or new infrastructure is needed to decide the behavior.",
+      "plan_coverage": "The MOSS plan owns user-visible progress and cancellation, but does not name same-connection resynchronization after operation retention. This advisory finding is distinct from accepted merge-baseline plan/catalog mismatches and from SQA-218's stale inventory reads. No implementation or plan adoption is performed.",
+      "plan_references": [],
+      "recommended_change": "When implementation resumes, extend the existing waitOperation snapshot state to handle an operation that was already observed and then disappears from a later authoritative live snapshot on the same connection. Reuse the current not-found/recovery rejection and cleanup path used after reconnect, so the caller regains control and can inspect retained activity; do not report successful completion or resubmit inference from absence. Distinguish the subscription's cached initial replay from fresh snapshots, preserving the existing race where submission is newer than that cached snapshot. Keep blocked operations waiting while present and preserve abort/listener cleanup. Coordinate with SQA-218 if a shared resync marker is adopted, but do not create a separate MOSS stream, poller, timeout, queue or retention bypass.",
+      "severity": "P2",
+      "sources": [
+        {
+          "path": "internal/server/webui/workflow.js",
+          "symbol": "waitOperation accepts operation.snapshot but rejects an absent target only when reconnected is true; that flag is set by stream.ready after its initial cached replay"
+        },
+        {
+          "path": "internal/server/event_hub.go",
+          "symbol": "eventHub.publish clears an overflowing subscriber queue and replaces its missed events with hubResync"
+        },
+        {
+          "path": "internal/server/runtime_activity.go",
+          "symbol": "runtimeActivityStream handles hubResync by sending snapshots on the existing connection, including h.operations.List, without a new stream.ready event"
+        },
+        {
+          "path": "internal/operation/runtime.go",
+          "symbol": "Manager.start and Manager.run call trimLocked; trimLocked removes terminal entries while retained entries exceed limit, including after publishing their terminal event"
+        },
+        {
+          "path": "internal/server/webui/composer.js",
+          "symbol": "run awaits overgo.waitOperation before producing generation artifact URLs; generation yields its media only after run settles"
+        },
+        {
+          "path": "internal/server/webui/mod/chat.js",
+          "symbol": "trackOperation.lifecycle.observe updates status text only; submit awaits generation consumption and clears activeOperation in its finally path"
+        },
+        {
+          "path": "internal/server/webui/operations_shell.js",
+          "symbol": "start replaces nonlocal operation entries from operation.snapshot; this independent Activity rendering does not settle waitOperation"
+        },
+        {
+          "path": "internal/server/webui_browser_background_test.go",
+          "symbol": "existing background stream probe checks abort cleanup, blocked waiting, terminal ordering and missing-target refusal after runtimeEvents.restart; it lacks missing-target handling on same-connection resynchronization"
+        },
+        {
+          "path": "internal/server/runtime_serving_test.go",
+          "symbol": "TestRuntimeStreamDeliversServingObservation and runtimeServingProbe provide a flush-controlled overflow/snapshot fixture without timing sleeps"
+        },
+        {
+          "path": "internal/server/event_hub_test.go",
+          "symbol": "existing fan-out test verifies that an overflowing queue becomes one resync marker"
+        },
+        {
+          "path": "internal/server/moss_progress_windows_test.go",
+          "symbol": "TestMOSSGenerationProgress verifies committed stage labels and excludes failed commits or another recipe; these distinct progress contracts remain valid"
+        }
+      ],
+      "status": "open",
+      "title": "End generation waits when resynchronization reveals a retired operation"
     }
   ],
   "gate_test_assessment": {
@@ -2906,8 +2978,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-008. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
-    "checked_head": "f974e826718ce8af55b21f4b8c27041e1ffd6393",
+    "assessment": "Substantive report-only update for P2 SQA-MOSS-009. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "4026df4b90d9944a01f21ea3c0123cfe79033156",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -2951,6 +3023,7 @@
     "SQA-MOSS-005",
     "SQA-MOSS-006",
     "SQA-MOSS-008",
+    "SQA-MOSS-009",
     "SQA-MOSS-002"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
@@ -2980,21 +3053,23 @@
     "At 849360e45, SQA-MOSS-007 traces a positive, divisible image extent through ValidateRequest to CompileVAEProgram. The plane fits int64 while its channel product overflows uint64; MustShape converts the existing shape error into an unrecovered operation-goroutine panic. No huge input was executed.",
     "Use tensor.NewShape at the two request-derived VAE shape sites and return the existing error. Reuse the host compiler test for overflow refusal; keep native numerical fixtures and supported request behavior unchanged.",
     "At f974e8267, SQA-MOSS-008 traces an unmetered successful MOSS load through observe's Load \u003e 0 inference into a zero hardware finish sample and the scorecard's measured host-only cell. Explicit measurement presence can flow through the existing envelope and recorder; native inference remains unchanged.",
-    "The existing TestPeakMemoryReadsASampledZero passed in 0.656s (tmp/moss-sqa/peak-presence-20261028-2104.log). This confirms downstream absent-versus-zero semantics, not full MOSS execution or resource usage. No existing finding or owner response is resolved by this review."
+    "The existing TestPeakMemoryReadsASampledZero passed in 0.656s (tmp/moss-sqa/peak-presence-20261028-2104.log). This confirms downstream absent-versus-zero semantics, not full MOSS execution or resource usage. No existing finding or owner response is resolved by this review.",
+    "At 4026df4b9, SQA-MOSS-009 traces a previously observed generation through terminal-event queue overflow and retention eviction. A same-connection resync snapshot omits the target while waitOperation's reconnect-only missing branch stays disabled, so the composer can remain pending.",
+    "Reuse waitOperation's existing recovery/cleanup path for disappearance from a later live snapshot. Preserve cached-initial-snapshot races and blocked/abort/terminal behavior; extend the existing background stream and flush-controlled fixtures. This is distinct from SQA-218 inventory invalidation. No new execution or resolved finding is claimed."
   ],
-  "reviewed_at": "2026-10-28T21:09:40Z",
+  "reviewed_at": "2026-10-29T01:12:46Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at f974e826718ce8af55b21f4b8c27041e1ffd6393 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
-    "Rotated sample follows MOSS session loading, shared measurement envelopes, server serving observations and scorecard memory cells, with the CLI process-ledger caller checked for differing semantics.",
-    "The new defect is source-confirmed. One existing focused scorecard check passed to verify downstream sampled-zero behavior. No generation, training, performance sweep, broad validation, service, production gate or live database mutation occurred.",
+    "SQA-only review at 4026df4b90d9944a01f21ea3c0123cfe79033156 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample covers MOSS durable stage labels, composer wait callers, shared runtime snapshots, queue overflow, operation retention and existing browser recovery cases.",
+    "The new finding is source-confirmed; retained browser evidence is reused with its original scope. No new test, generation, training, performance sweep, broad validation, service, production gate or live database mutation occurred.",
     "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-008: the server can publish an absent MOSS memory reading as measured zero. Prior finding dispositions are unchanged.",
-      "evidence": "The MOSS Generator has no deviceMeter; measure leaves its peak absent, but observe sets PeakMeasured after a successful positive load duration. The shared recorder emits a zero finish sample and the scorecard calls it host-only. The existing focused scorecard test passed in 0.656s.",
+      "assessment": "New P2 SQA-MOSS-009: a completed generation can leave its UI waiter pending after same-connection resynchronization and operation retention. Prior finding dispositions are unchanged.",
+      "evidence": "The bounded hub can discard a terminal event, the manager can trim its completed target, and the live snapshot then omits it. waitOperation only rejects a missing target after stream.ready marks a reconnect. The sampled same-connection case never takes that branch.",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -3003,14 +3078,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, retain explicit peak-reading presence in the existing Measured envelope and propagate it to the server recorder. Extend existing synthetic measurement/observation cases; keep actual CLI process-ledger semantics and native numerical contracts.",
+      "recommendation": "When implementation resumes, let the existing shared waiter settle through its current recovery path when an observed operation disappears from a later live snapshot. Preserve cached initial replay and existing blocked, abort, terminal and reconnect cases; reuse the current fixtures.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "Source confirms the caller chain; the focused check confirms downstream interpretation only. No full-model execution, production-store occurrence audit, resource benchmark or performance claim was made. Retained evidence scopes and all owner responses remain unchanged.",
+      "uncertainty": "The event sequence and missing recovery branch are established from source. No new browser or server execution, model run, failure-frequency measurement or performance claim was made. Retained evidence and all owner responses keep their original scope.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393"
+      "reviewed_revision": "4026df4b90d9944a01f21ea3c0123cfe79033156"
     },
-  "reviewed_revision": "f974e826718ce8af55b21f4b8c27041e1ffd6393"
+  "reviewed_revision": "4026df4b90d9944a01f21ea3c0123cfe79033156"
 }

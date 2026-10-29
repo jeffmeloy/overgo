@@ -472,6 +472,36 @@
       ]
     },
     {
+      "id": "gemma-cells-reference",
+      "title": "Hold gemma-4-12B's reference answers to the int8 cells it serves over",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name gemma-4-12B's int8 cells among the known answer differences, at the margins measured over them",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./cmd/evaluate -run '^TestModelsAnswerAsTransformersDoes$' -count=1",
+          "rationale": "TestModelsAnswerAsTransformersDoes has failed in every run since 2026-10-28 (the run of 2026-10-25 passed it): gemma-4-12B-it-fp8 answers 21 of its 24 MMLU-Pro questions as transformers does, its question 4812's third token 108 where the reference's 45518 stood 0.396 above its next, and gemma-4-12B-it-fp8-native's conversations 9 of 10, a tenth token 9279 where the reference's 2541 stood 0.358 above its next; both past decisiveMargin (0.25). Three runs at HEAD fail identically, and so does 9a0748d4d, before 2026-10-29's commits. The cause is the int8 attention cells widen-kv-op (237b60f02) gave gemma-4's layers, an fp16 scale to each 64-value group of keys and values: the same test with the cells off (runner_lifecycle.go taking no cell layers, a scratch build) passes all four gemma fixtures, 24 of 24 and 10 of 10 answers the reference's token for token, within 0.0016 to 0.0072 a token, where over the cells the fp8 build's MMLU-Pro answers stand 0.039 a token from it. The cells are kept: without them gemma-4-12B's 16,384-token prompt was refused for memory (the scorecard's 50% failures), and their held-out check passed (TestAttentionCellsHoldHeldOut, 4b25f6d1c; the records read MMLU-Pro 0.490 to 0.492 and BBH 0.657 to 0.655 for the fp8 build across them). knownAnswerDifferences is the test's place for a way of computing that is the file's own and the reference does not share: the two fixtures enter it, each at a margin a little past the one measured over the cells, and the entry fails the test once the difference is gone."
+        }
+      ]
+    },
+    {
+      "id": "soak-model-choice",
+      "title": "Soak the smallest servable model by its bytes on disk, not by its first file's",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Choose the soak's model by every shard's bytes, through the one helper the browser journey uses",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./cmd/evaluate -run '^TestGenerationSoakSurvivesLengthSweep$' -count=1",
+          "rationale": "The 2026-10-29 run's model lane failed TestGenerationSoakSurvivesLengthSweep: 'band 256: the on-band prompt generated ... after a 300-token past', the same prompt's greedy text other than before it. The soak ran on Qwen3.8 Flash Next: soakModelPath orders the servable text models by os.Stat of each one's location, the first shard of a split GGUF, and Flash-Next's first shard holds only its metadata (10.9 MB of 93.7 GB), so the 'smallest' model is the largest. The browser journey's chooser had the same fault (5db56e6db, modelBytes summing the shards its first file declares). Flash-Next's greedy text is not the same from one request to the next: its adaptive expert tier moves experts between the card and the host between requests, and the two round otherwise, so a near tie falls either way (see flashnext-window-rows); at HEAD the soak failed the band walk once and passed it on the next run. The soak's own premise is greedy decoding over an intact cache on a model whose page is small, the fault the 4B and 9B chat passes died of. The change moves modelBytes to one helper both tests call and has the soak choose by it."
+        }
+      ]
+    },
+    {
       "id": "scorecard-regressed-50f41f360f714051",
       "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
       "owner": "master-lead",
@@ -532,6 +562,96 @@
       ]
     },
     {
+      "id": "scorecard-regressed-82d99de4d4606223",
+      "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-82d99de4d4606223 -target 86.33658857751945",
+          "rationale": "- Qwen3.5-4B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 97.1418441 to 31.1977924 (-65.9440516, -67.9%, allowed 10.8052555; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-a64b35bd3226e366",
+      "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a64b35bd3226e366 -target 29.36955006992785",
+          "rationale": "- Qwen3.8-27B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 31.1102711 to 25.9698775 (-5.14039359, -16.5%, allowed 1.74072106; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f065cb6d0649f0de",
+      "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f065cb6d0649f0de -target 39.13759999999999",
+          "rationale": "- Qwen3.5-9B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84}: 29.6668 to 119.0857 (+89.4189, +301.4%, allowed 9.4708; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-9867412d419e3bb1",
+      "title": "Restore gemma-4-E4B-it inference first-output to 158.5486 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-E4B-it inference first-output to 158.5486 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-9867412d419e3bb1 -target 158.54860000000002",
+          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 126.6166 to 167.5657 (+40.9491, +32.3%, allowed 31.932; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-cd642dc19119292f",
+      "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-cd642dc19119292f -target 124.98480000000002",
+          "rationale": "- Qwen2.5-0.5B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 103.9276 to 129.256 (+25.3284, +24.4%, allowed 21.0572; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-8e4ef06d64763091",
+      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8e4ef06d64763091 -target 13140.280499999997",
+          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 12117.8769 to 13225.0002 (+1107.1233, +9.1%, allowed 1022.4036; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
       "id": "scorecard-blind-declines",
       "title": "File a served model's declines across a change of its recipe and before its fifth reading",
       "owner": "master-lead",
@@ -543,6 +663,21 @@
           "status": "open",
           "verify": "go test ./internal/scorecard -run '^TestAServedModelsDeclineIsFiledAcrossARecipeChange$' -count=1",
           "rationale": "The reviewer's finding F1 (P1), confirmed and narrowed. From the record of 2026-10-25 (scorecard-20261025T194250Z) to the record of 2026-10-28 (scorecard-20261028T150740Z), Qwen3.8 Flash Next's inference row got worse: first output 1128.1 to 1742.1 ms (+54%), its 4,096-token first output 1669.5 to 2078.5 ms (+24%), its 16,384-token first output 5563.9 to 8613.5 ms (+55%), load 29.75 to 34.96 s (+18%), and throughput 73.06 to 66.84 tok/s (-9%). No row was filed, for two reasons in internal/scorecard/record.go. First, the rows did pair (same model and task, Pairs), but e0a7e5113 activated a new recipe (recipe:sha256:81d75bcb... to recipe:sha256:c45e957c...). A serving cell's contract carries its recipe as its scope, so holds() read every cell as measured on another contract (Unknown: reported, never filed), and judged() counts only the readings taken on the same contract. Second, even had the recipe held, those cells had two distinct earlier readings (first output 936.2 and 1128.1 ms), fewer than fewestReadings (5), so judged() would leave them Unknown too. Each recipe activation restarts that count, so a model a campaign keeps changing is never judged. Flash-Next is the only model whose recipe changed between the two records.\nThe change has three parts. A serving cell's readings become its model's and task's under any recipe, in one environment, so a recipe change is judged against the level the earlier recipes held. A cell with fewer than fewestReadings readings is judged, not left Unknown, by an allowance stated for it (for example its attempts' spread with a floor), chosen by replaying the published records as the four constants of Reference were, with rows in the tuning table. A serving decline's key leaves out the recipe, so its row is found again after a later activation; today validate -scorecard -gap reports such a row open for ever ('no cell of the scorecard is measured on the contract it named'). Any open serving decline row is re-keyed in the same change. The check is a test that replays Flash-Next's readings: two on one recipe, then a third on another at +54%, files a scorecard-regressed row, and a move within the allowance files none. The landing message lists the rows a replay of the published records then files."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-window-rows",
+      "title": "Make each row of a Flash-Next verify window bitwise the single-token step, as Strata's are",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find the window path whose row differs from the one-token window's and make it compute the same sums",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags models ./internal/inference -run '^TestFlashNextWindowRowsAreTheSingleTokenSteps$' -count=1",
+          "rationale": "The 2026-10-29 run's model lane failed TestFlashNextDecodeRoundIsStratas twice (the lane and its re-acquire): the round's drafted windows wrote 'adding cold.' where its plain decoding, one-token windows through the same verifier, wrote 'adding coldness.' (tokens 8981 1149 against 8981 2022 1149, at the 25th generated token), the text after it the same. It passed at the same code in a later process, whose plain decoding agreed with Overgo's own for 52 of 83 tokens where the run's agreed for 58: the load places each expert on the card or the host by the card's free memory, and with held experts nothing moves them between the test's decodes (no promotion, swap or refill), so the windows themselves give a row other sums than the one-token step. Strata keeps each window row bitwise the single-token call (src/core/verify.cpp 'bitwise the same sums'; mtp.cpp 'each row bitwise the single-token call'; expert_source.cpp, every expert's rows across threads 'bitwise the same as run'), and the port claims it (8cc359407: greedy output is plain decoding's). Candidates: the K-quant window products widened after the port (f3219a174), the CPU pool's rows of an expert for several tokens, the window's attention over the cells. The check is a test that steps one prompt's tokens as one-token windows and as windows of two, three and four, with some experts on the host and some on the card, and holds each row's logits bitwise equal; TestFlashNextDecodeRoundIsStratas's equality then holds whatever placement a load finds."
         }
       ]
     },
@@ -573,96 +708,6 @@
           "status": "open",
           "verify": "false",
           "rationale": "The reviewer's finding F2 (P1), confirmed from the records. Flash-Next's first request after load got slower across the Strata port (8cc359407, 2026-10-27). From the record of 2026-10-25 to the record of 2026-10-28: first output 1128.1 to 1742.1 ms, 4,096-token first output 1669.5 to 2078.5 ms, 16,384-token first output 5563.9 to 8613.5 ms, load 29.75 to 34.96 s, throughput 73.06 to 66.84 tok/s; held-out MMLU-Pro held (0.660 to 0.662). The reviewer's reading of the round's bench (scratchpad round/alt62, ours1-3) puts the 16,384-token first token at 5.93-5.97 s, against 5.30-5.35 s before the port and Strata's 4.94-5.04 s. 8cc359407's message calls the short-chat loss deliberate (its read takes back the lent staging and refills the experts it moved before the first window) and parks the fix. e0a7e5113 (2026-10-26, before the port) read the 4,096-token first output at 1.625 s at its own code.\nTargets, each the cell in the record of 2026-10-25: first output at most 1128.1209 ms, load at most 29749.2492 ms, throughput at least 73.0619 tok/s, 16,384-token first output at most 5563.9 ms. They are read by validate -scorecard -gap -target once scorecard-blind-declines keys a serving decline without its recipe. Until then the check is false, and it is set before any code lands. Warm decode is held: chat 136 tok/s greedy and 143 sampled, agent turns 135 (the round's bench), and the warm cells once scorecard-warm-request lands. First suspects, from the reviewer and unconfirmed: the parked fix (read a short prompt part through the round's windows, as Strata does, so the refill does not wait in front of the first window); for the load and the 16,384-token read, the embedding in mapped host memory and the lent prompt buffers. Each cause is measured before it is changed. A part that cannot come back without giving up warm decode is stated as a deliberate worsening, its target re-set, and the owner told."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-82d99de4d4606223",
-      "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-82d99de4d4606223 -target 86.33658857751945",
-          "rationale": "- Qwen3.5-4B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 97.1418441 to 31.1977924 (-65.9440516, -67.9%, allowed 10.8052555; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-8e4ef06d64763091",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8e4ef06d64763091 -target 13140.280499999997",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 12117.8769 to 13225.0002 (+1107.1233, +9.1%, allowed 1022.4036; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-9867412d419e3bb1",
-      "title": "Restore gemma-4-E4B-it inference first-output to 158.5486 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-E4B-it inference first-output to 158.5486 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-9867412d419e3bb1 -target 158.54860000000002",
-          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 126.6166 to 167.5657 (+40.9491, +32.3%, allowed 31.932; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-a64b35bd3226e366",
-      "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a64b35bd3226e366 -target 29.36955006992785",
-          "rationale": "- Qwen3.8-27B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 31.1102711 to 25.9698775 (-5.14039359, -16.5%, allowed 1.74072106; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-cd642dc19119292f",
-      "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-cd642dc19119292f -target 124.98480000000002",
-          "rationale": "- Qwen2.5-0.5B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 103.9276 to 129.256 (+25.3284, +24.4%, allowed 21.0572; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-f065cb6d0649f0de",
-      "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f065cb6d0649f0de -target 39.13759999999999",
-          "rationale": "- Qwen3.5-9B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84}: 29.6668 to 119.0857 (+89.4189, +301.4%, allowed 9.4708; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

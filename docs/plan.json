@@ -218,16 +218,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "stale-boundary: the boundary choice skips a boundary whose live state moved on or whose sliding cells were written over, two calls in its condition (14 nodes); deleting the stale boundaries instead would add more"
+        "reason": "draft-pays: the runner's judgement of its own draft layer (its tally, the refusal flag, observeOwnDrafts and the default's check of it) and the converter's unit shift of the draft layer's input norms; a load-time check of the norms would name one converter's defect where the tally judges any draft layer by what its trunk keeps"
       },
       "steps": [
-        {
-          "id": "draft-pays",
-          "title": "A model's own draft layer drafts by default only where drafting pays, Qwen3.5-4B's decode back above its floor",
-          "status": "open",
-          "verify": "go run ./cmd/longform -guard -corpus cmd/longform/testdata/guard-corpus.txt -budget 25m C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
-          "rationale": "Qwen3.5-4B's long-form decode fell from 88 tok/s (2026-10-25) to 38 tok/s, below its guard's floor: draft-default (59e8bf5b6) drafts by default wherever a model's file carries its own next-token layer, believing only Qwen3.8-27B's did, but the 4B's file carries one too (blk.32.nextn). Its drafted decode costs 105 launches, 6.9 syncs and 3 MB read back a token against 6, 1 and 4 bytes plain, and about one graph launch a token says its drafts are almost all refused. The step finds why the 4B's drafts are refused, and drafts by default only where drafting pays by the model's facts, never by its name.\nServes: throughput for Qwen3.5-4B (restored) and peak-device-memory (its draft buffers)."
-        },
         {
           "id": "journey-budget",
           "title": "The model journeys bounded, and the wait the library-validation journey hung in fixed",

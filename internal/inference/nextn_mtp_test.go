@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"slices"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -50,5 +51,36 @@ func TestValidateGLM4NextNAvailability(t *testing.T) {
 	runner.weights.AppendedSingleDraft = nil
 	if err := runner.validateNextNMTP(); err == nil {
 		t.Fatal("GLM4 without loaded NextN block was accepted")
+	}
+}
+
+// TestOwnDraftsRefusedWhereFewAreKept: the model's own next-token layer stops drafting by default once the share of its
+// first ownDraftJudgedDrafts its trunk kept falls under ownDraftPaysShare, and only then; the judgement is made once.
+func TestOwnDraftsRefusedWhereFewAreKept(t *testing.T) {
+	t.Parallel()
+	const depth = 3
+	for _, test := range []struct {
+		name    string
+		kept    []int
+		refused bool
+	}{
+		{"a layer keeping a third of its drafts, as Qwen3.8-27B's keeps on prose", []int{1}, false},
+		{"a layer keeping none, as Qwen3.5-4B's unshifted norms keep", []int{0}, true},
+		{"one draft kept in sixteen windows", append([]int{1}, make([]int, ownDraftJudgedDrafts/depth)...), true},
+		{"a layer judged before its drafts were refused", append(slices.Repeat([]int{1}, ownDraftJudgedDrafts/depth), make([]int, ownDraftJudgedDrafts)...), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			runner := &Runner{}
+			for window := range 2 * ownDraftJudgedDrafts / depth {
+				runner.observeOwnDrafts(depth, test.kept[min(window, len(test.kept)-1)])
+			}
+			if runner.ownDraftsRefused.Load() != test.refused {
+				t.Fatalf("refused %v after %d of %d drafts kept, want %v", runner.ownDraftsRefused.Load(), runner.ownKept, runner.ownDrafted, test.refused)
+			}
+			if test.refused && runner.ownDraftLayer() {
+				t.Fatal("a refused layer still drafts by default")
+			}
+		})
 	}
 }

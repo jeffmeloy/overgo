@@ -269,9 +269,12 @@ func qwen35TensorTransforms(dims qwen35LinearDims) tensorValueMapper {
 				return negateExpF32(data, elementSize)
 			}
 		}
-		// Zero-centered RMSNorm: every norm stores w, the runtime consumes 1+w;
-		// the GDN group norm (linear_attn.norm) is conventional and stays raw.
-		if strings.HasSuffix(name, "norm.weight") && !strings.HasSuffix(name, ".linear_attn.norm.weight") {
+		// Zero-centered RMSNorm: every norm stores w, the runtime consumes 1+w, the
+		// draft layer's input norms (mtp.pre_fc_norm_embedding, _hidden) too, as
+		// llama.cpp's conversion stores them; the GDN group norm (linear_attn.norm)
+		// is conventional and stays raw.
+		if (strings.HasSuffix(name, "norm.weight") || strings.HasPrefix(name, "mtp.pre_fc_norm_")) &&
+			!strings.HasSuffix(name, ".linear_attn.norm.weight") {
 			return addOneF32
 		}
 		if !reorder {

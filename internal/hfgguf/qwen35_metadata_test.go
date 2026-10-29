@@ -13,6 +13,33 @@ import (
 	"overgo/internal/safetensors"
 )
 
+// TestQwen35ZeroCenteredNormsShiftByOne: every zero-centered RMSNorm the conversion writes is stored as 1+w, the draft
+// layer's input norms with the rest (a Qwen3.5-4B converted without them drafted almost no token its trunk kept), and the
+// gated-delta group norm stays raw.
+func TestQwen35ZeroCenteredNormsShiftByOne(t *testing.T) {
+	t.Parallel()
+	transforms := qwen35TensorTransforms(qwen35LinearDims{keyHeads: 1, valueHeads: 1, keyWidth: 1, valueWidth: 1})
+	for name, want := range map[string]float32{
+		"model.language_model.layers.0.input_layernorm.weight":  1.5,
+		"model.language_model.layers.0.self_attn.q_norm.weight": 1.5,
+		"model.language_model.norm.weight":                      1.5,
+		"mtp.pre_fc_norm_embedding.weight":                      1.5,
+		"mtp.pre_fc_norm_hidden.weight":                         1.5,
+		"mtp.norm.weight":                                       1.5,
+		"model.language_model.layers.0.linear_attn.norm.weight": 0.5,
+	} {
+		payload := binary.LittleEndian.AppendUint32(nil, math.Float32bits(0.5))
+		if transform := transforms(name); transform != nil {
+			if err := transform(payload, 4); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := math.Float32frombits(binary.LittleEndian.Uint32(payload)); got != want {
+			t.Errorf("%s: stored %v from 0.5, want %v", name, got, want)
+		}
+	}
+}
+
 func TestQwen35RecurrentMetadataIncludesPredictionLayers(t *testing.T) {
 	for name, schedule := range map[string][]string{
 		"periodic": {"linear_attention", "linear_attention", "linear_attention", "full_attention"},

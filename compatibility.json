@@ -450,7 +450,7 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:1a3938016fa73d3a99ed210bf624075390967026e41d60e73c2237c63cbd5a77"
+     "identity": "file:sha256:deb2d22d2d92e77d6e45a9e9b2c7666b7341c79acd1b7f269772a5a6cc77f72a"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",

@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"overgo/internal/artifact"
@@ -277,6 +278,10 @@ type runnerState struct {
 	// qsaWindowLayouts are the rows a window of each size keeps a layer, recorded as its graph is built, which its commit
 	// reads.
 	qsaWindowLayouts map[int][]model.LayerWindow
+	// ownDrafted and ownKept tally the drafts the model's own next-token layer made and its trunk kept, until they judge
+	// whether its drafting pays (observeOwnDrafts); ownDraftsRefused, once set, ends its drafting by default.
+	ownDrafted, ownKept int
+	ownDraftsRefused    atomic.Bool
 }
 
 // Runner: prepared assets + mutable request state.

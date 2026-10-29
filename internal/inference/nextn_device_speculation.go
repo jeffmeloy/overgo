@@ -79,11 +79,37 @@ func (r *Runner) SpeculatesByDefault() bool {
 }
 
 // ownDraftLayer reports whether the runner drafts through its model's own next-token layer, one its file carries (an
-// appended next-token layer, nextn_predict_layers, or a single-head MTP catalog), its weights on the card: Qwen3.8-27B's
-// drafted windows, their K-quant products read once a window, decode a predictable list at 68 to 72 tok/s and prose at
-// 45 to 46 against 37.7 plainly, the answers byte for byte the plain ones.
+// appended next-token layer, nextn_predict_layers, or a single-head MTP catalog), its weights on the card, unless its
+// drafts were refused (observeOwnDrafts): Qwen3.8-27B's drafted windows, their K-quant products read once a window,
+// decode a predictable list at 68 to 72 tok/s and prose at 45 to 46 against 37.7 plainly, the answers byte for byte the
+// plain ones.
 func (r *Runner) ownDraftLayer() bool {
-	return r.hyperDraft == nil && r.strataDraft == nil && r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true})
+	return r.hyperDraft == nil && r.strataDraft == nil && !r.ownDraftsRefused.Load() &&
+		r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true})
+}
+
+// ownDraftJudgedDrafts is the drafts the model's own next-token layer makes before the share its trunk kept judges its
+// drafting, and ownDraftPaysShare the least share that can pay: a window costs at least one plain step, its verify
+// reading every weight once, beside its draft steps, and returns one token and the drafts kept, so a layer keeping
+// fewer than one draft in ten returns at most 1.3 tokens a window of three. Qwen3.8-27B keeps 40 percent of its drafts
+// on prose and 74 to 78 on a list; Qwen3.5-4B's file, its draft layer's input norms converted without their unit shift,
+// kept 4 of 1500 and decoded at 38.5 tok/s against 97 plainly.
+const (
+	ownDraftJudgedDrafts = 48
+	ownDraftPaysShare    = 0.1
+)
+
+// observeOwnDrafts tallies a window's drafts from the model's own next-token layer and those its trunk kept, and once
+// ownDraftJudgedDrafts are tallied refuses the layer's drafting by default where it kept less than ownDraftPaysShare of
+// them; a request that asks to speculate still drafts.
+func (r *Runner) observeOwnDrafts(drafted, kept int) {
+	if r.hyperDraft != nil || r.strataDraft != nil || r.ownDrafted >= ownDraftJudgedDrafts {
+		return
+	}
+	r.ownDrafted, r.ownKept = r.ownDrafted+drafted, r.ownKept+kept
+	if r.ownDrafted >= ownDraftJudgedDrafts && float64(r.ownKept) < ownDraftPaysShare*float64(r.ownDrafted) {
+		r.ownDraftsRefused.Store(true)
+	}
 }
 
 func greedyTokenID(logits []float32) tokenizer.TokenID {
@@ -401,6 +427,7 @@ func (r *Runner) generateDeviceSpeculative(
 				}
 			}
 		}
+		r.observeOwnDrafts(len(drafts), accepted)
 		spanStart := span.Position - uint32(len(spanTokens))
 		seedHidden, err = spanHiddenRow(span.SpanHidden, width, base+accepted)
 		if err != nil {

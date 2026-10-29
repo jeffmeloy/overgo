@@ -1,14 +1,14 @@
 {
   "branch": "codex/overgo_moss",
   "candidate_review": {
-    "assessment": "New P2 SQA-MOSS-009 identifies a generation wait that cannot settle after same-connection resynchronization loses a terminal operation beyond retention. All 42 earlier findings and owner responses are preserved. Totals are 40 open and 3 deferred.",
-    "declined_candidates": "Committed MOSS stage projection and shared abort/reconnect handling retain existing evidence. The new absence case is separate from SQA-218's inventory invalidation. No new stream, poller, timeout, retention expansion or model run is proposed.",
-    "priority": "SQA-MOSS-009 follows the existing MOSS P2 findings and precedes P3 SQA-MOSS-002. All earlier findings retain their relative rank and disposition."
+    "assessment": "New P3 SQA-MOSS-010 identifies a duplicate VAE weight materialization path that can reuse safetensors.ReadF32. All 43 earlier findings and owner responses are preserved. Totals are 41 open and 3 deferred.",
+    "declined_candidates": "No new buffer cache, loader framework or whole-catalog traversal change is required. The final weight slab and GPU memory remain necessary; no model-wide performance improvement is inferred from a source-level allocation reduction.",
+    "priority": "SQA-MOSS-010 follows SQA-MOSS-002. Every earlier finding retains its relative rank and disposition."
   },
   "committed_plan": {
     "git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "path": "docs/plan.json",
-    "revision": "4026df4b90d9944a01f21ea3c0123cfe79033156",
+    "revision": "5176792f059e23ddb800dbdc6396aa01dbc30888",
     "sha256": "cffc2178e9edffe43df94d58bd175ba5acfbc91f74a44c52f626bec9353a8aa1",
     "working_tree_status": "Pinned committed MOSS plan matches the worktree. No plan changes or implementation resumption authorized by this review."
   },
@@ -2431,6 +2431,73 @@
       ],
       "status": "open",
       "title": "End generation waits when resynchronization reveals a retired operation"
+    },
+    {
+      "category": "weight-loading-simplification",
+      "classification": "source-supported-consolidation-opportunity",
+      "closure_criteria": [
+        "loadVAEWeights delegates materialization to safetensors.ReadF32, retains precisely the decoder/post_quant_conv/batch-normalization selection and source closure, and removes its raw buffer/manual bit loop and unused imports.",
+        "A deciding comparison establishes identical float32 bits for supported F32/F16/BF16 data, including signed zero and representative special/subnormal encodings at the reader boundary; the VAE's existing finite-value rejection remains unchanged.",
+        "The existing decoder test home covers selection and named-error behavior through the actual file loader, while native decoder fixture outputs and invalid-weight checks keep their numerical contracts. A buildSpatialVAEDecoder-only golden is not counted as loading coverage.",
+        "Any claimed end-to-end speed or peak-memory gain is supported later by matched measurements; until then report only the removed allocation/code path. Do not run those measurements as routine SQA."
+      ],
+      "comparison": "The focused existing reader checks passed with -count=1 for F32Reader promotion, ReadF32 promotion, unsupported dtype and truncated F32/F16/BF16 payloads. When implementing, extend those same cases for bitwise corner values and use the existing decoder fixture/test home to exercise actual loadVAEWeights selection plus failure context. Keep TestMOSSDecoderGolden, TestMOSSDecoderRejectsInvalidWeights and TestVAEProgramReferenceMatchesHost as distinct numerical/graph contracts. Retained native fixture and merge-baseline evidence keeps its original identities and scope; no decoder, model, GPU, service, broad suite or performance run was launched in this review. No replacement has been implemented or tested yet.",
+      "displaced_surface": "Delete the local tensor-sized byte buffer, ReadFull step, float-array allocation and little-endian bit loop in favor of one existing ReadF32 call; remove two imports. Keep the filtered file-loading owner and all numerical/invalid-weight tests. No existing behavioral test is redundant. Extend the existing conversion/decoder test homes only as required to cover missing loader-boundary cases; no new test framework or parallel golden corpus is needed.",
+      "evidence": "At the pinned revision, loadVAEWeights allocates raw := make([]byte, elements*4), fills it through F32Reader, allocates values := make([]float32, elements), then reconstructs every float from raw. For each selected tensor of N elements, the raw staging allocation alone is 4*N bytes and the manual decode loop duplicates existing safetensors.ReadF32 behavior. This is source-derived allocation work, not measured RSS or peak memory. Both promotion routes use dtype.Float16ToFloat32/BF16ToFloat32. The existing focused safetensors tests passed this review (package duration 0.262s; tmp/moss-sqa/read-f32-20261029-0715.log SHA256 0f0d78d5372c4b46ff0686da3645146e324228761e46e36295ee91eae227bdf8). They confirm current supported-dtype and refusal behavior, not a completed loader migration or full-model equivalence.",
+      "evidence_commit": "5176792f059e23ddb800dbdc6396aa01dbc30888",
+      "expected_benefit": {
+        "outcome": "Reduce duplicated weight-decoding code and transient host allocation/copy work at VAE load while reusing an owner already used by other image loaders and MOSS verification.",
+        "uncertainty": "The removed raw allocation is 4*N bytes per selected tensor by source. Net process peak/RSS and elapsed time are unmeasured: the shared fallback retains a pooled 1 MiB scratch buffer, the old 16-bit stream also allocates scratch, and GC/lifetimes influence peak. Resident weight and GPU-memory savings are not expected. Existing helper examples cover ordinary values, not every floating bit pattern or the loader's selection/error boundary."
+      },
+      "id": "SQA-MOSS-010",
+      "impact": "This removes a full F32 staging allocation and manual conversion pass from each selected VAE tensor load in production MOSS, its native verifier and the existing Krea/Qwen path. Final retained decoder weights, GPU storage, inference arithmetic and training are unchanged. Intended valid-input results are identical float32 bits. Unsupported/truncated inputs remain errors; unifying the call may change exact error wording (the old payload label), so preserve tensor context rather than silently accepting partial data. No output defect, measured speedup or full-model peak-memory reduction is claimed.",
+      "likely_effort": "Small replacement in one shared VAE loader and bounded cases in existing tests; no inference redesign or new component.",
+      "plan_coverage": "The MOSS efficiency lane owns bounded processing and reuse. This identifies an existing shared reader that can remove a concrete duplicate load path; it is advisory and does not adopt implementation or change the plan. It is separate from SQA-MOSS-005 resident allocation metadata growth, SQA-MOSS-008 missing peak measurements and accepted merge-baseline plan/catalog mismatches.",
+      "plan_references": [
+        "moss-efficiency/bounded"
+      ],
+      "recommended_change": "When implementation resumes, replace the F32Reader/raw-buffer/manual-decoding block in loadVAEWeights with safetensors.ReadF32 and retain the existing decoder-only filter, map contract, source lifetime and tensor-name error context. Remove the now-unused io and math imports. Keep the current traversal unless a separate need justifies changing it; Source.MaterializeF32 is available but is not necessary for this bounded repair. Use the existing reader rather than adding a MOSS conversion layer, buffer cache, loader framework or alternate numerical path.",
+      "severity": "P3",
+      "sources": [
+        {
+          "path": "internal/latentimage/vae.go",
+          "symbol": "loadVAEWeights:96 selects decoder/post_quant_conv/batch-normalization weights, streams F32 into a tensor-sized byte buffer, then manually decodes that buffer into a second float32 allocation; io and math imports serve only this block"
+        },
+        {
+          "path": "internal/latentimage/vae_spatial.go",
+          "symbol": "loadSpatialVAEDecoder:32 calls loadVAEWeights before buildSpatialVAEDecoder"
+        },
+        {
+          "path": "internal/latentimage/generator_rotary_windows.go",
+          "symbol": "loadRotaryGenerator calls loadSpatialVAEDecoder for production MOSS generation"
+        },
+        {
+          "path": "internal/latentimage/decoder_verify_windows.go",
+          "symbol": "verifyMOSSDecoder calls the same loader for native-reference verification and already uses safetensors.ReadF32 for the final latent"
+        },
+        {
+          "path": "internal/latentimage/runtime_cuda_windows.go",
+          "symbol": "LoadGenerator also reaches loadVAEWeights through loadVAEDecoder for Krea/Qwen; consolidation affects this existing consumer too"
+        },
+        {
+          "path": "internal/safetensors/convert.go",
+          "symbol": "ReadF32 writes F32 directly into its final float32 slab on little-endian hosts and uses a shared 1 MiB scratch buffer for 16-bit promotion; F32Reader/PromoteF32Reader use the same dtype conversion functions but the streaming reader creates separate input/output buffers"
+        },
+        {
+          "path": "internal/diffusionimage/load.go",
+          "symbol": "loadTensors already uses safetensors.ReadF32 with tensor-name error context"
+        },
+        {
+          "path": "internal/safetensors/convert_test.go",
+          "symbol": "TestF32ReaderPromotes16BitStorage, TestReadF32PromotesIntoFinalSlab, TestReadF32RejectsUnsupportedBeforeAllocation and TestReadF32RejectsTruncatedPayload"
+        },
+        {
+          "path": "internal/latentimage/decoder_test.go",
+          "symbol": "decoderFixture pins decoder.safetensors and supplies an in-memory weight map to TestMOSSDecoderGolden; this numerical check does not exercise loadVAEWeights selection or file loading"
+        }
+      ],
+      "status": "open",
+      "title": "Reuse the existing final-slab reader for VAE weights"
     }
   ],
   "gate_test_assessment": {
@@ -2978,8 +3045,8 @@
   },
   "next_finding_number": 220,
   "publication_context": {
-    "assessment": "Substantive report-only update for P2 SQA-MOSS-009. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
-    "checked_head": "4026df4b90d9944a01f21ea3c0123cfe79033156",
+    "assessment": "Substantive report-only update for P3 SQA-MOSS-010. Prior findings and owner fields preserved; implementation and MOSS plan unchanged.",
+    "checked_head": "5176792f059e23ddb800dbdc6396aa01dbc30888",
     "committed_plan_git_blob": "4f5ea72de16037c952aecf7d5ce4f381d8d0b581",
     "newer_commit_note": "Re-read report and check branch/HEAD/plan immediately before writing. Preserve all existing findings and implementation-owned fields; stop if reviewed inputs changed concurrently.",
     "publication": "Heartbeat authorizes a path-limited report-only commit on codex/overgo_moss. Preserve unrelated index entries. No merge, push, master write or production landing gate."
@@ -3024,7 +3091,8 @@
     "SQA-MOSS-006",
     "SQA-MOSS-008",
     "SQA-MOSS-009",
-    "SQA-MOSS-002"
+    "SQA-MOSS-002",
+    "SQA-MOSS-010"
   ],
   "repository": "C:\\Users\\jeffm\\overgo_moss",
   "review_author": "Scheduled MOSS SQA in the chat that implemented this integration. This is not an independent review.",
@@ -3055,21 +3123,23 @@
     "At f974e8267, SQA-MOSS-008 traces an unmetered successful MOSS load through observe's Load \u003e 0 inference into a zero hardware finish sample and the scorecard's measured host-only cell. Explicit measurement presence can flow through the existing envelope and recorder; native inference remains unchanged.",
     "The existing TestPeakMemoryReadsASampledZero passed in 0.656s (tmp/moss-sqa/peak-presence-20261028-2104.log). This confirms downstream absent-versus-zero semantics, not full MOSS execution or resource usage. No existing finding or owner response is resolved by this review.",
     "At 4026df4b9, SQA-MOSS-009 traces a previously observed generation through terminal-event queue overflow and retention eviction. A same-connection resync snapshot omits the target while waitOperation's reconnect-only missing branch stays disabled, so the composer can remain pending.",
-    "Reuse waitOperation's existing recovery/cleanup path for disappearance from a later live snapshot. Preserve cached-initial-snapshot races and blocked/abort/terminal behavior; extend the existing background stream and flush-controlled fixtures. This is distinct from SQA-218 inventory invalidation. No new execution or resolved finding is claimed."
+    "Reuse waitOperation's existing recovery/cleanup path for disappearance from a later live snapshot. Preserve cached-initial-snapshot races and blocked/abort/terminal behavior; extend the existing background stream and flush-controlled fixtures. This is distinct from SQA-218 inventory invalidation. No new execution or resolved finding is claimed.",
+    "At 5176792f0, SQA-MOSS-010 identifies loadVAEWeights staging each selected tensor in a 4*N byte F32 buffer before allocating/decoding the final float32 slice. The existing safetensors.ReadF32 owner can remove that block and two imports for production MOSS, native verification and Krea/Qwen.",
+    "Focused existing safetensors promotion/refusal checks passed in 0.262s; log retained at tmp/moss-sqa/read-f32-20261029-0715.log. This is functional evidence only. No loader change, numerical golden rerun, model execution or measured performance gain is claimed. Existing decoder goldens bypass the file loader, so loading selection/error coverage remains part of the deciding comparison."
   ],
-  "reviewed_at": "2026-10-29T01:12:46Z",
+  "reviewed_at": "2026-10-29T07:23:20Z",
   "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
   "schema_version": 1,
   "scope": [
-    "SQA-only review at 4026df4b90d9944a01f21ea3c0123cfe79033156 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
-    "Rotated sample covers MOSS durable stage labels, composer wait callers, shared runtime snapshots, queue overflow, operation retention and existing browser recovery cases.",
-    "The new finding is source-confirmed; retained browser evidence is reused with its original scope. No new test, generation, training, performance sweep, broad validation, service, production gate or live database mutation occurred.",
+    "SQA-only review at 5176792f059e23ddb800dbdc6396aa01dbc30888 on codex/overgo_moss. Initial worktree/index clean. Repository instructions and MOSS plan read; implementation remains paused.",
+    "Rotated sample covers VAE weight materialization, production/native-verification callers, existing safetensors reader ownership and decoder fixture coverage.",
+    "One focused existing safetensors check passed (0.262s package duration). No model generation, training, GPU execution, performance sweep, broad validation, service, production gate or live database mutation occurred.",
     "This chat implemented the integration; the review is not independent. Only the advisory report changes; historical and implementation-owned fields are preserved."
   ],
   "sqa_response": {
       "reviewed_master": "841006c7836ba9a503b1ee25c8831c797dc58674",
-      "assessment": "New P2 SQA-MOSS-009: a completed generation can leave its UI waiter pending after same-connection resynchronization and operation retention. Prior finding dispositions are unchanged.",
-      "evidence": "The bounded hub can discard a terminal event, the manager can trim its completed target, and the live snapshot then omits it. waitOperation only rejects a missing target after stream.ready marks a reconnect. The sampled same-connection case never takes that branch.",
+      "assessment": "New P3 SQA-MOSS-010 recommends reusing the existing final-slab reader in the shared VAE loader. Prior finding dispositions are unchanged.",
+      "evidence": "loadVAEWeights has a tensor-sized F32 staging buffer and manual bit loop despite an existing safetensors.ReadF32 owner. Its production MOSS, native verifier and Krea/Qwen callers were traced. Four focused existing reader checks passed (0.262s package duration).",
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "implementation_response_context": {
@@ -3078,14 +3148,14 @@
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "status": "Historical implementation_review, master_lead_triage and all implementation-owned fields preserved byte-for-byte. New plan evidence acknowledged; no implementation response invented."
       },
-      "recommendation": "When implementation resumes, let the existing shared waiter settle through its current recovery path when an observed operation disappears from a later live snapshot. Preserve cached initial replay and existing blocked, abort, terminal and reconnect cases; reuse the current fixtures.",
+      "recommendation": "When implementation resumes, replace only the duplicate materialization block with ReadF32, keep selection/lifetime/error context, and remove its two unused imports. Extend existing reader/decoder tests only for the missing deciding cases.",
       "next_action": "Commit only this substantive report update to the MOSS branch. No implementation, plan update, merge or push.",
-      "uncertainty": "The event sequence and missing recovery branch are established from source. No new browser or server execution, model run, failure-frequency measurement or performance claim was made. Retained evidence and all owner responses keep their original scope.",
+      "uncertainty": "Source establishes a removable 4*N byte staging allocation per selected tensor. Actual speed, process peak memory and full-model effects remain unmeasured. Current checks do not establish an unimplemented replacement's loader-boundary or complete numerical equivalence.",
       "user_findings": [
         "SQA-110"
       ],
       "user_finding_assessment": "SQA-110 retains its owner question/deferral; no admitted mixed legacy producer.124/120 retain their explicit triggers. Sampled historical-cutoff tests do not establish complete-as-of retention semantics.",
-      "reviewed_revision": "4026df4b90d9944a01f21ea3c0123cfe79033156"
+      "reviewed_revision": "5176792f059e23ddb800dbdc6396aa01dbc30888"
     },
-  "reviewed_revision": "4026df4b90d9944a01f21ea3c0123cfe79033156"
+  "reviewed_revision": "5176792f059e23ddb800dbdc6396aa01dbc30888"
 }

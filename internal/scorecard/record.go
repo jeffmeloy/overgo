@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -91,6 +92,39 @@ func Records(directory string) ([]Record, error) {
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+// Published is when the record was published, read from the name Publish
+// gave its file; false for a record not read from such a file.
+func (record Record) Published() (time.Time, bool) {
+	stamp, prefixed := strings.CutPrefix(record.Name, recordPrefix)
+	stamp, suffixed := strings.CutSuffix(stamp, recordSuffix)
+	published, err := time.Parse(recordTime, stamp)
+	return published, prefixed && suffixed && err == nil
+}
+
+// Unmeasured is the record with each serving cell whose newest attempt started
+// before since, when the previous record was published, said to be unmeasured
+// since then: a gap, never a reading. A recipe whose attempts in a run failed
+// or were set aside keeps a window of older attempts, whose median read as
+// measured under a label that says newest. A longer prompt's or a warm
+// request's cell so read is left out.
+func (record Record) Unmeasured(since time.Time) Record {
+	stale := func(cell Cell) bool { return cell.Newest != 0 && cell.Newest < since.UnixNano() }
+	record.Rows = slices.Clone(record.Rows)
+	for index := range record.Rows {
+		row := &record.Rows[index]
+		row.Cells = maps.Clone(row.Cells)
+		for column, cell := range row.Cells {
+			if stale(cell) {
+				row.Cells[column] = gap(fmt.Sprintf("not measured since the previous scorecard, published %s: the newest attempt its cell reads started %s",
+					since.UTC().Format(time.RFC3339), time.Unix(0, cell.Newest).UTC().Format(time.RFC3339)))
+			}
+		}
+		row.Lengths = slices.DeleteFunc(slices.Clone(row.Lengths), stale)
+		row.Warm = slices.DeleteFunc(slices.Clone(row.Warm), stale)
+	}
+	return record
 }
 
 // explained refuses a row without a cell for every column, and a cell that

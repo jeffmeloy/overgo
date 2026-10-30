@@ -103,6 +103,11 @@ type Cell struct {
 	// read at a longer prompt was timed at (Row.Lengths); zero for every other
 	// cell.
 	Prompt int `json:"prompt,omitzero"`
+	// Newest is when the newest attempt a serving timing or memory cell reads
+	// started, in nanoseconds since the epoch: a cell whose newest attempt
+	// started before the previous record was published was not measured since
+	// it (Record.Unmeasured). Zero for every other cell.
+	Newest int64 `json:"newest_unix_ns,omitzero"`
 	// allowed and unjudged are a reference's alone (Reference) and are never
 	// published: how far, in the cell's unit, a later reading may stand worse
 	// than the reference's value, and why nothing is judged against it, said
@@ -619,9 +624,11 @@ const (
 	timingCount
 )
 
-// servingSample is one measured attempt and what each of its timings took, the times in milliseconds.
+// servingSample is one measured attempt, when it started and what each of its timings took, the times in
+// milliseconds.
 type servingSample struct {
 	attempt artifact.ID
+	started int64
 	took    [timingCount]float64
 }
 
@@ -654,6 +661,7 @@ func (summary *servingSummary) timed(timing int, unit, metric, label string) (Ce
 	// neither's: the cell then names the newer, the measured attempt, which the memory cell reads.
 	named := max(slices.IndexFunc(summary.window, func(sample servingSample) bool { return sample.took[timing] == middle }), 0)
 	cell := summary.cell(summary.window[named].attempt, middle, unit, metric, label)
+	cell.Newest = summary.window[0].started
 	for index, taken := range values {
 		values[index] = math.Abs(taken - middle)
 	}
@@ -682,7 +690,7 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
 		return
 	}
-	sample := servingSample{attempt: observation.ID}
+	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 	sample.took[timingFirstOutput] = milliseconds(observation.Hardware[at].ElapsedNS)
 	read.window = append(read.window, sample)
 }
@@ -698,7 +706,7 @@ func (summary *servingSummary) readWarm(observation runrecord.ServingObservation
 	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
 		return
 	}
-	sample := servingSample{attempt: observation.ID}
+	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 	for _, hardware := range observation.Hardware {
 		if hardware.Stage == runrecord.ServingHardwarePrefill {
 			sample.took[timingFirstOutput] = milliseconds(hardware.ElapsedNS)
@@ -828,7 +836,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			return nil
 		}
 		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths, warm: summary.warm}
-		timings := servingSample{attempt: observation.ID}
+		timings := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
 				timings.took[timingFirstOutput] = milliseconds(sample.ElapsedNS)
@@ -1243,7 +1251,9 @@ func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed 
 
 func peakMemoryCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if observed != nil && observed.peakDeviceBytes != 0 {
-		return observed.cell(observed.measured, float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory, the newest measured attempt")
+		cell := observed.cell(observed.measured, float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory, the newest measured attempt")
+		cell.Newest = observed.window[0].started
+		return cell
 	}
 	if observed != nil && observed.deviceSampled {
 		// Sampled at an attempt's finish and never above zero: the model

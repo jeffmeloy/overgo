@@ -46,20 +46,29 @@ const (
 // model and task, then, when a served model declares an architecture, the
 // share of them a declaration alone supports, then every gap with the reason
 // no record measures it. With a records directory it then publishes the
-// scorecard there and prints what moved since the previous record.
+// scorecard there and prints what moved since the previous record; a serving
+// cell not measured since that record was published is printed and published
+// as the gap it is (scorecard.Record.Unmeasured).
 func writeScorecard(ctx context.Context, store *overgodb.Store, root, records string, output io.Writer) error {
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {
 		return err
 	}
+	var previous []scorecard.Record
+	if records != "" {
+		if previous, err = scorecard.Records(records); err != nil {
+			return err
+		}
+	}
+	if len(previous) != 0 {
+		if since, published := previous[len(previous)-1].Published(); published {
+			rows = scorecard.Record{Rows: rows}.Unmeasured(since).Rows
+		}
+	}
 	if err := printScorecard(ctx, rows, root, output); err != nil || records == "" {
 		return err
 	}
 	commit, err := revParse(ctx, root, "HEAD")
-	if err != nil {
-		return err
-	}
-	previous, err := scorecard.Records(records)
 	if err != nil {
 		return err
 	}

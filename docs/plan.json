@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "stale-cells",
-      "title": "A serving cell whose newest attempt predates the previous scorecard says so and is a gap, never a reading",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A serving cell whose newest attempt predates the previous scorecard says so and is a gap, never a reading",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestACellNotMeasuredThisRunSaysSo$'",
-          "rationale": "Review of 2026-10-30 (F2, P1), checked: on scorecard-20261030T094420Z Qwen3.8 Flash Next's first-output and load-time cells (and throughput, by the review) carry evidence:sha256:4b579301, the record the 2026-10-29 scorecards carry, while its longer-prompt and warm cells carry new evidence, and the run did measure the model (the log reads load 31.675 s and first token 2.247 s against the cell's 2.804 s). The label still says \"the median of the newest measured attempts\". flashnext-first-request is judged on exactly that cell. Two parts: find why this run's cold attempt was not the one read (servingByRecipe's choice of attempts, by recipe or by set-aside contention), and make it code that a cell whose evidence was recorded before the run's own start says \"not re-measured this run\" and is filed as unmeasured, never carried over in silence.\n\nRe-scoped 2026-10-30 on reading the cell's window from the store: the claim does not hold. Flash-Next's serving window (servingByRecipe, recentAttempts = 3) is this run's attempt cc21257c (first output 2222.8 ms, load 31675 ms, decode 86.79 tok/s), then ac74fec2 (2944.9, 30325, 93.49) and 4b579301 (2803.8, 30536, 88.85); each cell is the median of the three and names the attempt whose value the median is (timed), which for all three columns is 4b579301. So the run was read and nothing was carried over. What the review points at in general is real: a recipe whose attempt in this run failed keeps a window of older attempts, and its cells read as measured with nothing saying none is this run's. The change: a serving cell carries its window's newest attempt's start (ServingObservation.StartedUnixNS); a published cell whose newest attempt started before the previous record was published says \"not measured since the previous scorecard\" and is a gap, never a reading. Done after the Qwen3.5-4B rows."
-        }
-      ]
-    },
-    {
       "id": "run-record",
       "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
       "owner": "master-lead",

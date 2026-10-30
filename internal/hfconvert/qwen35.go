@@ -18,6 +18,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/projector"
 )
@@ -110,6 +111,13 @@ func View(directory, name string) (*gguf.File, error) {
 		return nil, errors.Join(err, repository.Close())
 	}
 	return file, nil
+}
+
+// Viewed reports whether View serves directory as it is, so its model is
+// served from its own files and never converted: a Qwen 3.5 checkpoint.
+func Viewed(directory string) bool {
+	var config modelConfig
+	return jsonfile.Decode(filepath.Join(directory, "config.json"), &config) == nil && config.ModelType == "qwen3_5"
 }
 
 // init makes gguf.Open serve a directory as its View, so a model registered

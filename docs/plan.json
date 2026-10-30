@@ -162,16 +162,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "a directory opened, identified and found present as its view (gguf's directory opener, a view's inventory and claims, the catalog's directory signature) and the shared Qwen3.5 test directory: a model registered from its own files takes the paths a GGUF does"
+        "reason": "onboarding a Qwen3.5 directory as itself and the superseded retirement with its shared source rule: a model served from its own files replaces its conversion in the catalog"
       },
       "steps": [
-        {
-          "id": "register",
-          "title": "The 4B is registered from its own files and its conversion retired from the catalog",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingAQwen35DirectoryWritesNoGGUF$'",
-          "rationale": "Filed 2026-10-30. With the step open, the 4B is registered from its own files: its source, which only adaptive_new/models holds, is copied to overgo_data/models (a local copy, no download; adaptive_new is reference only); gguf convert -view -record binds its model config to the view's identity, so the scorecard's succession (6e20f21d4) links it to the conversion it replaces by their recorded sources; onboarding (cmd/validate -onboard) registers a Qwen3.5 directory without converting it, records and replays its exact suite and activates it; and the conversion's activation is retired, so the catalog lists one 4B and the succession applies. The conversion's GGUF then waits for native-text-weights' list of duplicates. The check: the onboarding of a Qwen3.5 directory writes no GGUF and activates the directory."
-        },
         {
           "id": "native",
           "title": "Serve Qwen3.5-4B from its own safetensors, the converter's tables applied at load, no GGUF written",

@@ -402,23 +402,13 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 // successions names, for each model listed, the models it took the place of
 // (Row.Succeeds): each model no longer listed whose recorded sources (its
 // newest model config's) are the listed model's, file for file, among them its
-// architecture (architectureSource). Sources two listed models share name no
+// architecture (modelartifact.SourcesKey). Sources two listed models share name no
 // successor, since then which one took the place is not recorded; sources
 // without the architecture name no model, as a sampling card alone does not
 // (Qwen3.5-4B and 9B ship the same one). Never a name: sources are what a
 // conversion and a registration record of the files they read.
 func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed []artifact.ID) map[artifact.ID][]artifact.ID {
-	read := func(model artifact.ID) string {
-		var files []string
-		for _, source := range sources[model] {
-			files = append(files, source.Name+"="+source.SHA256)
-		}
-		if !slices.ContainsFunc(sources[model], func(source modelartifact.ConfigSource) bool { return source.Name == architectureSource }) {
-			return ""
-		}
-		slices.Sort(files)
-		return strings.Join(files, "\n")
-	}
+	read := func(model artifact.ID) string { return modelartifact.SourcesKey(sources[model]) }
 	heirs := map[string][]artifact.ID{}
 	for _, model := range listed {
 		if files := read(model); files != "" && !slices.Contains(heirs[files], model) {
@@ -436,10 +426,6 @@ func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed []
 	}
 	return succeeded
 }
-
-// architectureSource is the source file that declares a model's architecture, its shapes and its vocabulary, without
-// which recorded sources do not say which model they are.
-const architectureSource = "config.json"
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out
 // quality a vision-language model's answers could measure: the held-out evaluations ask about what

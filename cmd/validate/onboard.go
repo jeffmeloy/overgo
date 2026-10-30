@@ -14,9 +14,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/hfconvert"
 	"overgo/internal/libraryintake"
+	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 // onboardCommand is the one command that takes a model directory to
@@ -32,13 +37,15 @@ const ggufExtension = ".gguf"
 
 // onboarding is the one command's steps: registered names the models the
 // store already ties to a directory, run executes an existing command at the
-// repository root, and validate is the library's own validation of a GGUF --
-// register, record and replay an exact suite, publish, activate.
+// repository root, validate is the library's own validation of a GGUF --
+// register, record and replay an exact suite, publish, activate -- and retire
+// retires a conversion the model a directory serves takes the place of.
 type onboarding struct {
 	store, checkpoints string
 	registered         func(ctx context.Context, directory string) ([]InventoryModel, error)
 	run                func(ctx context.Context, name string, args []string) error
 	validate           func(ctx context.Context, model, projector string) (operation.Completion, error)
+	retire             func(ctx context.Context, directory string, conversion artifact.ID) error
 }
 
 // newOnboarding binds the steps to the data roots, the repository root and
@@ -90,7 +97,47 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 			}
 			return execute(ctx, stageReporter{output})
 		},
+		retire: func(ctx context.Context, directory string, conversion artifact.ID) (err error) {
+			repository, err := overgodb.Open(store)
+			if err != nil {
+				return err
+			}
+			defer func() { err = errors.Join(err, repository.Close()) }()
+			heir, err := servedModel(ctx, repository, directory)
+			if err != nil {
+				return err
+			}
+			sources, err := modelartifact.ConfigSources(ctx, repository)
+			if err != nil {
+				return err
+			}
+			if key := modelartifact.SourcesKey(sources[heir]); key == "" || key != modelartifact.SourcesKey(sources[conversion]) {
+				return fmt.Errorf("%s and %s record no sources they share, so neither takes the other's place", heir, conversion)
+			}
+			revision, err := runrecord.VerifyingCommit(root)
+			if err != nil {
+				return err
+			}
+			return modelrecipe.RetireSupersededActivation(ctx, repository, conversion, heir, recipe.TaskInference, revision,
+				"served from its own files at "+directory+", built from the files the conversion was")
+		},
 	}, nil
+}
+
+// servedModel is the model registered at directory itself, the model the
+// directory serves from its own files.
+func servedModel(ctx context.Context, repository *overgodb.Store, directory string) (artifact.ID, error) {
+	cells, err := registeredCells(ctx, repository)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	at := slices.IndexFunc(cells, func(cell ModelValidation) bool {
+		return strings.EqualFold(filepath.Clean(cell.Location), filepath.Clean(directory))
+	})
+	if at < 0 {
+		return artifact.ID{}, fmt.Errorf("no model is registered at %s", directory)
+	}
+	return cells[at].Model, nil
 }
 
 // onboard takes one model from its directory to validated: a Hugging Face
@@ -111,6 +158,10 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if err != nil {
 		return err
 	}
+	// A directory served as it is takes the place of any conversion of it: an
+	// activated one is retired once the directory is activated, never refused.
+	native := model == directory
+	var superseded []artifact.ID
 	if info, err := os.Stat(directory); err == nil && info.IsDir() {
 		tied, err := steps.registered(ctx, directory)
 		if err != nil {
@@ -118,7 +169,14 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 		}
 		var bound []string
 		for _, registered := range tied {
-			if slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" }) {
+			activated := slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" })
+			if native && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) {
+				if activated {
+					superseded = append(superseded, registered.Model)
+				}
+				continue
+			}
+			if activated {
 				return fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
 					directory, registered.Location)
 			}
@@ -144,10 +202,22 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 			return fmt.Errorf("onboard: convert %s: %w", directory, err)
 		}
 	}
+	if native {
+		fmt.Fprintf(output, "onboard: %s is served from its own files; record its declarations under the model it serves\n", directory)
+		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-view", "-source", directory, "-record", steps.store}); err != nil {
+			return fmt.Errorf("onboard: record %s: %w", directory, err)
+		}
+	}
 	fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
 	completion, err := steps.validate(ctx, model, projector)
 	if err != nil {
 		return fmt.Errorf("onboard: validate %s: %w", model, err)
+	}
+	for _, conversion := range superseded {
+		fmt.Fprintf(output, "onboard: retire %s, the conversion %s takes the place of\n", conversion, directory)
+		if err := steps.retire(ctx, directory, conversion); err != nil {
+			return fmt.Errorf("onboard: retire %s: %w", conversion, err)
+		}
 	}
 	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model}, steps.store)
 	if err != nil {
@@ -180,6 +250,9 @@ func onboardingModel(path, conversions string) (model, projector string, convert
 	}
 	if _, err := os.Stat(filepath.Join(path, modelConfigFile)); err != nil {
 		return "", "", false, fmt.Errorf("onboard: %s holds neither a GGUF nor a Hugging Face %s", path, modelConfigFile)
+	}
+	if hfconvert.Viewed(path) {
+		return path, "", false, nil
 	}
 	return filepath.Join(conversions, filepath.Base(path)+ggufExtension), "", true, nil
 }

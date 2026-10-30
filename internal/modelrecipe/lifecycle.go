@@ -373,6 +373,87 @@ func RetireOrphanedActivation(
 	return err
 }
 
+// RetireSupersededActivation retires model's activation for task in favor of
+// successor, a model active and trusted for the same task that takes its
+// place: built from the same source files, as a model served from its own
+// files takes a conversion's place. The caller holds that evidence and names it
+// in reason; the successor's activation is recorded beside it, and the alias
+// is removed, so the catalog lists one model for those files.
+func RetireSupersededActivation(
+	ctx context.Context,
+	store artifact.Repository,
+	model, successor artifact.ID,
+	task recipe.Task,
+	revision, reason string,
+) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("model recipe: retirement reason is empty")
+	}
+	if model == successor {
+		return errors.New("model recipe: a model does not supersede itself")
+	}
+	alias := activeAlias(model, task)
+	activeID, active, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("model recipe: retirement requires an active recipe")
+	}
+	heir, trusted, err := ActiveRecord(ctx, store, successor, task)
+	if err != nil || !trusted {
+		return errors.Join(fmt.Errorf("model recipe: %s supersedes no activation without a trusted %s activation of its own", successor, task), err)
+	}
+	definition, err := recipe.RequireDefinition(ctx, store, activeID)
+	if err != nil {
+		return err
+	}
+	evidenceContract := artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: artifact.JSONMediaType,
+		Schema: "overgo/superseded-activation/v1",
+	}
+	evidenceBody, err := json.Marshal(struct {
+		Model           artifact.ID `json:"model"`
+		Task            recipe.Task `json:"task"`
+		Recipe          artifact.ID `json:"recipe"`
+		Successor       artifact.ID `json:"successor"`
+		SuccessorRecipe artifact.ID `json:"successor_recipe"`
+		Revision        string      `json:"revision"`
+	}{Model: model, Task: task, Recipe: definition.ID, Successor: successor, SuccessorRecipe: heir.Definition.ID, Revision: revision})
+	if err != nil {
+		return err
+	}
+	evidence, err := evidenceContract.ContentBytes(evidenceBody)
+	if err != nil {
+		return err
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
+		reason+"; superseded by "+successor.String()+" under "+heir.Definition.ID.String(),
+		recipe.Decider{CodeCommit: revision, Derivation: definition.ID},
+		[]artifact.ID{evidence.Descriptor.ID, heir.Definition.ID},
+	)
+	if err != nil {
+		return err
+	}
+	batch, err := decision.Batch("recipe/superseded-retirement/" + definition.ID.String() + "/" + decision.ID.String())
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, evidence.Descriptor)
+	batch.Contents = append(batch.Contents, evidence)
+	batch.Aliases = append(batch.Aliases, artifact.AliasRemoval(alias, activeID))
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return err
+	}
+	_, _, err = Transition(
+		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
+		definition, recipe.StatusSuperseded,
+		[]artifact.ID{decision.ID, evidence.Descriptor.ID}, nil,
+	)
+	return err
+}
+
 // reverifyActiveCapability: refresh proof after verifier-schema or code change.
 func reverifyActiveCapability(
 	ctx context.Context,

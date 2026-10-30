@@ -5,10 +5,34 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
+
+// architectureSource is the source file that declares a model's architecture,
+// its shapes and its vocabulary, without which recorded sources do not say
+// which model they are.
+const architectureSource = "config.json"
+
+// SourcesKey is recorded sources as one comparable text, file for file in name
+// order, or empty where they do not declare the model's architecture
+// (architectureSource): two models whose keys are equal and not empty were
+// built from the same files. A sampling card alone names no model; Qwen3.5-4B
+// and 9B ship the same one.
+func SourcesKey(sources []ConfigSource) string {
+	if !slices.ContainsFunc(sources, func(source ConfigSource) bool { return source.Name == architectureSource }) {
+		return ""
+	}
+	files := make([]string, 0, len(sources))
+	for _, source := range sources {
+		files = append(files, source.Name+"="+source.SHA256)
+	}
+	slices.Sort(files)
+	return strings.Join(files, "\n")
+}
 
 // ConfigSources is each model's recorded sources, from the newest model config
 // the store holds for it: the files of the directory the model was converted

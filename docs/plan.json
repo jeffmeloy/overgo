@@ -472,6 +472,81 @@
       ]
     },
     {
+      "id": "scorecard-blind-declines",
+      "title": "File a served model's declines across a change of its recipe and before its fifth reading",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Judge a serving cell across its model's recipes and before its fifth reading, and key its decline without the recipe",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestAServedModelsDeclineIsFiledAcrossARecipeChange$' -count=1",
+          "rationale": "The reviewer's finding F1 (P1), confirmed and narrowed. From the record of 2026-10-25 (scorecard-20261025T194250Z) to the record of 2026-10-28 (scorecard-20261028T150740Z), Qwen3.8 Flash Next's inference row got worse: first output 1128.1 to 1742.1 ms (+54%), its 4,096-token first output 1669.5 to 2078.5 ms (+24%), its 16,384-token first output 5563.9 to 8613.5 ms (+55%), load 29.75 to 34.96 s (+18%), and throughput 73.06 to 66.84 tok/s (-9%). No row was filed, for two reasons in internal/scorecard/record.go. First, the rows did pair (same model and task, Pairs), but e0a7e5113 activated a new recipe (recipe:sha256:81d75bcb... to recipe:sha256:c45e957c...). A serving cell's contract carries its recipe as its scope, so holds() read every cell as measured on another contract (Unknown: reported, never filed), and judged() counts only the readings taken on the same contract. Second, even had the recipe held, those cells had two distinct earlier readings (first output 936.2 and 1128.1 ms), fewer than fewestReadings (5), so judged() would leave them Unknown too. Each recipe activation restarts that count, so a model a campaign keeps changing is never judged. Flash-Next is the only model whose recipe changed between the two records.\nThe change has three parts. A serving cell's readings become its model's and task's under any recipe, in one environment, so a recipe change is judged against the level the earlier recipes held. A cell with fewer than fewestReadings readings is judged, not left Unknown, by an allowance stated for it (for example its attempts' spread with a floor), chosen by replaying the published records as the four constants of Reference were, with rows in the tuning table. A serving decline's key leaves out the recipe, so its row is found again after a later activation; today validate -scorecard -gap reports such a row open for ever ('no cell of the scorecard is measured on the contract it named'). Any open serving decline row is re-keyed in the same change. The check is a test that replays Flash-Next's readings: two on one recipe, then a third on another at +54%, files a scorecard-regressed row, and a move within the allowance files none. The landing message lists the rows a replay of the published records then files."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-window-rows",
+      "title": "Make each row of a Flash-Next verify window bitwise the single-token step, as Strata's are",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find the window path whose row differs from the one-token window's and make it compute the same sums",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags models ./internal/inference -run '^TestFlashNextWindowRowsAreTheSingleTokenSteps$' -count=1",
+          "rationale": "The 2026-10-29 run's model lane failed TestFlashNextDecodeRoundIsStratas twice (the lane and its re-acquire): the round's drafted windows wrote 'adding cold.' where its plain decoding, one-token windows through the same verifier, wrote 'adding coldness.' (tokens 8981 1149 against 8981 2022 1149, at the 25th generated token), the text after it the same. It passed at the same code in a later process, whose plain decoding agreed with Overgo's own for 52 of 83 tokens where the run's agreed for 58: the load places each expert on the card or the host by the card's free memory, and with held experts nothing moves them between the test's decodes (no promotion, swap or refill), so the windows themselves give a row other sums than the one-token step. Strata keeps each window row bitwise the single-token call (src/core/verify.cpp 'bitwise the same sums'; mtp.cpp 'each row bitwise the single-token call'; expert_source.cpp, every expert's rows across threads 'bitwise the same as run'), and the port claims it (8cc359407: greedy output is plain decoding's). Candidates: the K-quant window products widened after the port (f3219a174), the CPU pool's rows of an expert for several tokens, the window's attention over the cells. The check is a test that steps one prompt's tokens as one-token windows and as windows of two, three and four, with some experts on the host and some on the card, and holds each row's logits bitwise equal; TestFlashNextDecodeRoundIsStratas's equality then holds whatever placement a load finds."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-warm-request",
+      "title": "Score a warm request beside the cold one, so a trade between them shows both sides",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure the same request again on the loaded model and score its throughput and follow-up first output beside the cold cells",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestAWarmRequestIsScoredBesideTheColdOne$' -count=1",
+          "rationale": "The reviewer's finding F3 (P2). measureInference (cmd/recipe/inference_measure.go) records the first request its verification ran, right after load, and then only 24-token reads at each prompt length (observeLengths), so the scorecard's throughput and first output come from a cold request. Warm decode, which a conversation gets, rose with the Strata port to Strata's rate on the round's bench (chat 99-104 to 136 tok/s greedy and 88-95 to 143 sampled, agent turns 98-108 to 135), while the scorecard read Flash-Next's throughput falling from 73.1 to 66.8 tok/s. The change measures the same request a second time on the loaded model (journeyInference already lists 'the same request again on a loaded model' as one of its ways), and scores that request's throughput, and its first output as a follow-up's, as cells on their own contracts beside the cold ones. Compare holds a cell its reference did not measure, so the new cells file no decline when they first appear. The lead's call: this P2 ranks before flashnext-first-request, which is to hold warm decode while it brings the cold request back, and only this row makes the scorecard read that side.\n\nIts throughput cell must time a request long enough to decode: the cell reads the first request the recipe's verification ran, a three-token answer ('What is 17 plus 25?'), so a drafted span's start, not the decode, is what it times (Qwen3.8-27B 31.3 to 26.0 tok/s on the 2026-10-29 record while its 128-token requests decode 48.6 drafted against 37.2 plain)."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-first-request",
+      "title": "Bring Flash-Next's first request after load back to its 2026-10-25 figures, keeping warm decode",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",
+          "status": "open",
+          "verify": "false",
+          "rationale": "The reviewer's finding F2 (P1), confirmed from the records. Flash-Next's first request after load got slower across the Strata port (8cc359407, 2026-10-27). From the record of 2026-10-25 to the record of 2026-10-28: first output 1128.1 to 1742.1 ms, 4,096-token first output 1669.5 to 2078.5 ms, 16,384-token first output 5563.9 to 8613.5 ms, load 29.75 to 34.96 s, throughput 73.06 to 66.84 tok/s; held-out MMLU-Pro held (0.660 to 0.662). The reviewer's reading of the round's bench (scratchpad round/alt62, ours1-3) puts the 16,384-token first token at 5.93-5.97 s, against 5.30-5.35 s before the port and Strata's 4.94-5.04 s. 8cc359407's message calls the short-chat loss deliberate (its read takes back the lent staging and refills the experts it moved before the first window) and parks the fix. e0a7e5113 (2026-10-26, before the port) read the 4,096-token first output at 1.625 s at its own code.\nTargets, each the cell in the record of 2026-10-25: first output at most 1128.1209 ms, load at most 29749.2492 ms, throughput at least 73.0619 tok/s, 16,384-token first output at most 5563.9 ms. They are read by validate -scorecard -gap -target once scorecard-blind-declines keys a serving decline without its recipe. Until then the check is false, and it is set before any code lands. Warm decode is held: chat 136 tok/s greedy and 143 sampled, agent turns 135 (the round's bench), and the warm cells once scorecard-warm-request lands. First suspects, from the reviewer and unconfirmed: the parked fix (read a short prompt part through the round's windows, as Strata does, so the refill does not wait in front of the first window); for the load and the 16,384-token read, the embedding in mapped host memory and the lent prompt buffers. Each cause is measured before it is changed. A part that cannot come back without giving up warm decode is stated as a deliberate worsening, its target re-set, and the owner told."
+        }
+      ]
+    },
+    {
+      "id": "executor-setup",
+      "title": "Load and resolve only the kernels a model's graphs launch, so a first request pays for its own",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Load each kernel module, and resolve each function, when a graph first launches from it",
+          "status": "open",
+          "verify": "false",
+          "rationale": "Every model's first request runs the executor's setup (ensureResources): loading the three kernel modules from PTX (ops_f32 6.1 MB, strata_qsa 4.4 MB, strata_native 2.5 MB; about 6, 8 and 5 ms each with the driver's compiled cache warm) and resolving all 446 functions, then setting the large-shared kernels' limits, about 30 ms of a first request in a CPU profile. The Strata decode port added strata_native and with it 13 ms to Qwen3.5-9B's first request on a fresh load (44 to 57 ms at 8cc359407, each read twice); Qwen2.5-0.5B's measured attempts stepped 115 to 131 ms across the same window. After cells-first-request (the cell layers' needless cuBLAS, about 70 ms) and first-request-setup (the bundle's hash, about 5 ms), the first-output rows still stand above their targets on fresh measurements from a clean tree: Bonsai-27B 120 ms (target 102.7), Qwen3.5-9B 54 ms (39.1), Qwen2.5-0.5B 129 to 132 ms (125); gemma-4-E4B-it read 200 and 311 ms, its first request reading its weights back after the other models' loads. The change loads a module, and resolves a function, only when a graph first launches from it, before the graph runs or is captured, so a model pays for the kernels it uses: most models never launch the native module's 70 functions or the QSA module's 123. The launches index the function table directly in many hand-written files and setup configures some functions up front, so the change is mechanical but wide. The check is set before the code lands, with the test that holds it."
+        }
+      ]
+    },
+    {
       "id": "scorecard-regressed-f150c20a36aed39b",
       "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
       "owner": "master-lead",
@@ -573,66 +648,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-82d99de4d4606223 -target 86.33658857751945",
           "rationale": "- Qwen3.5-4B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 97.1418441 to 31.1977924 (-65.9440516, -67.9%, allowed 10.8052555; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-blind-declines",
-      "title": "File a served model's declines across a change of its recipe and before its fifth reading",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Judge a serving cell across its model's recipes and before its fifth reading, and key its decline without the recipe",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestAServedModelsDeclineIsFiledAcrossARecipeChange$' -count=1",
-          "rationale": "The reviewer's finding F1 (P1), confirmed and narrowed. From the record of 2026-10-25 (scorecard-20261025T194250Z) to the record of 2026-10-28 (scorecard-20261028T150740Z), Qwen3.8 Flash Next's inference row got worse: first output 1128.1 to 1742.1 ms (+54%), its 4,096-token first output 1669.5 to 2078.5 ms (+24%), its 16,384-token first output 5563.9 to 8613.5 ms (+55%), load 29.75 to 34.96 s (+18%), and throughput 73.06 to 66.84 tok/s (-9%). No row was filed, for two reasons in internal/scorecard/record.go. First, the rows did pair (same model and task, Pairs), but e0a7e5113 activated a new recipe (recipe:sha256:81d75bcb... to recipe:sha256:c45e957c...). A serving cell's contract carries its recipe as its scope, so holds() read every cell as measured on another contract (Unknown: reported, never filed), and judged() counts only the readings taken on the same contract. Second, even had the recipe held, those cells had two distinct earlier readings (first output 936.2 and 1128.1 ms), fewer than fewestReadings (5), so judged() would leave them Unknown too. Each recipe activation restarts that count, so a model a campaign keeps changing is never judged. Flash-Next is the only model whose recipe changed between the two records.\nThe change has three parts. A serving cell's readings become its model's and task's under any recipe, in one environment, so a recipe change is judged against the level the earlier recipes held. A cell with fewer than fewestReadings readings is judged, not left Unknown, by an allowance stated for it (for example its attempts' spread with a floor), chosen by replaying the published records as the four constants of Reference were, with rows in the tuning table. A serving decline's key leaves out the recipe, so its row is found again after a later activation; today validate -scorecard -gap reports such a row open for ever ('no cell of the scorecard is measured on the contract it named'). Any open serving decline row is re-keyed in the same change. The check is a test that replays Flash-Next's readings: two on one recipe, then a third on another at +54%, files a scorecard-regressed row, and a move within the allowance files none. The landing message lists the rows a replay of the published records then files."
-        }
-      ]
-    },
-    {
-      "id": "flashnext-window-rows",
-      "title": "Make each row of a Flash-Next verify window bitwise the single-token step, as Strata's are",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find the window path whose row differs from the one-token window's and make it compute the same sums",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags models ./internal/inference -run '^TestFlashNextWindowRowsAreTheSingleTokenSteps$' -count=1",
-          "rationale": "The 2026-10-29 run's model lane failed TestFlashNextDecodeRoundIsStratas twice (the lane and its re-acquire): the round's drafted windows wrote 'adding cold.' where its plain decoding, one-token windows through the same verifier, wrote 'adding coldness.' (tokens 8981 1149 against 8981 2022 1149, at the 25th generated token), the text after it the same. It passed at the same code in a later process, whose plain decoding agreed with Overgo's own for 52 of 83 tokens where the run's agreed for 58: the load places each expert on the card or the host by the card's free memory, and with held experts nothing moves them between the test's decodes (no promotion, swap or refill), so the windows themselves give a row other sums than the one-token step. Strata keeps each window row bitwise the single-token call (src/core/verify.cpp 'bitwise the same sums'; mtp.cpp 'each row bitwise the single-token call'; expert_source.cpp, every expert's rows across threads 'bitwise the same as run'), and the port claims it (8cc359407: greedy output is plain decoding's). Candidates: the K-quant window products widened after the port (f3219a174), the CPU pool's rows of an expert for several tokens, the window's attention over the cells. The check is a test that steps one prompt's tokens as one-token windows and as windows of two, three and four, with some experts on the host and some on the card, and holds each row's logits bitwise equal; TestFlashNextDecodeRoundIsStratas's equality then holds whatever placement a load finds."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-warm-request",
-      "title": "Score a warm request beside the cold one, so a trade between them shows both sides",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure the same request again on the loaded model and score its throughput and follow-up first output beside the cold cells",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestAWarmRequestIsScoredBesideTheColdOne$' -count=1",
-          "rationale": "The reviewer's finding F3 (P2). measureInference (cmd/recipe/inference_measure.go) records the first request its verification ran, right after load, and then only 24-token reads at each prompt length (observeLengths), so the scorecard's throughput and first output come from a cold request. Warm decode, which a conversation gets, rose with the Strata port to Strata's rate on the round's bench (chat 99-104 to 136 tok/s greedy and 88-95 to 143 sampled, agent turns 98-108 to 135), while the scorecard read Flash-Next's throughput falling from 73.1 to 66.8 tok/s. The change measures the same request a second time on the loaded model (journeyInference already lists 'the same request again on a loaded model' as one of its ways), and scores that request's throughput, and its first output as a follow-up's, as cells on their own contracts beside the cold ones. Compare holds a cell its reference did not measure, so the new cells file no decline when they first appear. The lead's call: this P2 ranks before flashnext-first-request, which is to hold warm decode while it brings the cold request back, and only this row makes the scorecard read that side.\n\nIts throughput cell must time a request long enough to decode: the cell reads the first request the recipe's verification ran, a three-token answer ('What is 17 plus 25?'), so a drafted span's start, not the decode, is what it times (Qwen3.8-27B 31.3 to 26.0 tok/s on the 2026-10-29 record while its 128-token requests decode 48.6 drafted against 37.2 plain)."
-        }
-      ]
-    },
-    {
-      "id": "flashnext-first-request",
-      "title": "Bring Flash-Next's first request after load back to its 2026-10-25 figures, keeping warm decode",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",
-          "status": "open",
-          "verify": "false",
-          "rationale": "The reviewer's finding F2 (P1), confirmed from the records. Flash-Next's first request after load got slower across the Strata port (8cc359407, 2026-10-27). From the record of 2026-10-25 to the record of 2026-10-28: first output 1128.1 to 1742.1 ms, 4,096-token first output 1669.5 to 2078.5 ms, 16,384-token first output 5563.9 to 8613.5 ms, load 29.75 to 34.96 s, throughput 73.06 to 66.84 tok/s; held-out MMLU-Pro held (0.660 to 0.662). The reviewer's reading of the round's bench (scratchpad round/alt62, ours1-3) puts the 16,384-token first token at 5.93-5.97 s, against 5.30-5.35 s before the port and Strata's 4.94-5.04 s. 8cc359407's message calls the short-chat loss deliberate (its read takes back the lent staging and refills the experts it moved before the first window) and parks the fix. e0a7e5113 (2026-10-26, before the port) read the 4,096-token first output at 1.625 s at its own code.\nTargets, each the cell in the record of 2026-10-25: first output at most 1128.1209 ms, load at most 29749.2492 ms, throughput at least 73.0619 tok/s, 16,384-token first output at most 5563.9 ms. They are read by validate -scorecard -gap -target once scorecard-blind-declines keys a serving decline without its recipe. Until then the check is false, and it is set before any code lands. Warm decode is held: chat 136 tok/s greedy and 143 sampled, agent turns 135 (the round's bench), and the warm cells once scorecard-warm-request lands. First suspects, from the reviewer and unconfirmed: the parked fix (read a short prompt part through the round's windows, as Strata does, so the refill does not wait in front of the first window); for the load and the 16,384-token read, the embedding in mapped host memory and the lent prompt buffers. Each cause is measured before it is changed. A part that cannot come back without giving up warm decode is stated as a deliberate worsening, its target re-set, and the owner told."
         }
       ]
     }

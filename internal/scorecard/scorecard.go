@@ -236,7 +236,9 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // and a baseline compares every one, whichever is the headline since.
 // Lengths holds a chat model's first output at each longer prompt it was
 // timed at (evaluation.PromptLengths), each on its own contract, shortest
-// first, beside the headline's at its verified request.
+// first, beside the headline's at its verified request. Warm holds the
+// throughput and first output of a request timed again on the model it had
+// loaded and served, beside the headline's of its first request after load.
 type Row struct {
 	Model        artifact.ID          `json:"model,omitzero"`
 	Name         string               `json:"name"`
@@ -246,17 +248,39 @@ type Row struct {
 	Cells        map[metric.Name]Cell `json:"cells"`
 	Heldout      []Cell               `json:"heldout,omitempty"`
 	Lengths      []Cell               `json:"lengths,omitempty"`
+	Warm         []Cell               `json:"warm,omitempty"`
+}
+
+// The measures of a warm cell (Row.Warm): a request read again on a loaded model, its prompt through the cache the
+// first reading left, and its decode's rate.
+const (
+	warmFirstMetric = "time to prefill, a request again on a loaded model"
+	warmRateMetric  = "output tokens over decode time, a request again on a loaded model"
+)
+
+// warmColumn is the column a warm cell measures, by its measure.
+func warmColumn(cell Cell) metric.Name {
+	if cell.Contract.Metric == warmRateMetric {
+		return metric.Throughput
+	}
+	return metric.FirstOutput
 }
 
 // Measured lists the row's measured cells of a column: its one cell, then
 // the others it holds of the column, each on its own contract: of held-out
-// quality, every other held-out quality, and of first output, each longer
-// prompt's. A baseline row's are what it holds a later record to, and a
-// later row's are where each is found again.
+// quality, every other held-out quality, of first output, each longer
+// prompt's, and of first output and throughput, the warm request's. A
+// baseline row's are what it holds a later record to, and a later row's are
+// where each is found again.
 func (row Row) Measured(column metric.Name) []Cell {
 	cells := []Cell{row.Cells[column]}
 	if others := row.others(column); others != nil {
 		cells = append(cells, *others...)
+	}
+	for _, cell := range row.Warm {
+		if warmColumn(cell) == column {
+			cells = append(cells, cell)
+		}
 	}
 	return slices.DeleteFunc(cells, func(cell Cell) bool { return !cell.Measured() })
 }
@@ -323,6 +347,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Lengths = lengthCells(capability.Task, observed)
+			row.Warm = warmCells(capability.Task, observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			if record, found := heldout[capability.Recipe]; found {
@@ -504,6 +529,8 @@ type servingSummary struct {
 	// lengths reads, by each of evaluation.PromptLengths, the successes whose prompt was of about that
 	// length: the newest, under whose environment its window is, and the next older ones under it.
 	lengths map[int]*servingSummary
+	// warm reads, the same way, the successes timed again on the model they had loaded and served.
+	warm *servingSummary
 }
 
 // lengthSpan is the share of a prompt length, one over it, that a prompt may be shorter or longer
@@ -608,6 +635,48 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	read.window = append(read.window, sample)
 }
 
+// readWarm adds a success timed again on its loaded model to the warm window: the newest opens it under its
+// environment, and the next older ones under that environment join it, recentAttempts at most. Its first output is
+// its prompt's read through the cache, and its rate its decode's.
+func (summary *servingSummary) readWarm(observation runrecord.ServingObservation) {
+	if summary.warm == nil {
+		summary.warm = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
+	}
+	read := summary.warm
+	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+		return
+	}
+	sample := servingSample{attempt: observation.ID}
+	for _, hardware := range observation.Hardware {
+		if hardware.Stage == runrecord.ServingHardwarePrefill {
+			sample.took[timingFirstOutput] = milliseconds(hardware.ElapsedNS)
+		}
+	}
+	for _, phase := range observation.Phases {
+		if phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0 {
+			sample.took[timingDecodeRate] = float64(observation.Usage.OutputTokens) / time.Duration(phase.DurationNS).Seconds()
+		}
+	}
+	read.window = append(read.window, sample)
+}
+
+// warmCells are a row's first output and throughput on the warm request, each where its attempts timed it.
+func warmCells(task recipe.Task, observed *servingSummary) []Cell {
+	if task != recipe.TaskInference || observed == nil || observed.warm == nil {
+		return nil
+	}
+	var cells []Cell
+	for _, warm := range []struct {
+		timing       int
+		unit, metric string
+	}{{timingFirstOutput, "ms", warmFirstMetric}, {timingDecodeRate, "tok/s", warmRateMetric}} {
+		if cell, measured := observed.warm.timed(warm.timing, warm.unit, warm.metric, "serving "+warm.metric+", the median of the newest attempts"); measured {
+			cells = append(cells, cell)
+		}
+	}
+	return cells
+}
+
 // lengthCells are a row's first outputs at the longer prompts its attempts read, shortest first.
 func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	if task != recipe.TaskInference || observed == nil {
@@ -685,6 +754,14 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if counted {
 			summary.attempts++
 		}
+		// An attempt timed again on the model it had loaded and served counts as an attempt, and is timed as the
+		// warm request's alone.
+		if observation.SessionReused {
+			if observation.Outcome == runrecord.OutcomeSucceeded {
+				summary.readWarm(observation)
+			}
+			return nil
+		}
 		// An attempt that read a longer prompt counts as an attempt, and is timed as its length's alone: the
 		// tokens it read, not those a prompt cache answered, set its length.
 		if length, long := longPrompt(observation.Task, observation.Usage.InputTokens-min(observation.Usage.CachedTokens, observation.Usage.InputTokens)); long {
@@ -698,7 +775,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(summary.window) >= recentAttempts {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths, warm: summary.warm}
 		timings := servingSample{attempt: observation.ID}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {

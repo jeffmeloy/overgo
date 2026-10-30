@@ -147,6 +147,16 @@ func Reference(records []Record) *Record {
 				return one.Lengths[at]
 			})
 		}
+		// A warm request's cells are judged on their own readings too, each by the column it measures.
+		for index, cell := range row.Warm {
+			row.Warm[index] = judged(earlier, row, warmColumn(cell), cell, func(one Row) Cell {
+				at := slices.IndexFunc(one.Warm, func(other Cell) bool { return other.Contract.measures(cell.Contract) })
+				if at < 0 {
+					return Cell{}
+				}
+				return one.Warm[at]
+			})
+		}
 	}
 	shares := map[metric.Name][]float64{}
 	for _, row := range reference.Rows {
@@ -165,6 +175,9 @@ func Reference(records []Record) *Record {
 		}
 		for index := range row.Lengths {
 			row.Lengths[index].borrow(metric.FirstOutput, shares[metric.FirstOutput])
+		}
+		for index, cell := range row.Warm {
+			row.Warm[index].borrow(warmColumn(cell), shares[warmColumn(cell)])
 		}
 	}
 	return reference
@@ -281,7 +294,7 @@ func Earlier(records []Record) *Record {
 			if at < 0 {
 				at = len(reference.Rows)
 				copy := row
-				copy.Cells, copy.Heldout, copy.Lengths = make(map[metric.Name]Cell), nil, nil
+				copy.Cells, copy.Heldout, copy.Lengths, copy.Warm = make(map[metric.Name]Cell), nil, nil, nil
 				reference.Rows = append(reference.Rows, copy)
 			}
 			kept := &reference.Rows[at]
@@ -302,12 +315,17 @@ func Earlier(records []Record) *Record {
 					kept.Heldout[qualityAt] = cell
 				}
 			}
-			for _, cell := range row.Lengths {
-				lengthAt := slices.IndexFunc(kept.Lengths, func(prior Cell) bool { return prior.Contract.measures(cell.Contract) })
-				if lengthAt < 0 {
-					kept.Lengths = append(kept.Lengths, cell)
-				} else if prefer(kept.Lengths[lengthAt], cell, now.Lengths) {
-					kept.Lengths[lengthAt] = cell
+			for _, cells := range []struct {
+				kept         *[]Cell
+				earlier, now []Cell
+			}{{&kept.Lengths, row.Lengths, now.Lengths}, {&kept.Warm, row.Warm, now.Warm}} {
+				for _, cell := range cells.earlier {
+					at := slices.IndexFunc(*cells.kept, func(prior Cell) bool { return prior.Contract.measures(cell.Contract) })
+					if at < 0 {
+						*cells.kept = append(*cells.kept, cell)
+					} else if prefer((*cells.kept)[at], cell, cells.now) {
+						(*cells.kept)[at] = cell
+					}
 				}
 			}
 		}

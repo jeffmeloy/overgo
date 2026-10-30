@@ -142,7 +142,7 @@ func measureInference(ctx context.Context, repository, path string, open func(co
 	}
 	var lengths []runrecord.ServingObservation
 	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr, func(loaded servedModel) {
-		lengths = observeLengths(ctx, loaded, os.Stderr)
+		lengths = append(observeLengths(ctx, loaded, os.Stderr), observeWarm(ctx, loaded, os.Stderr)...)
 	})
 	store, err := overgodb.Open(repository)
 	if err != nil {
@@ -193,6 +193,46 @@ func observeLengths(ctx context.Context, model servedModel, said io.Writer) []ru
 		observed = append(observed, observation)
 	}
 	return observed
+}
+
+// warmPromptTokens and warmTokens size the request a loaded model is timed on
+// again: a word list it reads once and then, its state cached, as a follow-up,
+// generating enough tokens that their rate is the decode's and not its start's
+// (Qwen3.8-27B's verified answer, three tokens, read 26 tok/s drafted where its
+// 128-token requests decode at 48.6).
+const (
+	warmPromptTokens = 256
+	warmTokens       = 128
+)
+
+// observeWarm runs, on a model loaded and served, a request of warmTokens on a
+// word list of warmPromptTokens twice, and returns the second as a serving
+// attempt that reused the session: its first output is a follow-up's, its
+// prompt read through the cache the first left, and its rate the warm decode's.
+// The first readies the decode's graphs and records nothing. A prompt the model
+// cannot build is said and no attempt returned; a request that fails is a
+// failed attempt.
+func observeWarm(ctx context.Context, model servedModel, said io.Writer) []runrecord.ServingObservation {
+	if context := int(model.ModelProperties().ContextLength); context != 0 && warmPromptTokens+warmTokens > context {
+		fmt.Fprintf(said, "recipe: no warm request: the context holds %d tokens\n", context)
+		return nil
+	}
+	prompt, err := lengthPrompt(model, warmPromptTokens)
+	if err != nil {
+		fmt.Fprintf(said, "recipe: no warm request: %v\n", err)
+		return nil
+	}
+	request := evaluation.ExactCase{Name: "warm", Prompt: prompt, MaxTokens: warmTokens}
+	fmt.Fprintf(said, "recipe: a request of %d tokens, then the same again on the loaded model\n", warmTokens)
+	if _, _, err := observeRequest(ctx, model, request, io.Discard); err != nil {
+		fmt.Fprintf(said, "recipe: the first warm request failed: %v\n", err)
+	}
+	observation, _, err := observeRequest(ctx, model, request, said)
+	if err != nil {
+		fmt.Fprintf(said, "recipe: the warm request failed: %v\n", err)
+	}
+	observation.SessionReused = true
+	return []runrecord.ServingObservation{observation}
 }
 
 // lengthPrompt is the longest of Strata's word lists, opened by a line naming

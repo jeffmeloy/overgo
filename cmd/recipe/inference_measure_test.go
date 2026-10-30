@@ -241,7 +241,9 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 // verified request, the loaded model reads a fresh prompt of each length its
 // context holds, sized by its own tokenizer, each recorded under the recipe
 // with the tokens it read and no load of its own; a length the context cannot
-// hold is not asked for.
+// hold is not asked for. Then it reads a warm request twice and records the
+// second, an attempt that reused the session it had served, timed no load,
+// sampled its prefill and decoded.
 func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
 	t.Parallel()
 	directory, path, model, active, _ := measuredFixture(t)
@@ -253,10 +255,21 @@ func TestInferenceMeasurementReadsLongerPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 	observed := servingAttempts(t, directory)
-	if len(observed) != 2 || observed[1].ID != attempt || len(model.prompts) != verified+2 {
-		t.Fatalf("serving attempts = %+v after %d prompts; want the verified request's, then one longer prompt's", observed, len(model.prompts)-verified)
+	if len(observed) != 3 || observed[2].ID != attempt || len(model.prompts) != verified+4 {
+		t.Fatalf("serving attempts = %+v after %d prompts; want the verified request's, one longer prompt's and the warm request's second reading", observed, len(model.prompts)-verified)
 	}
-	longer := observed[0]
+	warm := observed[0]
+	warmPrefilled := slices.ContainsFunc(warm.Hardware, func(sample runrecord.ServingHardwareSample) bool {
+		return sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
+	})
+	warmLoaded := slices.ContainsFunc(warm.Phases, func(phase runrecord.PhaseMetric) bool { return phase.Phase == runrecord.PhaseLoad })
+	warmDecoded := slices.ContainsFunc(warm.Phases, func(phase runrecord.PhaseMetric) bool {
+		return phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0
+	})
+	if !warm.SessionReused || warm.Recipe != active || warm.Outcome != runrecord.OutcomeSucceeded || !warmPrefilled || warmLoaded || !warmDecoded {
+		t.Fatalf("warm attempt = %+v; want a succeeded attempt of the recipe that reused its session, sampled its prefill, decoded and timed no load", warm)
+	}
+	longer := observed[1]
 	prefilled := slices.ContainsFunc(longer.Hardware, func(sample runrecord.ServingHardwareSample) bool {
 		return sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
 	})

@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "scorecard-warm-request",
-      "title": "Score a warm request beside the cold one, so a trade between them shows both sides",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure the same request again on the loaded model and score its throughput and follow-up first output beside the cold cells",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestAWarmRequestIsScoredBesideTheColdOne$' -count=1",
-          "rationale": "The reviewer's finding F3 (P2). measureInference (cmd/recipe/inference_measure.go) records the first request its verification ran, right after load, and then only 24-token reads at each prompt length (observeLengths), so the scorecard's throughput and first output come from a cold request. Warm decode, which a conversation gets, rose with the Strata port to Strata's rate on the round's bench (chat 99-104 to 136 tok/s greedy and 88-95 to 143 sampled, agent turns 98-108 to 135), while the scorecard read Flash-Next's throughput falling from 73.1 to 66.8 tok/s. The change measures the same request a second time on the loaded model (journeyInference already lists 'the same request again on a loaded model' as one of its ways), and scores that request's throughput, and its first output as a follow-up's, as cells on their own contracts beside the cold ones. Compare holds a cell its reference did not measure, so the new cells file no decline when they first appear. The lead's call: this P2 ranks before flashnext-first-request, which is to hold warm decode while it brings the cold request back, and only this row makes the scorecard read that side.\n\nIts throughput cell must time a request long enough to decode: the cell reads the first request the recipe's verification ran, a three-token answer ('What is 17 plus 25?'), so a drafted span's start, not the decode, is what it times (Qwen3.8-27B 31.3 to 26.0 tok/s on the 2026-10-29 record while its 128-token requests decode 48.6 drafted against 37.2 plain)."
-        }
-      ]
-    },
-    {
       "id": "flashnext-first-request",
       "title": "Bring Flash-Next's first request after load back to its 2026-10-25 figures, keeping warm decode",
       "owner": "master-lead",

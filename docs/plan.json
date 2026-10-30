@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "soak-model-choice",
-      "title": "Soak the smallest servable model by its bytes on disk, not by its first file's",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Choose the soak's model by every shard's bytes, through the one helper the browser journey uses",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest ./cmd/evaluate -run '^TestGenerationSoakSurvivesLengthSweep$' -count=1",
-          "rationale": "The 2026-10-29 run's model lane failed TestGenerationSoakSurvivesLengthSweep: 'band 256: the on-band prompt generated ... after a 300-token past', the same prompt's greedy text other than before it. The soak ran on Qwen3.8 Flash Next: soakModelPath orders the servable text models by os.Stat of each one's location, the first shard of a split GGUF, and Flash-Next's first shard holds only its metadata (10.9 MB of 93.7 GB), so the 'smallest' model is the largest. The browser journey's chooser had the same fault (5db56e6db, modelBytes summing the shards its first file declares). Flash-Next's greedy text is not the same from one request to the next: its adaptive expert tier moves experts between the card and the host between requests, and the two round otherwise, so a near tie falls either way (see flashnext-window-rows); at HEAD the soak failed the band walk once and passed it on the next run. The soak's own premise is greedy decoding over an intact cache on a model whose page is small, the fault the 4B and 9B chat passes died of. The change moves modelBytes to one helper both tests call and has the soak choose by it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-50f41f360f714051",
       "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
       "owner": "master-lead",

@@ -7,6 +7,20 @@ import (
 	"overgo/internal/gguf"
 )
 
+// ModelBytes is a GGUF model's bytes on disk: every shard its first file declares, where the first of a split model's
+// shards holds only its metadata (Flash-Next's 10.9 MB of 93.7 GB).
+func ModelBytes(location string) (int64, error) {
+	file, err := gguf.Open(location)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, shard := range file.Shards() {
+		total += int64(shard.Size)
+	}
+	return total, file.Close()
+}
+
 // GGUFScalar builds one scalar metadata entry for a hermetic GGUF fixture.
 func GGUFScalar(key string, valueType gguf.ValueType, data any) gguf.Metadata {
 	return gguf.Metadata{Key: key, Value: gguf.Value{Type: valueType, Data: data}}

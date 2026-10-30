@@ -131,7 +131,7 @@ func smallestDeclaredProjector(t *testing.T, ctx context.Context, store string) 
 		for _, capability := range entry.Capabilities {
 			inference = inference || capability.Task == recipe.TaskInference && capability.Stale == ""
 		}
-		size, sizeErr := modelBytes(entry.Location)
+		size, sizeErr := testutil.ModelBytes(entry.Location)
 		if !inference || sizeErr != nil {
 			continue
 		}

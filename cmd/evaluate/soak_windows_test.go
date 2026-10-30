@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
+	"overgo/internal/testutil"
 )
 
 // soakGenerations is how many sequential chat-template generations the
@@ -209,11 +209,12 @@ func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) str
 		if declared && !slices.Contains(domains, evaluation.DomainText) {
 			continue
 		}
-		info, err := os.Stat(entry.Location)
+		// A split model's first shard holds only its metadata, so the model is sized by every shard.
+		size, err := testutil.ModelBytes(entry.Location)
 		if err != nil {
 			continue
 		}
-		models = append(models, sized{path: entry.Location, bytes: info.Size()})
+		models = append(models, sized{path: entry.Location, bytes: size})
 	}
 	if len(models) == 0 {
 		t.Skip("no servable text model is present")

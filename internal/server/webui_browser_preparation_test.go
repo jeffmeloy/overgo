@@ -13,7 +13,6 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
-	"overgo/internal/gguf"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
@@ -81,20 +80,6 @@ func pickerName(location string) string {
 	return base
 }
 
-// modelBytes is a model's bytes on disk: every shard its first file declares, where the first of a split model's
-// shards holds only its metadata (Flash-Next's 10.9 MB of 93.7 GB).
-func modelBytes(location string) (int64, error) {
-	file, err := gguf.Open(location)
-	if err != nil {
-		return 0, err
-	}
-	var total int64
-	for _, shard := range file.Shards() {
-		total += int64(shard.Size)
-	}
-	return total, file.Close()
-}
-
 // smallestServables lists the store's servable inference models with bytes
 // on disk, smallest model first, and among them the ones whose active
 // projection recipe binds a projector with bytes on disk: the journey
@@ -126,7 +111,7 @@ func smallestServables(ctx context.Context, root string) (servable, multimodal [
 		for _, capability := range entry.Capabilities {
 			inference = inference || capability.Task == recipe.TaskInference && capability.Stale == ""
 		}
-		size, sizeErr := modelBytes(entry.Location)
+		size, sizeErr := testutil.ModelBytes(entry.Location)
 		if !inference || sizeErr != nil {
 			continue
 		}

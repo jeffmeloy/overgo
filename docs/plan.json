@@ -156,17 +156,17 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "preflight-clean",
-      "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
+      "id": "preflight-quality",
+      "title": "A quality cell's preflight reaches the setup its session does before the model loads",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
+          "title": "A quality cell's preflight reaches the setup its session does before the model loads",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestACellWhoseRuntimeIsNotHereWaitsOnItsLane$'",
-          "rationale": "Review of 2026-10-30 (F6 with F7): the preflight over the store refused 75 of 116 cells for the working tree's uncommitted changes, so only MOSS-Image's refusal is known real; and MOSS-Image's image cell, an active recipe whose runtime is the MOSS lane's and not on the trunk, fails every run since 2026-10-25, so a real failure reads like the usual one. The change: run validate -run -preflight from a clean checkout and require every cell ready but those whose runtime is not on this checkout; a cell whose capability resolves no registered source profile on this checkout is reported as waiting on its lane, apart from the failures, not as failed (MOSS's code untouched); and the quality cells' preflight reaches the setup they do while the model loads (the derived suite and the session's authorities, read without loading weights) instead of stopping at the verifying commit."
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAQualityCellsPreflightReachesItsSetup$'",
+          "rationale": "Split from preflight-clean (review of 2026-10-30, F6) when its first part landed: a quality cell's producer (cmd/evaluate -all, runAllWorkerPass) stops for the preflight at clioptions.Ready right after reading the verifying commit, before openEvaluationSession resolves the model's recipe, the session's authorities and the derived suites, so a cell whose suite or authority is missing is found only when the cell runs, hours into a run. The change: the session's setup that reads no weights (the recipe, the authorities, the derived suites it would campaign) runs before Ready, and the weights load after it. The test: a quality cell's preflight refuses a model whose derived suite the store does not hold, and loads no weights."
         }
       ]
     },

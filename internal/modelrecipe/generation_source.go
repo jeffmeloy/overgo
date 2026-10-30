@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
@@ -50,6 +51,16 @@ type generationSourceCatalog struct {
 	Profiles []GenerationSourceProfile `json:"profiles"`
 }
 
+// errNoGenerationSource is the refusal of an artifact this checkout registers no generation source profile for: its
+// runtime is another lane's, not on this checkout. A command reports it in its error text, which validate reads to
+// count the cell as waiting on that lane and not as failed (OtherLane).
+var errNoGenerationSource = errors.New("this checkout registers no generation source profile for it")
+
+// OtherLane reports whether a command's error, read as its text across the process that ran it, is errNoGenerationSource.
+func OtherLane(err error) bool {
+	return err != nil && (errors.Is(err, errNoGenerationSource) || strings.Contains(err.Error(), errNoGenerationSource.Error()))
+}
+
 // ResolveGenerationSource selects one declared task profile.
 func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (GenerationSourceProfile, error) {
 	var found *GenerationSourceProfile
@@ -64,7 +75,7 @@ func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (Genera
 		found = profile
 	}
 	if found == nil {
-		return GenerationSourceProfile{}, fmt.Errorf("model recipe: artifact has no registered %s source profile", task)
+		return GenerationSourceProfile{}, fmt.Errorf("model recipe: artifact has no registered %s source profile: %w", task, errNoGenerationSource)
 	}
 	return *found, nil
 }

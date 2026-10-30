@@ -156,6 +156,34 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "declared-trade",
+      "title": "A declared trade is a record the scorecard reads: a declared cell is filed again only past its accepted level",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A declared trade is a record the scorecard reads: a declared cell is filed again only past its accepted level",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./cmd/loop -count=1 -run '^TestADeclaredTradeIsNotFiledAgain$'",
+          "rationale": "Review of 2026-10-30 (F1, P1), checked: d184ff653 declared Qwen3.8-27B's drafting memory (1.30 GiB) and its three-token answer's throughput (31.3 to 26.0 tok/s) as the drafted decode's price and retired both rows (scorecard-regressed-50f41f360f714051 and a64b35bd3226e366); the 2026-10-30 run filed them again under new keys, scorecard-regressed-b889eaf432334c44 (peak-device-memory, target 2.2989e10) and 52dcd48e15777fc9 (throughput, target 26.19), which landed with checks-before-measuring/file. A declaration lives only in a commit message the scorecard never reads, so every run re-files it, as memory's rule \"a retired decline row is proposed again\" records in prose. The change: a declaration is a record the scorecard reads, the accepted level of each declared cell (model, task, measure, contract) and the commit that declared it; a declared cell is a decline again only when it worsens past that level by more than its readings allow, and the declare step writes the record through a command. Then the two rows retire against it. The check: declare, rebuild the scorecard from the same readings, and no row is filed; a reading worse than the accepted level files one."
+        }
+      ]
+    },
+    {
+      "id": "stale-cells",
+      "title": "A cell not measured this run says so and is filed unmeasured, and Flash-Next's cold attempt is the one read",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A cell not measured this run says so and is filed unmeasured, and Flash-Next's cold attempt is the one read",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestACellNotMeasuredThisRunSaysSo$'",
+          "rationale": "Review of 2026-10-30 (F2, P1), checked: on scorecard-20261030T094420Z Qwen3.8 Flash Next's first-output and load-time cells (and throughput, by the review) carry evidence:sha256:4b579301, the record the 2026-10-29 scorecards carry, while its longer-prompt and warm cells carry new evidence, and the run did measure the model (the log reads load 31.675 s and first token 2.247 s against the cell's 2.804 s). The label still says \"the median of the newest measured attempts\". flashnext-first-request is judged on exactly that cell. Two parts: find why this run's cold attempt was not the one read (servingByRecipe's choice of attempts, by recipe or by set-aside contention), and make it code that a cell whose evidence was recorded before the run's own start says \"not re-measured this run\" and is filed as unmeasured, never carried over in silence."
+        }
+      ]
+    },
+    {
       "id": "scorecard-regressed-82d99de4d4606223",
       "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
       "owner": "master-lead",
@@ -193,6 +221,76 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8b083b7b94e498e7 -target 8.848448256e+09",
           "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 9.57364851e+09 (+725200256, +8.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nCause, found 2026-10-29 (dcf1a1d66): the served 4B file (adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf) was converted before the converter shifted the draft layer's input norms (mtp.pre_fc_norm_embedding, _hidden), so its own draft layer keeps 4 of 1500 drafts. The first request after each load drafts while the runner judges its drafts (36 against 97 tok/s), and the draft layer's cells hold about 0.74 GB. Remedy, the lead's decision (owner 2026-10-30: keep no model broken): re-convert Qwen3.5-4B from its source on this machine (adaptive_new/models/Qwen3.5-4B, read only, no download) with the fixed converter, through the onboarding command into the data root's checkpoints/overgo-hfconvert, activate it as the 4B and re-point its verification record (docs/verification/qwen35-4b.json); the old file stays until the new one passes. This row's check then judges the next scorecard. The 4B's memory row (8b083b7b) is restored by it, or, where the repaired draft layer pays as the 27B's does, declared as drafting's cost. Starts once the 2026-10-30 measurement run ends, since a new file must not replace the 4B while the run reads it.\n\nRe-scoped 2026-10-30 (owner: why convert text models at all, rather than work with the model's tensors however they are packaged): the 4B is served from its own safetensors through the step native, the converter's tables applied at load, in place of re-converting it; the re-conversion path through onboarding is no longer needed. The lineage step still comes first, since the served model's identity moves from the GGUF file to its source.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "run-record",
+      "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./cmd/loophook -count=1 -run '^(TestARunRecordsItsEnd|TestTheHooksPrintTheRunsEnd)$'",
+          "rationale": "Review of 2026-10-30 (F3 with F10; SQA-258): a run's end is noticed by a session habit (a background wait on its process) and its times are stated in prose, wrongly (a stop said \"started 05:35\" for a run launched at 02:21; estimates ranged from \"10 AM\" to \"early afternoon\"). On 2026-10-29 the same detached launch ended unnoticed for five hours. The change: the loop writes a completion record when a run ends (its exit, each phase's result and wall, the rows it filed), and while it runs each phase's expected end from the walls earlier runs recorded; the prompt and stop hooks print the newest record to the lead, and the run is started by a command that reports its own end. Reports quote those figures. Then the launch recipe leaves memory."
+        }
+      ]
+    },
+    {
+      "id": "run-freeze",
+      "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingBesideARunWaitsOnlyForTheDevice$'",
+          "rationale": "Review of 2026-10-30 (F4; SQA-261): from 09:36 to 11:09 the lead held every build, test and commit for the run, by skill.md's \"cycle running =\u003e plan-only landings only and never a build, a test or a push beside it\" and memory's copy of it. The run executes from .overgo-runtime/cycle at its own commit; what it shares is the device, which the measurement lease arbitrates, and the host, where a timed cell already takes the quiet machine (landings wait for it) and a cell measured beside other work is set aside and measured again. The change: host work goes on during a run, and a landing's device lanes wait on the lease in code; the check is that a landing beside a held measurement runs its host stages and waits only for the device. Then the rule leaves skill.md and memory."
+        }
+      ]
+    },
+    {
+      "id": "preflight-clean",
+      "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestACellWhoseRuntimeIsNotHereWaitsOnItsLane$'",
+          "rationale": "Review of 2026-10-30 (F6 with F7): the preflight over the store refused 75 of 116 cells for the working tree's uncommitted changes, so only MOSS-Image's refusal is known real; and MOSS-Image's image cell, an active recipe whose runtime is the MOSS lane's and not on the trunk, fails every run since 2026-10-25, so a real failure reads like the usual one. The change: run validate -run -preflight from a clean checkout and require every cell ready but those whose runtime is not on this checkout; a cell whose capability resolves no registered source profile on this checkout is reported as waiting on its lane, apart from the failures, not as failed (MOSS's code untouched); and the quality cells' preflight reaches the setup they do while the model loads (the derived suite and the session's authorities, read without loading weights) instead of stopping at the verifying commit."
+        }
+      ]
+    },
+    {
+      "id": "lane-cost",
+      "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestALanePackageUnchangedSinceItsPassIsNotRunAgain$'",
+          "rationale": "Review of 2026-10-30 (F5): with the lanes before the cells (b0c74066b) every scorecard waits for them, 2h07m to 5h23m when they pass and 15h46m on 2026-10-28; internal/evaluation alone took 4h0m on 2026-10-29 and about 4h on 2026-10-30. The change: a lane's test package is not run again when its inputs (its compiled code and the model and store files it reads) are those of its last pass on this machine, recorded by digest; each package's wall is recorded, and one running past twice its median is reported as stalled while it runs; internal/evaluation's long model tests are split so the package is not one four-hour unit."
+        }
+      ]
+    },
+    {
+      "id": "hold-implementers",
+      "title": "The worktree hold goes only to a session that lands or declares it implements",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The worktree hold goes only to a session that lands or declares it implements",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -count=1 -run '^TestOnlyAnImplementingSessionTakesTheHold$'",
+          "rationale": "Review of 2026-10-30 (F8): holdWorktree (cmd/loophook/main.go:217) gives the worktree's hold to any session that starts a turn while the lead is between turns; a review session took it at 03:42 and 09:25, and a run-end notice reaching the lead then would have been told it may land nothing. The change: the hold goes only to a session that has landed in this checkout or declares it implements; a session that never landed never takes it."
         }
       ]
     },
@@ -547,6 +645,20 @@
       ]
     },
     {
+      "id": "succession-weights",
+      "title": "A model takes another's place on the scorecard only when their source weights match",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A model takes another's place on the scorecard only when their source weights match",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked$'",
+          "rationale": "Review of 2026-10-30 (F0): successions (internal/scorecard) links a model that left the catalog to a listed one by their recorded config sources (ReadModelConfigComponents digests config.json, generation_config.json and dna_config.json, never the weights). A trained checkpoint keeps its base's config files, so once its base leaves the catalog it would be linked as the base's successor and inherit its readings and open rows; the sampling-card case caught on the real store was the same weakness one file short. Not seen in the store yet. The change: a conversion and a native registration record each source weight file's digest once (the components of the Hugging Face manifest modelartifact.FromHFPath already hashes), and a succession needs the weights to match; a conversion recorded before that names its weights by the source directory its conversion record names, hashed when it is first compared. Done with or before native-text-weights, which moves every text model. The check: two models with the same config files and other weights are never linked."
+        }
+      ]
+    },
+    {
       "id": "native-text-weights",
       "title": "Serve every text model held as safetensors from its own files, and stop converting them",
       "status": "open",
@@ -557,6 +669,20 @@
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestTextModelsOnboardFromTheirSafetensors$'",
           "rationale": "After the 4B (scorecard-regressed-82d99de4d4606223/native) serves from its own safetensors, every text model held as a Hugging Face directory does too (Qwen2.5-0.5B, Carbon-500M, MiniCPM5-1B, gemma-4-12B-it, gemma-4-E4B-it and their kin), each with its bench and held-out check, and onboarding stops converting them: a text model registers from its directory as every other modality's does. Their GGUF conversions are then leftovers and are removed once no committed record reads them (75 GB under adaptive_new/checkpoints/overgo-hfconvert is read-only, so the records are re-pointed and the owner removes that folder's copies). GGUF stays the format for models published only as GGUF quantizations. Serves: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion, and the correctness of every converter fix reaching its models at their next load.\n\nOwner 2026-10-30: work with native safetensors and delete the duplicate GGUFs. The duplicates, each made from a safetensors directory on this machine. Under adaptive_new/checkpoints/overgo-hfconvert: Carbon-500M (4 files, 4.0 GB, three of them superseded), MiniCPM5-1B-f16 (2.2), Qwen2.5-0.5B-f16 (1.0), Qwen3.5-4B-f16 with two projectors (10.1), Unlimited-OCR with two projectors (7.5), gemma-4-12B-it-fp8 as bf16 and as native (39.1), gemma-4-E4B-it with two projectors (16.9). Under overgo_data/models: MiniCPM5-1B-native-chat.gguf (2.2) and Unlimited-OCR-bf16's two GGUFs (6.7). About 90 GB in all. Sources are served from overgo_data/models, never from adaptive_new: a source only adaptive_new/models holds (Qwen3.5-4B, Unlimited-OCR, gemma-4-E4B-it, gemma-4-12B-it-fp8) is copied there first, with no download. Projectors are served from their source the same way. Each duplicate goes once its model serves from its source with its bench and held-out check passing and no committed record reads it (records re-pointed). The system lists them with their sizes, and the owner runs the removal, since a hard delete of model files is the owner's to run. Models published only as GGUF (Qwen3.5-9B Q8_0, Qwen3.8-27B Q6_K, Flash-Next IQ4_XS, the nemotron ASR's q8_0) keep their files."
+        }
+      ]
+    },
+    {
+      "id": "rules-audit",
+      "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleCitesItsCheck$'",
+          "rationale": "Review of 2026-10-30 (F9), the owner's rule of the same morning that rules are deterministic code: b0c74066b restated the run-order rule in skill.md and README although its phase-order tests enforce it, and the rule that a known fix is filed and worked, not asked about, went to memory as prose; skill.md is 439 lines and memory 678. The change: every behavioural line of skill.md and the plan's doctrine either cites the check that enforces it, with a test failing on a line that cites none, or becomes a check, or is deleted, and the counts are reported; and the decision rule becomes code: a plan question with a recommended option resolves to it at the end of the lead's turn unless the owner answered."
         }
       ]
     },

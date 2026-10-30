@@ -540,7 +540,7 @@ func LatestEvidence(
 		}},
 		Order: overgodb.DocumentNewestFirst, MaxResults: limit,
 	}, runrecord.ParseModelVerification, func(_ overgodb.DocumentView, record runrecord.ModelVerification) error {
-		locations, err := store.Locations(ctx, record.Model)
+		locations, err := modelLocations(ctx, store, record.Model)
 		if err != nil || len(locations) == 0 {
 			return nil
 		}
@@ -634,6 +634,29 @@ func LatestEvidence(
 		return nil
 	})
 	return index
+}
+
+// modelLocations is where a model's weights are registered: on the model
+// itself, or, for a model whose manifest has parts and no file of its own,
+// on its parts, as a split GGUF registers each shard and the catalog serves
+// it from the first (discovery's presence).
+func modelLocations(ctx context.Context, store *overgodb.Store, model artifact.ID) ([]artifact.Location, error) {
+	locations, err := store.Locations(ctx, model)
+	if err != nil || slices.ContainsFunc(locations, func(location artifact.Location) bool { return location.Kind == artifact.LocationFile }) {
+		return locations, err
+	}
+	manifest, found, err := store.Manifest(ctx, model)
+	if err != nil || !found {
+		return locations, err
+	}
+	for _, component := range manifest.Components {
+		parts, err := store.Locations(ctx, component.Artifact)
+		if err != nil {
+			return nil, err
+		}
+		locations = append(locations, parts...)
+	}
+	return locations, nil
 }
 
 // ListingAuthorities admit suite compilation for descriptor reads

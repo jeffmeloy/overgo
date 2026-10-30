@@ -156,24 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "checks-before-measuring",
-      "title": "Run the checks a measurement run depends on before its first cell: each cell's preconditions and the cycle lanes, stopping the run when one fails",
-      "status": "open",
-      "budget": {
-        "nodes": 132,
-        "reason": "modelLocations: a split model's benchmark indexed under its shards, so Flash-Next's guard is measured instead of refused every cycle"
-      },
-      "steps": [
-        {
-          "id": "preconditions",
-          "title": "Meet the two preconditions every cycle since 2026-10-25 failed on: Flash-Next's guard benchmark and the image cell's source profile",
-          "status": "open",
-          "verify": "OVERGO_PREFLIGHT=1 go run ./cmd/longform -guard -corpus cmd/longform/testdata/guard-corpus.txt -budget 90m 'C:\\Users\\jeffm\\overgo_data\\models\\Qwen3.8-Flash-Next\\unsloth-UD-IQ4_XS\\Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf'",
-          "rationale": "The two preconditions every cycle since 2026-10-25 failed on, the same each time (runs of 2026-10-25, 28, 29 and 30; SQA \"cycle-prerequisite-recovery\" of 2026-10-30), which the preflight of step do stops the next cycle on until they are met. Flash-Next's guard: cmd/longform readTargets refuses Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf for having no finite positive short-prompt benchmark bound to that exact location, in under 1.3 s and before any model loads; the serving cell's observations are not that record. It is met by the benchmark producer the refusal names (cmd/benchmark) publishing one for that location, or by a retained valid record for it if one exists; never by a serving rate put in its place or by a relaxed identity or finiteness check. The image-proof cell over a diffusion_pytorch_model.safetensors directory: cmd/recipe measure refuses it at capability.Resolve, since modelrecipe.ResolveGenerationSource matches no registered image-gen profile to its identity. Read the cell's registered directory and its configuration's identity from the dry-run plan, then correct the directory the cell binds or the profile's selector, whichever the evidence shows is wrong, once. The check is the preflight passing over every cell.\n\nRe-scoped 2026-10-30 on reading the image cell: its directory is MOSS-Image-SFT-797fa8e678b4f's (its vae/diffusion_pytorch_model.safetensors, the only file of that name under the models root), whose image-gen recipe the store holds active while the source profile that resolves it is the MOSS lane's work, not yet on master (generation_source_profiles.json names neo_chat, Krea2Pipeline, uvit and un0). That cell is the MOSS lane's to meet and this lane never touches MOSS's files, records or rows; its refusal is named by every preflight until that lane lands its profile, and the other cells are measured meanwhile (step do). This step is Flash-Next's guard benchmark alone, and its check is that guard's own preflight: OVERGO_PREFLIGHT=1 on cmd/longform -guard over Flash-Next's first shard, which exits 0 only once readTargets finds the bound benchmark."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-82d99de4d4606223",
       "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
       "owner": "master-lead",

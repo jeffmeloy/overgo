@@ -432,3 +432,64 @@ func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
 		seen[provenance.Comparison] = true
 	}
 }
+
+// TestASplitModelsBenchmarkIsFoundUnderItsShards holds the benchmark index to the files a model
+// is served from. A split GGUF registers each shard on its manifest's parts and no file on the
+// model, and the catalog serves it from the first shard, so its benchmark is indexed under each
+// shard's file; indexed under the model's own files alone it was found nowhere, and Flash-Next's
+// long-form guard was refused for want of one in every cycle from 2026-10-25.
+func TestASplitModelsBenchmarkIsFoundUnderItsShards(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	batch := artifact.Batch{Key: "fixture/split-benchmark"}
+	var components []artifact.Component
+	var shards []string
+	for ordinal, payload := range []string{"split shard zero", "split shard one"} {
+		part := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte(payload))
+		path := filepath.Join(t.TempDir(), "split-"+string(rune('0'+ordinal))+".gguf")
+		if err := os.WriteFile(path, []byte(payload), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		role := artifact.ComponentWeights
+		if ordinal != 0 {
+			role = artifact.ComponentWeightsShard
+		}
+		components = append(components, artifact.Component{Role: role, Ordinal: uint32(ordinal), Name: "weights-" + string(rune('0'+ordinal)), Artifact: part})
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: part, Size: uint64(len(payload))})
+		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: artifact.Location{Artifact: part, Kind: artifact.LocationFile, Value: path}, Action: artifact.LocationAdd})
+		shards = append(shards, path)
+	}
+	manifest, err := artifact.NewManifest(artifact.KindModel, components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Manifests = []artifact.Manifest{manifest}
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(map[string]any{"summary": map[string]float64{"decode_tokens_per_second_p50": 92, "prompt_tokens_per_second_p50": 117, "ttft_ms_p50": 95}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := runrecord.NewModelVerification(manifest.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runrecord.CommitVerificationClaim(t.Context(), store, record, data, evidence, shards[0]); err != nil {
+		t.Fatal(err)
+	}
+	index := LatestEvidence(t.Context(), store, nil, 0)
+	for _, shard := range shards {
+		if summary := index.BenchmarksByLocation[shard]; summary.Record != record.ID || summary.DecodeTokensPerSecond != 92 || summary.PromptTokensPerSecond != 117 {
+			t.Errorf("the split model's benchmark under %s = %+v, want record %s with its rates", shard, summary, record.ID)
+		}
+	}
+}

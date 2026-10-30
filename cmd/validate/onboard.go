@@ -202,16 +202,18 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 			return fmt.Errorf("onboard: convert %s: %w", directory, err)
 		}
 	}
+	fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
+	completion, err := steps.validate(ctx, model, projector)
+	if err != nil {
+		return fmt.Errorf("onboard: validate %s: %w", model, err)
+	}
+	// The declarations bind to the model the directory serves, which the store
+	// knows once the directory has registered.
 	if native {
 		fmt.Fprintf(output, "onboard: %s is served from its own files; record its declarations under the model it serves\n", directory)
 		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-view", "-source", directory, "-record", steps.store}); err != nil {
 			return fmt.Errorf("onboard: record %s: %w", directory, err)
 		}
-	}
-	fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
-	completion, err := steps.validate(ctx, model, projector)
-	if err != nil {
-		return fmt.Errorf("onboard: validate %s: %w", model, err)
 	}
 	for _, conversion := range superseded {
 		fmt.Fprintf(output, "onboard: retire %s, the conversion %s takes the place of\n", conversion, directory)

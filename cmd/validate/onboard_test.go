@@ -88,8 +88,9 @@ func (fixture *onboardingFixture) onboard(t *testing.T, path string) error {
 }
 
 // TestOnboardingAQwen35DirectoryWritesNoGGUF holds validate -onboard to serving a directory the converter serves as it
-// is from its own files: its declarations are recorded under the model it serves (gguf convert -view), the directory
-// itself registers, records, replays and activates, the long-form guard runs on it, and no conversion is written; an
+// is from its own files: the directory itself registers, records, replays and activates, then its declarations are
+// recorded under the model it serves (gguf convert -view), which the store knows once it registered, the long-form
+// guard runs on it, and no conversion is written; an
 // activated conversion of it is not a refusal but the model it takes the place of, retired once the directory is
 // activated and never before, and a directory itself activated is refused.
 func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {

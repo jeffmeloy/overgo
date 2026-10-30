@@ -166,13 +166,6 @@
       },
       "steps": [
         {
-          "id": "record-after",
-          "title": "Onboarding records a directory's declarations once the directory has registered, as the store knows its model only then",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingAQwen35DirectoryWritesNoGGUF$'",
-          "rationale": "Filed 2026-10-30 from the 4B's first onboarding (14:31): recording the directory's declarations before it registered failed, \"overgodb: lineage parent is unknown: model:sha256:80af40e582e2d696\", since a model config's lineage names the model it describes, which the store knows only once the directory registers (a conversion's file is identified before it is recorded, a directory's model only by its registration). The fix: onboarding records the declarations after the directory registers, records, replays and activates, and before it retires the conversion its recorded sources tie it to. The check is the onboarding test, whose order of commands is unchanged."
-        },
-        {
           "id": "native",
           "title": "Serve Qwen3.5-4B from its own safetensors, the converter's tables applied at load, no GGUF written",
           "status": "open",

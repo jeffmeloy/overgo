@@ -69,11 +69,12 @@ func TestAServedModelsDeclineIsFiledAcrossARecipeChange(t *testing.T) {
 		t.Errorf("the decline under a later recipe = %+v, want it filed under the key of the decline under the activated recipe, %s", again, filed[0].Key)
 	}
 	flashRow := records(true, 1742.1, activated)[6].Rows[0]
-	if restored, found := Restored([]Row{flashRow}, filed[0].RecipeKey, 1218); !found || restored {
+	withRecipe := recipeRegressionKey(flashRow, metric.FirstOutput, flashRow.Cells[metric.FirstOutput])
+	if restored, found := Restored([]Row{flashRow}, withRecipe, 1218); !found || restored {
 		t.Errorf("the cell found by its key with the recipe in it = (restored %t, found %t), want found and not restored", restored, found)
 	}
-	if filed[0].RecipeKey == filed[0].Key || filed[0].RecipeKey != recipeRegressionKey(flashRow, metric.FirstOutput, flashRow.Cells[metric.FirstOutput]) {
-		t.Errorf("the decline's key with its recipe = %s beside %s, want the key with the activated recipe in it", filed[0].RecipeKey, filed[0].Key)
+	if withRecipe == filed[0].Key || !slices.Equal(filed[0].Aliases, []string{withRecipe}) {
+		t.Errorf("the decline's other keys = %q beside %s, want the key with the activated recipe in it", filed[0].Aliases, filed[0].Key)
 	}
 	if alone := declines(records(false, 1742.1, activated)); len(alone) != 0 {
 		t.Errorf("1742 ms with no judged cell in its column = %+v, want it unknown", alone)

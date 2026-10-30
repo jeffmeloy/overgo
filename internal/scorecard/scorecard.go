@@ -17,6 +17,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -239,6 +240,10 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // first, beside the headline's at its verified request. Warm holds the
 // throughput and first output of a request timed again on the model it had
 // loaded and served, beside the headline's of its first request after load.
+// Succeeds names the models the row's model took the place of (successions):
+// a re-conversion, or a model served from its own files in place of a
+// conversion, is a new identity, and the rows of those models are its earlier
+// readings and their open declines its own.
 type Row struct {
 	Model        artifact.ID          `json:"model,omitzero"`
 	Name         string               `json:"name"`
@@ -249,6 +254,7 @@ type Row struct {
 	Heldout      []Cell               `json:"heldout,omitempty"`
 	Lengths      []Cell               `json:"lengths,omitempty"`
 	Warm         []Cell               `json:"warm,omitempty"`
+	Succeeds     []artifact.ID        `json:"succeeds,omitempty"`
 }
 
 // The measures of a warm cell (Row.Warm): a request read again on a loaded model, its prompt through the cache the
@@ -327,6 +333,15 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
+	sources, err := modelartifact.ConfigSources(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	listed := make([]artifact.ID, 0, len(entries))
+	for _, entry := range entries {
+		listed = append(listed, entry.Model)
+	}
+	succeeded := successions(sources, listed)
 	var rows []Row
 	for _, entry := range entries {
 		name := names[entry.Model]
@@ -340,7 +355,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			if err != nil {
 				return nil, err
 			}
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}}
+			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[entry.Model]}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -383,6 +398,48 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	markUses(rows, uses)
 	return rows, comparePaths(rows)
 }
+
+// successions names, for each model listed, the models it took the place of
+// (Row.Succeeds): each model no longer listed whose recorded sources (its
+// newest model config's) are the listed model's, file for file, among them its
+// architecture (architectureSource). Sources two listed models share name no
+// successor, since then which one took the place is not recorded; sources
+// without the architecture name no model, as a sampling card alone does not
+// (Qwen3.5-4B and 9B ship the same one). Never a name: sources are what a
+// conversion and a registration record of the files they read.
+func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed []artifact.ID) map[artifact.ID][]artifact.ID {
+	read := func(model artifact.ID) string {
+		var files []string
+		for _, source := range sources[model] {
+			files = append(files, source.Name+"="+source.SHA256)
+		}
+		if !slices.ContainsFunc(sources[model], func(source modelartifact.ConfigSource) bool { return source.Name == architectureSource }) {
+			return ""
+		}
+		slices.Sort(files)
+		return strings.Join(files, "\n")
+	}
+	heirs := map[string][]artifact.ID{}
+	for _, model := range listed {
+		if files := read(model); files != "" && !slices.Contains(heirs[files], model) {
+			heirs[files] = append(heirs[files], model)
+		}
+	}
+	succeeded := map[artifact.ID][]artifact.ID{}
+	for model := range sources {
+		if heir := heirs[read(model)]; len(heir) == 1 && !slices.Contains(listed, model) {
+			succeeded[heir[0]] = append(succeeded[heir[0]], model)
+		}
+	}
+	for _, models := range succeeded {
+		slices.SortFunc(models, func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) })
+	}
+	return succeeded
+}
+
+// architectureSource is the source file that declares a model's architecture, its shapes and its vocabulary, without
+// which recorded sources do not say which model they are.
+const architectureSource = "config.json"
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out
 // quality a vision-language model's answers could measure: the held-out evaluations ask about what

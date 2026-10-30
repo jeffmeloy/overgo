@@ -199,13 +199,13 @@ func (c *Cell) borrow(column metric.Name, shares []float64) {
 
 // judged is a reference's measured cell of a repeated column with what it
 // holds and how far a later reading may move from it (Reference), from the
-// readings the earlier records' rows of its model and task hold of it, each
-// read by read.
+// readings the earlier records' rows of its model and task, or of a model it
+// took the place of, hold of it, each read by read.
 func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(Row) Cell) Cell {
 	var readings []float64
 	seen := make(map[artifact.ID][]float64)
 	for _, record := range earlier {
-		at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+		at := predecessor(record.Rows, row)
 		if at < 0 {
 			continue
 		}
@@ -290,7 +290,7 @@ func Earlier(records []Record) *Record {
 	}
 	for _, record := range slices.Backward(earlier) {
 		for _, row := range record.Rows {
-			at := slices.IndexFunc(reference.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+			at := successor(reference.Rows, row)
 			if at < 0 {
 				at = len(reference.Rows)
 				copy := row
@@ -299,7 +299,7 @@ func Earlier(records []Record) *Record {
 			}
 			kept := &reference.Rows[at]
 			var now Row
-			if currentAt := slices.IndexFunc(current.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task }); currentAt >= 0 {
+			if currentAt := successor(current.Rows, row); currentAt >= 0 {
 				now = current.Rows[currentAt]
 			}
 			for column, cell := range row.Cells {
@@ -355,24 +355,45 @@ const (
 // nil where that record has none.
 type Pair struct{ Before, After *Row }
 
-// Pairs pairs the record's rows with the baseline's by model and task, never
-// by display name, so a renamed model keeps its baseline and two models
-// sharing a name never trade theirs: the record's rows in order, each beside
-// its baseline row, then the baseline's rows the record lacks.
+// Pairs pairs the record's rows with the baseline's by model and task, or
+// with the model that took the baseline model's place (successor), never by
+// display name, so a renamed or re-converted model keeps its baseline and two
+// models sharing a name never trade theirs: the record's rows in order, each
+// beside its baseline row, then the baseline's rows the record lacks.
 func (record Record) Pairs(baseline Record) []Pair {
 	pairs := make([]Pair, len(record.Rows))
 	for index := range record.Rows {
 		pairs[index].After = &record.Rows[index]
 	}
 	for index, row := range baseline.Rows {
-		at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
-		if at < 0 {
+		at := successor(record.Rows, row)
+		if at < 0 || pairs[at].Before != nil {
 			at = len(pairs)
 			pairs = append(pairs, Pair{})
 		}
 		pairs[at].Before = &baseline.Rows[index]
 	}
 	return pairs
+}
+
+// successor is the index of the row of rows that is earlier's model and task,
+// or else of the one whose model took earlier's model's place (Row.Succeeds),
+// or -1. The same model comes first, so models a record holds side by side
+// never trade rows.
+func successor(rows []Row, earlier Row) int {
+	if at := slices.IndexFunc(rows, func(row Row) bool { return row.Model == earlier.Model && row.Task == earlier.Task }); at >= 0 {
+		return at
+	}
+	return slices.IndexFunc(rows, func(row Row) bool { return row.Task == earlier.Task && slices.Contains(row.Succeeds, earlier.Model) })
+}
+
+// predecessor is the index of the row of rows that is later's model and task,
+// or else of one whose model later's model took the place of, or -1.
+func predecessor(rows []Row, later Row) int {
+	if at := slices.IndexFunc(rows, func(row Row) bool { return row.Model == later.Model && row.Task == later.Task }); at >= 0 {
+		return at
+	}
+	return slices.IndexFunc(rows, func(row Row) bool { return row.Task == later.Task && slices.Contains(later.Succeeds, row.Model) })
 }
 
 // Comparison is a cell of the record that does not hold against its reference:
@@ -562,6 +583,19 @@ func recipeRegressionKey(row Row, column metric.Name, cell Cell) string {
 	return regressionKeyPrefix + hex.EncodeToString(sum[:])[:regressionDigits]
 }
 
+// regressionKeys are the keys a decline of row's cell is found by: its own two
+// (regressionKey, recipeRegressionKey), then the two of each model it took the
+// place of (Row.Succeeds), whose open rows are the row's own.
+func regressionKeys(row Row, column metric.Name, cell Cell) (own, inherited []string) {
+	own = []string{regressionKey(row, column, cell), recipeRegressionKey(row, column, cell)}
+	for _, model := range row.Succeeds {
+		earlier := row
+		earlier.Model = model
+		inherited = append(inherited, regressionKey(earlier, column, cell), recipeRegressionKey(earlier, column, cell))
+	}
+	return own, inherited
+}
+
 // KnownGapKey reports whether key names a gap the scorecard can propose: a
 // kind of gap on a task the catalog holds, or the decline of a cell. A key that
 // matches neither is not a gap that is closed; nothing could ever open it.
@@ -579,13 +613,20 @@ func KnownGapKey(key string) bool {
 // Restored reports whether the cell a decline's key names, read from rows, is
 // back at target: measured, and not worse than it by more than the scorecard's
 // printed digits show. A target already holds what the cell's readings allowed
-// (Gap). found says whether a cell carries the key at all.
+// (Gap). found says whether a cell carries the key at all: by its own keys
+// first, then by those of a model it took the place of.
 func Restored(rows []Row, key string, target float64) (restored, found bool) {
-	for _, row := range rows {
-		for _, column := range metric.Columns {
-			for _, cell := range row.Measured(column) {
-				if regressionKey(row, column, cell) == key || recipeRegressionKey(row, column, cell) == key {
-					return !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
+	for _, inherited := range []bool{false, true} {
+		for _, row := range rows {
+			for _, column := range metric.Columns {
+				for _, cell := range row.Measured(column) {
+					own, earlier := regressionKeys(row, column, cell)
+					if inherited {
+						own = earlier
+					}
+					if slices.Contains(own, key) {
+						return !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
+					}
 				}
 			}
 		}
@@ -603,12 +644,13 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 // one.
 type Gap struct {
 	Key, Title, Detail string
-	// RecipeKey is a serving decline's key with its recipe in it (recipeRegressionKey), which an open row filed before
-	// the key left the recipe out carries: the decline is that row's, and is not filed again.
-	RecipeKey string
-	kind      string
-	Target    float64
-	Restore   bool
+	// Aliases are the other keys an open row of the decline may carry (regressionKeys): its key with its recipe in
+	// it, which rows filed before the key left the recipe out carry, and the keys of the models it took the place of.
+	// The decline is such a row's, and is not filed again.
+	Aliases []string
+	kind    string
+	Target  float64
+	Restore bool
 	// quality is the comparison a decline of a held-out quality was filed from, which Supported judges by its cases.
 	quality *Comparison
 }
@@ -655,8 +697,9 @@ func (record Record) Gaps(reference *Record) []Gap {
 			for _, comparison := range pair.Compare(column) {
 				if comparison.Verdict == regressed {
 					target := comparison.Then.bar(cmp.Or(comparison.Now.Direction, columnDirections[column]))
+					own, inherited := regressionKeys(*row, column, comparison.Now)
 					decline := Gap{
-						Key: regressionKey(*row, column, comparison.Now), RecipeKey: recipeRegressionKey(*row, column, comparison.Now),
+						Key: own[0], Aliases: append(own[1:], inherited...),
 						kind: string(regressed), Restore: true, Target: target,
 						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, target, comparison.Then.Unit),
 						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, comparison.Why),

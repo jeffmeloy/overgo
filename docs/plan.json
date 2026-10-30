@@ -160,14 +160,11 @@
       "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "scorecard succession: Row.Succeeds from recorded sources, rows paired and judged by a model's predecessors, declines found by their keys; it keeps a re-converted or natively served model's readings and open declines"
+      },
       "steps": [
-        {
-          "id": "lineage",
-          "title": "Keep a re-converted model's comparison and open declines on the scorecard",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAReconvertedModelKeepsItsDeclines$'",
-          "rationale": "A re-converted model is a new library entry with a new model identity, and the scorecard pairs a record's rows with its reference's by that identity (Record.Pairs, internal/scorecard/record.go:368). So the re-converted 4B's cells would be compared with nothing (a new row is never a decline), and the 4B's two open rows, filed under the old file's recipe key, would find no cell (Restored returns found false) and stay open for ever. Reviewer finding SQA-256 names the same loss for a recipe change on one model. The change: a row whose model the reference does not hold pairs with the reference's row of the same name and task whose model the record no longer holds (the file it replaced), and a decline filed under the replaced model's or recipe's key is found and judged on the cell that replaced it, its original target kept. Once no open row carries an old-form key, Gap.RecipeKey and the recipe-key branches in Restored, Propose and the validate check go. The check: the scorecard test that a declined cell of a model replaced by its re-conversion is found and judged on the new file's cell, and that the new file's cells are compared with the old file's.\n\nCorrection, the link is the store's, not the name: Record.Pairs pairs by model and never by display name, so two models sharing a name never trade baselines, and that rule stays. A conversion records the config files it was made from (modelartifact.ModelConfigDocument.Sources, which validate -inventory already reads to tie a conversion to its directory, convertedSources). So a row whose model the reference holds no row of pairs with the reference's row of a model converted from the same recorded sources, on the same task, whose model the record no longer serves; a decline filed under that model's or its recipe's key is found on the cell that replaced it, its original target kept. Where the old file's conversion recorded no sources, the link is the onboarding's record of the conversion it supersedes."
-        },
         {
           "id": "native",
           "title": "Serve Qwen3.5-4B from its own safetensors, the converter's tables applied at load, no GGUF written",

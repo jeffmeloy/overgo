@@ -211,7 +211,7 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 		return 0, err
 	}
 	for _, gap := range gaps {
-		if slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.ID == gap.Key || item.ID == gap.RecipeKey }) {
+		if slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.ID == gap.Key || slices.Contains(gap.Aliases, item.ID) }) {
 			continue
 		}
 		verify := "go run ./cmd/validate -scorecard -gap " + gap.Key

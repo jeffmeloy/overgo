@@ -7,7 +7,25 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 )
+
+// ConfigSources is each model's recorded sources, from the newest model config
+// the store holds for it: the files of the directory the model was converted
+// or registered from, each with its digest.
+func ConfigSources(ctx context.Context, store overgodb.DocumentReader) (map[artifact.ID][]ConfigSource, error) {
+	sources := map[artifact.ID][]ConfigSource{}
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindProfile, MediaType: ModelConfigMediaType, Schema: ModelConfigSchema}},
+		Order:     overgodb.DocumentNewestFirst,
+	}, ParseModelConfigDocument, func(_ overgodb.DocumentView, document ModelConfigDocument) error {
+		if _, seen := sources[document.Model]; !seen {
+			sources[document.Model] = document.Sources
+		}
+		return nil
+	})
+	return sources, err
+}
 
 // IdentifyConvertedModel is the converted file's own identity, the one a
 // fresh conversion records under before the store catalogs it.

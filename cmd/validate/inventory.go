@@ -126,18 +126,13 @@ func readModelDirectory(path string) (modelDirectory, error) {
 // convertedSources maps each model that carries a model-config declaration to
 // the digests of the config files it was extracted from.
 func convertedSources(ctx context.Context, store overgodb.DocumentReader) (map[artifact.ID][]string, error) {
+	recorded, err := modelartifact.ConfigSources(ctx, store)
 	sources := map[artifact.ID][]string{}
-	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindProfile, MediaType: modelartifact.ModelConfigMediaType, Schema: modelartifact.ModelConfigSchema,
-		}},
-		Order: overgodb.DocumentNewestFirst,
-	}, modelartifact.ParseModelConfigDocument, func(_ overgodb.DocumentView, document modelartifact.ModelConfigDocument) error {
-		for _, source := range document.Sources {
-			sources[document.Model] = append(sources[document.Model], source.SHA256)
+	for model, files := range recorded {
+		for _, source := range files {
+			sources[model] = append(sources[model], source.SHA256)
 		}
-		return nil
-	})
+	}
 	return sources, err
 }
 

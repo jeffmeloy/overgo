@@ -349,6 +349,9 @@ type OpenOptions struct {
 	// SpanKernels keeps the K-quant products of one to eight columns on the q8-input span kernels, where they would take
 	// Strata's native MMVQ (executor.KeepSpanKernels): the path a held-out check holds the native products to.
 	SpanKernels bool
+	// JudgeOwnDrafts times the model's own next-token layer's drafted decoding against plain decoding at open, and drafts
+	// by default only where it is faster (judgeOwnDrafts): a served model's open.
+	JudgeOwnDrafts bool
 }
 
 func (r *Runner) Spec() model.Spec {

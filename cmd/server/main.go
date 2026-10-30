@@ -192,8 +192,9 @@ func run() error {
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
 	openOptions.Draft = *draftPath
-	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound).
-	openOptions.StrataRound = true
+	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound),
+	// and drafts through its own next-token layer by default only where drafting is faster (JudgeOwnDrafts).
+	openOptions.StrataRound, openOptions.JudgeOwnDrafts = true, true
 	if _, set := explicit["prompt-cache-entries"]; set {
 		openOptions.PromptCacheEntries = *promptCacheEntries
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
@@ -112,6 +113,66 @@ func (r *Runner) observeOwnDrafts(drafted, kept int) {
 	}
 }
 
+// ownDraftProbe is the text a runner opened to judge its own next-token layer (OpenOptions.JudgeOwnDrafts) decodes at
+// open, and ownDraftProbeTokens the tokens each of its two decodings returns: past its first step or window, several
+// windows.
+const (
+	ownDraftProbe       = "The capital of France is"
+	ownDraftProbeTokens = 16
+)
+
+// judgeOwnDrafts decodes ownDraftProbe plainly and then drafted through the model's own next-token layer, greedy on the
+// card, and refuses the layer's drafting by default where its tokens come slower than plain decoding's. A window's cost
+// against a plain step is the model's: Qwen3.8-27B's trunk dominates a window, which costs about a plain step, and the
+// probe decodes at 42 to 54 tok/s drafted against 37 plainly; Qwen3.5-4B's four-token verify costs about two plain steps
+// beside its three 2 ms draft steps, so keeping half its drafts it decodes at about 57 tok/s drafted against 95
+// plainly. Each decoding's first use of the card is the open's, not a request's: 0.64 s of the 4B's load and 1.0 s of
+// the 27B's, its first request's first output 133 ms sooner on the 4B and 99 ms on the 27B.
+func (r *Runner) judgeOwnDrafts(ctx context.Context) error {
+	if !r.ownDraftLayer() {
+		return nil
+	}
+	plain, _, err := r.probeDecodeRate(ctx, true)
+	if err != nil {
+		return err
+	}
+	drafted, windowed, err := r.probeDecodeRate(ctx, false)
+	if err == nil && windowed && drafted < plain {
+		r.ownDraftsRefused.Store(true)
+	}
+	return err
+}
+
+// probeDecodeRate decodes ownDraftProbe greedily on the card, plainly or drafted, and returns its tokens a second past
+// its first step, or past its first drafted window, and whether a window drafted.
+func (r *Runner) probeDecodeRate(ctx context.Context, plain bool) (float64, bool, error) {
+	var times []time.Time
+	// The rate is timed from the token at from and counts the tokens after it: the first step's, the prompt's before
+	// it, or the last the first drafted window emits.
+	from, windowed := 1, false
+	options := GenerateOptions{
+		MaxNewTokens: ownDraftProbeTokens, DeviceGreedy: true, ContinueAfterEOG: true,
+		PlainDecode: plain, SpeculativeDecode: !plain,
+		OnToken: func(TokenEvent) error {
+			times = append(times, time.Now())
+			return nil
+		},
+		OnDraftSpan: func(_, accepted int) {
+			if !windowed {
+				from, windowed = len(times)+accepted, true
+			}
+		},
+	}
+	if _, _, err := r.Generate(ctx, ownDraftProbe, options); err != nil {
+		return 0, false, err
+	}
+	last := len(times) - 1
+	if last <= from {
+		return 0, false, nil
+	}
+	return float64(last-from) / times[last].Sub(times[from]).Seconds(), windowed, nil
+}
+
 func greedyTokenID(logits []float32) tokenizer.TokenID {
 	best := 0
 	for index, value := range logits {
@@ -124,18 +185,17 @@ func greedyTokenID(logits []float32) tokenizer.TokenID {
 
 // newDeviceMTPSessionLocked seeds a draft session from a device span hidden
 // row: the trunk lives in a device KV cache, so the session carries only the
-// pending hidden and its absolute position.
+// pending hidden and its absolute position. The session is the window loop's
+// own, made and read within one request and never saved, so it binds no model
+// signature: sessionModelSignature reads each tensor's edges, which a model
+// served from its own files converts whole (0.75 s of Qwen3.5-4B's first window).
 func (r *Runner) newDeviceMTPSessionLocked(
 	hidden reference.Value,
 	position uint32,
 ) (*MTPSession, error) {
-	targetModel, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
+	var err error
 	session := &MTPSession{
-		PendingHidden: hidden, MTPStart: position, Position: position,
-		targetModel: targetModel, deviceTrunk: true,
+		PendingHidden: hidden, MTPStart: position, Position: position, deviceTrunk: true,
 	}
 	switch {
 	case r.hyperDraft != nil:

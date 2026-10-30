@@ -181,8 +181,9 @@ func openRunner(
 			options.Draft, _, resolveErr = discovery.ActiveDraft(ctx, store, identity.Model, memo)
 		}
 	}
-	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound).
-	options.StrataRound = options.StrataRound || served
+	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound),
+	// and drafts through its own next-token layer by default only where drafting is faster (JudgeOwnDrafts).
+	options.StrataRound, options.JudgeOwnDrafts = options.StrataRound || served, options.JudgeOwnDrafts || served
 	closeErr := store.Close()
 	resolved()
 	if resolveErr != nil || closeErr != nil {

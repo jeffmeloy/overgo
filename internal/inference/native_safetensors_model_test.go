@@ -20,9 +20,10 @@ import (
 // TestQwen35ServesFromItsSafetensors holds Qwen3.5-4B served from its own safetensors, a directory registered as
 // itself and read through the converter's view, to the model its conversion served. Every tensor the view serves is the
 // conversion's, byte for byte, but the draft layer's norms, which dcf1a1d66 shifted by one as the trunk's always were,
-// so the trunk computes what the GGUF-served 4B computed, bit for bit, through the same runner. Served, its own draft
-// layer drafts by default and keeps at least one draft in ten, the floor below which it stops drafting, and its
-// speculative decode emits what its plain decode does.
+// so the trunk computes what the GGUF-served 4B computed, bit for bit, through the same runner. Opened without judging
+// its drafting (OpenOptions.JudgeOwnDrafts, under which it decodes plainly), its own draft layer drafts by default and
+// keeps at least one draft in ten, the floor below which it stops drafting, and its speculative decode emits what its
+// plain decode does.
 func TestQwen35ServesFromItsSafetensors(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)

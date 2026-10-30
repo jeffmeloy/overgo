@@ -25,6 +25,32 @@
       "level": 25.431363610643277,
       "unit": "tok/s",
       "bought": "the same drafting (59e8bf5b6): the scorecard's first request is a three-token answer that times a drafted span's start, not the decode, which runs 31 to 52 percent faster; declared in d184ff653"
+    },
+    {
+      "model": "model:sha256:731de849206bdc40565de1b8f596c0a4f581e92f2e6711eb542dbe97e8336256",
+      "name": "Qwen3.5-4B",
+      "task": "inference",
+      "column": "load-time",
+      "contract": {
+        "metric": "load phase",
+        "origin": "serving"
+      },
+      "level": 9667.99,
+      "unit": "ms",
+      "bought": "scorecard-regressed-82d99de4d4606223/do: a served model's open judges its own draft layer by the rates it measures (0.64 s of the load), so Qwen3.5-4B decodes plainly; its first request's first output fell from 133 to 16.7 ms and its throughput rose from 14.75 to 101.6 tok/s"
+    },
+    {
+      "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+      "name": "Qwen3.8-27B",
+      "task": "inference",
+      "column": "load-time",
+      "contract": {
+        "metric": "load phase",
+        "origin": "serving"
+      },
+      "level": 10322.5451,
+      "unit": "ms",
+      "bought": "scorecard-regressed-82d99de4d4606223/do: a served model's open judges its own draft layer by the rates it measures (1.0 s of the load), and Qwen3.8-27B keeps drafting; its first request's first output fell from 147.9 to 48.6 ms and its throughput rose from 25.97 to 43.94 tok/s"
     }
   ]
 }

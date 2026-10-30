@@ -240,6 +240,14 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return nil, errors.Join(err, runner.Close())
 		}
 	}
+	if options.JudgeOwnDrafts {
+		judged := processmeasure.Stage(ctx, "draft judgement")
+		err := runner.judgeOwnDrafts(ctx)
+		judged()
+		if err != nil {
+			return nil, errors.Join(err, runner.Close())
+		}
+	}
 	return runner, nil
 }
 

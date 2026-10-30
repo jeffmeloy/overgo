@@ -4,10 +4,12 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/rand/v2"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/quant"
 	"overgo/internal/tensor"
@@ -22,7 +24,8 @@ import (
 // and the state's codes and fp16 scales equal to the reference's bit for bit at the end. The geometries are gemma-4-12B's
 // sliding layers (8 K/V heads of 256 reading a window, here 192 cells), its global layers (one K/V head of 512 reading
 // every cell before it), a llama layer (2 K/V heads of 128) and the qwen35 family's attention layers (4 K/V heads of 256
-// under 16 query heads, Qwen3.5-9B's, and under 24, Qwen3.8-27B's).
+// under 16 query heads, Qwen3.5-9B's, and under 24, Qwen3.8-27B's). The executor that ran only cell attention keeps the
+// partials in its score staging and has opened no cuBLAS, whose open took 70 ms of a cell model's first prompt.
 func TestCellAttentionMatchesReference(t *testing.T) {
 	worker := newFixtureWorker(t)
 	cuda := newFixtureExecutorWithWorker(t, worker)
@@ -37,6 +40,14 @@ func TestCellAttentionMatchesReference(t *testing.T) {
 		{"Qwen3.8-27B", 256, 24, 4, 0},
 	} {
 		t.Run(c.name, func(t *testing.T) { cellAttentionParity(t, cuda, c.width, c.heads, c.kvHeads, c.window) })
+	}
+	if err := worker.Do(t.Context(), func(*device.State) error {
+		if blas := cuda.resources.blas; blas == nil || blas.scores == 0 || blas.library != nil {
+			return errors.New("the cell attention steps kept no score staging or opened cuBLAS")
+		}
+		return nil
+	}); err != nil {
+		t.Error(err)
 	}
 }
 

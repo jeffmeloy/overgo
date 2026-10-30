@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "cells-first-request",
-      "title": "Open no cuBLAS for a graph whose cell attention needs only its score staging",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep a cell attention step's partials in the score staging without opening cuBLAS",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestCellAttentionMatchesReference$' -count=1",
-          "rationale": "The 2026-10-29 record filed the first output of Bonsai-27B-Q1_0 (109 to 181 ms) and Qwen3.5-9B (39 to 119 ms). Their measured attempts moved together between 2026-10-26 and the run of 2026-10-28, and a bisect over the 71 commits between them, timing the 9B's measured request on a fresh load (recipe measure -journey), put it at 263d0eecb (cells-qwen35): 62 to 135 ms. At HEAD the 9B's first request evaluates its prompt at 134 to 136 ms over the cells and 50 to 58 ms over the F32 cache, the request again 17 ms either way. A CPU profile of the first request shows the difference: ensureResources opens cuBLAS (cublas.Load 50 ms, Create 20 ms), because the compiler marks a cell attention step as needing cuBLAS to get the score staging cuBLAS's state keeps, while the step calls no cuBLAS. The change keeps that state, opening no cuBLAS until a graph takes a cuBLAS product. Measured with the change: the 9B's first prompt 55 to 62 ms, Bonsai's 123 to 134 against 202 to 217 at HEAD. TestCellAttentionMatchesReference now holds that an executor that ran only cell attention opened no cuBLAS; it fails without the change. The rows the change restores are retired by their own checks after a measurement from a clean tree."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-f150c20a36aed39b",
       "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
       "owner": "master-lead",

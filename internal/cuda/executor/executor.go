@@ -1298,9 +1298,9 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, layout.total)
 		}
-		// A decoding cell attention step keeps its partials in the score staging.
+		// A decoding cell attention step keeps its partials in the score staging, and calls no cuBLAS: a graph of cell
+		// layers that takes no cuBLAS product opens no cuBLAS (its open and handle took 70 ms of Qwen3.5-9B's first prompt).
 		if node.Op == tensor.OpCellAttention {
-			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, cellScratchBytes(node))
 		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
@@ -2838,7 +2838,12 @@ func (e *Executor) ensureResources(
 		e.resources.modules = modules
 		e.resources.functions = functions
 	}
-	if needBlas && e.resources.blas == nil {
+	// The score staging and the tables the launches keep live beside cuBLAS's handles; a graph that needs only the staging
+	// opens no cuBLAS, and the first graph that takes a cuBLAS product opens it.
+	if (needBlas || attentionScoreBytes > 0) && e.resources.blas == nil {
+		e.resources.blas = &blasState{costs: e.resources.costs}
+	}
+	if needBlas && e.resources.blas.library == nil {
 		library, err := cublas.Open()
 		if err != nil {
 			return nil, err
@@ -2859,7 +2864,7 @@ func (e *Executor) ensureResources(
 			_ = library.Close()
 			return nil, err
 		}
-		e.resources.blas = &blasState{library: library, handle: handle, lt: lt, costs: e.resources.costs}
+		e.resources.blas.library, e.resources.blas.handle, e.resources.blas.lt = library, handle, lt
 	}
 	// A run takes back the whole staging: its launches size their rows to all of it and place their activations at its
 	// end, where the experts' slots are carved first (launch_linear_layout.go).
@@ -3170,14 +3175,8 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.scoreBytes = 0
 		}
 		errs = append(errs, e.resources.blas.dropFP8Plans())
-		if err := e.resources.blas.library.DestroyLt(e.resources.blas.lt); err != nil {
-			errs = append(errs, err)
-		}
-		if err := e.resources.blas.library.Destroy(e.resources.blas.handle); err != nil {
-			errs = append(errs, err)
-		}
-		if err := e.resources.blas.library.Close(); err != nil {
-			errs = append(errs, err)
+		if library := e.resources.blas.library; library != nil {
+			errs = append(errs, library.DestroyLt(e.resources.blas.lt), library.Destroy(e.resources.blas.handle), library.Close())
 		}
 		e.resources.blas = nil
 	}

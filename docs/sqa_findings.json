@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "54 open,3 deferred,22 resolved. New263: native directory-view components cannot earn stable cell resume credit. New262: exact view parity keeps both checks while deleting66 test AST.256 now covers active-conversion retirement as well as scorecard identity; no wrongful retirement observed.",
-      "priority": "Source-authority/recovery ahead of small reductions. Existing254 loose-blob durability still applies in the rotated sample.263 sits beside prerequisite260 before scheduling-only remedies.262 is a low-priority batch simplification, not a new workstream.",
-      "declined_candidates": "Similar directory identity test names are not redundancy: artifact claims and discovery memo invalidation differ. Keep view-vs-converter byte/layout checks, modeltest actual weight/draft parity and onboarding recovery. No safe broader test retirement established."
+      "assessment": "54 open, 3 deferred, 22 resolved; no new or closed finding. Native directory selection, evidence indexing and task-scoped succession now work through the existing owners. SQA-256 is partly addressed: Qwen4B throughput's legacy key migrated, but the memory row still uses its old recipe-bearing key and source-weight equivalence remains unproved.",
+      "priority": "Keep correctness and recovery ahead of cosmetic reductions: 254 durability, 256 source authority, 260 readiness and 263 native-view resume credit. Existing small reductions remain suitable for normal edits, not separate validation workstreams.",
+      "declined_candidates": "No new safe net reduction established. New directory selection, benchmark indexing and inference-versus-training cases are distinct requirements in existing tests. Similar artifact construction does not justify merging unrelated owners. Retain loader cleanup, reasoning byte-boundary and packed-blob recovery coverage."
     },
   "committed_plan": {
-    "git_blob": "8f4a737d3002a3759178a8c4619fb925fadb2a53",
+    "git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
     "path": "docs/plan.json",
-    "revision": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
-    "sha256": "b29f21503a01d3d91a403dde5f7e5f4d9250ca6ed88b65db3c796f0c8d5a7dab",
+    "revision": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
+    "sha256": "e4d66ca76fa36ec0fbb3396fb5d7f2bdec040c4e529e55a023add13db41c7d3e",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -447,15 +447,15 @@
       "category": "scorecard-feedback-correctness",
       "classification": "source-confirmed-partially-addressed",
       "title": "Require source-weight identity before carrying declines or retiring a conversion",
-      "evidence_commit": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
+      "evidence_commit": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
       "sources": [
         {
           "path": "internal/scorecard/scorecard.go",
-          "symbol": "Build; successions; architectureSource"
+          "symbol": "Build; successions (task-scoped)"
         },
         {
           "path": "internal/modelartifact/model_config_record.go",
-          "symbol": "ConfigSources; RecordModelConfig"
+          "symbol": "ConfigSources; SourcesKey; RecordModelConfig"
         },
         {
           "path": "internal/modelartifact/model_config.go",
@@ -498,9 +498,9 @@
           "symbol": "convertedSources; buildInventory"
         }
       ],
-      "evidence": "Native Qwen35 succession is now used by registration, not just planned. ConfigSources merges the newest record for each source filename; SourcesKey now equals config.json's digest alone. scorecard.successions and newOnboarding.retire both consume this same key. buildInventory can tie a conversion through matching config digests; onboard collects active tied GGUF conversions, validates the native directory, then retire verifies only nonempty equal SourcesKey before RetireSupersededActivation removes the conversion's active alias. An admitted fine-tuned checkpoint with unchanged config but different weights can therefore both inherit another model's readings and retire its active conversion. Successful validation/trust proves the successor works, not that both used the same weights. This remains a counterexample/hypothesis, not a claimed observed wrongful retirement. The adopted succession-weights/do still names scorecard identity; the actual retirement caller must also be covered. The earlier recipe-A legacy-key residual also remains: regressionKeys still hashes legacy keys from current contracts; model aliases do not prove historical A-to-B migration.",
+      "evidence": "At 9a255e39c Build/successions now scope listing and predecessors by task: a conversion retained for training no longer blocks its inference successor. The existing test adds this distinct case. ConfigSources/SourcesKey remain config.json-only and are shared by scorecard.successions and newOnboarding.retire; same config with different fine-tuned weights can still misassign readings and remove a separately valid conversion's active alias after validation of the new model. That is an admitted counterexample, not an observed wrongful retirement. Legacy-key migration is partly addressed: committed Qwen4B throughput verification now uses recipe-free f361fcf368550bd1 instead of 82d99de4d4606223 with its original 86.33658857751945 target. The memory row still verifies 8b083b7b94e498e7 against 8.848448256e+09. regressionKeys substitutes predecessor model IDs but still hashes the current cell.Contract for recipeRegressionKey, so it cannot reconstruct the predecessor's old recipe-bearing key after native recipe succession. Task scoping and one migrated row do not complete source proof or remaining obligations.",
       "recommended_change": "Complete source-weight authority once in the existing modelartifact source owner and use it at both scorecard.successions and onboarding.retire before accepting equivalence. Reuse FromHFRepository's actual weight-component hashes and the already adopted historical conversion-source comparison, including configuration/transform authority where relevant. Missing or unequal weight proof must leave the earlier activation and original scorecard targets intact. Keep inventory's loose config association as discovery only, never retirement authority. Retain required predecessor Aliases; migrate affected recipe-A legacy keys once from retained evidence, then remove only obsolete recipeRegressionKey plumbing. Extend the existing source/succession case to equal configs with unequal weights and its retirement refusal; keep validated-native/resume behavior in the existing onboarding fixture. No parallel lineage registry or validator.",
-      "displaced_surface": "Existing ConfigSources/SourcesKey are now shared by real inventory, scorecard and onboarding consumers. SourcesKey's false config-equals-checkpoint predicate and its misleading contract must disappear at both equivalence callers; retain discovery/config metadata and predecessor aliases. Current source-record470+onboard1542+lifecycle5540=7552 production AST, including RetireSupersededActivation456; succession883+onboard1574 tests=2457 (succession retained prior parse; body only changed source metadata case). Full replacement/hash/migration/test cost unpriced; no reduction claimed. 6e20's +587production/+885test is already paid. The native series adds further capability/recovery cost, detailed in gate assessment; do not portray latest +21production/+749test as the whole feature. Remove obsolete legacy hash path only after migration. No fixture relocation, extra model run or new gate justified.",
+      "displaced_surface": "Retain the new task-scoped Build/successions and its inference-versus-training case. Remove config-equals-checkpoint equivalence at both scorecard and onboarding consumers by reusing existing source-component hashes; keep loose discovery/config association, original targets and required predecessor aliases. Current source-record 470 + onboard 1542 + lifecycle 5540 = 7552 production nodes remain; succession test now 994 + onboard 1574 = 2568 tests (111 added for task scoping). These are affected-owner baselines, not a complete replacement count: source hash, scorecard, migration and refusal coverage cost remains unpriced, with no net reduction claimed. Latest serving repair separately costs +97 production/+520 test. Delete recipeRegressionKey compatibility only once every affected retained obligation is migrated; do not add a registry or a new test fixture/framework.",
       "impact": "Wrong config-only equivalence can now remove a separately valid model's active selection as well as misassign performance history. Physical weight deletion is not shown. Preserve old activation until exact source authority and trusted successor are established, original restoration targets, context/error/transaction handling and all nonserving identity distinctions.",
       "expected_benefit": {
         "outcome": "One existing source authority protects both scorecard lineage and destructive activation retirement; unnecessary recipe compatibility can retire after bounded migration.",
@@ -508,15 +508,17 @@
       },
       "likely_effort": "Adopted source identity correction plus bounded historical-key migration; count weight provenance, hashing/setup and test growth honestly.",
       "plan_references": [
-        "succession-weights/do"
+        "succession-weights/do",
+        "scorecard-regressed-82d99de4d4606223/do",
+        "scorecard-regressed-8b083b7b94e498e7/do"
       ],
-      "plan_coverage": "succession-weights/do remains open and must include the now-live onboarding retirement consumer, not only scorecard.successions. Qwen4B view/open/register/record-after/native steps landed; its final throughput/memory restoration and native-text-weights/do remain. Worktree discovery/evidence changes excluded.",
+      "plan_coverage": "succession-weights/do remains open and must cover onboarding retirement as well as scorecard inheritance. Qwen4B throughput verifier migrated without resetting its target; memory row scorecard-regressed-8b083b7b94e498e7/do still carries its old recipe-bearing verifier. Native serving steps landed; first-request and memory restoration plus native-text-weights/do remain open.",
       "closure_criteria": [
         "Both scorecard inheritance and active-conversion retirement require matching source-weight authority; same config/different weights never links or removes the predecessor's activation. Unknown/ambiguous authority stays explicit.",
         "Existing legacy recipe-A obligations are found after B and after admitted native succession without duplicate filing or changing their original targets; retire recipe-specific compatibility only after migration.",
         "Retain both-listed, multiple-heir, missing-config, sampling-card-only, no-succession and original-target cases. Extend the existing owner in place; count full production/test/fixture/hash/setup/migration cost."
       ],
-      "comparison": "Use retained source-component hashes first. In the existing succession/source and onboarding owners, one small same-config/different-weights case must keep both readings distinct and the previous activation present. Keep original-target/legacy-A-to-B and validated-native recovery cases. No SQA workload, new permanent suite or new dependency."
+      "comparison": "Use retained physical source-component hashes first. Extend existing source/succession/onboarding coverage once for same-config/different-weights refusal, preserving task-specific inheritance and old activation. For the remaining Qwen4B memory obligation, compare its retained original model/recipe/metric key with current successor keys and migrate only that verifier to its recipe-free identity at the original target; no new model run is needed to decide key identity. No SQA execution, new suite, registry or dependency."
     },
     {
       "id": "SQA-257",
@@ -525,7 +527,7 @@
       "category": "inference-first-output-regression",
       "classification": "measured-regression-partly-repaired",
       "title": "Resolve the remaining cold-start regressions through existing measurement and resource owners",
-      "evidence_commit": "91f95401e50c596bcd38e4fed1d8433b46d19e02",
+      "evidence_commit": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
       "sources": [
         {
           "path": "C:/Users/jeffm/overgo_data/scorecards/scorecard-20261025T194250Z.json",
@@ -604,8 +606,8 @@
           "symbol": "TestFlashNextRoundIsReadyAtOpen"
         }
       ],
-      "evidence": "Flash-Next first-output is1128.1209->1742.1136->2803.8495 ms in Oct25/28/29 scorecards (+54.4%, then+60.9%; about2.49x Oct25). These are serving prefill-time medians, not direct token-arrival measurements. Oct28->Oct29 has nine text-inference increases under matching pairwise recipe/environment: Bonsai27B108.8949->181.4286; Carbon500M117.3576->132.1835; MiniCPM5-1B112.5392->126.1225; Qwen2.5-0.5B117.385->129.256; Qwen3.5-9B38.9347->119.0857; Flash-Next1742.1136->2803.8495; Qwen3.8-27B127.1552->147.8759; gemma4-12B-fp8-native167.7534->179.6055; gemma4-E4B152.1551->167.5657 ms. These are not nine proven outside-noise regressions. Qwen4 improved and two others were unchanged. Flash load,16k prefill and throughput improved Oct28->Oct29. At this pin the owner has prioritized two Qwen4B regression rows ahead of Flash-Next; Flash remains ahead of the other five. This is the committed priority decision, not evidence of a newly missed queue action. No production/test changes landed since the previous review. A later Oct30 scorecard and run now exist; the current focused workflow review establishes repeated prerequisite failures, not closure of startup obligations. f1f1bf3ec removed unnecessary cuBLAS initialization for cell-only graphs with retained approximately70ms benefit on Bonsai/9B. 3cbe425bb removes repeated ValidateAssets from ensureResources; retained two-model fresh-request readings indicate about5ms benefit, not complete restoration. 84d0c6e5d adds distinct warm cells and two extra requests per measured model, priming then measuring the reused session. 2e9628c87 lands one-time frequency calculation and parallel positions: retained QSARopeTable(262144)10.5-15.7ms versus prior profile510ms, preserving every value's arithmetic. 555749cc7 prepares converted round stores/CPU pool/tier at OpenWithProgram rather than the first round request. Retained fresh-load journey readings report first prompt1.04s versus1.93s on the second load within a process and2.45s versus3.69s on its first; respective load readings29.7s versus29.9s and38.5s versus38.7s. These are implementation observations, not a new full scorecard or evidence that all original targets hold. The latter change relocates startup work, so keep load plus first request visible. Drafter setup remains lazy because early allocation disturbed expert placement. executor-setup owns remaining module loads/function lookup. These establish concrete shared/specific setup work, not one cause for all nine increases or a new complete scorecard.",
-      "recommended_change": "Credit the landed rope and round-readiness changes in addition to resource/hash fixes, detector correction and warm measurement. Continue only existing flashnext-first-request/do and executor-setup/do against original cold/load/warm/quality targets using retained phase evidence first. Preserve QSARopeTable bit ordering, disjoint position spans and fixed geometry; existing qsaRopeTable still owns device upload/release. Keep openStrataRound as common idempotent owner for readyStrataRound, beginStrataRound and drafter callers: explicit round generation without a matching loaded draft can still need lazy setup. Preserve errors.Join cleanup on failed open and worker/resource lifetime. Further prove startup gains across the complete load+first-request boundary; do not mistake work relocation for deletion, duplicate rows or globally roll back drafting.",
+      "evidence": "Historical Flash-Next serving first-output medians were 1128.1209->1742.1136->2803.8495 ms across Oct25/28/29; these are serving-prefill medians, not direct token-arrival readings. Nine paired text-inference first-output values rose Oct28->29, not nine proven outside-noise regressions and not proof of one default-drafting cause. Existing shared resource/hash fixes and Flash rope/round readiness have retained partial gains; no whole scorecard restoration follows. At this pin Qwen4B served natively has first-request throughput 14.75 tok/s over three measurements (~1.22s), warm 91.5 and benchmark 108 (benchmark first token16.7ms); serving first-output132ms, load8.08s, peak8.92GiB. Its committed original first-request target remains86.33658857751945 and prior broken-conversion reading was31.1977924. Recipe resolution accounts for5.0 of8.1s load. These retained observations show native format and successful drafting did not restore the first request; they are not new SQA measurements or a matched attribution of the extra second. The latest gate's Qwen0.5B slice does not settle either Qwen4B or Flash.",
+      "recommended_change": "Use the existing Qwen4B throughput row and retained phase evidence to distinguish first graph/span-slot/draft-judgment setup from recurring decode work. Reuse the loaded runner/resource owners and count load plus first request if setup moves to Open; keep recipe resolution cost visible. Continue existing flashnext-first-request/do and executor-setup/do with original cold/load/warm/quality targets. Preserve arithmetic order, calibration, identity, failed-open errors and cleanup. Do not infer one cause from simultaneous increases, duplicate measurements across rows or globally disable drafting.",
       "displaced_surface": "Landed cell-only resource pair17092->17083 production and1157->1227 tests, total18249->18310(+61); unchanged fixture/setup count. Hash landing removes12 production AST nodes with0 test growth. Warm landing+719 production/+878 tests = +1597 and adds two requests per measured model, using existing request/observation fixtures with no fixture/schema files. Its new warm scorecard test also opens a store and publishes two observations; do not call this a saving. Window-row validation c7b270859 adds163 production/630 test nodes = +793, one model fixture load and five generations (plain, repeated plain, widths2/3/4), with a test-hook-only residual readback/allocation. It preserves window numerical evidence but is not runtime optimization. No safe complete reduction beyond the landed12-node hash removal is established for remaining Flash work; rope/lazy-module replacement cost remains unknown. No test deletion, wrapper, selector, telemetry or new performance suite recommended. New rope/readiness landings: selected production files builder_qsa.go1889->1973, runner_lifecycle.go3017->3047, strata_round.go3334->3438; total8240->8458(+218). Two new tests177+192=369 nodes give complete changed surface8240->8827(+587). Fixture/schema files remain0. The host rope check constructs one4099-position table; the readiness check adds one Flash model/draft runner open, device setup/link probe and close without generation. No eliminated setup or production wrapper is claimed. Existing round/window tests use HoldExperts=true whereas readiness uses movable experts, so a merge without retaining that distinction is not established.",
       "impact": "The retained Flash cold first-output is1.676s worse than Oct25 despite other improvements. Several setup repairs landed, but no new full scorecard establishes restoration of the seven obligations. Two Qwen4B repairs now precede Flash by owner priority; the other five regression rows remain later. Keep timing-independent numerical acceptance and actual cold/warm costs visible.",
       "expected_benefit": {
@@ -614,10 +616,11 @@
       },
       "likely_effort": "Bounded retained-evidence diagnosis first; implementation effort unknown until a cause is established.",
       "plan_references": [
+        "scorecard-regressed-82d99de4d4606223/do",
         "flashnext-first-request/do",
         "executor-setup/do"
       ],
-      "plan_coverage": "Flash/do and executor-setup/do remain. Two Qwen4B regression rows are ranked before Flash and five after it; do not repeat the previous claim that Flash precedes all seven. Rope/ready and prior detector/hash/warm/window work remain landed. Credit partial restoration, not closure or target reset. SQA-256 is now adopted in Qwen4B's lineage step.",
+      "plan_coverage": "Qwen4B throughput and memory rows remain first, before Flash; original throughput verifier now migrated to recipe-free key without changing target. The throughput row explicitly owns finding the first drafted request's extra second. Flash/do and executor-setup/do remain, alongside prior landed partial fixes. No full restoration, universal drafting rollback or new regression row inferred.",
       "closure_criteria": [
         "Ordinary retained implementation evidence accounts for remaining cold first-output targets while preserving warm throughput and actual quality/numerical requirements; honor the owner's current two-Qwen4B-first ordering.",
         "Finish remaining measured setup in existing Flash/executor owners; preserve exact rope arithmetic, lazy eligibility, device-transfer cleanup and timing-independent numerical/quality requirements.",
@@ -632,7 +635,7 @@
       "category": "cycle-prerequisite-recovery",
       "classification": "source-confirmed-partially-addressed",
       "title": "Finish shared prerequisite readiness after repairing Flash-Next's shard evidence lookup",
-      "evidence_commit": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
+      "evidence_commit": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
       "sources": [
         {
           "path": "cmd/validate/run.go",
@@ -679,7 +682,7 @@
           "symbol": "preflight-clean/do"
         }
       ],
-      "evidence": "The Oct29/Oct30 repeats remain historical evidence; this revision has substantive repairs. b0c74066b reuses cellCommand for execution/preflight, calls actual producers to clioptions.Ready, and changes measurePhases to preflight->lanes->cells->publication. A lane failure prevents cells; a preflight refusal remains in the final joined error but deliberately permits other cells, per current skill. e21e5550f fixes Flash's concrete binding cause: the split model had file locations on manifest components, not on the model itself; LatestEvidence now indexes its benchmark under those shard locations through modelLocations. The retained verification reports Flash guard ready after the valid benchmark was recorded. This resolves that observed prerequisite, not Flash's full first-output regression. Remaining: retained preflight116 cells took5m07s and refused75 largely because it ran in a dirty checkout, so it does not establish clean readiness; MOSS-Image still lacks a registered runtime source on this checkout. Quality Ready currently stops before suite/session authorities are set up. preflight-clean/do explicitly adopts clean checkout, lane-wait distinction and deeper shared quality setup.",
+      "evidence": "Shared cellCommand/actual-producer Ready and preflight->lanes->cells->publication already repaired the earlier ordering drift. Failed lanes stop cells; per-cell preflight refusals remain explicit while other cells may proceed under the existing contract. Flash's split-shard benchmark lookup was repaired through modelLocations. 9a255e39c extends the same LatestEvidence owner to a model served only from a directory; discovery.matchesSelectedInput likewise accepts component directories, with two existing tests extended. This closes native Qwen4B's selection/benchmark prerequisites, not its runtime performance or every clean preflight. The prior retained116-cell preflight took5m07s with75 refusals in a dirty checkout, MOSS runtime-source absence and quality setup beyond Ready still belong to preflight-clean/do. Native cell resume source closure is separately263, not solved by directory lookup.",
       "recommended_change": "Complete preflight-clean/do through the existing command/producer admission owners. Run ordinary preflight from its clean pinned checkout; let each quality producer's shared setup validate suite/session authorities before Ready and before loading weights. Classify the actually lane-owned absent runtime as waiting on that existing lane, preserving unknown/ambiguous-source failures and explicit incomplete coverage; do not invent a source profile or mark waiting as success. Keep repaired shard benchmark indexing and finite-positive, exact-identity calibration. Existing plan already owns the remaining work; no generic failure registry, second validator or scheduler. Preserve current per-cell refusal semantics and the failed-lane barrier.",
       "displaced_surface": "Shared cellCommand (74 AST) now serves executeMeasured and preflightCells (310 AST); superseded publication-before-lanes path/order-only assertion was displaced and the existing resume fixture adapted. b0c gate records +664 production/+625 test AST =+1289, zero fixtures/schema/CUDA growth. e21 shard repair separately records +132 production/+493 test =+625; new modelLocations function133 AST and split-index test493 AST. These are correctness growth, not reductions. Whole fresh run3323+improve2516 and preflight_test384+improve_resume_test1450=7673 nodes. Retain BenchmarkProducerFacts' separate provenance/refusal cases and the two-shard lookup case; merging them would not demonstrably reduce fixture/setup cost. Remaining setup extraction, waiting classification and tests are unpriced; count them before any saving claim. No new wrapper, suite, fixture file or extra gate recommended.",
       "impact": "Flash's previously missing bound benchmark can now be consumed by its actual guard. Missing image runtime and incomplete quality prerequisite checks must stop looking like generic repeated failures. Waiting must stay visible and must not authorize silent coverage loss. Preserve cancellation/cleanup of preflight scratch outputs, errors/exit status, exact source identity and resume credit. Lanes-first intentionally postpones measurements/publication; not evidence all earlier successful cells were wasted.",
@@ -691,7 +694,7 @@
       "plan_references": [
         "preflight-clean/do"
       ],
-      "plan_coverage": "checks-before-measuring completed and was removed. Its production changes are rechecked at this pin. preflight-clean/do now owns remaining readiness and MOSS lane wait; SQA does not change the plan or worker code.",
+      "plan_coverage": "checks-before-measuring is completed; its shared producer/preflight and failed-lane barrier remain. Directory-serving selection/indexing are now committed; preflight-clean/do still owns clean checkout, MOSS lane wait and deeper quality readiness. No plan or worker edits by SQA.",
       "closure_criteria": [
         "Ordinary clean-checkout preflight reports actual ready/refused/waiting status, and quality admission reaches suite/session authority setup without loading weights; waiting does not become passed coverage.",
         "Keep Flash benchmark indexed at both admitted shard locations with identity/calibration intact; keep image unknown/ambiguous-source rejection distinct from an explicitly lane-owned absent runtime.",
@@ -3951,20 +3954,21 @@
   ],
   "gate_test_assessment": {
       "retained_evidence": [
-        "Native view/open/register/record-after/native code landings report cumulative+4065production/+2290test AST, one new record schema; prior growth cannot be hidden behind latest+21production/+749test. Embedded testutil fixture7239 bytes and218 support nodes are real maintenance even though gate footers say fixture0.",
-        "fc7ae6f0f modeltest retained result:415 of441 tensors byte-identical,24 F32-promoted convolutions exact decoded values, two draft norms intentionally shifted;55 of114 drafts kept and116 emitted tokens equal plain decode. Verify23.115s; not a full Qwen4B scorecard gain.",
-        "Latest gate host test1m18.41s/6packages; lanes16m15.451s with16 CUDA cases executed/0cached. Earlier native landings reached repeated device/webui/CUDA lanes. These are retained elapsed costs, not an SQA request to rerun or permission to omit correctness.",
-        "Earlier Flash prerequisite verification reports ready; the benchmark94.7ms is not the previous full first-output series. Clean preflight and image readiness remain open. No fresh workload executed."
+        "9a255e39c gate reports +97 production/+520 test AST, no schemas/CUDA/fixture files. This correctness growth is not a reduction. Directory selection, benchmark lookup and task-specific succession extend existing fixtures; the ratio alone does not prove test bloat.",
+        "Retained gate: host tests 1m21.945s in 8 packages; lanes 2m46.014s, webui 2m45.295s and CUDA 2m42.288s (3 executed, 13 cached), device skipped; focused verify 2.068s. Qwen0.5B scorecard slice outputs identical, peak 1294.6 MiB (+0), first-output 102 ms, throughput 501 tok/s, load 1393 ms. It does not establish Qwen4B or Flash restoration.",
+        "Earlier native series through fc7ae6f0f reported +4065 production/+2290 test nodes, one schema, with a real 7239-byte shared fixture and 218 support nodes. With the latest serving fixes these known code landings total +4162/+2810; no saving is claimed by merely avoiding materialized GGUF files. Retained tensor/draft parity remains needed.",
+        "No SQA tests, models, services, gates, benchmarks or profiles executed. Parser/type analysis only. Retained native Go cache hits and existing phase/cell credit mechanisms are credited; no extra confidence run, selector, framework or ratchet proposed."
       ],
-      "caching": "Retain native Go test caching, existing consumed-input cell credits and phase resume.263 repairs one newly admitted representation in that existing mechanism; no second cache, selector, confidence suite or ratchet.",
+      "caching": "Keep native Go caching, existing phase resume and consumed-input cell credit. Repair the admitted native-view input representation within the current credit owner (263), not a second cache. Quiet-machine ownership already separates timed work from landing contention; whole-cycle prose restrictions remain an adopted implementation issue.",
       "test_dispositions": [
-        "SIMPLIFY/REMOVE262: retain TestAQwen35ViewIsTheBytesTheConverterWrites and both whole/piece equality cases; replace custom predicate calls with bytes.Equal and remove firstDifference.433->367test; with support218,651->585. JSON7239bytes and two existing HF fixture setup executions across view/discovery unchanged;0production/gate/helper growth.",
-        "RETAIN modelartifact/directory443 and discovery/directory277. First owns virtual identity/location, claim and mismatch; second owns actual GGUF directory open, memo signature invalidation and unsupported directory. No unique case moves; no net merge established.",
-        "RETAIN native_safetensors736 modeltest: actual old-conversion tensor values and default-versus-plain decode differ from hermetic converter/View transport parity. Keep modeltest tag, requireIntegration/CUDA admission and runner/file cleanup. No duplicate extra run recommended.",
-        "RETAIN onboard1574 existing fixture and its native/validation-refusal/already-active continuation cases.256 needs a meaningful unequal-weight retirement refusal under existing owner; coverage growth is not a saving.",
-        "RETAIN cell_credit2380 and its file/directory/undeclared/link/changed-byte recovery cases; extend in place for263's actual native view representation. Existing creditModel's physical-file components do not prove the new virtual-component case. After-cost unpriced, no new fixture file/suite.",
-        "RETAIN blobs581 plus production1184=1765: retry, bad hash, mismatched length, hidden staging, corruption and corrupt-orphan reprepare are distinct;254 fixes durability through retained namespace owner without removing protection.",
-        "RETAIN streaming_transcriptions1484 plus production971=2455: shared auth/resume/release fixture already consolidates setup; output/state/admission and out-of-order checks are real contracts. Keep HTTP transport/lifetime coverage rather than merging with scalar audio policy tests."
+        "MERGE 223: keep TestSmallBlobsArePacked and move empty-store, corrupt-pack and loose-blob cancellation precedence into it; remove TestBlobVerificationStopsWhenCancelled only after migration. Existing full-file comparison 1807->1507 includes +110 migration/-410 removed nodes; blob_pack production 1581 unchanged. Opens 7->4, TempDirs 4->2, packing 3->2, contents 5->3, corrupt writes 3->2; fixture/helper/config/gate growth zero. Preserve 12 readbacks, backup/repack/index and allocation cases.",
+        "SIMPLIFY 247: quiet_test 1229->1217; quiet.go 468 and processes.go 256 unchanged. Remove only the nil-mismatch disjunct already covered by errors.Is. Keep all exclusion, child-measurement bypass, contention, unreadable-process, error and wait-separation cases and setup. No new test.",
+        "SIMPLIFY 252: one_event_stream 601->474 using existing runtimeServingProbe; retained runtime-serving 1762 and browser-serving 489 give 2852->2725 complete test surface. Keep progress/file boundary, initial list, admit/cancel and transfer/handler cleanup. Real transport/auth/reconnect stays with the browser owner. No new fixture/gate; changed transport scope is explicit.",
+        "RETAIN discovery/directory_model 428: actual view identity, memo invalidation, unsupported directory and newly added explicit directory selection. One tiny existing Qwen35Directory and one store setup; existing 218-node support/7239-byte fixture remains. This differs from modelartifact's synthetic identity/claim test; no merge or unique-case move proved.",
+        "RETAIN evaluation/evidence_index 3605: declared execution provenance and policy/environment alternatives plus split-file/directory benchmark locations. The directory case extends the existing split benchmark store and evidence payload. Equal metric values with different record identities test indexing, not an inference-performance oracle. No new fixture files.",
+        "RETAIN scorecard/succession 994, previously 883: new +111 nodes preserve inference succession while conversion stays active for training. Keep both-listed/multiple-heir/missing-config/sampling-card/no-successor/original-target cases; future source-weight refusal belongs here and at existing retirement owner. Necessary added coverage is not a saving.",
+        "RETAIN chat_reasoning_stream 1419: marker variants, Unicode/split bytes, literal/unclosed markers, native control tokens, prompt-state and public tool stream are distinct requirements. Existing scalar state owner and public stream remain separate; no safe net merge proved.",
+        "RETAIN 262's existing view parity test but SIMPLIFY its two predicates to bytes.Equal and REMOVE firstDifference. Prior exact full-file 433->367, with unchanged support 218: 651->585. Both whole/piece cases, 7239-byte fixture, two existing setup executions and all lifetime/layout checks remain; no new test or gate."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -4338,12 +4342,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Only pinned committed source; dirty internal/discovery/servable.go and internal/evaluation/evidence_index.go excluded. No worker changes, model/test execution or plan/skill edits.",
-      "AST counts and in-memory simplification are maintenance proxies. Full packages/CUDA not typechecked; exact standard-library declarations only. No elapsed or memory improvement measured by SQA.",
-      "Native lost credit follows admitted source representation; wrong-weight retirement is a concrete admitted counterexample but not a reported store incident. Missing source authority must continue to fail closed.",
-      "No broader all-text native support, completed source-weight proof, clean116-cell readiness or Qwen4B/Flash timing restoration inferred from a single retained modeltest/scorecard slice.",
-      "The1GiB view cache and fixture distribution were traced, not tuned; no new threshold, adaptive mechanism, telemetry or blanket literal policy. Keep numerical identity independent of timing variability.",
-      "Preserve implementation_review,master_lead_triage,34 owner comments and all unknown implementation-owned fields raw-exact. Reconcile current report/HEAD immediately before report-only publication."
+      "Only pinned committed master assessed. Concurrent docs/plan.json worktree edits excluded and preserved; no implementation, plan/skill edits, branch changes or worker dispatch.",
+      "AST/type subsets are bounded maintenance/source evidence, not runtime validation. No full package/CUDA typecheck or new elapsed/memory improvement measured.",
+      "Source-weight misassociation and native resume loss are code-derived admitted counterexamples, not observed data-loss or repeated model-run incidents. Unknown source authority must remain fail-closed.",
+      "Only Qwen3.5 native support and the retained 4B observations are established; all-text migration remains planned. Three first requests and warm/benchmark readings do not establish stationary behavior or a shared cause across models.",
+      "No blanket literal lint, new statistical threshold, telemetry, cache or defensive path proposed. Numerical/token/weight identity stays independent of timing noise; Strata remains a comparator, not presumed optimal.",
+      "Both implementation-owned top-level objects, 34 owner comments and every unknown finding field remain raw-byte-exact. Current report and HEAD re-read immediately before report-only commit."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -4415,11 +4419,11 @@
   },
   "next_finding_number": 264,
   "publication_context": {
-      "checked_head": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
-      "committed_plan_git_blob": "8f4a737d3002a3759178a8c4619fb925fadb2a53",
-      "assessment": "Adds a concrete66-node test reduction and native resume representation defect; expands source-weight proof to its live retirement caller. Incorporates earlier unpublished260/258/261 reconciliations.",
-      "newer_commit_note": "Native view/open/register/record-after/native landings throughfc7ae6f0f assessed; ongoing discovery/evidence work excluded.",
-      "publication": "Use nonblocking existing publication locks; re-read/parse and path-limit commit to report only, preserving unrelated index/worktree and owner fields. No implementation gate."
+      "checked_head": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
+      "committed_plan_git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
+      "assessment": "Substantive reconciliation of directory-serving admission, task-specific succession, one migrated legacy verifier and the remaining memory-key obligation; fresh 16-file AST/caller/test assessment. No new backlog rows.",
+      "newer_commit_note": "d95d53602 and 9a255e39c retained source, plan and gate evidence assessed after the last report. Uncommitted plan excluded.",
+      "publication": "Re-read/parse under existing nonblocking publication locks, then commit only docs/sqa_findings.json; preserve owner fields and unrelated index/worktree. No implementation gate."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -4480,37 +4484,33 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "New263: fromView creates a directory-located virtual component; consumedFiles requires a physical file component and returns random identity before directory checks. Ordinary cell recovery therefore cannot reuse unchanged native-view success. Completed phase credit is distinct; no actual repeated model run alleged.",
-      "New262: bytes.Equal is already the actual equality owner for both whole/piece checks. Deleting index-only diagnostics/helper removes66 test nodes, retains every acceptance predicate and setup, and adds nothing.",
-      "256: SourcesKey is now config.json alone; both scorecard.successions and onboarding.retire use it. A trained checkpoint can preserve config while changing weights; validation of the successor does not prove equivalence. Fix the shared source owner at both callers, retaining the old activation on missing proof. No physical deletion or actual wrong retirement shown.",
-      "Native Qwen3.5 files now serve through shared hfgguf mappings/openMapped and GGUF writeHeader/View, avoiding a materialized GGUF. This is one family; native-text-weights remains open. Actual Qwen4B recovery of throughput/memory still needs its ordinary scorecard, despite retained tensor/draft verification.",
-      "Shared Qwen35Directory already serves view and discovery tests. Modelartifact's small synthetic view isolates identity/claim refusal without building the real HF fixture. Combining those fixtures would increase cost; no new abstraction.",
-      "Fresh blob publication remains prepare->os.Rename->SyncDirectory, so prior254's existing fsatomic-owner recommendation remains applicable; no repeat power-loss claim. Keep hash/size/corrupt-orphan/staging refusal and journal-before-release safety.",
-      "Streaming transcription shares one store/workspace/server. Authentication before input, partial events, durable checkpoint resume, out-of-order refusal and actual session release are different contracts; timings are logged and exact transcript remains independent.",
-      "260 partially repaired at earlier committed landings: actual shared preflight, lanes-first and Flash shard benchmark lookup. Image runtime wait/quality setup still in preflight-clean.258/261 remain adopted run-record/run-freeze, not implemented. No repeated first-token restoration or new wakeup assertion.",
-      "Geometry: View shares Write's checked tensor layout/alignment and hfgguf's reversed axes/F32 promotions;7-byte pieces test crossing paths, not all sizes.1GiB transformed cache is a provisional load-pattern choice, not justified optimal merely by a42MB largest tensor. No new cache policy or guard for impossible shapes proposed.",
-      "Distribution: native modeltest compares exact decoded tokens/weight bits separately from timings; one prompt's55/114 kept drafts verifies that case, not every prompt or model. The one-in-ten floor is existing draft policy; do not make it a new universal statistical criterion.",
-      "Retained reduction253(-24production),219(-44production) and252(-127test) remain scoped existing recommendations, not newly measured speed/memory gains.20-file sample is not an exhaustive reproof or recurring census."
+      "SQA-256 partial credit: Build/successions now distinguish tasks, so an inference conversion still listed for training no longer prevents inference succession. Throughput verification moves from 82d99de4d4606223 to recipe-free f361fcf368550bd1 with target 86.33658857751945 preserved. Memory verification still names 8b083b7b94e498e7 and target 8.848448256e+09; regressionKeys only substitutes predecessor model, not its historical recipe. Complete this bounded migration before retiring legacy-key compatibility.",
+      "ConfigSources/SourcesKey still equate checkpoint identity with config.json alone, and scorecard.successions plus onboarding.retire both consume it. Same config with different trained weights remains an admitted counterexample; no actual wrongful retirement claimed. Task-specific listing is necessary but does not supply missing source-weight proof.",
+      "Native directory selection and benchmark indexing are now committed. Discovery accepts component directories; LatestEvidence keeps file locations when present, otherwise directory locations. The distinct existing selection/index tests must remain. SQA-263 still applies: consumedFiles asks every virtual manifest component for a physical LocationFile and gets fresh random credit identity; these catalog fixes do not repair that source closure.",
+      "The retained Qwen4B observation distinguishes first request 14.75 tok/s over three measurements, warm 91.5 tok/s and benchmark 108 tok/s. Its first-output is 132 ms, load 8.08 s and peak 8.92 GiB; recipe resolution is 5.0 of 8.1 s. These are different lifecycle measurements. Neither native format nor better draft acceptance proves the original first-request target restored; moving setup to load must be charged to load plus first request.",
+      "Existing source reductions rechecked in the rotated sample: SQA-224 -22 production nodes by reusing named emission; SQA-223 -300 test nodes including three cancellation cases moved into packed/loose/backup owner; SQA-252 -127 test nodes including existing probe setup/cleanup; SQA-247 -12 test nodes by deleting a redundant nil comparison. No new IDs or additional tests warranted.",
+      "SQA-262's -66 test-node bytes.Equal simplification and SQA-253's -24 production-node query wrapper removal remain unchanged at this pin. Keep their previously counted migration/support/fixture costs and distinct test owners; none is a measured runtime gain.",
+      "Loader cleanup already shares closeAcceleratorResources for failed open, partial recovery and normal release. Executor closes before stores and worker; release failures cannot become successful streamed recovery. Native 2D format/embedding/adapter distinctions and claimed identity verification prevent flattening the loader into an unsafe generic path.",
+      "Packed format widths derive from the on-disk key/header/entry layout; readPackIndex bounds count by file room before allocation. Packed/loose content identity, corrupted index/payload, backup/reopen and cancellation precedence remain real failure signals. The allocation test's TotalAlloc/volume fraction is a fixture-bound proxy, not a timing, distribution or universal memory guarantee.",
+      "Reasoning stream suffix lengths derive from actual markers and UTF8 rune completeness. Byte-at-a-time and all two-piece splits cover different admitted boundaries, with explicit expected strings and tool isolation. Retain native control-token delivery, prompt-token/template selection, invalid prepared token and progress-before-finish cases; do not delete them as self-comparisons.",
+      "260 retains its repaired Flash shard prerequisite and gains directory indexing support. Clean readiness/image lane wait remain open. 258/261 remain adopted run-record/run-freeze work, not implemented. No new completion-delay or universal drafting-cause claim."
     ],
-  "reviewed_at": "2026-10-30T19:27:14Z",
-  "reviewed_master": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
+  "reviewed_at": "2026-10-30T21:28:35Z",
+  "reviewed_master": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master fc7ae6f0f70a903ae82110d4d888b0a472b3a67d; root skill blobf04bcf86c9ced14eaebcabc25efcfe423414d273;34-item plan blob8f4a737d3002a3759178a8c4619fb925fadb2a53. Internal overlapping SQA by a chat that previously implemented changes, not independent third-party review.",
-      "Actual bounded20-file Go AST sample25820 nodes:17694 production,7908 _test.go and218 shared test-support Go.133 functions and5669 parser-local bindings. Initial17-file rotated sample preceded prior-report read; three caller files added for retirement/resume impact.",
-      "Production sample: gguf/view947,hfconvert/qwen35905,hfgguf/catalog2082,modelartifact/model_config_record470 and inventory2411,validate/onboard1542,cell_credit923,bound_records719,modelrecipe/lifecycle5540,overgodb/blobs1184,server/streaming_transcriptions971.",
-      "Tests: hfconvert/view433,modelartifact/directory443,discovery/directory277,validate/onboard1574 and cell_credit2380,inference/native_safetensors736,overgodb/blobs581,server/streaming_transcriptions1484. Shared testutil/Qwen35Directory218 plus one7239-byte embedded JSON fixture counted separately.",
-      "go/types on exact standard-library declarations: firstDifference5defs/21uses/33expressions; blobReader/Read/Close13defs/58uses/76expressions/14selections. No package/CUDA build or function execution. In-memory complete view_test replacement433->367; repository test file untouched.",
-      "Covered native view/load/conversion mappings and file lifetime, manifest/source authority and blob/query/retention callers, HTTP streaming/auth/resume/cleanup, cell recovery and retained gate execution. Provisional conclusions formed before prior report; no models/tests/gates/services/benchmarks/profiles or agents."
+      "Pinned committed master 9a255e39c35aa71ae82a8528d3da251d74ba2d25; root skill blob f04bcf86c9ced14eaebcabc25efcfe423414d273; 34-item plan blob 542ab22f90d1b795282d8f78d4105f87db030c60. This chat previously implemented Overgo changes: overlapping internal SQA, not an independent third-party review.",
+      "Fresh rotated 16-file standard Go AST sample: 22,793 nodes = 12,710 production + 10,083 test; 98 functions and 4,818 parser-local identifier bindings. Provisional conclusions recorded before reading the prior report. No repository-wide census.",
+      "Production AST: inference/runner_lifecycle 3047, chat_reasoning_stream 590; overgodb/blob_pack 1581; server/protocol_io 1090; discovery/servable 2179; evaluation/evidence_index 3517; landing/quiet 468; cmd/gate/main 96 and land 142.",
+      "Test AST: inference/chat_reasoning_stream 1419; overgodb/blob_pack 1807; server/one_event_stream 601; discovery/directory_model 428; evaluation/evidence_index 3605; scorecard/succession 994; landing/quiet 1229. Existing shared fixture/support costs are retained in the applicable findings, not counted as zero.",
+      "go/types checked exact writeSSE/writeSSEEvent declarations against the installed standard library: 14 definitions, 46 uses, 59 expressions, 1 selection; reasoningUTF8Prefix: 6 definitions, 16 uses, 22 expressions. No stubs, function execution, package/CUDA build or full cross-package type resolution.",
+      "Trace coverage: native load/upload and cleanup, catalog/source identity; packed/loose blob read/backup/retention boundaries and retained query planner; GUI SSE framing/download/UTF8 stream boundaries; existing quiet-machine/gate/cell-resume owners and retained gate results. Source diffs cross-checked against prior finding paths; unchanged unsampled bodies were not independently re-proved."
     ],
   "sqa_response": {
-      "reviewed_master": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
-      "assessment": "54 open,3 deferred,22 resolved. New262 small net test reduction;263 native-view cell recovery.256 now includes retirement consumer.260 partial repair and258/261 adoption carried forward from the unpublished review.",
-      "evidence": "20-file AST25820=17694production+7908test+218support;133functions/5669local bindings; two exact stdlib type subsets. Complete in-memory test change433->367. Retained native gates/modeltest, no new workloads.",
-      "new_findings": [
-        "SQA-262",
-        "SQA-263"
-      ],
+      "reviewed_master": "9a255e39c35aa71ae82a8528d3da251d74ba2d25",
+      "assessment": "54 open, 3 deferred, 22 resolved. No new or closed finding. 256 and 260 gain partial implementation credit; source-weight proof, memory legacy key and native-view resume remain open.",
+      "evidence": "Fresh 16-file AST 22793 = 12710 production + 10083 test, 98 functions/4818 local bindings; exact stdlib type subsets. Prior reduction candidates remain source-identical. Retained +97/+520 latest gate growth and first/warm/benchmark distinctions recorded.",
+      "new_findings": [],
       "resolved_findings": [],
       "partially_addressed_findings": [
         "SQA-256",
@@ -4527,11 +4527,11 @@
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "8f4a737d3002a3759178a8c4619fb925fadb2a53",
-        "status": "Owner objects/comments and unknown fields preserved raw-exact; current code/commit evidence assessed separately."
+        "plan_git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
+        "status": "Owner objects/comments and unknown fields preserved raw-exact; current source/commit evidence assessed separately."
       },
-      "recommendation": "Repair native source authority once for both succession/retirement and cell recovery. Keep actual native correctness tests; delete only the proven index-helper surface. Complete existing preflight/run-record/run-freeze rows through existing owners.",
-      "next_action": "Lead owns263 adoption and existing source-authority work; batch262 with normal view edits. SQA publishes only this advisory report.",
-      "uncertainty": "No actual repeated native model execution or wrong retirement claimed; full source/hash/test integration cost unknown. No test retirement solely from identical names or shared setup."
+      "recommendation": "Finish source authority and native cell recovery through existing owners. Migrate the remaining Qwen4B memory verifier without changing its target. Batch proven code/test reductions with ordinary work; preserve required directory-serving and boundary coverage.",
+      "next_action": "Implementation lead owns adopted source/first-request/readiness work and 263 adoption. SQA records findings only.",
+      "uncertainty": "No new safe net reduction beyond retained candidates; no complete performance restoration or observed bad retirement/repeated workload asserted."
     }
 }

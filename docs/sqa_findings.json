@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "55 open,3 deferred,22 resolved. New264 records the unchanged committed continuation bypass already adopted as stop-valve/do.257 credits landed4B throughput and narrow signature deletion while retaining policy/test-cost recommendations.256 loses only the completed throughput reference; source authority and memory-key issues remain.",
-      "priority": "Keep correctness/recovery priorities and complete adopted stop-valve. Use one justified drafting decision and consolidate duplicate4B parity setup in existing owners; no extra model runs or blanket disable.",
-      "declined_candidates": "No net reduction for the landed drafting change: +596 production/test AST plus two added model opens/eight generations; the private constructor alone loses10. Preserve native tensor/public identity requirements and distinct27B coverage."
+      "assessment": "55 open,3 deferred,22 resolved; no new ID.264 primary stop bypass repaired with persistence residual;258 records/display implemented but no proven completion continuation;261 host/device admission and skill fixed, obsolete shared hook instruction remains.256 key migrations complete; source proof open.257 now prices memory trade.",
+      "priority": "Existing data/source-identity and recovery issues remain first. Finish264 error propagation and batch70-node obsolete contract deletion. Delete261's surviving shared freeze message and8-node test predicate; do not repeat its completed admission work.258 needs ordinary completion/lead-reaction evidence.",
+      "declined_candidates": "No new broad abstraction or wholesale test deletion justified. Retention trust-boundary cases, indexed query counters, native expert geometry and real HTTP stream auth/restart tests remain distinct. Producer run-record and hook-display tests exercise different boundaries. Timing estimates are not statistical guarantees."
     },
   "committed_plan": {
-    "git_blob": "9fac390bef4e268577250746abe4d19cd95b3ca6",
+    "git_blob": "6e34ac10fc802d5ee9ee82d3acbb5cd56d65d278",
     "path": "docs/plan.json",
-    "revision": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
-    "sha256": "3363c4fac5e21b660132c35833b3cdde29308988167c7d01052bc964011cf4f3",
+    "revision": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
+    "sha256": "3251e3508f1b187dccd1f440c2630de57e563c8f4774332109a2db5622cadd20",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -447,7 +447,7 @@
       "category": "scorecard-feedback-correctness",
       "classification": "source-confirmed-partially-addressed",
       "title": "Require source-weight identity before carrying declines or retiring a conversion",
-      "evidence_commit": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
       "sources": [
         {
           "path": "internal/scorecard/scorecard.go",
@@ -498,7 +498,7 @@
           "symbol": "convertedSources; buildInventory"
         }
       ],
-      "evidence": "At 9a255e39c Build/successions now scope listing and predecessors by task: a conversion retained for training no longer blocks its inference successor. The existing test adds this distinct case. ConfigSources/SourcesKey remain config.json-only and are shared by scorecard.successions and newOnboarding.retire; same config with different fine-tuned weights can still misassign readings and remove a separately valid conversion's active alias after validation of the new model. That is an admitted counterexample, not an observed wrongful retirement. Legacy-key migration is partly addressed: committed Qwen4B throughput verification now uses recipe-free f361fcf368550bd1 instead of 82d99de4d4606223 with its original 86.33658857751945 target. The memory row still verifies 8b083b7b94e498e7 against 8.848448256e+09. regressionKeys substitutes predecessor model IDs but still hashes the current cell.Contract for recipeRegressionKey, so it cannot reconstruct the predecessor's old recipe-bearing key after native recipe succession. Task scoping and one migrated row do not complete source proof or remaining obligations. At8ce06a06 the migrated throughput check passed and its plan row landed; source-weight proof and the memory row's legacy key remain open.",
+      "evidence": "Task-scoped Build/successions has been repaired, but ConfigSources/SourcesKey remain config.json-only at both scorecard.successions and newOnboarding.retire. Same config with different fine-tuned weights remains an admitted source-derived counterexample to inherited readings/retirement; no actual wrongful retirement observed. Both4B legacy verifier migrations are now complete: throughput row landed8ce06a06; d93d52f57 migrated memory to gap94ded9a77924776c, and b448ec0cf closed that row by declaring peak9.64e9 bytes a trade. The retained claim is plain serving8.846e9 but load judgement high-water9.64e9, about0.79e9 above the original8.848448256e9 target. This is a declared worsening, not restored whole-lifecycle memory. Source-weight equivalence remains the unresolved256 obligation; the completed key migrations must not keep being reported as open.",
       "recommended_change": "Complete source-weight authority once in the existing modelartifact source owner and use it at both scorecard.successions and onboarding.retire before accepting equivalence. Reuse FromHFRepository's actual weight-component hashes and the already adopted historical conversion-source comparison, including configuration/transform authority where relevant. Missing or unequal weight proof must leave the earlier activation and original scorecard targets intact. Keep inventory's loose config association as discovery only, never retirement authority. Retain required predecessor Aliases; migrate affected recipe-A legacy keys once from retained evidence, then remove only obsolete recipeRegressionKey plumbing. Extend the existing source/succession case to equal configs with unequal weights and its retirement refusal; keep validated-native/resume behavior in the existing onboarding fixture. No parallel lineage registry or validator.",
       "displaced_surface": "Retain the new task-scoped Build/successions and its inference-versus-training case. Remove config-equals-checkpoint equivalence at both scorecard and onboarding consumers by reusing existing source-component hashes; keep loose discovery/config association, original targets and required predecessor aliases. Current source-record 470 + onboard 1542 + lifecycle 5540 = 7552 production nodes remain; succession test now 994 + onboard 1574 = 2568 tests (111 added for task scoping). These are affected-owner baselines, not a complete replacement count: source hash, scorecard, migration and refusal coverage cost remains unpriced, with no net reduction claimed. Latest serving repair separately costs +97 production/+520 test. Delete recipeRegressionKey compatibility only once every affected retained obligation is migrated; do not add a registry or a new test fixture/framework.",
       "impact": "Wrong config-only equivalence can now remove a separately valid model's active selection as well as misassign performance history. Physical weight deletion is not shown. Preserve old activation until exact source authority and trusted successor are established, original restoration targets, context/error/transaction handling and all nonserving identity distinctions.",
@@ -508,13 +508,12 @@
       },
       "likely_effort": "Adopted source identity correction plus bounded historical-key migration; count weight provenance, hashing/setup and test growth honestly.",
       "plan_references": [
-        "succession-weights/do",
-        "scorecard-regressed-8b083b7b94e498e7/do"
+        "succession-weights/do"
       ],
-      "plan_coverage": "succession-weights/do remains open and must cover onboarding retirement and scorecard inheritance. Throughput's migrated original target passed in8ce06a06 and its row is removed. Memory row scorecard-regressed-8b083b7b94e498e7/do still uses the old recipe-bearing verifier. Source authority, memory restoration and native-text-weights/do remain distinct open work.",
+      "plan_coverage": "succession-weights/do remains open for scorecard inheritance and onboarding retirement. Both4B legacy verifier rows migrated and landed; memory closure is an explicit trade, not recovery of the original peak. Native-text-weights/do remains separate.",
       "closure_criteria": [
         "Both scorecard inheritance and active-conversion retirement require matching source-weight authority; same config/different weights never links or removes the predecessor's activation. Unknown/ambiguous authority stays explicit.",
-        "Existing legacy recipe-A obligations are found after B and after admitted native succession without duplicate filing or changing their original targets; retire recipe-specific compatibility only after migration.",
+        "Completed4B key migrations remain credited; retain declared trade and original baseline history. Remove historical recipe compatibility only once all affected obligations are accounted for without duplicate filing.",
         "Retain both-listed, multiple-heir, missing-config, sampling-card-only, no-succession and original-target cases. Extend the existing owner in place; count full production/test/fixture/hash/setup/migration cost."
       ],
       "comparison": "Use retained physical source-component hashes first. Extend existing source/succession/onboarding coverage once for same-config/different-weights refusal, preserving task-specific inheritance and old activation. For the remaining Qwen4B memory obligation, compare its retained original model/recipe/metric key with current successor keys and migrate only that verifier to its recipe-free identity at the original target; no new model run is needed to decide key identity. No SQA execution, new suite, registry or dependency."
@@ -526,7 +525,7 @@
       "category": "inference-first-output-regression",
       "classification": "measured-throughput-repair-with-retained-policy-and-test-cost-risk",
       "title": "Consolidate drafting decisions and remove duplicated model-test setup",
-      "evidence_commit": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
       "sources": [
         {
           "path": "internal/inference/nextn_device_speculation.go",
@@ -601,10 +600,10 @@
           "symbol": "text-inference first-output cells; Flash-Next line3197"
         }
       ],
-      "evidence": "Prior 4B native serving evidence was first request14.75 tok/s (~1.22s), warm91.5, benchmark108; serving first-output132ms, load8.08s, peak8.92GiB, original throughput target86.33658857751945. Retained implementation investigation separates ~850ms first drafted window from recurring ~62tok/s drafted versus95 plain; attribution to signature work is implementation evidence, not a new SQA measurement. Source confirms newDeviceMTPSessionLocked calls sessionModelSignature for a private per-window session, while its generation caller only advances it locally; ordinary session shape/position validation does not compare targetModel. Exported verification/persistence do require that identity and must retain it. The 22:11:24Z worker snapshot, now byte-identical to landed8ce06a06, removes this call, but also adds judgeOwnDrafts: every eligible served Open generates a fixed 'The capital of France is' prompt twice, 16 tokens each, plain first then drafted, excluding initial steps/windows and setting runner-wide default refusal if drafted rate is lower. Both server.run and modelcli.openRunner enable it. The old 48-draft/10%-kept observeOwnDrafts rule remains. Acceptance share does not alone imply speedup: the retained 4B case can keep roughly half its drafts and still lose. A single short fixed prompt/order is not demonstrated representative of later prompt length, acceptance correlation, or cache/initialization state; this is a source-confirmed generalization risk, not a measured failure of every prompt. Landed trade records explicitly acknowledge calibration cost0.64s/1.0s and load9667.99/10322.5451ms for4B/27B, claiming first-output133->16.7/147.9->48.6ms and throughput14.75->101.6/25.97->43.94. The landing reports three served-path measurements per model and closes the original4B throughput row; credit that repair. It reports load8.08->9.67s for4B and9.51->10.3s for27B, with4B peak8.92->8.98GiB and27B22.5GiB unchanged. These retained worker/gate records are not SQA measurements or proof of improved load-plus-first-request total. Historical Flash1128.1209->1742.1136->2803.8495ms serving-prefill medians and nine paired increases remain distinct from this 4B diagnosis; they do not prove a single fleet-wide cause.",
+      "evidence": "Prior 4B native serving evidence was first request14.75 tok/s (~1.22s), warm91.5, benchmark108; serving first-output132ms, load8.08s, peak8.92GiB, original throughput target86.33658857751945. Retained implementation investigation separates ~850ms first drafted window from recurring ~62tok/s drafted versus95 plain; attribution to signature work is implementation evidence, not a new SQA measurement. Source confirms newDeviceMTPSessionLocked calls sessionModelSignature for a private per-window session, while its generation caller only advances it locally; ordinary session shape/position validation does not compare targetModel. Exported verification/persistence do require that identity and must retain it. The 22:11:24Z worker snapshot, now byte-identical to landed8ce06a06, removes this call, but also adds judgeOwnDrafts: every eligible served Open generates a fixed 'The capital of France is' prompt twice, 16 tokens each, plain first then drafted, excluding initial steps/windows and setting runner-wide default refusal if drafted rate is lower. Both server.run and modelcli.openRunner enable it. The old 48-draft/10%-kept observeOwnDrafts rule remains. Acceptance share does not alone imply speedup: the retained 4B case can keep roughly half its drafts and still lose. A single short fixed prompt/order is not demonstrated representative of later prompt length, acceptance correlation, or cache/initialization state; this is a source-confirmed generalization risk, not a measured failure of every prompt. Landed trade records explicitly acknowledge calibration cost0.64s/1.0s and load9667.99/10322.5451ms for4B/27B, claiming first-output133->16.7/147.9->48.6ms and throughput14.75->101.6/25.97->43.94. The landing reports three served-path measurements per model and closes the original4B throughput row; credit that repair. It reports load8.08->9.67s for4B and9.51->10.3s for27B, with4B peak8.92->8.98GiB and27B22.5GiB unchanged. These retained worker/gate records are not SQA measurements or proof of improved load-plus-first-request total. Historical Flash1128.1209->1742.1136->2803.8495ms serving-prefill medians and nine paired increases remain distinct from this 4B diagnosis; they do not prove a single fleet-wide cause. Subsequent b448ec0cf explicitly declares4B peak9.64e9 bytes versus original8.848448256e9: plain serving is8.846e9 but the load-time drafted probe allocates the higher-water buffers. Therefore probe cost includes memory as well as latency. Inference production/tests are unchanged from8ce06a06 at this pin; duplicate policies and candidate-test consolidation recommendations still apply.",
       "recommended_change": "Retain the landed narrow deletion of sessionModelSignature and the unused targetModel binding from newDeviceMTPSessionLocked; the generation caller owns this ephemeral session through its private draft loop, so cross-run identity work there is unnecessary. Keep newSingleHeadMTPSession, public verification/serialization identity, all shape/position checks and error/resource cleanup. Use the existing ownDraftLayer/default-refusal owner for both served-open callers and explicit PlainDecode/SpeculativeDecode overrides. Do not retain two independent definitions of whether drafting pays. Do not make a two-generation fixed-prompt load probe the default solution without evidence of its complete load-plus-first-request benefit and applicable domain. Keep the signature deletion's retained effect separate from policy/warmup effects; the original throughput row has now landed. If a replacement decision is needed for recurring 4B cost, replace the old acceptance-only rule in that owner, deleting its displaced constants/counters/observer and threshold-only tests; justify the decision from existing comparable draft/plain work, not a new model-name blacklist, universal threshold or statistical framework. Preserve demonstrated beneficial 27B drafting and explicit requests to speculate. Fold the new 4B forced-draft-after-refusal case into the existing native parity owner rather than adding a second same-prompt parity body. Keep numerical correctness independent of live timing and remove hardcoded model-specific assertions of a timing-driven default. Retain genuinely new 27B/served-open coverage if no existing owner proves it, with its cost stated honestly.",
       "displaced_surface": "Actual bounded AST, including comments: five production files server/main2690->2694, nextn_device_speculation2478->2727, runner3748->3754, runner_lifecycle3047->3086, modelcli/model1167->1175:13130->13436(+306). Existing native model test736->737 (comment only), unchanged nextn_mtp_test510, new judgement model test289:1246->1536(+290); complete selected changed/retained policy surface14376->14972(+596). The private constructor alone129->119(-10) is outweighed by judgeOwnDrafts83 + probeDecodeRate163, option/wiring and comments. Old observeOwnDrafts84 and threshold test198 remain; deleting them is only a gross proposed saving until the full replacement, callers and unique cases are priced. Landed change adds one permanent modeltest file, no new fixture file/dependency, two model opens (4B and27B), four calibration generations plus four parity generations; every eligible served load also gains two generations. Trade JSON grows from1167 to2413 UTF8 bytes(+1246). No setup execution is eliminated yet. Removing the duplicate 4B parity setup can save one added real-model open and repeated same-prompt pair only after moving its forced-override case; any added calibration at the retained open must still be counted. Do not delete existing tensor bytes/type-promotion/norm-shift validation, the96-token equality requirement, Windows hermetic default-drafting coverage, or public session identity/recovery tests. Complete after-cost for the recommended single-policy solution is unpriced; no net reduction for the whole proposed is established. Earlier listed Flash/setup changes remain historical +3026 AST excluding detector+1056, not savings in this proposed.",
-      "impact": "The landed deletion removes private-session weight reads. The added load probe can shift cost before the request, add model opens/generations and still choose poorly outside its one prompt. A wall-clock-derived fixed expected model default can make correctness tests timing-dependent. Preserve user-visible latency, original cold/load/warm targets and output identity together; no measured memory reduction is claimed. Persisted session identity is a trust boundary and must not be weakened.",
+      "impact": "The private-session deletion and original4B throughput pass remain credited. The fixed-prompt load probe adds time and, per b448ec0cf, roughly0.79GB peak above the original target even though subsequent plain serving is below it. Keep declared trade history visible. One prompt's acceptance/rate cannot establish all later workloads; the model-specific timing assertion and duplicate4B parity setup remain maintenance risks. Public session identities and numerical acceptance remain protected.",
       "expected_benefit": {
         "outcome": "Delete unnecessary private-session work and avoid maintaining duplicate drafting policies and repeated parity setup. The source proves removable work in the private caller; elapsed improvement is retained worker evidence. Landed declared load costs are acknowledged rather than hidden, but a declared trade alone does not establish restoration of the original target.",
         "uncertainty": "The reviewed snapshot is now byte-identical to committed8ce06a06. Credit its original4B throughput repair and explicit load trade; fixed-prompt representativeness and improved load-plus-first-request total remain unestablished. Retained readings are not stationary or tail guarantees. No blanket drafting disable, complete Flash recovery or memory saving follows. Public session identity and timing-independent numerical requirements remain."
@@ -614,14 +613,14 @@
         "flashnext-first-request/do",
         "executor-setup/do"
       ],
-      "plan_coverage": "8ce06a06 lands/removes the original4B throughput row; its reported101.6tok/s exceeds86.33658857751945 and the load worsening is explicitly declared. Residual single-policy/fixed-prompt/test-duplication recommendations are not yet a dedicated live plan row. stop-valve/do remains open; Flash/executor rows retain their distinct work. Do not reopen a passed throughput obligation as if it had no evidence, or treat that pass as proof of a universal policy.",
+      "plan_coverage": "Original4B throughput and memory rows have both landed, memory via explicit9.64e9-byte trade. Residual single-policy/fixed-prompt/test-duplication recommendations have no dedicated live row. Flash/executor rows retain distinct work; their original performance is not proved restored.",
       "closure_criteria": [
         "Credit the landed throughput repair. Retained normal evidence separates signature deletion, recurring draft/plain decision and load warmup; account load plus first request and preserve explicit trade history without claiming all latency/memory obligations restored.",
         "Only one default-drafting decision remains; displaced heuristic/probe code, fields and tests are removed or explicitly justified. Both served callers and explicit overrides retain correct cancellation, failed-open cleanup and token behavior.",
         "Private window sessions avoid unneeded cross-run identity work while public verification/persistence retain exact model identity and existing validation.",
         "Count full production/test/fixture/open/generation cost. Move unique forced-draft-after-refusal coverage before removing duplicated4B parity. Keep the96-token/native tensor requirements and genuine27B coverage; timing variability cannot decide numerical acceptance."
       ],
-      "comparison": "Use retained first-window/signature and steady draft/plain observations first. The smallest unresolved comparison is the same existing4B serving request separating private signature work already removed, separating Open, first window and recurring decode from the landed warmup/policy effect; reuse the existing27B beneficial-drafting record as a distinct counterexample to blanket disable. Obtain any missing evidence only in normal implementation verification, not an SQA run or a new permanent benchmark/test selector. If retained evidence does not justify a general default decision, say so rather than infer it from one16-token prompt."
+      "comparison": "Use retained first-window/signature and steady draft/plain observations first. The smallest unresolved comparison is the same existing4B serving request separating private signature work already removed, separating Open, first window and recurring decode from the landed warmup/policy effect; reuse the existing27B beneficial-drafting record as a distinct counterexample to blanket disable. Obtain any missing evidence only in normal implementation verification, not an SQA run or a new permanent benchmark/test selector. If retained evidence does not justify a general default decision, say so rather than infer it from one16-token prompt. Account the load probe's measured high-water buffers too; no new SQA measurement or implicit memory-target reset."
     },
     {
       "id": "SQA-260",
@@ -754,75 +753,126 @@
       "comparison": "Smallest deciding comparison is a tiny actual directory-view manifest in the existing credit fixture, bound twice, then after one declared input change. Inspect executeMeasured's existing has/add path; no GPU, real model, broad run or SQA test execution is needed."
     },
     {
+      "id": "SQA-264",
+      "status": "open",
+      "severity": "P2",
+      "category": "continuation-stop-state",
+      "classification": "primary-bypass-repaired-with-state-write-failure-residual",
+      "title": "Finish stop-state failure handling and retire the obsolete retry contract",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
+      "sources": [
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "runStop; stopDecision; parseHook/hookInput; turnBaseFile; currentDirtyFacts; gitHead; runPostCommit/writeTurnBase"
+        },
+        {
+          "path": "cmd/loophook/main_test.go",
+          "symbol": "TestStopDecision retry valve; TestHeadProgressBaseline; TestStopIgnoresPreexistingDirt; TestPersistentStopHook"
+        },
+        {
+          "path": "cmd/loophook/sessions_test.go",
+          "symbol": "sessionCheckout; TestOverlappingSessionsKeepTheirOwnTurnSnapshots; TestReviewSessionIsNotHeldAndAnyOtherRoleIs"
+        },
+        {
+          "path": "cmd/loophook/dispatch_test.go",
+          "symbol": "TestLoopHookConsumesDispatchJSON"
+        },
+        {
+          "path": "internal/processlock/state.go",
+          "symbol": "EnsureStateDirectory"
+        }
+      ],
+      "evidence": "19fb6f9b3 repairs the original unchecked-stop bypass: runStop consults stuckSinceBlock, and recordStopBlock stores session HEAD plus content-aware dirtyFact values in a distinct last-refusal file, independent of prompt/post-commit turnBase. Existing sessionCheckout now covers unchanged retry, changed HEAD and a new dirty file; retained gate passed. A remaining admitted I/O counterexample prevents full closure of the promised non-wedging escape: EnsureStateDirectory can succeed for an existing directory/.gitignore while writing the session's block file fails (for example a write-denied existing file). recordStopBlock discards os.WriteFile's error; stuckSinceBlock returns false for an unreadable/invalid file or compares a stale record false after changed work. The next refusal silently fails to update again, so repeated unchanged retries can remain blocked. This is source-derived; no live permission change or runtime reproduction. Separately, stopDecision still accepts a stopHookActive bypass parameter even though its sole production caller always passes false; TestStopDecision's retry row and two duplicate pure assertions in TestBoundedRequestScopesAnswerNotTurn preserve obsolete/repeated contracts.",
+      "recommended_change": "Keep the landed state comparison and existing explicit-stop/review/non-holder/gate/complete exemptions. Return/check refusal-record persistence failure in runStop's existing path and honor the intended escape when the baseline cannot be kept; do not repeatedly enforce a comparison against a baseline that was never stored. Keep absent first baseline distinct from permanent recording failure without adding another registry, option or watchdog. Extend TestAStopAfterWorkSinceItsBlockIsBlockedAgain within its existing sessionCheckout sequence with one failed-write case (a controlled occupied block-file path suffices), preserving changed-HEAD, same-path-byte and session ownership requirements. Retire the now-unused stopHookActive parameter and conditional from stopDecision, its constant-false arguments, and its obsolete retry-valve table row. Remove the two pure verdict assertions duplicated by TestStopDecision from TestBoundedRequestScopesAnswerNotTurn, retaining that test's question/action classification. Keep TestLoopHookConsumesDispatchJSON's real decoded-complete check while dropping only the obsolete argument.",
+      "displaced_surface": "Primary fix landed+220 production/+164 test AST=+384, no fixture/model/gate workload additions beyond its ordinary native verification. Current stop/record owner main2534, main_test969, dispatch_test168, sessions_test1115, run_record_test602 totals5388. Actual in-memory AST proposal for obsolete flag/case/duplicate assertions: main2534->2530(-4), main_test969->904(-65), dispatch168->167(-1); sessions1115 and run_record602 unchanged, complete five-file surface5388->5318(-70). All stopDecision callers were enumerated; no new helper/wrapper/fixture, unique-case migration or setup execution needed for this deletion. Existing native transition test owns retry state; pure table owns normal explicit-stop/open-row verdicts; classifier and decoded dispatch remain. Persistence error propagation and one extra existing-fixture case have unpriced growth, so70 is an isolated maintenance saving, not a claimed net saving for the complete remaining repair.",
+      "impact": "The original stop-after-progress incident path is fixed. Under admitted block-state I/O failure the advertised unchanged-retry escape can still fail, prolonging repeated refusals until a user stop/other exemption. Existing explicit user-stop remains authoritative. Removing the unused pure bypass reduces misleading test surface without changing runtime behavior; no data/model/format or confidentiality relaxation is needed.",
+      "expected_benefit": {
+        "outcome": "Preserve the fixed continuation behavior, close its state-write failure path in the same owner and remove70 obsolete/repeated AST nodes across production/tests.",
+        "uncertainty": "Primary fix is supported by source and retained native gate. Remaining I/O case is source-derived, not an observed incident. Full repair/test cost is not yet known; no runtime speed or memory saving claimed from70 fewer nodes."
+      },
+      "likely_effort": "Small existing-hook error propagation and one existing-fixture case; obsolete argument/assertion deletion is mechanical and needs no separate test run.",
+      "plan_references": [],
+      "plan_coverage": "stop-valve/do landed19fb6f9b3 and is removed. Credit its primary fix; residual write-failure handling/obsolete pure contract remain advisory, not an unimplemented original row.",
+      "closure_criteria": [
+        "Keep the landed unchanged-versus-changed last-refusal behavior and distinct session/turn baselines.",
+        "A failed refusal-state write cannot force repeated unchanged retry blocks; preserve explicit user stop and existing escape/exemption handling.",
+        "Remove unused pure bypass parameter, obsolete retry table case and repeated bounded-request verdict assertions while retaining classification, decoded dispatch and stateful retry coverage.",
+        "Report full error-path/test growth alongside the separately established70-node deletion."
+      ],
+      "comparison": "Source traces prove the I/O failure path; the smallest missing behavioral case belongs in the existing tiny-Git retry sequence with an unwritable/occupied snapshot target, without changing OS security settings or using real models. Exact in-memory AST comparison includes all three changed files/callers and retained two test files. No SQA test execution or new suite."
+    },
+    {
       "id": "SQA-261",
       "status": "open",
       "severity": "P2",
       "category": "development-serialization",
-      "classification": "source-confirmed-rule-conflict",
-      "title": "Remove the whole-cycle development hold and use the existing resource owners",
-      "evidence_commit": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
+      "classification": "resource-admission-repaired-with-stale-hook-contract",
+      "title": "Remove the remaining whole-cycle hold from the shared run report",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
       "sources": [
         {
           "path": "cmd/loop/improve.go",
-          "symbol": "improvement.Measure;inCycle;measurePhases;improvement.file"
+          "symbol": "improvementFor measurement/fill -> landing.HoldLaneTurn"
         },
         {
-          "path": "cmd/validate/run.go",
-          "symbol": "executeMeasured;timedValidation;measureCell"
-        },
-        {
-          "path": "internal/landing/quiet.go",
-          "symbol": "landing.holdQuiet;Measuring;timed"
-        },
-        {
-          "path": "internal/quietmachine/quietmachine.go",
-          "symbol": "Await;Workload;sharing"
+          "path": "internal/landing/landing.go",
+          "symbol": "Run quiet ownership; checks host stages before lanes"
         },
         {
           "path": "internal/landing/lanes.go",
-          "symbol": "cycleLanes models"
+          "symbol": "HoldLaneTurn; landing.inLaneTurn; lanes"
         },
         {
-          "path": "C:/Users/jeffm/.claude/projects/C--Users-jeffm-overgo/9e3511d1-e85c-4667-93c7-a7f762cb886a.jsonl",
-          "symbol": "2026-10-30T07:54:36.933Z: lead defers native-weight work until run ends"
+          "path": "internal/landing/run_beside_test.go",
+          "symbol": "TestALandingBesideARunWaitsOnlyForTheDevice"
+        },
+        {
+          "path": "internal/landing/quiet.go",
+          "symbol": "holdQuiet; Measuring"
+        },
+        {
+          "path": "internal/plan/measurement_run.go",
+          "symbol": "MeasurementRun.Report running suffix"
+        },
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "measurementRun; runPrompt; runDoctrine; runStop"
+        },
+        {
+          "path": "cmd/loophook/run_record_test.go",
+          "symbol": "TestTheHooksPrintTheRunsEnd"
         },
         {
           "path": "skill.md",
-          "symbol": "whole-cycle plan-only/build/test/push prohibition; current preflight/lanes/cells/publication contract"
-        },
-        {
-          "path": "docs/plan.json",
-          "symbol": "run-freeze/do"
+          "symbol": "Gate and cycle: host work proceeds while lanes wait"
         }
       ],
-      "evidence": "The broad committed skill rule still forbids every build/test/push while a cycle runs, although timed measurement and device contention have existing resource owners. This revision explicitly adopts run-freeze/do: host work proceeds and landing device lanes wait on the measurement lease; the rule then leaves skill/memory. Adoption is not implementation. Prior Oct30 lead-session deferral is retained evidence of the overly broad hold, not proof every session was idle. The phase contract has since changed: measurePhases now completes lanes before cells/publication. Consequently early publication during lanes is no longer the prescribed remedy; admit independent host preparation through existing resource owners regardless of whether a new scorecard has published.",
-      "recommended_change": "Complete adopted run-freeze/do in the existing landing/measurement lease owner, then delete the blanket whole-cycle prohibition and its duplicated prose. Allow host stages/preparation when their actual resource owner admits them; retain timed quiet-machine and device-capacity exclusion. Consume newly published obligations when available under the current lanes-first contract. Keep actual completion supervision separate under SQA-258 and user push authorization independent. No new scheduler, watcher, timer, concurrency knob or policy suite.",
-      "displaced_surface": "One blanket rule and its manual wait-for-whole-run decision can disappear. Existing landing/quietmachine/measurement owners remain. Rule deletion itself costs0 production/test AST,0 helpers/fixtures/setup/gates; the adopted stage/lease wiring and meaningful existing landing-test extension may add code, so the complete replacement is unpriced and no net saving claimed. Fresh measurePhases345/improve.go2516 and resume_test1450 retain the new phase behavior. Do not reintroduce the removed early-publication assertion or add a parallel admission framework.",
-      "impact": "Removes avoidable serialization of development behind non-timed lane completion while preserving timed measurement isolation, GPU capacity/exclusivity, live-store identity/locking, process cancellation and failure ownership. Concurrent GPU-heavy work is not automatically safe just because its results are not timings; existing resource owners still govern it.",
+      "evidence": "9b8300d0 landed during this review. It removes the whole-cycle restriction from skill.md, runs measurement/fill through existing lane-turn ownership and lets host checks precede landing lane waits. inLaneTurn releases the landing's quiet-machine share before waiting for the lane turn, then reacquires it, avoiding the measured-cell/landing wait cycle. Retained native test/gate support the ordering; no new concurrency experiment performed. One committed duplicate rule remains: MeasurementRun.Report still appends 'running: plan-only commits, no device work, no push until it ends'. measurementRun feeds that same text to runPrompt, runDoctrine and a blocked runStop. TestTheHooksPrintTheRunsEnd still requires 'no device work'. Thus code and skill now admit host work but every later hook can repeat the obsolete blanket restriction. This is a concrete remaining caller path, not a hypothetical rule audit.",
+      "recommended_change": "Keep the landed existing lane-turn/quiet-machine integration. Remove the obsolete plan-only/no-work/no-push directive from MeasurementRun.Report's running suffix; report the factual running phase/expected end already present rather than a second behavioral policy. Remove its stale no-device-work assertion from TestTheHooksPrintTheRunsEnd while retaining phase, start/end, rows-filed, cutoff and all three hook-consumer requirements. Leave push authorization and measurement exclusion with their existing owners. No new prose checklist, admission wrapper, scheduler or test is needed for this deletion.",
+      "displaced_surface": "9b8300d0 adds192 production/344 test AST=536 with0 new fixture files, CUDA or schema-counter growth. Existing lane/quiet owners are reused by actual measurement and fill callers; the new native344-node test checks lock ordering without models. The remaining deletion changes only MeasurementRun.Report's string (487 production AST unchanged) and removes one obsolete test predicate: actual in-memory whole-file run_record_test602->594(-8), complete pair1089->1081. Same sessionCheckout, pipe calls, started/completed/dead-process cases and gate selection; no helpers/wrappers/fixtures/setup added or removed. No further timing or memory gain claimed.",
+      "impact": "The deterministic stage admission is implemented, but the shared hook message can still tell the lead to stop otherwise admitted host work. Removing it aligns the observed instruction with code while preserving timed quiet-machine exclusion, GPU capacity, process lifetime and user-controlled pushes.",
       "expected_benefit": {
-        "outcome": "Useful work can proceed after actual conflicting measurement releases instead of waiting for a multi-hour package to finish. No elapsed-time speedup is measured; do not describe all lane time as removable.",
-        "uncertainty": "Source confirms the broad rule/code mismatch and the lead's stated deferral. No claim that the4h package is redundant or that arbitrary simultaneous tests fit memory. No new run, lock experiment, agent dispatch or live-worker mutation performed."
+        "outcome": "Retain the implemented host/device separation and eliminate one repeated behavioral rule plus8 obsolete test AST nodes. No measured development-time saving asserted.",
+        "uncertainty": "Source and retained test support lock ordering; ordinary live-run behavior was not re-executed. Removing the message does not settle separate completion ownership258 or snapshot-failure264."
       },
-      "likely_effort": "Delete the stale rule and use the already implemented admission/continuation owners; no new repository subsystem.",
-      "plan_references": [
-        "run-freeze/do"
-      ],
-      "plan_coverage": "run-freeze/do explicitly adopts deterministic host/device admission and removal of the stale rule. The committed skill still has the broad prohibition; worker changes excluded.",
+      "likely_effort": "Trivial shared report string/assertion deletion, batch with ordinary work; no new test or model run.",
+      "plan_references": [],
+      "plan_coverage": "run-freeze/do landed9b8300d0 and is removed. Only the stale shared run-report/test contract remains under this finding; the original resource wiring and skill change are complete.",
       "closure_criteria": [
-        "Host stages proceed under existing resource admission while device lanes wait on the actual measurement lease; delete the broad whole-cycle prohibition and its duplicate prose.",
-        "Preserve timed quiet-machine exclusion, pinned cycle checkout, GPU/store capacity and lifetime/cancellation. No permission to run arbitrary concurrent model workloads.",
-        "Existing continuation consumes published obligations under the current lanes-first contract and supervises actual completion; no dependence on the superseded early-publication order."
+        "Retain host-stage/device-turn separation and quiet-machine lock ordering in9b8300d0.",
+        "MeasurementRun.Report and all three existing hook consumers no longer repeat the blanket whole-cycle restriction.",
+        "Remove the obsolete test predicate while preserving factual run-state and native resource-order coverage; no replacement policy framework."
       ],
-      "comparison": "Inspect the adopted existing landing owner and its in-place host-progress/device-wait case when committed, retaining timed measurement/landing exclusion coverage. Current TestTheGapsAreFiledOnceTheScorecardPublishes owns publication notification. Next ordinary continuation can demonstrate behavior; no SQA concurrency experiment or additional suite."
+      "comparison": "Direct source comparison of the shared report and its three consumers decides the stale-rule deletion; run_record_test602->594 was parsed in memory. Retain TestALandingBesideARunWaitsOnlyForTheDevice as lock-order owner and TestTheHooksPrintTheRunsEnd as display/wiring owner. No new SQA run."
     },
     {
       "id": "SQA-258",
       "status": "open",
       "severity": "P2",
       "category": "measurement-completion-ownership",
-      "classification": "historical-workflow-failure",
+      "classification": "historical-workflow-failure-partly-addressed",
       "title": "Keep the background task responsible for the measurement process until it actually exits",
-      "evidence_commit": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
       "sources": [
         {
           "path": "C:/Users/jeffm/.claude/projects/C--Users-jeffm-overgo/9e3511d1-e85c-4667-93c7-a7f762cb886a.jsonl",
@@ -857,72 +907,23 @@
           "symbol": "run-record/do"
         }
       ],
-      "evidence": "The lead's background tool tracked cmd /c start with /min, launching measure-run-20261029.cmd detached. Taskbos5xjyie returned 'start exit=0' and '[exited with code0]' at09:21:04Z while loop.exe still ran: launcher completion. Scorecard publication at12:37:21Z preceded about5h1m43s of lanes; the final log was written17:40:58.861Z with a failing final exit. After the owner's22:56:50Z prompt, the lead read the log and at22:57:06Z admitted missing completion. Observed delay is about10h20 after publication and5h16 after actual completion, not ten hours after completion. This establishes a completion-ownership gap, not a proved app notification-delivery defect. At this pin run-record/do explicitly adopts an actual process-end record and existing session-hook consumption; this is plan adoption, not evidence the external completion lifecycle is fixed. The historical ten-hours claim remains corrected above. Current measurePhases runs lanes before publication; no new wake-up failure is alleged.",
-      "recommended_change": "Complete adopted run-record/do with the existing loop/process and session-hook owners, making the actual process result the completion source. The supervising command must wait for that process and preserve its final exit/output, replacing detached-launch success and prose-only start/end estimates. Preserve current preflight->lanes->cells->publication, valid resume and native Go caching. If the process must outlive a session, bind its existing continuation owner explicitly. Completion records supplement ownership; their existence alone is not proof a lead consumed failure. No parallel watcher/service or live-worker change for this review. Keep this separate from SQA-264: a correct stop retry does not by itself deliver or consume a background process result.",
-      "displaced_surface": "Displace the detached start layer, launcher-only success interpretation and manual timing/launch reminders. Existing processcontrol/runToolEnv and loop remain. The external launch correction alone costs0 repository AST; adopted run-end recording/hook wiring and their necessary coverage are additional, unpriced production/test growth. Fresh improve.go2516 and resume tests1450, retained process_lifecycle_test55 are not redundant. No new model setup, selector, monitoring framework or recurring suite justified.",
+      "evidence": "The lead's background tool tracked cmd /c start with /min, launching measure-run-20261029.cmd detached. Taskbos5xjyie returned 'start exit=0' and '[exited with code0]' at09:21:04Z while loop.exe still ran: launcher completion. Scorecard publication at12:37:21Z preceded about5h1m43s of lanes; the final log was written17:40:58.861Z with a failing final exit. After the owner's22:56:50Z prompt, the lead read the log and at22:57:06Z admitted missing completion. Observed delay is about10h20 after publication and5h16 after actual completion, not ten hours after completion. This establishes a completion-ownership gap, not a proved app notification-delivery defect. At fc57f65e the cycle now persists MeasurementRun through runRecorder.begin/phase/credited/filed/end, including phase verdicts, final fill and cutoff detection. measurementRun is read by runPrompt, runDoctrine and the refusing runStop path. This materially improves durable state and what the next hook reports. Source does not install a completion-triggered continuation or make a detached launch's tracked task wait for the actual process. Ended is written at cycle/fill completion, not an observed external task-final-exit notification. No ordinary post-change cycle/lead-reaction evidence has yet been reviewed; the guarantee that a run's end is acted on when it comes is not established solely by printing at the next hook. 9b8300d0 also separates MeasurementRun decoding from its return expression; credit that read-path correction. It still adds no completion trigger.",
+      "recommended_change": "Retain the new run record and its existing hook consumers. Complete the remaining ownership edge using the existing supervising task/process path: it must await the actual process and expose its final failure/success to the already responsible continuation, rather than treating detached launcher success or a future prompt's report as completion delivery. Do not add another watcher, service, timer, telemetry record or test framework. Credit existing phase/cell resume and Go caching. Use the next ordinary cycle's final-exit and first lead reaction to decide whether this gap is closed; preserve signal-based cancellation. SQA-264's changed-state stop check is separate and cannot substitute for observing completion.",
+      "displaced_surface": "fc57f65e retained gate reports+1063 production/+1209 test AST, zero fixture files/CUDA/schema-count growth; a new MeasurementRun process-state structure and file nevertheless add persisted maintenance surface. New tests cmd/loop/run_record_test599 and cmd/loophook/run_record_test602 share existing git/plan/publication or sessionCheckout fixtures. Remaining8 test nodes come from adapting existing resume-test callers, per total gate delta. Producer test runs two simulated cycles in one tiny repository; consumer test uses one tiny session repository and completed/running/dead-process cases, without model workloads. Keep these distinct producer-versus-hook requirements; whole-body merging is not demonstrated. Removing the external detached launch layer itself costs0 repository AST. Full continuation wiring and its ordinary verification are unpriced, not a net saving.",
       "impact": "A completed or failed long run needs a responsible continuation without a user nudge. Preserve failure exits, cancellation/process lifetime and failed-lane evidence. Publication is usable evidence but not full-cycle success. No model numerical behavior, retention or confidentiality change. This concerns external orchestration, not a demonstrated measurePhases defect.",
       "expected_benefit": {
-        "outcome": "Addresses the observed roughly5h16 completion-to-review delay through existing process ownership. Removing the external detached launcher itself costs0 repository AST, while adopted run-end recording/hook wiring and necessary coverage add unpriced code/test surface; no net saving is claimed.",
-        "uncertainty": "Final file-write time plus phase durations bounds completion approximately; exact process-exit time was not retained. Session evidence shows missed reaction but cannot prove every notification channel failed or nobody elsewhere viewed the file. No scheduler experiment or new run performed."
+        "outcome": "The system now records its own start, phases and end and hooks display them; this removes unreliable hand-reconstructed times. Remaining completion ownership should prevent the historical roughly5h16 unattended delay. No observed post-change delay reduction yet.",
+        "uncertainty": "The last phase duration is used only as a displayed expected end, not a statistical bound, stall verdict or numerical acceptance. No new completion failure is alleged. Persistent recording and eventual hook display do not alone prove timely delivery or consumption."
       },
       "likely_effort": "Adopted bounded run-end record and existing hook/launch integration; no parallel monitoring subsystem.",
-      "plan_references": [
-        "run-record/do"
-      ],
-      "plan_coverage": "Explicitly adopted by run-record/do, which replaces remembered launch/timing rules with a recorded process end and existing prompt/stop hook output. Not implemented at the reviewed pin; SQA neither edits launch rules nor starts a run.",
+      "plan_references": [],
+      "plan_coverage": "run-record/do landedfc57f65e and is removed from the plan. Credit its durable record/hook display; end-to-end continuation remains unverified and not covered by a new row in this review.",
       "closure_criteria": [
-        "The next normal cycle's tracked task stays active until the actual process exits and reports its final success/failure.",
-        "The responsible lead consumes completion without a user prompt and reviews the scorecard plus phase failures, distinguishing publication from completion.",
-        "Preserve current resume, exit/cancellation handling and caching; no extra model run or monitoring/test layer."
+        "Preserve the landed run/phase/end record, failure verdicts and existing interrupted-run credit.",
+        "At the next ordinary cycle the tracked task remains responsible until actual exit and the lead consumes it without a user prompt; retain final-exit/first-reaction evidence.",
+        "Use existing process/hook owners; no parallel monitor or added model workloads. Full recording/continuation/test cost remains explicit."
       ],
-      "comparison": "At the next ordinary cycle, compare existing task start/final-exit events, recorded phase outcomes and one lead reaction without a user nudge. Preserve native publication/resume and process cancellation tests; extend the existing run/hook owner only for newly recorded behavior. No simulated wake-up suite, new timing threshold or SQA confidence run."
-    },
-    {
-      "id": "SQA-264",
-      "status": "open",
-      "severity": "P2",
-      "category": "continuation-stop-state",
-      "classification": "source-confirmed-state-bypass-with-retained-incident",
-      "title": "Re-evaluate a repeated stop when work changed after the last refusal",
-      "evidence_commit": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
-      "sources": [
-        {
-          "path": "cmd/loophook/main.go",
-          "symbol": "runStop; stopDecision; parseHook/hookInput; turnBaseFile; currentDirtyFacts; gitHead; runPostCommit/writeTurnBase"
-        },
-        {
-          "path": "cmd/loophook/main_test.go",
-          "symbol": "TestStopDecision retry valve; TestHeadProgressBaseline; TestStopIgnoresPreexistingDirt; TestPersistentStopHook"
-        },
-        {
-          "path": "cmd/loophook/sessions_test.go",
-          "symbol": "sessionCheckout; TestOverlappingSessionsKeepTheirOwnTurnSnapshots; TestReviewSessionIsNotHeldAndAnyOtherRoleIs"
-        },
-        {
-          "path": "docs/plan.json",
-          "symbol": "stop-valve/do"
-        }
-      ],
-      "evidence": "runStop immediately returns0 whenever raw hook text contains stop_hook_active:true, before reading current dispatch, HEAD or dirty facts. stopDecision also treats that flag alone as allow. The unsupported assumption is that every continuation stop is the unchanged retry of the last refusal. Admitted counterexample: block under an open row, do more work/commit, then stop with the harness continuation flag still true; the current source permits it unconditionally. The committed stop-valve/do incident record reports a19:14:05Z block, two landings, a19:48:16Z allowed stop and1h44 idle until the owner; it also records18:38:54Z->19:04:09Z rescued by a background notice. Those times are retained plan/transcript-derived evidence, not independently replayed or newly measured here. The source bypass is independently confirmed. This is separate from SQA-258's detached-launch completion ownership failure.",
-      "recommended_change": "Complete the already adopted stop-valve/do in the existing loophook session owner. Decode stop_hook_active once through hookInput/parseHook. Record HEAD and the existing content-aware dirtyFact snapshot when a stop is actually refused. Permit the retry escape only when that session's current state matches its last refused-stop state; after changed HEAD, staged identity or worktree bytes, compute the normal verdict again. Do not compare only dirty path names. Keep this refusal baseline distinct from turnBase's prompt/post-commit baseline: writeTurnBase intentionally advances after a landing and would otherwise erase the evidence of progress. Reuse currentDirtyFacts/gitHead and existing per-session process-state storage; do not add a watchdog, timer, polling service or new instruction checklist. Preserve explicit user-stop precedence, review/non-holder exemptions, completed-plan/live-gate behavior, unchanged stuck-retry escape and intentional handling of missing/unreadable state. Replace the blanket retry test contract with one compact state-transition table in the existing sessionCheckout fixture; remove the stale prose that every continuation flag automatically passes when its code is replaced.",
-      "displaced_surface": "The early raw-string unconditional return, equivalent unconditional stopDecision flag, blanket 'retry valve' assertion and duplicated prose exception disappear. Existing JSON parser, dispatch, dirtyFact identity and per-session storage remain; there are at least two existing consumers of dirty snapshots: prompt/post-commit baseline creation and stop orphan checking, with refused-stop comparison reusing that established representation. Current main.go2225 production AST and main_test969+sessions_test951=1920 test AST, total4145. Exact stopDecision37/runStop171/TestStopDecision152 are baseline function sizes, not whole-function deletion claims. Replacement state/read/write/error handling and compact transition coverage are unpriced correctness growth; no net code saving established. Extend existing tiny-Git sessionCheckout, add no fixture files, dependencies, model opens, production gate runs, monitoring configuration or parallel test suite. One sequential fixture can cover unchanged retry then HEAD change, same-path byte/index change and session isolation; retain other existing tests rather than duplicate their full bodies.",
-      "impact": "A continuation can stop with unfinished work after making progress, forcing owner nudges. Deterministic comparison removes that specific gap; it does not itself consume a completed background run or prove every idle period has one cause. Preserve the user's ability to stop and avoid a permanently blocking hook. Session state is process metadata; preserve existing per-user permissions and worktree/session boundaries.",
-      "expected_benefit": {
-        "outcome": "A prior refusal no longer grants an unchecked later stop after changed work. Reuses the existing state/dispatch owners and replaces an obsolete rule with an observable state transition.",
-        "uncertainty": "Source behavior is certain; incident duration comes from the committed record, not a fresh timing measurement. Exact replacement AST and storage/error costs are unknown. A last-refusal snapshot must survive prompt/post-commit baseline refresh and must not cross sessions; no security or cancellation behavior may be weakened."
-      },
-      "likely_effort": "Bounded existing-hook change plus one native Go transition table; no new control framework.",
-      "plan_references": [
-        "stop-valve/do"
-      ],
-      "plan_coverage": "Adopted as stop-valve/do atca4bf809. The preceding4B throughput row landed in8ce06a06; stop-valve remains open and its source/tests unchanged at this pin. Plan adoption is not an implementation.",
-      "closure_criteria": [
-        "After a blocked stop, the unchanged retry can exit, but changed HEAD or content-aware dirty/index state re-enters the existing normal decision.",
-        "A post-commit baseline refresh cannot make changed work appear unchanged since the last refusal; sessions cannot overwrite each other's refusal evidence.",
-        "Explicit user stops and existing review/non-holder/gate/complete/escape cases remain valid; missing-state handling cannot wedge the session.",
-        "Existing native session fixture retains the unique transition cases, and the unconditional retry branch/test/prose contract is removed with full production/test cost reported."
-      ],
-      "comparison": "Smallest deciding check is the existing tiny sessionCheckout with one refused-stop sequence: unchanged retry, changed HEAD, changed bytes at the same path and isolated second session; retain existing explicit-stop/preexisting-dirt and exemption tests as owners. Normal implementation verification can exercise this without models, services, timing waits or new suites. No SQA test execution."
+      "comparison": "Retained source and two native tests prove recording/formatting contracts; do not repeat them for confidence. The smallest remaining deciding evidence is one ordinary cycle's actual task exit and next responsible lead action without an owner nudge. No SQA run or wake-up experiment."
     },
     {
       "id": "SQA-238",
@@ -2962,7 +2963,7 @@
       "category": "production-wrapper-reduction",
       "classification": "source-confirmed-maintenance-reduction",
       "title": "Read the candidate count directly from the existing query planner",
-      "evidence_commit": "fc7ae6f0f70a903ae82110d4d888b0a472b3a67d",
+      "evidence_commit": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
       "sources": [
         {
           "path": "internal/overgodb/query.go",
@@ -2977,7 +2978,7 @@
           "symbol": "TestQueryBoundsAndCycleRejection; TestServingObservationDescriptorIndexes; TestQueryCursorBindsHeadAndContract; TestQueryProjectionReturnsRequestedFactsOnly"
         }
       ],
-      "evidence": "Committed caller search finds one descriptorCandidateCount caller, querySelection. The method discards queryIndexPlan's index and forwards its count. Store.Query and visitDescriptorCandidates already call queryIndexPlan directly for the same head-specific index selection; querySelection can consume its second return directly. Actual in-memory whole-file Go parsing gives query.go 3720->3696 nodes, including deletion of the 25-node method and a one-node caller increase. No production file was edited. Fresh pinned caller search confirms the same three queryIndexPlan consumers. query.go blob4e12021fb1a70542290bbcbbbdc23752d12aaf60 is identical to the original evidence revision; fresh parse remains3720. The retained in-memory reduction is still applicable without new behavior or test work.",
+      "evidence": "Committed caller search finds one descriptorCandidateCount caller, querySelection. The method discards queryIndexPlan's index and forwards its count. Store.Query and visitDescriptorCandidates already call queryIndexPlan directly for the same head-specific index selection; querySelection can consume its second return directly. Actual in-memory whole-file Go parsing gives query.go 3720->3696 nodes, including deletion of the 25-node method and a one-node caller increase. No production file was edited. Fresh pinned caller search confirms the same three queryIndexPlan consumers. query.go blob4e12021fb1a70542290bbcbbbdc23752d12aaf60 is identical to the original evidence revision; fresh parse remains3720. The retained in-memory reduction is still applicable without new behavior or test work. Rechecked atfc57f65e: query.go3720 and query_plan_test719 unchanged; same-head index selection counts the actual media/schema widths rather than assuming uniform cardinality. The wrapper deletion remains applicable, with all previously counted tests retained.",
       "impact": "Maintenance only. The count is read at the same point under Store.Query's existing read lock. Errors, cancellation checks, bounded ordering, cursor/head validation, index refusal and resource lifetime remain unchanged. No public API, configuration, build tag, fixture or persisted-format change; no user-visible breakage or confidentiality/data-loss effect identified for this exact substitution.",
       "recommended_change": "The count-only forwarding method is unnecessary. Replace its sole call with '_, candidateCount := s.queryIndexPlan(query)' and delete descriptorCandidateCount. Retain queryIndexPlan as the common owner already used by Store.Query and visitDescriptorCandidates. Keep all existing tests; this trivial substitution needs no new test or helper.",
       "displaced_surface": "Production query.go 3720->3696 (-24 AST). Test files query_plan_test.go719 + query_test.go3044 remain3763; complete affected production/test surface7483->7459. No import/helper/wrapper/fixture/migration additions. Same three queryIndexPlan invocations on an ordinary unseeded query, same allocations, setup executions and gate selection. One private method disappears.",
@@ -3996,25 +3997,23 @@
   ],
   "gate_test_assessment": {
       "retained_evidence": [
-        "8ce06a06 landed during publication wait; reviewed snapshot matches it. Gate reports production+306/test+290, schema/CUDA/fixture growth0; verify59.099s; invariants1m33.674s, host tests2m40.295s, lanes3m22.712s (5 executed/11 cached; device6.374s, webui2m50.338s, CUDA3m15.541s). Original4B throughput row passed. Separate Qwen0.5B scorecard slice10.601s has identical outputs, peak1294.6MiB, first-output102ms,501tok/s, load1314ms. That slice does not itself prove4B/Flash outcomes. The new model test adds two opens/eight generations; no SQA runtime run.",
-        "9a255e39c gate reports +97 production/+520 test AST, no schemas/CUDA/fixture files. This correctness growth is not a reduction. Directory selection, benchmark lookup and task-specific succession extend existing fixtures; the ratio alone does not prove test bloat.",
-        "Retained gate: host tests 1m21.945s in 8 packages; lanes 2m46.014s, webui 2m45.295s and CUDA 2m42.288s (3 executed, 13 cached), device skipped; focused verify 2.068s. Qwen0.5B scorecard slice outputs identical, peak 1294.6 MiB (+0), first-output 102 ms, throughput 501 tok/s, load 1393 ms. It does not establish Qwen4B or Flash restoration.",
-        "Earlier native series through fc7ae6f0f reported +4065 production/+2290 test nodes, one schema, with a real 7239-byte shared fixture and 218 support nodes. With the latest serving fixes these known code landings total +4162/+2810; no saving is claimed by merely avoiding materialized GGUF files. Retained tensor/draft parity remains needed.",
-        "No SQA tests, models, services, gates, benchmarks or profiles executed. Parser/type analysis only. Retained native Go cache hits and existing phase/cell credit mechanisms are credited; no extra confidence run, selector, framework or ratchet proposed."
+        "9b8300d0 run-freeze:+192 production/+344 test AST,0 fixture/CUDA/schema growth; native verify2.581s, invariants1m19.095s, host2m22.227s, device lanes skipped. Source/native test support release-quiet-before-lane-wait/reacquire ordering; no SQA concurrency run.",
+        "19fb6f9b3 stop repair:+220 production/+164 tests, fixture/schema/CUDA growth0; native verify3.972s, host tests1m13.888s, lanes skipped. These are retained gate timings, not SQA runs or proof of measured idle-time savings.",
+        "fc57f65e run record:+1063 production/+1209 tests, fixture/schema/CUDA gate counts0; invariants1m5.617s, host tests1m55.986s, verify3.757s, no device/webui/CUDA lanes. New process-state JSON is still maintenance surface despite schema counter0.",
+        "043e3200b stale-cell work:+338 production/+659 tests; retained verify1.702s, device lanes skipped. b448ec0cf memory trade changes0 Go/test AST and explicitly accepts9.64e9 bytes, about0.79e9 above original.",
+        "No new validation executed. Keep native Go caching, existing phase/cell credit, tiny native fixtures and ordinary scoped gate selection; no new selector, framework, benchmark or performance ratchet."
       ],
-      "caching": "Keep native Go caching, existing phase resume and consumed-input cell credit. Repair the admitted native-view input representation within the current credit owner (263), not a second cache. Quiet-machine ownership already separates timed work from landing contention; whole-cycle prose restrictions remain an adopted implementation issue.",
+      "caching": "Native Go caching and existing cycle/cell credit remain owners. Run recording annotates credited phases rather than reacquiring them.263's native-directory consumed identity and261's remaining stale hook directive remain separate unresolved concerns.",
       "test_dispositions": [
-        "SIMPLIFY/RETAIN257: TestQwen35ServesFromItsSafetensors owns native tensor bytes/promotions/norm-shifts and96-token draft/plain equality. MERGE the newly landed4B forced-draft-after-refusal case there before deleting its repeated same-prompt parity body/open; preserve the changed explicit-override requirement and account any added calibration. RETAIN unique27B coverage unless an existing retained owner is demonstrated; none established in this sample.",
-        "REMOVE/REPLACE257 only with policy replacement: TestOwnDraftsRefusedWhereFewAreKept's48/10% threshold contract (198 nodes) and its production observer84 are tied to the old policy. Preserve default/explicit-override behavior in the existing owner. SIMPLIFY the newly landed model test's hardcoded4B-false/27B-true assertion driven by live timing; numerical equality must not depend on that timing. Windows hermetic default-drafting and modeltest native parity have distinct build/domain requirements.",
-        "REPLACE264: obsolete unconditional retry case in TestStopDecision with state-aware behavior in one existing sessionCheckout transition table. RETAIN TestPersistentStopHook, TestStopIgnoresPreexistingDirt, missing/legacy-baseline behavior and existing session/reviewer/non-holder coverage. No real gate/model setup or new fixture.",
-        "MERGE 223: keep TestSmallBlobsArePacked and move empty-store, corrupt-pack and loose-blob cancellation precedence into it; remove TestBlobVerificationStopsWhenCancelled only after migration. Existing full-file comparison 1807->1507 includes +110 migration/-410 removed nodes; blob_pack production 1581 unchanged. Opens 7->4, TempDirs 4->2, packing 3->2, contents 5->3, corrupt writes 3->2; fixture/helper/config/gate growth zero. Preserve 12 readbacks, backup/repack/index and allocation cases.",
-        "SIMPLIFY 247: quiet_test 1229->1217; quiet.go 468 and processes.go 256 unchanged. Remove only the nil-mismatch disjunct already covered by errors.Is. Keep all exclusion, child-measurement bypass, contention, unreadable-process, error and wait-separation cases and setup. No new test.",
-        "SIMPLIFY 252: one_event_stream 601->474 using existing runtimeServingProbe; retained runtime-serving 1762 and browser-serving 489 give 2852->2725 complete test surface. Keep progress/file boundary, initial list, admit/cancel and transfer/handler cleanup. Real transport/auth/reconnect stays with the browser owner. No new fixture/gate; changed transport scope is explicit.",
-        "RETAIN discovery/directory_model 428: actual view identity, memo invalidation, unsupported directory and newly added explicit directory selection. One tiny existing Qwen35Directory and one store setup; existing 218-node support/7239-byte fixture remains. This differs from modelartifact's synthetic identity/claim test; no merge or unique-case move proved.",
-        "RETAIN evaluation/evidence_index 3605: declared execution provenance and policy/environment alternatives plus split-file/directory benchmark locations. The directory case extends the existing split benchmark store and evidence payload. Equal metric values with different record identities test indexing, not an inference-performance oracle. No new fixture files.",
-        "RETAIN scorecard/succession 994, previously 883: new +111 nodes preserve inference succession while conversion stays active for training. Keep both-listed/multiple-heir/missing-config/sampling-card/no-successor/original-target cases; future source-weight refusal belongs here and at existing retirement owner. Necessary added coverage is not a saving.",
-        "RETAIN chat_reasoning_stream 1419: marker variants, Unicode/split bytes, literal/unclosed markers, native control tokens, prompt-state and public tool stream are distinct requirements. Existing scalar state owner and public stream remain separate; no safe net merge proved.",
-        "RETAIN 262's existing view parity test but SIMPLIFY its two predicates to bytes.Equal and REMOVE firstDifference. Prior exact full-file 433->367, with unchanged support 218: 651->585. Both whole/piece cases, 7239-byte fixture, two existing setup executions and all lifetime/layout checks remain; no new test or gate."
+        "SIMPLIFY261: MeasurementRun.Report487 production AST unchanged when stale running policy text is removed; TestTheHooksPrintTheRunsEnd602->594 by deleting only no-device-work predicate. Same session fixture and run-state checks. RETAIN new run_beside344 lock-order test; it proves different behavior from display tests.",
+        "REMOVE/SIMPLIFY264: obsolete TestStopDecision retry case and parameter; remove only two duplicate pure verdict assertions from TestBoundedRequestScopesAnswerNotTurn. Retain question/action classification. Dispatch test loses only a constant argument. main_test969->904 and dispatch168->167; production2534->2530. Retain sessions1115 and hook run_record602, same setups, zero new fixtures/gate work for this deletion.",
+        "RETAIN/EXTEND264: TestAStopAfterWorkSinceItsBlockIsBlockedAgain uses sessionCheckout for unchanged/changed commit/new dirt. Extend that sequence once for failed snapshot write; retain same-path-byte/session and explicit-stop requirements with existing owners. Error-path growth is not included in the70-node saving.",
+        "RETAIN run-record producer599 and hook consumer602: two simulated cycles verify recording/failure/row filing/prior-wall expectation; completed/running/dead-process hook cases verify distinct presentation/wiring. Same-looking phase structs do not justify merging them across packages. No model workload.",
+        "RETAIN runner_weights531: all-native,fused,adapted,mixed,F16,rank2 versus3,48/47-byte residency boundary, unchanged descriptors and overflow; existing single fixture/table. No unique case can be removed safely.",
+        "RETAIN retention1101 including retentionContent/releaseEverything: typed versus untyped lineage, absent pinned root/unpin and live store-local authority refusal are distinct requirements. Existing three store setups and blob fixtures remain; no merge established.",
+        "RETAIN query_plan719: current-head narrow media/schema choice, kind/seed/catalog/refusal,counters and deterministic repeat.253 removes only the count wrapper; no extra tests.",
+        "RETAIN streaming_transcriptions1484: authenticated actual duplex transport, waveform admission, per-chunk durable identities, first text before final, disconnect/checkpoint resume, lease cleanup and out-of-order refusal. Shared native fixture, one store/workspace/server; client helper used for initial,resume and refusal. No model-latency threshold implied by its reported wall.",
+        "RETAIN stale-cell659: timestamp provenance, publish-name parsing, stale gap, preserved newer/warm cell, excluded old long prompt, nonmutation and gap filing. This is new correctness coverage, not an invitation to duplicate scorecard suites."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -4388,12 +4387,11 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Source pinned to8ce06a06 after the worker landed during report publication wait; eight snapshotted source/JSON files match the landing. Any subsequent worker/plan changes remain excluded and untouched.",
-      "Bounded AST/source/type subsets are maintenance evidence, not model validation or measured elapsed/memory effects. No model, test, service, gate, benchmark or profile run by SQA.",
-      "Continuation incident timestamps are retained committed-plan evidence; source bypass independently checked. No claim that every idle period has one cause or that notification delivery itself failed.",
-      "Fixed16-token calibration prompt/order and48-draft/10%-kept rule lack a demonstrated shared performance contract. No universal threshold, statistical framework, telemetry or model-name policy proposed; numerical identity remains timing-independent.",
-      "Geometry checks remain with typed model/session owners: hidden row shape, uint32 position limit, key/value token dimensions, context room and span capacity. Private signature deletion must not delete those checks or public persisted identities.",
-      "Implementation-owned objects/comments and unknown fields must remain raw-byte-exact. Re-read report/HEAD and concurrent candidate changes immediately before report-only publication."
+      "Final pin reconciles run-freeze landing9b8300d0, including source, native test and skill change. Any subsequent worker edits are excluded and preserved. No implementation, agents, plan changes, branch changes or push by SQA.",
+      "No SQA model workload, service, test, gate, benchmark or profile. AST/type/caller analysis is bounded maintenance evidence; no new measured elapsed/memory gain. Full CUDA/cross-package type resolution not performed.",
+      "Stop snapshot failure is an admitted I/O counterexample from code, not observed on the live machine. Explicit user stops still work. Run completion recording is not itself a wake-up guarantee.",
+      "The latest gate records and memory trade are retained implementation evidence. Displayed phase expected end uses one prior wall, not a confidence interval or timeout. Numerical and identity acceptance remain separate from timing variability; Strata is a comparator.",
+      "Both implementation-owned top objects,34 owner comments and every unknown finding field preserved raw-byte-exact; report/HEAD re-read before publication. Prior unchanged findings retain their evidence without a claim every body was freshly reviewed."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -4465,11 +4463,11 @@
   },
   "next_finding_number": 265,
   "publication_context": {
-      "checked_head": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
-      "committed_plan_git_blob": "9fac390bef4e268577250746abe4d19cd95b3ca6",
-      "assessment": "Substantive requested recommendations: retain landed throughput/private-session improvement, consolidate drafting policies and model tests, repair source-confirmed stop-state bypass. One new stable finding; throughput plan-reference retirement reconciled.",
-      "newer_commit_note": "Worker landed8ce06a06 while SQA waited for publication locks. Its eight reviewed Go/JSON snapshot files match exactly; original4B throughput row removed. stop-valve source/tests unchanged. Final pinned34-item plan read before report-only commit.",
-      "publication": "Re-read/parse under existing nonblocking publication locks; commit only docs/sqa_findings.json, preserving implementation-owned fields and unrelated index/worktree. No implementation gate."
+      "checked_head": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
+      "committed_plan_git_blob": "6e34ac10fc802d5ee9ee82d3acbb5cd56d65d278",
+      "assessment": "Fresh broad bounded review reconciles stop/run-record/host-admission landings and4B memory trade. Existing findings narrowed to remaining defects;78-node combined obsolete production/test deletion supported, no new ID.",
+      "newer_commit_note": "9b8300d0 landed during preparation; final29-item plan and changed skill/source/native test inspected. All reviewed source pinned; later work excluded.",
+      "publication": "Re-read/parse under nonblocking existing publication locks, then report-only commit; preserve owner fields and unrelated index/worktree. No implementation gate."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -4482,9 +4480,9 @@
     "SQA-257",
     "SQA-260",
     "SQA-263",
+    "SQA-264",
     "SQA-261",
     "SQA-258",
-    "SQA-264",
     "SQA-238",
     "SQA-215",
     "SQA-246",
@@ -4531,42 +4529,43 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "257 credits the landed private-session signature deletion and passed original4B throughput row. Consolidate the remaining fixed-prompt load benchmark and48/10% observer into one justified decision; keep load trade and peak-memory costs visible. Preserve beneficial drafting, explicit override and public session identity.",
-      "Landed test surface grows despite the small deletion. Existing4B native tensor/parity test is the retained owner for repeated same-prompt parity; move forced-draft-after-refusal coverage before eliminating its second setup.27B coverage is distinct and not declared redundant. Landed timing-derived fixed expected defaults need independent numerical acceptance.",
-      "264 recommends a last-refused-stop snapshot, using existing content-aware dirty facts and session state. Prompt/post-commit turn baselines move and are not a substitute. Explicit user stop and unchanged stuck-retry escape remain.",
-      "258 remains the historical detached-launch ownership failure, with roughly5h16 after actual completion rather than ten hours. Recording completion and checking stop state solve different problems; neither plan adoption is closure.",
-      "Prior254/256/260/261/263 correctness/recovery findings and223/224/247/252/253/262 surface reductions remain as previously assessed. No new comprehensive proof or runtime gains claimed for their unchanged bodies.",
-      "8ce06a06 gate reports+306 production/+290 tests, no schema/CUDA/fixture growth; native gates passed and throughput row landed. This is actual progress. Its separate scorecard slice is Qwen0.5B and cannot establish Flash restoration; stop-valve remains unimplemented."
+      "Primary stop-valve landed and uses existing content-aware facts; retaining the original 'not implemented' conclusion would be wrong. Residual write-error handling contradicts its stated non-wedging escape. No new permission change, watchdog or registry needed. Full status remains open only for the source-derived persistence failure and obsolete pure contract.",
+      "Safe reduction in the same hook owner: stopDecision's active flag has no live true caller; stateful runStop owns retry now. Drop its unused parameter/branch, obsolete table row and duplicated TestBoundedRequestScopesAnswerNotTurn verdict checks. Keep classifier, decoded dispatch, user stop, parked dirt and session transition tests. Exact complete changed surface -70 nodes; I/O repair growth unpriced.",
+      "run-record adds+1063 production/+1209 tests and a persisted process-state structure. This is useful capability growth, not reduced test/runtime work. Three hook consumers reuse one report owner; no second completion-record representation recommended. The next ordinary completion must establish responsible reaction.",
+      "Both4B key migrations are done; memory row closed with declared9.64e9 peak versus original8.848448256e9. Plain-serving8.846e9 does not erase the load probe's high-water cost. Original4B throughput success remains credited;257 policy/test overlap persists unchanged.",
+      "collectLiveSet shares store-local admission with Rebuild and preserves parent/child/manifest/causal roots. Release writes durable facts before blob removal, checks cancellation and preserves concurrent/reintroduced identities under writer ownership. Three retention tests are distinct; shared blob-sized retentionContent already exists.",
+      "Expert rank3 is [inner,rows,experts], not an arbitrary threshold. Dtype/mixed/adapted eligibility prevents unsafe F32-path removal. Exact48/47-byte fixture boundary derives32B BF16 bank+8B dense+8B convertedF32; checked.Add64/shape.Bytes handle admitted overflow and geometry. Keep selected tensors, shape and cleanup owners.",
+      "Transcription authenticates before input, checks encoded-byte/sample bounds before inspection and checkpoints durable admission/output. SSE emission and session leases already have owners. The real duplex disconnect/resume test is not interchangeable with a mocked event recorder; retain its setup and distinct out-of-order case.",
+      "Query plan uses actual index widths at the current head, so no uniform-distribution assumption needed. Existing -24-node wrapper reduction253 remains; query counters, cursor/head contract and bounded ordering tests retain real signals. Repeated-plan equality tests determinism of map-backed iteration; not automatically redundant.",
+      "Stale serving-cell marking landed043e3200b, with+338 production/+659 tests. It identifies newest attempt older than prior publication; this alone does not make a median of three attempts an exact joint run sample (221 remains). No additional statistical framework or confidence run proposed.",
+      "9b8300d0 host/device admission landed during reconciliation, including192 production/344 test nodes and a corrected MeasurementRun read. Credit the resource/skill fix. Shared Report still emits plan-only commits until run end to three hooks; remove that duplicate directive and its8-node test predicate. No new admission mechanism."
     ],
-  "reviewed_at": "2026-10-30T22:23:46Z",
-  "reviewed_master": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
+  "reviewed_at": "2026-10-30T23:29:51Z",
+  "reviewed_master": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
   "schema_version": 1,
   "scope": [
-      "Focused user-requested recommendation update at pinned committed master 8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3; root skill blob f04bcf86c9ced14eaebcabc25efcfe423414d273;34-item plan blob9fac390bef4e268577250746abe4d19cd95b3ca6. This chat previously implemented Overgo changes: overlapping internal SQA, not an independent third-party review.",
-      "New bounded AST of11 committed Go files:19117 nodes,117 functions,3778 parser-local bindings. Initial10-file baseline atca4bf809:18521 nodes/114 functions/3647 bindings; seven worker-snapshot Go files are byte-identical to the landed change. Standard Go parser/AST only; comments included. Exact stopDecision plus three constants checked with go/types:10 definitions,10 uses,16 expressions, no stubs or execution.",
-      "Selected committed paths, plus the new own_draft_judgement_model_test.go: cmd/loophook/main/main_test/sessions_test; cmd/server/main; inference/nextn_device_speculation,runner,runner_lifecycle,native_safetensors_model_test,nextn_mtp_test; modelcli/model. Cross-file callers and MTP identity/shape/persistence owners manually traced; no full-package/CUDA type resolution.",
-      "Both served-open callers, explicit decode overrides, private versus persisted session lifetime, repeated parity setup, declared load trades and continuation ownership reviewed. Initial snapshot at22:11:24Z was uncommitted; gate landed8ce06a06 during publication wait. Reconciled that landing and matched all eight snapshotted Go/JSON files before publication.",
-      "Prior broader review at9a255e39 covered inference/load/transfers, database/query/blob/retention, GUI streaming and gate/resume with16-file AST and retained results. That coverage and its findings remain retained evidence, not newly re-run or re-ranked by a fresh broad census during this focused update."
+      "Pinned master 9b8300d087e896bff4dd1c1ff223e8dfedb84835;29-item committed plan blob6e34ac10fc802d5ee9ee82d3acbb5cd56d65d278 and root skill blob17f58b9e119f9b809cca424ec9199405a4e41108. Instructions/plan read first; subsequent run-freeze landing reconciled before publication. This chat previously implemented changes: overlapping internal SQA, not an independent third-party review.",
+      "Fresh rotated18-file AST at final pin:26566 nodes=19102 production+7464 test,165 functions,4985 parser-local bindings. Initial15-file sample atfc57f65e was19753 nodes/121 functions/3710 bindings. Supplemental dispatch_test168 completes stop callers. Standard Go parser includes comments; no census. Exact validDescriptorFilter go/types subset:3 definitions,9 uses,13 expressions; no stubs or execution.",
+      "Core AST: inference weights474/test531; overgodb retention1444/test1101/query3720/query_plan719; server streaming_transcriptions971/test1484; plan measurement_run487; loop improve3034/run_record599; loophook main2534/main_test969/sessions1115/run_record602. Final landing additions: landing.go4104, lanes2334, run_beside_test344.",
+      "Caller/lifetime review: typed expert banks through load/placement and shared accelerator cleanup; Release/Rebuild alias admission and blob release ordering; query cardinality owner/cursor/bounds; authenticated duplex transcription, admission/checkpoint/SSE/disconnect lease; cycle recording, phase resume and stop continuation. Provisional conclusions stored before reading prior findings and owner responses.",
+      "Actual in-memory reductions only: obsolete stop bypass/case/duplicate assertions remove4 production+66 test nodes across all callers; removing stale run-report assertion removes8 more test nodes with production AST unchanged. Existing stateful/record/transport tests remain. No proposed code written to repository. Retained query wrapper -24 remains applicable."
     ],
   "sqa_response": {
-      "reviewed_master": "8ce06a06d9a0b84f23e82379a3e61681e9e7c4b3",
-      "assessment": "55 open,3 deferred,22 resolved. New264 remains source-confirmed and plan-adopted.257 credits committed4B throughput repair/private-session deletion and retains single-policy/test-duplication recommendations.256's completed throughput reference removed; source authority and memory key remain.258 now counts recording/wiring growth honestly.",
-      "evidence": "New11-file committed AST19117 nodes/117 functions/3778 local bindings; exact stopDecision type subset. Landed files match reviewed snapshot: production+306/tests+290, two extra model opens/eight generations. Retained gate and worker measurements attributed.",
-      "new_findings": [
-        "SQA-264"
-      ],
+      "reviewed_master": "9b8300d087e896bff4dd1c1ff223e8dfedb84835",
+      "assessment": "55 open,3 deferred,22 resolved. No new ID/complete closure.264's primary bypass and261's resource/skill hold are repaired; remaining persistence failure and stale hook directive are named.258 recording/display and256 key migrations credited without claiming full completion/source proof.",
+      "evidence": "Final18-file AST26566 nodes/165 functions/4985 bindings, supplemental dispatch168, exact stdlib type subset. In-memory reductions4 production+74 test=78 nodes, same fixtures/setup; stop I/O repair growth unpriced. Retained gates and explicit0.79GB memory trade recorded.",
+      "new_findings": [],
       "resolved_findings": [],
       "partially_addressed_findings": [
         "SQA-256",
         "SQA-257",
-        "SQA-260"
+        "SQA-258",
+        "SQA-261",
+        "SQA-264"
       ],
       "plan_adopted_findings": [
         "SQA-256",
-        "SQA-258",
-        "SQA-260",
-        "SQA-261",
-        "SQA-264"
+        "SQA-260"
       ],
       "reopened_findings": [],
       "implementation_response_context": {
@@ -4575,8 +4574,8 @@
         "plan_git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
         "status": "Owner objects/comments and unknown fields preserved raw-exact; current source/commit evidence assessed separately."
       },
-      "recommendation": "Keep the landed first-window deletion. Consolidate drafting into one justified owner, account load plus first request, merge duplicate4B parity setup while retaining unique override/numerical coverage. Repair the continuation bypass with last-refusal state in the existing session owner.",
-      "next_action": "Implementation lead owns adopted stop-valve/do and disposition of residual257 policy/test recommendations; the original4B throughput row has landed. SQA updates this report only.",
-      "uncertainty": "No net surface reduction or general fixed-prompt validity established for the landed change; no SQA runtime measurement. Full policy consolidation and stop-state replacement costs remain unpriced."
+      "recommendation": "Keep landed resource/continuation improvements. Remove261's shared stale freeze message and obsolete test condition; batch264's unused flag/redundant assertions with write-failure handling. Consolidate drafting in existing owner and account calibration load/memory. No new workload or monitor.",
+      "next_action": "Lead owns source authority/preflight and residual advisory fixes. SQA commits only report; completed stop/run-record/run-freeze plan rows are no longer described as pending implementations.",
+      "uncertainty": "Primary improvements credited without claiming observed unattended-completion recovery or whole-lifecycle memory improvement. Source-derived I/O counterexample and AST savings are not measured performance."
     }
 }

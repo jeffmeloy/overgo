@@ -1,0 +1,30 @@
+{
+  "trades": [
+    {
+      "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+      "name": "Qwen3.8-27B",
+      "task": "inference",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 23986858944,
+      "unit": "bytes",
+      "bought": "the 27B's own next-token layer drafting by default (59e8bf5b6): 128-token decode 31 to 52 percent faster, its verify spans holding each recurrent layer's state per window position; declared in d184ff653"
+    },
+    {
+      "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+      "name": "Qwen3.8-27B",
+      "task": "inference",
+      "column": "throughput",
+      "contract": {
+        "metric": "output tokens over decode time",
+        "origin": "serving"
+      },
+      "level": 25.431363610643277,
+      "unit": "tok/s",
+      "bought": "the same drafting (59e8bf5b6): the scorecard's first request is a three-token answer that times a drafted span's start, not the decode, which runs 31 to 52 percent faster; declared in d184ff653"
+    }
+  ]
+}

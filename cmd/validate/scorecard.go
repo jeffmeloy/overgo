@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/inferencesurface"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
@@ -122,6 +126,33 @@ func openGap(ctx context.Context, store *overgodb.Store, records, key string, ta
 		return fmt.Errorf("%s is open:\n%s", key, gaps[at].Detail)
 	}
 	_, err = fmt.Fprintf(output, "%s is closed.\n", key)
+	return err
+}
+
+// declareTrade writes the trade that accepts the decline key names, at the value
+// its cell holds on the scorecard the store holds now, into the trades file
+// beneath root, and says what it wrote.
+func declareTrade(ctx context.Context, store *overgodb.Store, root, key, bought string, output io.Writer) error {
+	if strings.TrimSpace(bought) == "" {
+		return errors.New("-declare needs -bought: what the worsening bought, and the change that declares it")
+	}
+	rows, err := scorecard.Build(ctx, store)
+	if err != nil {
+		return err
+	}
+	trade, err := scorecard.Declare(rows, key, bought)
+	if err != nil {
+		return err
+	}
+	trades, err := scorecard.DeclaredTrades()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(root, scorecard.DeclaredTradesFile)
+	if err := jsonfile.Write(path, scorecard.TradesDocument{Trades: append(trades, trade)}, clioptions.OutputFileMode); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "declared %s %s %s accepted at %.9g %s in %s\n", trade.Name, trade.Task, trade.Column, trade.Level, trade.Unit, path)
 	return err
 }
 

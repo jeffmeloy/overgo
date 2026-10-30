@@ -616,6 +616,14 @@ func KnownGapKey(key string) bool {
 // (Gap). found says whether a cell carries the key at all: by its own keys
 // first, then by those of a model it took the place of.
 func Restored(rows []Row, key string, target float64) (restored, found bool) {
+	_, column, cell, found := cellByKey(rows, key)
+	return found && !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), found
+}
+
+// cellByKey is the measured cell a decline's key names in rows, with its row
+// and column: by its own keys first, then by those of a model it took the
+// place of.
+func cellByKey(rows []Row, key string) (Row, metric.Name, Cell, bool) {
 	for _, inherited := range []bool{false, true} {
 		for _, row := range rows {
 			for _, column := range metric.Columns {
@@ -625,13 +633,13 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 						own = earlier
 					}
 					if slices.Contains(own, key) {
-						return !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
+						return row, column, cell, true
 					}
 				}
 			}
 		}
 	}
-	return false, false
+	return Row{}, "", Cell{}, false
 }
 
 // Gap is the work one task's shortfall on one metric asks for, with every
@@ -671,8 +679,16 @@ func (c Cell) bar(direction runrecord.Direction) float64 {
 // record no longer has, is Unknown and reported by Moves, never filed), each
 // held-out quality that is not applicable because its task's held-out
 // evaluation is only proposed, and each trained model's held-out quality
-// that fell below its base model's on the verdict that judged them.
+// that fell below its base model's on the verdict that judged them. A decline a
+// change declared as its trade (DeclaredTrades) is filed only when the cell is
+// worse than the level it was accepted at by more than its readings allow, and
+// then to be restored to that level.
 func (record Record) Gaps(reference *Record) []Gap {
+	return record.gaps(reference, declaredTrades)
+}
+
+// gaps is Gaps under the trades given.
+func (record Record) gaps(reference *Record, trades []Trade) []Gap {
 	var before Record
 	if reference != nil {
 		before = *reference
@@ -696,13 +712,22 @@ func (record Record) Gaps(reference *Record) []Gap {
 		for _, column := range metric.Columns {
 			for _, comparison := range pair.Compare(column) {
 				if comparison.Verdict == regressed {
-					target := comparison.Then.bar(cmp.Or(comparison.Now.Direction, columnDirections[column]))
+					direction := cmp.Or(comparison.Now.Direction, columnDirections[column])
+					target := comparison.Then.bar(direction)
 					own, inherited := regressionKeys(*row, column, comparison.Now)
+					why := comparison.Why
+					if trade, declared := accepted(trades, append(slices.Clone(own), inherited...)); declared {
+						if !worse(direction, comparison.Now.Value, trade.Level, comparison.Then.allowed) {
+							continue
+						}
+						target = Cell{Value: trade.Level, allowed: comparison.Then.allowed}.bar(direction)
+						why += fmt.Sprintf("; worse than the %.9g %s it was declared at for %s", trade.Level, trade.Unit, trade.Bought)
+					}
 					decline := Gap{
 						Key: own[0], Aliases: append(own[1:], inherited...),
 						kind: string(regressed), Restore: true, Target: target,
 						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, target, comparison.Then.Unit),
-						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, comparison.Why),
+						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, why),
 					}
 					if column == metric.Quality {
 						decline.quality = &comparison

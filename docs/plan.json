@@ -156,20 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "declared-trade",
-      "title": "A declared trade is a record the scorecard reads: a declared cell is filed again only past its accepted level",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A declared trade is a record the scorecard reads: a declared cell is filed again only past its accepted level",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./cmd/loop -count=1 -run '^TestADeclaredTradeIsNotFiledAgain$'",
-          "rationale": "Review of 2026-10-30 (F1, P1), checked: d184ff653 declared Qwen3.8-27B's drafting memory (1.30 GiB) and its three-token answer's throughput (31.3 to 26.0 tok/s) as the drafted decode's price and retired both rows (scorecard-regressed-50f41f360f714051 and a64b35bd3226e366); the 2026-10-30 run filed them again under new keys, scorecard-regressed-b889eaf432334c44 (peak-device-memory, target 2.2989e10) and 52dcd48e15777fc9 (throughput, target 26.19), which landed with checks-before-measuring/file. A declaration lives only in a commit message the scorecard never reads, so every run re-files it, as memory's rule \"a retired decline row is proposed again\" records in prose. The change: a declaration is a record the scorecard reads, the accepted level of each declared cell (model, task, measure, contract) and the commit that declared it; a declared cell is a decline again only when it worsens past that level by more than its readings allow, and the declare step writes the record through a command. Then the two rows retire against it. The check: declare, rebuild the scorecard from the same readings, and no row is filed; a reading worse than the accepted level files one."
-        }
-      ]
-    },
-    {
       "id": "stale-cells",
       "title": "A cell not measured this run says so and is filed unmeasured, and Flash-Next's cold attempt is the one read",
       "status": "open",
@@ -777,21 +763,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-52dcd48e15777fc9",
-      "title": "Restore Qwen3.8-27B inference throughput to 26.1916033 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference throughput to 26.1916033 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52dcd48e15777fc9 -target 26.191603307091295",
-          "rationale": "- Qwen3.8-27B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 31.1102711 to 25.4313636 (-5.67890752, -18.3%, allowed 4.91866783; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-52e09bb29afba8ca",
       "title": "Restore granite-speech-5.0-470m-turboctc transcription load-time to 1265.2033 ms",
       "owner": "master-lead",
@@ -803,21 +774,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52e09bb29afba8ca -target 1265.2033000000006",
           "rationale": "- granite-speech-5.0-470m-turboctc load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b0414e84b7eeb5c2528b6b14d188e3ed433d350d8f07c088f1f4b47ac9d93f08}: 1084.4305 to 1442.9581 (+358.5276, +33.1%, allowed 180.7728; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-b889eaf432334c44",
-      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.29890551e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.29890551e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b889eaf432334c44 -target 2.2989055104e+10",
-          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.39868589e+10 (+1.25853882e+09, +5.5%, allowed 260734976; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

@@ -73,6 +73,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, compared with the measurements published before it; the verifier of the row the loop proposed for it")
 	target := flags.Float64("target", math.NaN(), "with -gap, for the key of a decline: the value its cell is to be restored to, which the row carries from the cycle that found the decline")
+	declare := flags.String("declare", "", "with -scorecard and -bought: declare the decline this key names a trade, accepted at the value its cell holds now, into "+scorecard.DeclaredTradesFile+" beneath -root; the scorecard files it again only past that level")
+	bought := flags.String("bought", "", "with -declare: what the worsening bought, and the change that declares it")
 	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
 	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
@@ -161,6 +163,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 				restoreTo = target
 			}
 			return openGap(ctx, store, records, *gap, restoreTo, output)
+		}
+		if *declare != "" {
+			return declareTrade(ctx, store, *root, *declare, *bought, output)
 		}
 		if !*publish {
 			records = ""

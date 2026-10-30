@@ -55,7 +55,11 @@ func (m *Memo) lookup(key string, info os.FileInfo) (fileIdentity, bool) {
 // claim, and a claim they do not carry must fail that read.
 func (m *Memo) Claim(path string) (artifact.ID, uint64, bool) {
 	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
+	if err == nil && info.IsDir() {
+		// A model served from its own files is claimed by its directory's signature.
+		info, err = directorySignature(path)
+	}
+	if err != nil {
 		return artifact.ID{}, 0, false
 	}
 	identity, found := m.lookup(path+"\x00"+artifact.KindTensorSet.String(), info)

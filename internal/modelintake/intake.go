@@ -22,6 +22,8 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/evaluation"
 	"overgo/internal/gguf"
+	// A model registered from its own files opens as the view the converter registers with gguf.
+	_ "overgo/internal/hfconvert"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"

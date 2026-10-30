@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -96,6 +97,10 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 // tensors, their bytes read from the directory's files when read, and nothing
 // written (gguf.View). The file's Close closes the directory's files.
 func View(directory, name string) (*gguf.File, error) {
+	directory, err := filepath.Abs(directory)
+	if err != nil {
+		return nil, err
+	}
 	repository, err := hfrepo.Open(directory)
 	if err != nil {
 		return nil, err
@@ -105,6 +110,12 @@ func View(directory, name string) (*gguf.File, error) {
 		return nil, errors.Join(err, repository.Close())
 	}
 	return file, nil
+}
+
+// init makes gguf.Open serve a directory as its View, so a model registered
+// from its own files opens wherever a converted one does.
+func init() {
+	gguf.RegisterDirectoryOpener(func(directory string) (*gguf.File, error) { return View(directory, "") })
 }
 
 func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*gguf.File, error) {
@@ -124,7 +135,7 @@ func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*
 	if err := modelartifact.ValidateGeneratedCatalog(metadata, declared); err != nil {
 		return nil, err
 	}
-	return gguf.View(metadata, tensors, gguf.WriteOptions{}, repository)
+	return gguf.View(metadata, tensors, gguf.WriteOptions{}, directory, repository)
 }
 
 // qwen35ModelMetadata is a converted Qwen 3.5 model's metadata, its language

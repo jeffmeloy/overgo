@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
@@ -56,6 +57,26 @@ type File struct {
 	tensorLocations map[string]tensorLocation
 	sourcePaths     []string
 	shards          []Shard
+	viewDirectory   string
+}
+
+// ViewDirectory is the directory a view reads its bytes from (View), or empty
+// for a file that is its own bytes.
+func (f *File) ViewDirectory() string {
+	if f == nil {
+		return ""
+	}
+	return f.viewDirectory
+}
+
+// directoryOpener serves a model directory as the GGUF its conversion would
+// write. hfconvert registers it, and the packages that open models by path
+// link hfconvert, so Open serves a directory wherever a GGUF file is opened.
+var directoryOpener atomic.Pointer[func(string) (*File, error)]
+
+// RegisterDirectoryOpener makes Open serve a directory through open.
+func RegisterDirectoryOpener(open func(directory string) (*File, error)) {
+	directoryOpener.Store(&open)
 }
 
 // Shard is one physical file of a logical GGUF: its length, where its tensor
@@ -91,6 +112,13 @@ func Open(path string) (*File, error) {
 // limits; Split models must be opened through their first
 // <prefix>-00001-of-XXXXX.gguf file
 func OpenWithOptions(path string, options Options) (*File, error) {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		open := directoryOpener.Load()
+		if open == nil {
+			return nil, fmt.Errorf("GGUF: %s is a directory, and no directory opener is linked", path)
+		}
+		return (*open)(path)
+	}
 	options = normalizeOptions(options)
 	file, err := openPath(path, options)
 	if err != nil {

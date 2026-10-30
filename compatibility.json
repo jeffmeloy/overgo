@@ -471,7 +471,7 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:cd553b0435f7cda7383a2f3af994399b5925d74de6b3c9f40e93a58c31cdd6bc"
+     "identity": "file:sha256:3966ecb18102fa9d608654a841774382c5f57b28549d7bc6e626886d88b1f29b"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
@@ -758,7 +758,7 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:cd553b0435f7cda7383a2f3af994399b5925d74de6b3c9f40e93a58c31cdd6bc"
+     "identity": "file:sha256:3966ecb18102fa9d608654a841774382c5f57b28549d7bc6e626886d88b1f29b"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",

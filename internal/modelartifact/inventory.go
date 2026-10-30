@@ -3,6 +3,7 @@ package modelartifact
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -126,6 +127,9 @@ func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inve
 		return Inventory{}, nil, errors.New("model artifact: GGUF logical kind must be model or projector")
 	}
 	paths := file.SourcePaths()
+	if len(paths) == 0 && file.ViewDirectory() != "" {
+		return fromView(file, kind, claimer)
+	}
 	if len(paths) == 0 {
 		return Inventory{}, nil, errors.New("model artifact: GGUF has no physical source paths")
 	}
@@ -182,10 +186,69 @@ func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inve
 	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, claims, nil
 }
 
+// fromView is FromGGUFClaimed for a view (gguf.View), a model served from the
+// files it was converted from: one component, the image the view serves,
+// identified as a written conversion's bytes are and located at the directory
+// it reads from, which locates the manifest too. A claimer's identity for the
+// directory, of the image's size, is a claim as a shard's is.
+func fromView(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
+	directory := file.ViewDirectory()
+	size := file.Shards()[0].Size
+	descriptor := artifact.Descriptor{Size: size, MediaType: ggufMediaType}
+	var claims []artifact.ID
+	if claimer != nil {
+		if id, remembered, ok := claimer(directory); ok && remembered == size && id.Kind() == artifact.KindTensorSet {
+			descriptor.ID, claims = id, []artifact.ID{id}
+		}
+	}
+	if claims == nil {
+		id, err := identifyView(file)
+		if err != nil {
+			return Inventory{}, nil, err
+		}
+		descriptor.ID = id
+	}
+	manifest, err := artifact.NewManifest(kind, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: descriptor.ID}})
+	if err != nil {
+		return Inventory{}, nil, err
+	}
+	var locations []artifact.Location
+	for _, id := range []artifact.ID{descriptor.ID, manifest.ID} {
+		location, err := artifact.CanonicalLocalLocation(id, artifact.LocationDirectory, directory)
+		if err != nil {
+			return Inventory{}, nil, err
+		}
+		locations = append(locations, location)
+	}
+	tensors, err := NewGGUFTensorInventory(manifest.ID, file)
+	if err != nil {
+		return Inventory{}, nil, err
+	}
+	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: []artifact.Descriptor{descriptor}, Locations: locations}, claims, nil
+}
+
+// identifyView is the identity of the image a view serves, as a component of
+// a model.
+func identifyView(file *gguf.File) (artifact.ID, error) {
+	shard := file.Shards()[0]
+	id, _, err := artifact.Identify(artifact.KindTensorSet, io.NewSectionReader(shard.Source, 0, int64(shard.Size)))
+	return id, err
+}
+
 // VerifyClaims proves claimed shard identities the way FromGGUF would have
-// found them: by hashing each file. It is the whole-file pass a claim is spared
-// when a load hashes the bytes it uploads.
+// found them: by hashing each file, or a view's image. It is the whole-file
+// pass a claim is spared when a load hashes the bytes it uploads.
 func VerifyClaims(file *gguf.File, claims []artifact.ID) error {
+	if file.ViewDirectory() != "" && len(file.SourcePaths()) == 0 {
+		id, err := identifyView(file)
+		if err != nil {
+			return err
+		}
+		if len(claims) != 1 || id != claims[0] {
+			return fmt.Errorf("%w: %s is %s, claimed %v", artifact.ErrContentMismatch, file.ViewDirectory(), id, claims)
+		}
+		return nil
+	}
 	paths := file.SourcePaths()
 	if len(paths) != len(claims) {
 		return fmt.Errorf("model artifact: %d claimed identities for %d shards", len(claims), len(paths))

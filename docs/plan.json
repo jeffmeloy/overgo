@@ -162,16 +162,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "gguf.View, the converter's tensors opened for both writer and view, and gguf convert -view: a model served from its own safetensors reads and is identified by the bytes its conversion would write, with no GGUF on disk"
+        "reason": "a directory opened, identified and found present as its view (gguf's directory opener, a view's inventory and claims, the catalog's directory signature) and the shared Qwen3.5 test directory: a model registered from its own files takes the paths a GGUF does"
       },
       "steps": [
-        {
-          "id": "open",
-          "title": "A Qwen3.5 directory registers, resolves and verifies through the paths a GGUF does: gguf.Open serves it, its identity is its view's",
-          "status": "open",
-          "verify": "go test ./internal/modelartifact ./internal/discovery -count=1 -run '^TestADirectoryModelIsItsViewsIdentity$'",
-          "rationale": "Filed 2026-10-30 after the step view landed (12ceb35dc), from the call graph. A model reaches the runner by path: modelrecipe.ResolveClaimedGGUF and ResolveCandidateGGUF (loadGGUFFacts: gguf.Open, then modelartifact.FromGGUFClaimed) and modelintake.PrepareInferenceCandidate (gguf.Open), called from modelcli, libraryintake, trainingworkflow and cmd/recipe, about fifteen sites. modelrecipe cannot import hfconvert (hfconvert imports projector, which imports modelrecipe), so the directory is opened through gguf.Open itself: gguf serves a directory through an opener hfconvert registers, linked by the packages that open models (modelintake and modelcli). Then identity: FromGGUFClaimed requires physical source paths and names each shard file's hash; for a view the one component is the image's identity (what gguf convert -view prints) located at the directory, and VerifyClaims hashes the image, as the loader's claims pass already does from the view's source. The catalog's presence check (discovery presence, holds) reads a component's file location; a directory location is present when its view's identity is the component's, answered from the memo over the directory's files' sizes and times after the first hash, as file components are. The check: a Qwen3.5 directory registers, resolves and verifies through the paths a GGUF does, with no file written."
-        },
         {
           "id": "register",
           "title": "The 4B is registered from its own files and its conversion retired from the catalog",

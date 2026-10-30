@@ -10,14 +10,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/gguf"
+	// A model registered from its own files opens as the view the converter registers with gguf.
+	_ "overgo/internal/hfconvert"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -182,6 +188,16 @@ func presence(
 		if found == "" && componentRecorded != "" {
 			found = moved(componentRecorded, descriptor, identities, memo)
 		}
+		// A component with no file is a model served from its own files: present
+		// where the directory it reads from serves its bytes (identifyDirectory).
+		for _, location := range locations {
+			if found == "" && componentRecorded == "" && location.Kind == artifact.LocationDirectory {
+				recorded = cmp.Or(recorded, location.Value)
+				if holds(location.Value, descriptor, identities, memo) {
+					found = location.Value
+				}
+			}
+		}
 		if found == "" {
 			return recorded, false
 		}
@@ -262,7 +278,12 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	}
 	identity := fileIdentity{}
 	before, err := os.Stat(path)
-	if err != nil || before.IsDir() {
+	if err == nil && before.IsDir() {
+		identity = identifyDirectory(path, key, kind, memo)
+		identities[key] = identity
+		return identity
+	}
+	if err != nil {
 		identities[key] = identity
 		return identity
 	}
@@ -288,6 +309,85 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	identities[key] = identity
 	return identity
 }
+
+// identifyDirectory names a model directory as the image it serves as a GGUF
+// (gguf.Open's view of it), through the memo under the signature of the files
+// it holds (directorySignature), hashing the image only when they changed. A
+// directory gguf.Open does not serve as a view names nothing.
+func identifyDirectory(path, key string, kind artifact.Kind, memo *Memo) fileIdentity {
+	before, err := directorySignature(path)
+	if err != nil {
+		return fileIdentity{}
+	}
+	if remembered, ok := memo.lookup(key, before); ok {
+		return remembered
+	}
+	file, err := gguf.Open(path)
+	if err != nil {
+		return fileIdentity{}
+	}
+	shard := file.Shards()[0]
+	id, size, identifyErr := artifact.Identify(kind, io.NewSectionReader(shard.Source, 0, int64(shard.Size)))
+	viewed := file.ViewDirectory() != ""
+	closeErr := file.Close()
+	after, statErr := directorySignature(path)
+	if !viewed || errors.Join(identifyErr, closeErr, statErr) != nil || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) || size != shard.Size {
+		return fileIdentity{}
+	}
+	identity := fileIdentity{id: id, size: size, present: true}
+	memo.record(key, after, identity)
+	return identity
+}
+
+// directorySignature stats a directory as its files: their sizes summed and
+// the newest change among them, so a change to any file the directory holds
+// changes it, as a file's size and time do for a file.
+func directorySignature(path string) (os.FileInfo, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	signature := directoryInfo{name: filepath.Base(path)}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil, err
+		}
+		signature.size += info.Size()
+		if info.ModTime().After(signature.modified) {
+			signature.modified = info.ModTime()
+		}
+	}
+	return signature, nil
+}
+
+// directoryInfo is a directory's signature as a file stat (directorySignature).
+type directoryInfo struct {
+	name     string
+	size     int64
+	modified time.Time
+}
+
+// Name is the directory's base name.
+func (info directoryInfo) Name() string { return info.name }
+
+// Size is the sum of its files' sizes.
+func (info directoryInfo) Size() int64 { return info.size }
+
+// Mode says it is a directory.
+func (info directoryInfo) Mode() fs.FileMode { return fs.ModeDir }
+
+// ModTime is its newest file's time.
+func (info directoryInfo) ModTime() time.Time { return info.modified }
+
+// IsDir is true.
+func (info directoryInfo) IsDir() bool { return true }
+
+// Sys is nil: the signature has no system stat.
+func (info directoryInfo) Sys() any { return nil }
 
 // SizedEntry reports the total bytes of a local model's distinct weight artifacts.
 type SizedEntry struct {

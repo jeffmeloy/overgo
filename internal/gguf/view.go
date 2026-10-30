@@ -36,8 +36,9 @@ const viewCacheBytes = 1 << 30
 // where Write puts them, read from the tensor when a read reaches them. A model
 // served from the files it was converted from reads the bytes its conversion
 // would have written, so a fix to the conversion reaches it at its next open.
-// The file's Close closes closers, what the tensors read from.
-func View(metadata []Metadata, tensors []ViewTensor, options WriteOptions, closers ...io.Closer) (*File, error) {
+// directory names where the tensors read from (ViewDirectory), and the file's
+// Close closes closers, what they read through.
+func View(metadata []Metadata, tensors []ViewTensor, options WriteOptions, directory string, closers ...io.Closer) (*File, error) {
 	placeholders := make([]TensorData, len(tensors))
 	for index, tensor := range tensors {
 		if (tensor.Payload == nil) == (tensor.Open == nil) {
@@ -64,7 +65,7 @@ func View(metadata []Metadata, tensors []ViewTensor, options WriteOptions, close
 	if err != nil {
 		return nil, err
 	}
-	file.closers = append(file.closers, closers...)
+	file.closers, file.viewDirectory = append(file.closers, closers...), directory
 	return file, nil
 }
 

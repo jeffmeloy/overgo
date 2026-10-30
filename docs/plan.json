@@ -476,14 +476,11 @@
       "title": "Bring Flash-Next's first request after load back to its 2026-10-25 figures, keeping warm decode",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "rope: the QSA rotation table's inverse frequencies computed once and its positions in parallel spans"
+      },
       "steps": [
-        {
-          "id": "rope",
-          "title": "Compute the QSA rotation table's inverse frequencies once and its positions in parallel",
-          "status": "open",
-          "verify": "go test ./internal/tensor -run '^TestQSARopeTableIsEachPositionsRotation$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestQSALayerMatchesStrata$' -count=1",
-          "rationale": "A CPU profile of Flash-Next's first request on a fresh load (2.42 s to its first token, 0.31 s for the same request again) puts 0.51 s in tensor.QSARopeTable, the rotation table the QSA layers read: 262,144 positions by 32 pairs, each value's inverse frequency recomputed by math.Pow in the inner loop. The step computes the 32 inverse frequencies once and the positions in parallel, every value the same expression of the same operands, so the table is the same bit for bit; TestQSARopeTableIsEachPositionsRotation holds each value to the direct formula across the workers' spans, and TestQSALayerMatchesStrata holds the layer that reads it to Strata's. The same profile's other first-request costs, Strata's start-up work the port does on the first request (the drafter's read, the streamed cells' pinned host copy, the link probe), are the steps after it."
-        },
         {
           "id": "do",
           "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",

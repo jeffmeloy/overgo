@@ -3,7 +3,9 @@ package tensor
 import (
 	"errors"
 	"math"
+	"runtime"
 	"slices"
+	"sync"
 
 	"overgo/internal/tensor/dtype"
 )
@@ -118,18 +120,30 @@ func (QSAAttentionAttributes) validFor(op Op) bool { return sameOp(op, OpQSAAtte
 const QSARopeBase = 1e7
 
 // QSARopeTable is rope.cu's build_rope_table for the indexer's rotation, unscaled: cos and sin of position p and pair
-// i at `[p][32]`, each angle p * 1e7^(-2i / 64) in float64, then rounded to float32 (QSAState.RopeCos, RopeSin).
+// i at `[p][32]`, each angle p * 1e7^(-2i / 64) in float64, then rounded to float32 (QSAState.RopeCos, RopeSin). The 32
+// inverse frequencies are computed once and the positions in parallel, a span to each processor, every value the same
+// expression of the same operands: Flash-Next's 262,144 positions had taken 0.51 s of its first request.
 func QSARopeTable(positions int) (cosines, sines []float32) {
 	half := QSARotated / PairedExtent
 	cosines, sines = make([]float32, positions*half), make([]float32, positions*half)
-	for position := range positions {
-		for pair := range half {
-			inverse := math.Pow(QSARopeBase, -PairedExtent*float64(pair)/float64(QSARotated))
-			angle := float64(position) * inverse
-			cosines[position*half+pair] = float32(math.Cos(angle))
-			sines[position*half+pair] = float32(math.Sin(angle))
-		}
+	inverses := make([]float64, half)
+	for pair := range inverses {
+		inverses[pair] = math.Pow(QSARopeBase, -PairedExtent*float64(pair)/float64(QSARotated))
 	}
+	span := max(1, (positions+runtime.GOMAXPROCS(0)-1)/runtime.GOMAXPROCS(0))
+	var workers sync.WaitGroup
+	for first := 0; first < positions; first += span {
+		workers.Go(func() {
+			for position := first; position < min(positions, first+span); position++ {
+				for pair, inverse := range inverses {
+					angle := float64(position) * inverse
+					cosines[position*half+pair] = float32(math.Cos(angle))
+					sines[position*half+pair] = float32(math.Sin(angle))
+				}
+			}
+		})
+	}
+	workers.Wait()
 	return cosines, sines
 }
 

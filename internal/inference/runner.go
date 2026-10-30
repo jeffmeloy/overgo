@@ -275,6 +275,9 @@ type runnerState struct {
 	strataTestOvergo bool
 	// strataTestShare is the PCIe share a check sets, nil for Strata's.
 	strataTestShare *float64
+	// strataTestRows takes each round window's final residual rows, its streams over the hidden width a row, where a
+	// check holds them: the window's first position and its rows.
+	strataTestRows func(position int64, rows []float32)
 	// qsaWindowLayouts are the rows a window of each size keeps a layer, recorded as its graph is built, which its commit
 	// reads.
 	qsaWindowLayouts map[int][]model.LayerWindow

@@ -2,7 +2,9 @@ package inference
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"math"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -105,6 +107,21 @@ func (r *Runner) strataRoundDrafts(options GenerateOptions) strataDraftSource {
 		return nil
 	}
 	return r.strataTestDrafts
+}
+
+// strataWindowRows reads a window's final residual rows, the round's streams over its hidden width a row, into the
+// check that holds them (strataTestRows).
+func (r *Runner) strataWindowRows(ctx context.Context, round *strataRound, position int64, rows int) error {
+	data := make([]byte, rows*strataRoundStreams*strataRoundEmbedding*f32Bytes)
+	if err := r.cuda.ReadDeviceBytes(ctx, []executor.DeviceBytes{{Pointer: round.round.FinalResidual(), Data: data}}); err != nil {
+		return err
+	}
+	values := make([]float32, len(data)/f32Bytes)
+	for index := range values {
+		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(data[index*f32Bytes:]))
+	}
+	r.strataTestRows(position, values)
+	return nil
 }
 
 // strataRoundWindowSize is the serve loop's window: the pending token and each draft while its probability reaches
@@ -303,6 +320,11 @@ func (r *Runner) generateStrataRound(
 		position := int64(live.Tokens) + int64(len(fed))
 		if loopErr = r.cuda.RunStrataRound(ctx, round.round, window, position, round.pool, out); loopErr != nil {
 			break
+		}
+		if r.strataTestRows != nil {
+			if loopErr = r.strataWindowRows(ctx, round, position, len(window)); loopErr != nil {
+				break
+			}
 		}
 		agreed := 0
 		for agreed < len(drafted) && int32(drafted[agreed]) == out[agreed] {

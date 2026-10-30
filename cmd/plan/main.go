@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -37,7 +38,7 @@ func main() {
 	decisions := flag.Bool("decisions", false, "the decisions still open, outside the system's authority, with how long each has waited")
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
-	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, an id the plan holds is refused, and no row the plan holds changes")
+	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
 	nodes := flag.Int("nodes", 0, "with -setcount: the production syntax nodes the row may still add (0, the default: it may not grow; below zero: it must shrink)")
 	reason := flag.String("reason", "", "with -setcount, -addstep, -note or -retire: the edit's words, why the row grows, the step's reasoning or why the work will not be done")
@@ -117,7 +118,15 @@ func run(c cli, args []string) error {
 			return err
 		}
 		// Only the document's rows and decisions are taken, and no row the plan
-		// holds is edited: what awaits a filed row is the document's to say.
+		// holds is edited: what awaits a filed row is the document's to say. A
+		// row the document assigns to no role is the filing role's, as a row
+		// -add enters is: dispatch takes a role's own rows before any row of no
+		// role, so one filed among them would be worked after every one.
+		if role != worklease.UnassignedRole {
+			for index := range filed.Items {
+				filed.Items[index].Owner = cmp.Or(filed.Items[index].Owner, role)
+			}
+		}
 		return mutatePlan(commandWorktree, role, "filed the rows and decisions of "+c.from, func(document plan.Plan) (plan.Plan, error) {
 			document.Decisions = append(document.Decisions, filed.Decisions...)
 			return insertRows(document, c.before, filed.Items...)

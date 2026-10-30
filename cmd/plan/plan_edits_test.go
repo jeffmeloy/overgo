@@ -256,6 +256,38 @@ func TestAddFilesEveryRowOfADocument(t *testing.T) {
 	requireOffered(t, refusing, "-add", "-add -from <document> [-before <id>]", "an id the plan holds is refused, and no row the plan holds changes")
 }
 
+// TestADocumentsRowsAreTheFilersAsAnAddedRowIs holds plan -add -from under a
+// role to naming that role the owner of each row the document names no owner
+// for, as plain -add names it its row's, and to keeping an owner the document
+// names: dispatch takes a role's own rows before any unowned one, and ten
+// rows the lead filed from documents on 2026-10-30, unowned, were dispatched
+// after every row it owned.
+func TestADocumentsRowsAreTheFilersAsAnAddedRowIs(t *testing.T) {
+	t.Parallel()
+	held := plan.Plan{Campaign: "held campaign", Items: []plan.Item{
+		{ID: "earlier", Title: "Earlier", Owner: "lane-a", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+	}}
+	filed := plan.Plan{Campaign: "an amendment", Items: []plan.Item{
+		{ID: "unowned", Title: "Unowned", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+		{ID: "owned", Title: "Owned", Owner: "lane-b", Status: plan.StatusOpen, Steps: []plan.Step{openStep("do")}},
+	}}
+	amendment := filepath.Join(t.TempDir(), "amendment.json")
+	if err := plan.Save(amendment, filed); err != nil {
+		t.Fatal(err)
+	}
+	root, _ := editFixture(t, held)
+	if output, err := planCommand(t, root, "-add", "-from", amendment, "-role", "lane-a"); err != nil {
+		t.Fatalf("plan -add -from under a role: %v\n%s", err, output)
+	}
+	owners := map[string]string{}
+	for _, item := range editedPlan(t, root).Items {
+		owners[item.ID] = item.Owner
+	}
+	if want := map[string]string{"unowned": "lane-a", "owned": "lane-b", "earlier": "lane-a"}; !reflect.DeepEqual(owners, want) {
+		t.Fatalf("owners after filing under lane-a = %v, want %v", owners, want)
+	}
+}
+
 // TestSetCountWritesTheCountAndItsReason holds plan -setcount to writing what
 // a row may still add and why, a count below zero included, with the reason
 // given in words or in a file. It leaves the row's other fields and every

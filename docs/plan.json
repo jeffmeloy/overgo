@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "plan-owner",
-      "title": "A row a document files names the filing role its owner, as a row -add enters does",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A row a document files names the filing role its owner, as a row -add enters does",
-          "status": "open",
-          "verify": "go test ./cmd/plan -count=1 -run '^TestADocumentsRowsAreTheFilersAsAnAddedRowIs$'",
-          "rationale": "Found 2026-10-30 when stop-valve, filed first, was not dispatched: dispatch (internal/plan dispatchPriority) takes every row the role owns, in plan order, before any row that names no owner, and plan -add -from files a document's rows as the document has them, which named none. So the ten rows the lead filed from documents (the seven of the review of 2026-10-30 with stop-valve, succession-weights, native-text-weights and rules-audit) dispatched after every scorecard row the lead owns, out of the order they were filed in; they were retired and re-filed unchanged under the lead. The change: plan -add -from names the filing role the owner of each row that names none, as -add does for its one row; a row the document gives an owner keeps it. The test: a document's unowned row filed under a role is that role's, and its owned row keeps its owner."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-8b083b7b94e498e7",
       "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
       "owner": "master-lead",

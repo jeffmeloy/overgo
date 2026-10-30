@@ -210,7 +210,7 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - a cell its preflight refuses => named before any cell is measured, and the others are measured (one model's missing precondition leaves the others' numbers sound)
 - preflight = each cell's own producer run to where its measurement begins (`clioptions.Ready`) => a precondition is checked by the code that needs it, never by a copy of its rule
 - interrupted cycle => resumes at the first unpassed phase when `go run ./cmd/loop -improve` runs again
-- cycle running => plan-only landings only and never a build, a test or a push beside it
+- cycle running => host work goes on: its measurement and fill hold the host's lane turn, so a landing's lanes wait for the device in code (`landing.HoldLaneTurn`), and its record says when it ends (`.overgo-runtime/measurement_run.json`, printed by the hooks)
 - timing taken beside other work != a measurement
 - gate's first stage = `space` => refuses below a free-space floor on the temporary directory's volume
 - `space` applies to preflights and plan-only landings too

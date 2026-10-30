@@ -97,6 +97,10 @@ type landing struct {
 	// moved says what the trunk's plan changed of the rows' terms between
 	// the commit the change was written on and the tip it was brought up to.
 	moved string
+	// quiet releases the landing's side of the quiet machine named quietMachine, nil while it holds none
+	// (inLaneTurn).
+	quiet        func() error
+	quietMachine string
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
@@ -158,7 +162,12 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 		if err != nil {
 			return "", err
 		}
-		defer func() { _ = release() }()
+		l.quiet, l.quietMachine = release, quietmachine.Name
+		defer func() {
+			if l.quiet != nil {
+				_ = l.quiet()
+			}
+		}()
 	}
 	if err := l.parents(ctx); err != nil {
 		return "", err

@@ -223,8 +223,40 @@ func (candidate lane) arguments(changed string) []string {
 	return slices.Insert(candidate.command(changed), 1, "-tags", candidate.tags)
 }
 
-// laneTurn names the host-wide turn a landing holds while its lanes run.
-const laneTurn = "overgo-landing-lanes"
+// laneTurn names the host-wide turn a landing holds while its lanes run, and a measurement run while its phases that
+// use the device run (HoldLaneTurn); a test names its own.
+var laneTurn = "overgo-landing-lanes"
+
+// HoldLaneTurn runs work in the host's lane turn: a measurement run's phases that use the device hold it, so a landing
+// beside the run runs its host stages and its lanes wait for the device in code, where every build, test and commit
+// was once held for the run by a written rule.
+func HoldLaneTurn(work func() error) error {
+	return processcontrol.ResourceTransaction(laneTurn, work)
+}
+
+// inLaneTurn runs work in the lane turn, waiting for it with no side of the quiet machine held, which it takes again
+// once the turn is its own: a timed cell of a run that holds the turn takes the machine alone, and would otherwise
+// wait on a landing that waits on the run.
+func (l *landing) inLaneTurn(ctx context.Context, work func() error) error {
+	machine := l.quietMachine
+	if l.quiet != nil {
+		released := l.quiet()
+		l.quiet = nil
+		if released != nil {
+			return released
+		}
+	}
+	return processcontrol.ResourceTransaction(laneTurn, func() error {
+		if machine != "" {
+			release, err := l.holdQuiet(ctx, machine)
+			if err != nil {
+				return err
+			}
+			l.quiet = release
+		}
+		return work()
+	})
+}
 
 // lanes runs every lane the change reaches: the lanes that share the device one
 // after another, and the lanes that need none beside them. They run in the host's
@@ -269,7 +301,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	}
 	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
 	waiting := time.Now()
-	return processcontrol.ResourceTransaction(laneTurn, func() error {
+	return l.inLaneTurn(ctx, func() error {
 		turnWait := time.Since(waiting).Round(time.Millisecond)
 		l.spent.Turn = turnWait
 		ctx, cancel := context.WithCancel(ctx)

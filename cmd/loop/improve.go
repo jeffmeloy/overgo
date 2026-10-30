@@ -23,6 +23,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/jsonfile"
+	"overgo/internal/landing"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
@@ -187,11 +188,15 @@ func improvementFor(store string) improvement {
 	run := &runRecorder{root: loopWorktree}
 	return improvement{
 		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store), store: store, run: run,
+		// The measurement and the fill use the device, so each holds the host's lane turn: a landing beside the run
+		// runs its host stages, and its lanes wait for the turn in code (landing.HoldLaneTurn).
 		measure: func(checkout string, published func() error) error {
-			return measureScorecard(checkout, store, published, run)
+			return landing.HoldLaneTurn(func() error { return measureScorecard(checkout, store, published, run) })
 		},
 		fill: func(checkout string) error {
-			return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
+			return landing.HoldLaneTurn(func() error {
+				return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
+			})
 		},
 	}
 }

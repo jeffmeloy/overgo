@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-freeze",
-      "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingBesideARunWaitsOnlyForTheDevice$'",
-          "rationale": "Review of 2026-10-30 (F4; SQA-261): from 09:36 to 11:09 the lead held every build, test and commit for the run, by skill.md's \"cycle running =\u003e plan-only landings only and never a build, a test or a push beside it\" and memory's copy of it. The run executes from .overgo-runtime/cycle at its own commit; what it shares is the device, which the measurement lease arbitrates, and the host, where a timed cell already takes the quiet machine (landings wait for it) and a cell measured beside other work is set aside and measured again. The change: host work goes on during a run, and a landing's device lanes wait on the lease in code; the check is that a landing beside a held measurement runs its host stages and waits only for the device. Then the rule leaves skill.md and memory."
-        }
-      ]
-    },
-    {
       "id": "preflight-clean",
       "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
       "owner": "master-lead",

@@ -53,7 +53,10 @@ func MeasurementRunPath(root string) string {
 // false when none is kept or it cannot be read.
 func ReadMeasurementRun(root string) (MeasurementRun, bool) {
 	var run MeasurementRun
-	return run, jsonfile.Decode(MeasurementRunPath(root), &run) == nil && !run.Started.IsZero()
+	if jsonfile.Decode(MeasurementRunPath(root), &run) != nil {
+		return MeasurementRun{}, false
+	}
+	return run, !run.Started.IsZero()
 }
 
 // Wall is how long the phase named took in the run, and whether it ended there.

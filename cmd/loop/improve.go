@@ -53,6 +53,76 @@ type improvement struct {
 	// attempted is the commit a cycle the trigger started was begun at, so one that did not
 	// publish is not started again for the same commit.
 	attempted string
+	// run keeps the cycle's record of itself (plan.MeasurementRun); nil keeps none.
+	run *runRecorder
+}
+
+// runRecorder keeps a measurement run's record of itself in the process state of the checkout at root as the run
+// goes: its start, each phase's start, expected end and end, the rows it filed and its end. A phase is expected to end
+// after the wall the same phase took in the run recorded before it.
+type runRecorder struct {
+	root   string
+	before plan.MeasurementRun
+	run    plan.MeasurementRun
+}
+
+// begin starts the record of a run at commit, keeping the run before it to expect each phase's end by.
+func (r *runRecorder) begin(commit string) {
+	if r == nil {
+		return
+	}
+	r.before, _ = plan.ReadMeasurementRun(r.root)
+	r.run = plan.MeasurementRun{Commit: commit, Process: os.Getpid(), Started: time.Now()}
+	r.write()
+}
+
+// phase records the phase named as begun and returns what records its end and verdict.
+func (r *runRecorder) phase(name string) func(passed bool) {
+	if r == nil {
+		return func(bool) {}
+	}
+	begun := plan.MeasurementPhase{Name: name, Started: time.Now()}
+	if wall, timed := r.before.Wall(name); timed {
+		begun.Expected = begun.Started.Add(wall)
+	}
+	r.run.Phases = append(r.run.Phases, begun)
+	at := len(r.run.Phases) - 1
+	r.write()
+	return func(passed bool) {
+		r.run.Phases[at].Ended, r.run.Phases[at].Passed = time.Now(), passed
+		r.write()
+	}
+}
+
+// credited records the phase named as one an interrupted run's credit stood for.
+func (r *runRecorder) credited(name string) {
+	if r != nil {
+		r.run.Phases = append(r.run.Phases, plan.MeasurementPhase{Name: name, Started: time.Now(), Credited: true})
+		r.write()
+	}
+}
+
+// filed counts rows the run filed.
+func (r *runRecorder) filed(rows int) {
+	if r != nil && rows != 0 {
+		r.run.Filed += rows
+		r.write()
+	}
+}
+
+// end records the run's end.
+func (r *runRecorder) end() {
+	if r != nil {
+		r.run.Ended = time.Now()
+		r.write()
+	}
+}
+
+// write keeps the record; a record that cannot be kept leaves the run as it is.
+func (r *runRecorder) write() {
+	if processlock.EnsureStateDirectory(r.root) == nil {
+		_ = jsonfile.Write(plan.MeasurementRunPath(r.root), r.run, cycleStateMode)
+	}
 }
 
 // movedSince is the commit of the newest scorecard published and how many commits since it
@@ -114,10 +184,11 @@ func (w *improvement) CycleWorthRunning() (bool, string, error) {
 // checkout's plan, the store's published scorecards, the scorecard run and
 // the background validations.
 func improvementFor(store string) improvement {
+	run := &runRecorder{root: loopWorktree}
 	return improvement{
-		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store), store: store,
+		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store), store: store, run: run,
 		measure: func(checkout string, published func() error) error {
-			return measureScorecard(checkout, store, published)
+			return measureScorecard(checkout, store, published, run)
 		},
 		fill: func(checkout string) error {
 			return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
@@ -144,11 +215,14 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 		fmt.Printf("loop: continuing the cycle a run began at %.12s and left unfinished; the checkout has moved to %.12s, which the next cycle measures\n", begun, commit)
 		commit = begun
 	}
+	w.run.begin(commit)
 	measured := w.inCycle(commit, func(checkout string) error {
 		return w.measure(checkout, func() error { return w.file(commit) })
 	})
 	records, err := scorecard.Records(w.records)
 	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
+		// A run that published nothing ends here: no fill follows it.
+		w.run.end()
 		return nil, nil, errors.Join(measured, err)
 	}
 	return &records[len(records)-1], scorecard.Reference(records), measured
@@ -228,7 +302,11 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 	if added == 0 {
 		return 0, nil
 	}
-	return added, plan.Save(w.plan, document)
+	if err := plan.Save(w.plan, document); err != nil {
+		return added, err
+	}
+	w.run.filed(added)
+	return added, nil
 }
 
 // targetBits is the precision a decline's restoration target is written in, the float64 it is read as.
@@ -248,10 +326,13 @@ func (w improvement) Fill(commit string) {
 	// The cycle has reached its decision: the next one measures afresh.
 	defer os.Remove(filepath.Join(w.root, processlock.StateDirectory, cycleStateFile))
 	defer os.Remove(filepath.Join(w.root, processlock.StateDirectory, cycleCreditFile))
+	filled := w.run.phase("fill")
 	err := w.inCycle(commit, func(checkout string) error {
 		fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
 		return w.fill(checkout)
 	})
+	filled(err == nil)
+	w.run.end()
 	if err != nil {
 		fmt.Printf("loop: the background validations failed: %v\n", err)
 	}
@@ -392,7 +473,7 @@ func obligationsDigest(plan []byte) (string, error) {
 // scorecard publishes regardless and the failure is returned beside it with
 // the final error the command wrote to its error file, so the cycle names
 // each cell or check validate -run acquired nothing for, and why.
-func measureScorecard(checkout, store string, published func() error) error {
+func measureScorecard(checkout, store string, published func() error, run *runRecorder) error {
 	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")
 	if err != nil {
 		return err
@@ -410,7 +491,7 @@ func measureScorecard(checkout, store string, published func() error) error {
 		return err
 	}
 	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
-	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, published, func(environment []string, arguments ...string) error {
+	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, published, run, func(environment []string, arguments ...string) error {
 		return validateIn(checkout, store, environment, arguments...)
 	})
 }
@@ -429,15 +510,16 @@ func measureScorecard(checkout, store string, published func() error) error {
 // When the publication is in hand, published runs, so what the scorecard
 // found is filed. The report says what a resumed cycle credited and, for each
 // phase it ran, how long it took and whether it passed.
-func measurePhases(statePath, key string, report io.Writer, published func() error, validate func(environment []string, arguments ...string) error) error {
+func measurePhases(statePath, key string, report io.Writer, published func() error, run *runRecorder, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
 	state := readCycleState(statePath, key)
 	var failed []error
 	phase := func(name string, arguments ...string) bool {
 		_ = os.Remove(errorFile)
-		started := time.Now()
+		started, ended := time.Now(), run.phase(name)
 		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile, cycleCreditEnvironment(filepath.Dir(statePath))}, arguments...)
+		ended(err == nil)
 		verdict := "passed"
 		if err != nil {
 			verdict = "did not pass"
@@ -463,12 +545,14 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 		state.Cells = phase("cells", "-run", "-cells")
 		remember()
 	} else {
+		run.credited("cells")
 		fmt.Fprintln(report, "loop: cycle phase cells credited from the interrupted run of this key: not run again")
 	}
 	if remeasured || !state.Published {
 		state.Published = phase("publication", "-scorecard", "-publish")
 		remember()
 	} else {
+		run.credited("publication")
 		fmt.Fprintln(report, "loop: cycle phase publication credited from the interrupted run of this key: not run again")
 	}
 	if published != nil && state.Published {

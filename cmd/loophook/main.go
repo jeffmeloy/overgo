@@ -158,6 +158,9 @@ func runStop(hookJSON string) int {
 		return 0
 	}
 	fmt.Fprint(os.Stderr, stopMessage(verdict, headAdvancedSinceTurnStart(session), dispatch))
+	if run := measurementRun(); run != "" {
+		fmt.Fprintln(os.Stderr, "  "+run)
+	}
 	recordStopBlock(session)
 	return 2
 }
@@ -335,6 +338,10 @@ func runDoctrine(hookJSON string) {
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
 	fmt.Println(nextDispatch().Line)
+	if run := measurementRun(); run != "" {
+		fmt.Println()
+		fmt.Println(run)
+	}
 	if root, err := os.Getwd(); err == nil {
 		texts := memoryTexts(root)
 		texts["doctrine"] = doctrineText
@@ -367,6 +374,16 @@ func beginTurn(input hookInput) (review bool) {
 	return review
 }
 
+// measurementRun is the newest measurement run's record as the hooks print it,
+// or nothing where none is kept: a run's end and times are read from the record
+// the run keeps of itself (plan.MeasurementRun), never reckoned.
+func measurementRun() string {
+	if run, kept := plan.ReadMeasurementRun("."); kept {
+		return "OVERGO MEASUREMENT RUN: " + run.Report() + "."
+	}
+	return ""
+}
+
 func runPrompt(hookJSON string) {
 	input := parseHook(hookJSON)
 	if beginTurn(input) {
@@ -376,6 +393,9 @@ func runPrompt(hookJSON string) {
 	if base, _ := readTurnBase(input.Session); base.Holder != "" {
 		fmt.Println(heldNotice(base.Holder))
 		return
+	}
+	if run := measurementRun(); run != "" {
+		fmt.Println(run)
 	}
 	if boundedRequestText(input.Prompt) {
 		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (system doctrine). Only an explicit stop request pauses; record it with go run ./cmd/plan -stop requested:<detail>.")

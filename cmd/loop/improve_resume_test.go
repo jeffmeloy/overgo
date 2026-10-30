@@ -21,7 +21,7 @@ func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	cycle := func(failing string) string {
 		var report strings.Builder
-		_ = measurePhases(state, "commit|store|obligations", &report, nil, func(_ []string, arguments ...string) error {
+		_ = measurePhases(state, "commit|store|obligations", &report, nil, nil, func(_ []string, arguments ...string) error {
 			if strings.Join(arguments, " ") == failing {
 				return errors.New("ended")
 			}
@@ -67,7 +67,7 @@ func TestChecksRunBeforeTheCells(t *testing.T) {
 		err := measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, func() error {
 			ran = append(ran, "filed")
 			return nil
-		}, func(_ []string, arguments ...string) error {
+		}, nil, func(_ []string, arguments ...string) error {
 			phase := strings.Join(arguments, " ")
 			ran = append(ran, phase)
 			if phase == failing {
@@ -101,7 +101,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 	}
 	cycle := func(key, failPhase string) ([]string, error) {
 		ran, failing = nil, failPhase
-		err := measurePhases(state, key, io.Discard, nil, validate)
+		err := measurePhases(state, key, io.Discard, nil, nil, validate)
 		return ran, err
 	}
 	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
@@ -162,7 +162,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 		want     int
 	}{{"files as bound", 4}, {"files as bound", 2}, {"a file changed", 4}} {
 		ran := 0
-		if err := measurePhases(resumed, "commit|store|"+digest(`,"consumed":"`+step.consumed+`"`), io.Discard, nil, func([]string, ...string) error {
+		if err := measurePhases(resumed, "commit|store|"+digest(`,"consumed":"`+step.consumed+`"`), io.Discard, nil, nil, func([]string, ...string) error {
 			ran++
 			return nil
 		}); err != nil || ran != step.want {
@@ -172,7 +172,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	var told [][]string
-	if err := measurePhases(state, "commit|store|obligations", io.Discard, nil, func(environment []string, _ ...string) error {
+	if err := measurePhases(state, "commit|store|obligations", io.Discard, nil, nil, func(environment []string, _ ...string) error {
 		told = append(told, environment)
 		return nil
 	}); err != nil {
@@ -250,16 +250,16 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 		{"a scorecard that did not publish", "commit-b|store|obligations", publish, []string{preflight, lanes, cells, publish}},
 	} {
 		order, failing = nil, step.fail
-		_ = measurePhases(filepath.Join(t.TempDir(), cycleStateFile), step.key, io.Discard, filed, validate)
+		_ = measurePhases(filepath.Join(t.TempDir(), cycleStateFile), step.key, io.Discard, filed, nil, validate)
 		if !slices.Equal(order, step.want) {
 			t.Errorf("%s: ran %q, want %q", step.name, order, step.want)
 		}
 	}
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	failing, order, refuse = "", nil, true
-	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
+	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, nil, validate)
 	order, refuse = nil, false
-	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
+	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, nil, validate)
 	if want := []string{preflight, lanes, "filed"}; !slices.Equal(order, want) {
 		t.Errorf("the interrupted cycle's credited publication: ran %q, want %q", order, want)
 	}

@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-record",
-      "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/loophook -count=1 -run '^(TestARunRecordsItsEnd|TestTheHooksPrintTheRunsEnd)$'",
-          "rationale": "Review of 2026-10-30 (F3 with F10; SQA-258): a run's end is noticed by a session habit (a background wait on its process) and its times are stated in prose, wrongly (a stop said \"started 05:35\" for a run launched at 02:21; estimates ranged from \"10 AM\" to \"early afternoon\"). On 2026-10-29 the same detached launch ended unnoticed for five hours. The change: the loop writes a completion record when a run ends (its exit, each phase's result and wall, the rows it filed), and while it runs each phase's expected end from the walls earlier runs recorded; the prompt and stop hooks print the newest record to the lead, and the run is started by a command that reports its own end. Reports quote those figures. Then the launch recipe leaves memory."
-        }
-      ]
-    },
-    {
       "id": "run-freeze",
       "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
       "owner": "master-lead",

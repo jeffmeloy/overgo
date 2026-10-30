@@ -166,6 +166,20 @@
       },
       "steps": [
         {
+          "id": "open",
+          "title": "A Qwen3.5 directory registers, resolves and verifies through the paths a GGUF does: gguf.Open serves it, its identity is its view's",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact ./internal/discovery -count=1 -run '^TestADirectoryModelIsItsViewsIdentity$'",
+          "rationale": "Filed 2026-10-30 after the step view landed (12ceb35dc), from the call graph. A model reaches the runner by path: modelrecipe.ResolveClaimedGGUF and ResolveCandidateGGUF (loadGGUFFacts: gguf.Open, then modelartifact.FromGGUFClaimed) and modelintake.PrepareInferenceCandidate (gguf.Open), called from modelcli, libraryintake, trainingworkflow and cmd/recipe, about fifteen sites. modelrecipe cannot import hfconvert (hfconvert imports projector, which imports modelrecipe), so the directory is opened through gguf.Open itself: gguf serves a directory through an opener hfconvert registers, linked by the packages that open models (modelintake and modelcli). Then identity: FromGGUFClaimed requires physical source paths and names each shard file's hash; for a view the one component is the image's identity (what gguf convert -view prints) located at the directory, and VerifyClaims hashes the image, as the loader's claims pass already does from the view's source. The catalog's presence check (discovery presence, holds) reads a component's file location; a directory location is present when its view's identity is the component's, answered from the memo over the directory's files' sizes and times after the first hash, as file components are. The check: a Qwen3.5 directory registers, resolves and verifies through the paths a GGUF does, with no file written."
+        },
+        {
+          "id": "register",
+          "title": "The 4B is registered from its own files and its conversion retired from the catalog",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingAQwen35DirectoryWritesNoGGUF$'",
+          "rationale": "Filed 2026-10-30. With the step open, the 4B is registered from its own files: its source, which only adaptive_new/models holds, is copied to overgo_data/models (a local copy, no download; adaptive_new is reference only); gguf convert -view -record binds its model config to the view's identity, so the scorecard's succession (6e20f21d4) links it to the conversion it replaces by their recorded sources; onboarding (cmd/validate -onboard) registers a Qwen3.5 directory without converting it, records and replays its exact suite and activates it; and the conversion's activation is retired, so the catalog lists one 4B and the succession applies. The conversion's GGUF then waits for native-text-weights' list of duplicates. The check: the onboarding of a Qwen3.5 directory writes no GGUF and activates the directory."
+        },
+        {
           "id": "native",
           "title": "Serve Qwen3.5-4B from its own safetensors, the converter's tables applied at load, no GGUF written",
           "status": "open",

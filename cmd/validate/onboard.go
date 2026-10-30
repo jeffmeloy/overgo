@@ -162,6 +162,9 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	// activated one is retired once the directory is activated, never refused.
 	native := model == directory
 	var superseded []artifact.ID
+	// activated: the directory itself is activated, a run that a later step
+	// stopped, which goes on from that step and keeps its goldens.
+	activated := false
 	if info, err := os.Stat(directory); err == nil && info.IsDir() {
 		tied, err := steps.registered(ctx, directory)
 		if err != nil {
@@ -169,14 +172,18 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 		}
 		var bound []string
 		for _, registered := range tied {
-			activated := slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" })
+			active := slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" })
 			if native && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) {
-				if activated {
+				if active {
 					superseded = append(superseded, registered.Model)
 				}
 				continue
 			}
-			if activated {
+			if native && active && strings.EqualFold(filepath.Clean(registered.Location), filepath.Clean(directory)) {
+				activated = true
+				continue
+			}
+			if active {
 				return fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
 					directory, registered.Location)
 			}
@@ -202,16 +209,19 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 			return fmt.Errorf("onboard: convert %s: %w", directory, err)
 		}
 	}
-	fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
-	completion, err := steps.validate(ctx, model, projector)
-	if err != nil {
-		return fmt.Errorf("onboard: validate %s: %w", model, err)
+	if activated {
+		fmt.Fprintf(output, "onboard: %s is activated already; its goldens are kept\n", directory)
+	} else {
+		fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
+		if _, err := steps.validate(ctx, model, projector); err != nil {
+			return fmt.Errorf("onboard: validate %s: %w", model, err)
+		}
 	}
-	// The declarations bind to the model the directory serves, which the store
-	// knows once the directory has registered.
+	// The declarations bind to the model the store holds for the directory's
+	// location, which it knows once the directory has registered.
 	if native {
 		fmt.Fprintf(output, "onboard: %s is served from its own files; record its declarations under the model it serves\n", directory)
-		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-view", "-source", directory, "-record", steps.store}); err != nil {
+		if err := steps.run(ctx, "go", []string{"run", "./cmd/model-config", "-source", directory, "-repo", steps.store, directory}); err != nil {
 			return fmt.Errorf("onboard: record %s: %w", directory, err)
 		}
 	}
@@ -225,7 +235,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "onboard: activated under run %s; long-form guard\n", completion.Run)
+	fmt.Fprintf(output, "onboard: activated; long-form guard\n")
 	if err := steps.run(ctx, name, args); err != nil {
 		return fmt.Errorf("onboard: guard %s: %w", model, err)
 	}

@@ -12,7 +12,7 @@ import (
 
 // TestAReconvertedModelKeepsItsDeclines replays Qwen3.5-4B's throughput: six readings near 86 tok/s on its converted
 // file, then one of 30, a decline whose row is open. The model is then served from other files, a new identity whose
-// recorded sources are the converted file's, file for file, and which the catalog lists in its place. Its row takes the
+// recorded architecture file is the converted model's, and which the catalog lists in its place. Its row takes the
 // converted model's place: it is paired with that model's row, judged on that model's readings, and its decline is the
 // open row's, found by that row's key and held to its target, so it is not filed again; a cell back at the target closes
 // it. A model listed beside the one it would succeed, or two listed models built from the same sources, take no place,

@@ -6,45 +6,43 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
 
 // architectureSource is the source file that declares a model's architecture,
-// its shapes and its vocabulary, without which recorded sources do not say
-// which model they are.
+// its shapes and its vocabulary.
 const architectureSource = "config.json"
 
-// SourcesKey is recorded sources as one comparable text, file for file in name
-// order, or empty where they do not declare the model's architecture
-// (architectureSource): two models whose keys are equal and not empty were
-// built from the same files. A sampling card alone names no model; Qwen3.5-4B
-// and 9B ship the same one.
+// SourcesKey is the digest of the architecture file among recorded sources
+// (architectureSource), or empty where they hold none: two models whose keys
+// are equal and not empty were built from the same checkpoint. The other
+// files a record reads are not compared, since records of one model read
+// different ones (Qwen3.5-4B's conversion recorded its config.json, and later
+// a sampling card alone), and a sampling card names no model: Qwen3.5-4B and
+// 9B ship the same one.
 func SourcesKey(sources []ConfigSource) string {
-	if !slices.ContainsFunc(sources, func(source ConfigSource) bool { return source.Name == architectureSource }) {
+	at := slices.IndexFunc(sources, func(source ConfigSource) bool { return source.Name == architectureSource })
+	if at < 0 {
 		return ""
 	}
-	files := make([]string, 0, len(sources))
-	for _, source := range sources {
-		files = append(files, source.Name+"="+source.SHA256)
-	}
-	slices.Sort(files)
-	return strings.Join(files, "\n")
+	return sources[at].SHA256
 }
 
-// ConfigSources is each model's recorded sources, from the newest model config
-// the store holds for it: the files of the directory the model was converted
-// or registered from, each with its digest.
+// ConfigSources is each model's recorded sources: every file the store's
+// model configs for it read, from the directory the model was converted or
+// registered from, each with the digest its newest record gave it.
 func ConfigSources(ctx context.Context, store overgodb.DocumentReader) (map[artifact.ID][]ConfigSource, error) {
 	sources := map[artifact.ID][]ConfigSource{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindProfile, MediaType: ModelConfigMediaType, Schema: ModelConfigSchema}},
 		Order:     overgodb.DocumentNewestFirst,
 	}, ParseModelConfigDocument, func(_ overgodb.DocumentView, document ModelConfigDocument) error {
-		if _, seen := sources[document.Model]; !seen {
-			sources[document.Model] = document.Sources
+		for _, source := range document.Sources {
+			if !slices.ContainsFunc(sources[document.Model], func(kept ConfigSource) bool { return kept.Name == source.Name }) {
+				sources[document.Model] = append(sources[document.Model], source)
+			}
 		}
 		return nil
 	})

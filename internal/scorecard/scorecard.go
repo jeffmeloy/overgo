@@ -400,13 +400,13 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 }
 
 // successions names, for each model listed, the models it took the place of
-// (Row.Succeeds): each model no longer listed whose recorded sources (its
-// newest model config's) are the listed model's, file for file, among them its
-// architecture (modelartifact.SourcesKey). Sources two listed models share name no
-// successor, since then which one took the place is not recorded; sources
-// without the architecture name no model, as a sampling card alone does not
-// (Qwen3.5-4B and 9B ship the same one). Never a name: sources are what a
-// conversion and a registration record of the files they read.
+// (Row.Succeeds): each model no longer listed built from the checkpoint the
+// listed model was, by their recorded architecture files' digests
+// (modelartifact.SourcesKey). A checkpoint two listed models were built from
+// names no successor, since then which one took the place is not recorded,
+// and recorded sources without an architecture file name no model. Never a
+// name: sources are what a conversion and a registration record of the files
+// they read.
 func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed []artifact.ID) map[artifact.ID][]artifact.ID {
 	read := func(model artifact.ID) string { return modelartifact.SourcesKey(sources[model]) }
 	heirs := map[string][]artifact.ID{}

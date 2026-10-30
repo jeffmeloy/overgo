@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hfconvert"
@@ -21,15 +20,15 @@ func convertCommand(flags *flag.FlagSet, args []string) error {
 	projector := flags.String("mmproj", "", "multimodal-projector GGUF output")
 	name := flags.String("name", "", "GGUF model name; defaults to the source basename")
 	record := flags.String("record", "", "OvergoDB root: commit the extracted model-config declaration bound to the converted artifact")
-	view := flags.Bool("view", false, "write nothing: identify the model the conversion would write, its bytes read from the checkpoint's own files (Qwen 3.5); with -record, bind the declaration to that identity")
+	view := flags.Bool("view", false, "write nothing: identify the model the checkpoint's own files serve (Qwen 3.5), as the store registers it")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *view {
-		if *source == "" || *output != "" || *projector != "" || flags.NArg() != 0 {
-			return fmt.Errorf("usage: %s -view -source checkpoint-directory [-name name] [-record overgodb]", flags.Name())
+		if *source == "" || *output != "" || *projector != "" || *record != "" || flags.NArg() != 0 {
+			return fmt.Errorf("usage: %s -view -source checkpoint-directory [-name name]", flags.Name())
 		}
-		return viewCommand(*source, *name, *record)
+		return viewCommand(*source, *name)
 	}
 	if *source == "" || (*output == "" && *projector == "") || flags.NArg() != 0 {
 		return fmt.Errorf("usage: %s -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record overgodb]", flags.Name())
@@ -57,27 +56,24 @@ func convertCommand(flags *flag.FlagSet, args []string) error {
 	return nil
 }
 
-// viewCommand identifies, without writing it, the model a conversion of
-// source would write: the image hfconvert.View serves from the checkpoint's
-// own files, identified as a written conversion is. With a store it records
-// the checkpoint's declarations bound to that identity, as -record does for a
-// written one.
-func viewCommand(source, name, recordStore string) error {
+// viewCommand identifies, without writing it, the model a directory served
+// from its own files is: the model the store registers it as, the manifest of
+// the image hfconvert.View serves, and that image. A model registered from its
+// directory records its declarations with model-config, under the identity
+// the store holds for its location.
+func viewCommand(source, name string) error {
 	file, err := hfconvert.View(source, name)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	shard := file.Shards()[0]
-	model, _, err := artifact.Identify(artifact.KindModel, io.NewSectionReader(shard.Source, 0, int64(shard.Size)))
+	inventory, _, err := modelartifact.FromGGUFClaimed(file, artifact.KindModel, nil)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("viewed %d model tensors, %d metadata, %d bytes, nothing written: %s\n", len(file.Tensors), len(file.Metadata), shard.Size, model)
-	if recordStore == "" {
-		return nil
-	}
-	return recordModelConfig(source, model, recordStore)
+	fmt.Printf("viewed %d model tensors, %d metadata, %d bytes, nothing written: %s, its image %s\n",
+		len(file.Tensors), len(file.Metadata), inventory.Components[0].Size, inventory.Manifest.ID, inventory.Components[0].ID)
+	return nil
 }
 
 // recordModelConfig commits the checkpoint directory's inference- and

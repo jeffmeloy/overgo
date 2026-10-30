@@ -89,22 +89,23 @@ func (fixture *onboardingFixture) onboard(t *testing.T, path string) error {
 
 // TestOnboardingAQwen35DirectoryWritesNoGGUF holds validate -onboard to serving a directory the converter serves as it
 // is from its own files: the directory itself registers, records, replays and activates, then its declarations are
-// recorded under the model it serves (gguf convert -view), which the store knows once it registered, the long-form
-// guard runs on it, and no conversion is written; an
-// activated conversion of it is not a refusal but the model it takes the place of, retired once the directory is
-// activated and never before, and a directory itself activated is refused.
+// recorded under the model the store holds for its location (model-config), which it knows once it registered, the
+// long-form guard runs on it, and no conversion is written. An activated conversion of it is not a refusal but the
+// model it takes the place of, retired once the directory is activated and never before. A run a later step stopped,
+// the directory activated already, goes on from that step and keeps its goldens.
 func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	t.Parallel()
 	fixture := newOnboardingFixture(t)
 	directory := huggingFaceDirectory(t, `{"model_type":"qwen3_5"}`)
 	conversion := testutil.ArtifactID(t, artifact.KindModel, "Tiny-LM-f16.gguf")
 	earlier := filepath.Join(filepath.Dir(fixture.converted), "Tiny-LM-f16.gguf")
-	fixture.tied[directory] = []InventoryModel{{Model: conversion, Location: earlier, Cells: []ModelValidation{{Location: earlier, Kind: "inference"}}}}
+	converted := InventoryModel{Model: conversion, Location: earlier, Cells: []ModelValidation{{Location: earlier, Kind: "inference"}}}
+	fixture.tied[directory] = []InventoryModel{converted}
 	if err := fixture.onboard(t, directory); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
-		"go run ./cmd/gguf convert -view -source " + directory + " -record STORE",
+		"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
 		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
 	}
 	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
@@ -118,10 +119,9 @@ func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	if err := fixture.onboard(t, directory); err == nil || len(fixture.retired) != 0 {
 		t.Errorf("a refused validation: %v, retired %v; want the refusal and nothing retired", err, fixture.retired)
 	}
-	fixture.refusal = nil
-	fixture.tied[directory] = []InventoryModel{{Location: directory, Cells: []ModelValidation{{Location: directory, Kind: "inference"}}}}
-	if err := fixture.onboard(t, directory); err == nil || !strings.Contains(err.Error(), "already activated") || len(fixture.ran)+len(fixture.validated) != 0 {
-		t.Errorf("an activated directory was onboarded again: %v, ran %q, validated %q", err, fixture.ran, fixture.validated)
+	fixture.tied[directory] = []InventoryModel{converted, {Location: directory, Cells: []ModelValidation{{Location: directory, Kind: "inference"}}}}
+	if err := fixture.onboard(t, directory); err != nil || !slices.Equal(fixture.ran, want) || len(fixture.validated) != 0 || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
+		t.Errorf("a run on an activated directory: %v, ran %q, validated %q, retired %v; want the steps after validation and its goldens kept", err, fixture.ran, fixture.validated, fixture.retired)
 	}
 }
 

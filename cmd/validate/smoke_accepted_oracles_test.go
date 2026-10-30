@@ -117,7 +117,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			referenceCases += len(cases)
 		}
 	}
-	if text != 11 || dna != 1 || chat != 9 || referenceCases != 4 {
+	if text != 12 || dna != 1 || chat != 10 || referenceCases != 4 {
 		t.Fatalf("denominator text=%d DNA=%d chat=%d native=%d", text, dna, chat, referenceCases)
 	}
 	referenceStore := os.Getenv("OVERGO_SMOKE_REFERENCE_STORE")

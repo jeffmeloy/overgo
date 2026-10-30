@@ -157,7 +157,8 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 		for _, cell := range cells {
 			link := ""
 			switch {
-			case strings.HasPrefix(strings.ToLower(filepath.ToSlash(cell.Location)), prefix):
+			// A model served from the directory's own files is located at the directory itself.
+			case strings.HasPrefix(strings.ToLower(filepath.ToSlash(cell.Location))+"/", prefix):
 				link = linkLocation
 			case slices.ContainsFunc(converted[cell.Model], func(digest string) bool { return slices.Contains(directory.ConfigDigests, digest) }):
 				link = linkConverted

@@ -2816,9 +2816,8 @@ func (e *Executor) ensureResources(
 	matmulStagingBytes uint64,
 ) (*executorResources, error) {
 	if e.resources.modules[0] == 0 {
-		if err := kernel.ValidateAssets(); err != nil {
-			return nil, err
-		}
+		// The bundle the binary embeds is held to its manifest by kernel's TestValidateAssets at every commit that changes
+		// it; hashing its 14 MB here took 11 ms of every model's first request.
 		// The modules in kernelModuleCount's order: the operation module, Strata's QSA kernels, then its round's native kernels.
 		var modules [kernelModuleCount]driver.Module
 		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.StrataQsaPTX, kernel.StrataNativePTX} {

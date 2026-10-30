@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "first-request-setup",
-      "title": "Take the kernel bundle's hash off every model's first request",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the kernel bundle to its manifest in its test, not on each executor's first run",
-          "status": "open",
-          "verify": "go test ./internal/cuda/kernel -run '^TestValidateAssets$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestCellAttentionMatchesReference$' -count=1",
-          "rationale": "Every served model's first output has crept up since 2026-10-16 (Qwen2.5-0.5B 102 to 129 ms, gemma-4-E4B-it 127 to 174 ms in its measured attempts), filing rows for the 0.5B and the E4B on 2026-10-29. Timing Qwen3.5-9B's measured request on a fresh load across the commits of 2026-10-26 to 10-28 (recipe measure -journey) put a 13 ms step at the Strata decode port (8cc359407: 44 to 57 ms and 40 to 52 on a second load, each read twice), and the 0.5B's attempts step 115 to 131 ms across the same window. A CPU profile of the first request puts about 30 ms in ensureResources: the kernel bundle's hash, the three modules' loads and their 446 functions' lookups. kernel.ValidateAssets hashes every embedded PTX, 14 MB since the port added strata_native.ptx's 2.5 MB, at 11.4 ms on a process's first call: a property of the binary, fixed when it was built, which TestValidateAssets holds at every commit that changes the bundle. The executor stops hashing on its first run; the other callers keep it. Loading only the modules a graph launches from (the native module's 70 functions serve Flash-Next's round and the K-quant products) is the rest of the port's cost, filed apart."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-f150c20a36aed39b",
       "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
       "owner": "master-lead",

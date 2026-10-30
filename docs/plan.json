@@ -472,28 +472,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-50f41f360f714051",
-      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "declare",
-          "title": "Declare drafting's rollback memory and short-answer start as the price of the 27B's drafted decode",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestOwnDraftLayerSpeculatesByDefault$' -count=1",
-          "rationale": "Qwen3.8-27B's peak device memory rose 1.30 GiB when 59e8bf5b6 made its own next-token layer draft by default, a commit that predicted it would hold peak-device-memory. Measured with a probe that traced the allocations a drafted request adds (on Qwen3.5-4B, whose file drafts the same way): every byte is span slots (bindSpanSlot, spanSlotCount 3) and the arena's growth for the verify span. A span slot holds what a verify span writes that is not a token cache: each recurrent layer's state at every position of the window, the checkpoints a rejected draft rolls back to, then the hidden rows and selections. On the 27B: 22.47 GiB peak drafted against 21.17 plain. The memory buys the drafted decode: a fresh runner's 128-token requests decode at 48.6 tok/s drafted against 37.2 plain on the first request and 51.0 to 57.2 against 37.5 to 37.6 on the next two, the tokens the plain request's (TestOwnDraftLayerSpeculatesByDefault holds a drafted request to the plain one token for token). The scorecard's throughput fell 31.3 to 26.0 tok/s (scorecard-regressed-a64b35bd3226e366) because it reads the first request the recipe's verification ran, 'What is 17 plus 25? Reply with only the integer.', whose answer is three tokens: a drafted span's start, not the decode, is what it times. Both declines are the price of the drafted decode, declared here: the rollback checkpoints stay, and the two rows retire with this step. Strata's verifier, which replays a window's kept tokens instead of keeping a state for each position, is the change that would return the memory; no row plans it for the qwen35 family."
-        },
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.27283201e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-50f41f360f714051 -target 2.2728320128e+10",
-          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.39868589e+10 (+1.25853882e+09, +5.5%, allowed 5000000; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-8717ab7fdec84b32",
       "title": "Restore Qwen3.5-4B inference held-out-quality to 0.450785773 ",
       "owner": "master-lead",
@@ -550,21 +528,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-82d99de4d4606223 -target 86.33658857751945",
           "rationale": "- Qwen3.5-4B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 97.1418441 to 31.1977924 (-65.9440516, -67.9%, allowed 10.8052555; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-a64b35bd3226e366",
-      "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8-27B inference throughput to 29.3695501 tok/s",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a64b35bd3226e366 -target 29.36955006992785",
-          "rationale": "- Qwen3.8-27B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 31.1102711 to 25.9698775 (-5.14039359, -16.5%, allowed 1.74072106; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

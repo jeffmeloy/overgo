@@ -156,6 +156,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "checks-before-measuring",
+      "title": "Run the checks a measurement run depends on before its first cell: each cell's preconditions and the cycle lanes, stopping the run when one fails",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the checks a measurement run depends on before its first cell: each cell's preconditions and the cycle lanes, stopping the run when one fails",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./cmd/validate -count=1 -run '^(TestChecksRunBeforeTheCells|TestPreflightRefusesAnUnmeetableCell)$'",
+          "rationale": "Owner 2026-10-30: rules are deterministic code, and the checks a long run depends on run before it, never after it, where a failure invalidates what it measured. The run of 2026-10-30 shows each kind. Two of its 116 cells failed after hours of measuring on preconditions a lookup answers before the first cell: Flash-Next's guard had no bound short-prompt benchmark, and an image proof's artifact had no registered image-gen source profile. The cycle lanes run after the scorecard publishes (measurePhases in cmd/loop/improve.go runs cells, publication, lanes), and they did not pass on 2026-10-28 after 15h46m and on 2026-10-29 after 5h02m, each after a scorecard was published from the build they failed. The publication also reports comparisons it cannot make (cells measured on another contract than their reference's, rows gone from the record, references published without a contract), which the dry-run plan and the previous scorecard decide before anything is measured. The change: the cycle runs a preflight first, each planned cell's preconditions evaluated by the same code its command runs (no copy of the rule), then the lanes (go test's cache replays the packages no change reached), and starts the cells only when both pass; a failure stops the cycle before its first cell with the list of what failed. The preflight also lists, before measuring, each planned cell that will not compare with its reference and each reference row the plan no longer measures, from the dry-run plan and Pairs. The publication no longer precedes the lanes, so the reason it did (numbers kept when a long lane run is cut short) goes with it. The lead's judgement of a moved number is never a step: the reference's allowance and the paired test decide what declined, and a verdict found wrong is fixed in that code."
+        }
+      ]
+    },
+    {
       "id": "scorecard-regressed-82d99de4d4606223",
       "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
       "owner": "master-lead",
@@ -635,6 +649,81 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8e4ef06d64763091 -target 13140.280499999997",
           "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 12117.8769 to 13225.0002 (+1107.1233, +9.1%, allowed 1022.4036; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-206f3f994f77c003",
+      "title": "Restore Qwen3.8 Flash Next inference peak-device-memory to 4.94024422e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8 Flash Next inference peak-device-memory to 4.94024422e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003 -target 4.9402442244e+10",
+          "rationale": "- Qwen3.8 Flash Next peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c45e957c883507b6b824eaeb2372b2af18cc1e402a83acd94339b67df35ad0e0}: 4.93039766e+10 to 4.94362651e+10 (+132288492, +0.3%, allowed 98465600; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-52dcd48e15777fc9",
+      "title": "Restore Qwen3.8-27B inference throughput to 26.1916033 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference throughput to 26.1916033 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52dcd48e15777fc9 -target 26.191603307091295",
+          "rationale": "- Qwen3.8-27B throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 31.1102711 to 25.4313636 (-5.67890752, -18.3%, allowed 4.91866783; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-52e09bb29afba8ca",
+      "title": "Restore granite-speech-5.0-470m-turboctc transcription load-time to 1265.2033 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore granite-speech-5.0-470m-turboctc transcription load-time to 1265.2033 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52e09bb29afba8ca -target 1265.2033000000006",
+          "rationale": "- granite-speech-5.0-470m-turboctc load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b0414e84b7eeb5c2528b6b14d188e3ed433d350d8f07c088f1f4b47ac9d93f08}: 1084.4305 to 1442.9581 (+358.5276, +33.1%, allowed 180.7728; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-b889eaf432334c44",
+      "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.29890551e+10 bytes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen3.8-27B inference peak-device-memory to 2.29890551e+10 bytes",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b889eaf432334c44 -target 2.2989055104e+10",
+          "rationale": "- Qwen3.8-27B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a}: 2.27283201e+10 to 2.39868589e+10 (+1.25853882e+09, +5.5%, allowed 260734976; serving peak device memory, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-f66104b4117e6e82",
+      "title": "Restore gemma-4-E4B-it inference throughput to 72.5535414 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-E4B-it inference throughput to 72.5535414 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f66104b4117e6e82 -target 72.55354143285395",
+          "rationale": "- gemma-4-E4B-it throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 76.4369881 to 68.1929881 (-8.24399997, -10.8%, allowed 3.88344664; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

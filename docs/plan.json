@@ -482,6 +482,13 @@
       },
       "steps": [
         {
+          "id": "ready",
+          "title": "Ready the round, its drafter and its tier at the runner's open, as Strata's start-up does",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags models ./internal/inference -run '^TestFlashNextRoundIsReadyAtOpen$' -count=1",
+          "rationale": "A CPU profile of Flash-Next's first request after load puts in it what Strata's start-up does: the round's converted weights read from the file (0.43 s), its CPU pool made, the drafter made and the tier's link probe (0.21 s). The step makes them at the runner's open (readyStrataRound). Measured on fresh loads (recipe measure -journey): the first request's prompt evaluated at 0.99 s on a second load in a process against 1.93 s, and 2.15 s on the first against 3.69, the loads 29.7 s against 29.9 and 36.5 against 38.7. TestFlashNextRoundIsReadyAtOpen holds a round runner's open to the round, its drafter and its tier made."
+        },
+        {
           "id": "do",
           "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",
           "status": "open",

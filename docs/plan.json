@@ -162,6 +162,13 @@
       "status": "open",
       "steps": [
         {
+          "id": "lineage",
+          "title": "Keep a re-converted model's comparison and open declines on the scorecard",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAReconvertedModelKeepsItsDeclines$'",
+          "rationale": "A re-converted model is a new library entry with a new model identity, and the scorecard pairs a record's rows with its reference's by that identity (Record.Pairs, internal/scorecard/record.go:368). So the re-converted 4B's cells would be compared with nothing (a new row is never a decline), and the 4B's two open rows, filed under the old file's recipe key, would find no cell (Restored returns found false) and stay open for ever. Reviewer finding SQA-256 names the same loss for a recipe change on one model. The change: a row whose model the reference does not hold pairs with the reference's row of the same name and task whose model the record no longer holds (the file it replaced), and a decline filed under the replaced model's or recipe's key is found and judged on the cell that replaced it, its original target kept. Once no open row carries an old-form key, Gap.RecipeKey and the recipe-key branches in Restored, Propose and the validate check go. The check: the scorecard test that a declined cell of a model replaced by its re-conversion is found and judged on the new file's cell, and that the new file's cells are compared with the old file's."
+        },
+        {
           "id": "do",
           "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",
           "status": "open",

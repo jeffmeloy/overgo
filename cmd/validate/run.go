@@ -110,8 +110,8 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 }
 
 // runScope is what -run executes: the whole cycle, the background cells alone
-// (which the loop asks for after the scorecard's gaps are filed), or one half of the
-// cycle so its scorecard can publish between them.
+// (which the loop asks for after the scorecard's gaps are filed), one part of the
+// cycle so the loop runs its checks before its cells, or the cells' preflight.
 type runScope int
 
 const (
@@ -119,27 +119,38 @@ const (
 	scopeBackground
 	scopeCells
 	scopeLanes
+	scopePreflight
 )
 
-// runScopeOf names the scope the flags select; the three narrowing flags
-// exclude one another.
-func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
+// runScopeOf names the scope the flags select; the narrowing flags exclude
+// one another.
+func runScopeOf(background, cellsOnly, lanesOnly, preflight bool) (runScope, error) {
+	given := 0
+	for _, narrowed := range []bool{background, cellsOnly, lanesOnly, preflight} {
+		if narrowed {
+			given++
+		}
+	}
 	switch {
-	case background && (cellsOnly || lanesOnly) || cellsOnly && lanesOnly:
-		return scopeCycle, errors.New("validate: -background, -cells and -lanes select different runs; give at most one")
+	case given > 1:
+		return scopeCycle, errors.New("validate: -background, -cells, -lanes and -preflight select different runs; give at most one")
 	case background:
 		return scopeBackground, nil
 	case cellsOnly:
 		return scopeCells, nil
 	case lanesOnly:
 		return scopeLanes, nil
+	case preflight:
+		return scopePreflight, nil
 	}
 	return scopeCycle, nil
 }
 
-// executeRun runs the cells the scorecard waits on smallest-first through the
-// process owner, each into the selected store, then the cycle lanes; the scope
-// narrows that to the background cells, the blocking cells or the lanes. A cell or lane is acquired only as
+// executeRun runs the checks the cells depend on, each cell's preflight and
+// then the cycle lanes, and only when the lanes pass the cells the scorecard
+// waits on, smallest-first through the process owner, each into the selected store;
+// the scope narrows that to the background cells, the blocking cells, the
+// lanes or the preflight. A cell or lane is acquired only as
 // acquire judges its run, so a go test passes by the outcomes it requires,
 // never by its exit. One that fails is reported, not accepted, and the rest
 // still run: one model's broken measurement withholds no other's, and a
@@ -181,6 +192,17 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		suites = nil
 	case scopeLanes:
 		cells = nil
+	case scopePreflight:
+		return preflightCells(ctx, output, root, storeRoot, plan.Run, runCell)
+	case scopeCycle:
+		// The whole cycle by hand runs as the loop runs it: the checks its cells
+		// depend on, the preflight here and the lanes below, before any cell. A
+		// cell the preflight refuses is named now and refused again by its own run.
+		if len(cells) > 0 {
+			if err := preflightCells(ctx, output, root, storeRoot, cells, runCell); err != nil {
+				fmt.Fprintln(output, err)
+			}
+		}
 	}
 	if len(cells)+len(suites) == 0 {
 		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d operator-owned, %d registered-inactive\n",
@@ -199,23 +221,19 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 		}
 	}
+	for _, suite := range suites {
+		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
+		record("cycle lane "+suite.Lane, acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...))
+	}
+	if len(failed)+len(inapplicable) > 0 && len(cells) > 0 {
+		fmt.Fprintln(output, "validate -run: a cycle lane did not pass, so no cell is measured")
+		cells = nil
+	}
 	credit := cycleCellCredit(ctx, root, storeRoot)
 	// again holds the second measurement of each timed cell whose first was taken beside other work.
 	var again []func()
 	for index, sel := range cells {
-		var name string
-		var args, environment []string
-		var err error
-		switch sel.Validation {
-		case trainingProof:
-			name = "go"
-			args, environment, err = trainingRun(sel.ModelValidation, storeRoot)
-		case projectionProof:
-			name = "go"
-			args, environment, err = projectionRun(sel.ModelValidation, storeRoot)
-		default:
-			name, args, err = reacquireCommand(sel.ModelValidation, storeRoot)
-		}
+		name, args, environment, err := cellCommand(sel.ModelValidation, storeRoot)
 		if err != nil {
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
@@ -267,10 +285,6 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	for _, measureAgain := range again {
 		measureAgain()
 	}
-	for _, suite := range suites {
-		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
-		record("cycle lane "+suite.Lane, acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...))
-	}
 	var problems []string
 	if len(failed) > 0 {
 		problems = append(problems, fmt.Sprintf("%d failed:\n  %s", len(failed), strings.Join(failed, "\n  ")))
@@ -286,6 +300,69 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
 	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s)\n", acquired)
+	return nil
+}
+
+// cellCommand is the command that acquires one cell into store, and the
+// environment it runs under beyond this process's own.
+func cellCommand(cell ModelValidation, store string) (name string, args, environment []string, err error) {
+	switch cell.Validation {
+	case trainingProof:
+		args, environment, err = trainingRun(cell, store)
+		return "go", args, environment, err
+	case projectionProof:
+		args, environment, err = projectionRun(cell, store)
+		return "go", args, environment, err
+	}
+	name, args, err = reacquireCommand(cell, store)
+	return name, args, nil, err
+}
+
+// cellRunner runs one command as runCell does.
+type cellRunner func(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error
+
+// preflightCells runs each cell's command as its measurement would, under
+// clioptions.PreflightEnvironment, so each producer resolves what its
+// measurement needs by its own code and stops where the measurement begins:
+// a cell that would be refused is named before any cell is measured. A
+// training proof's checkpoint output goes to scratch the preflight removes. A
+// cell with no bound command is a refusal, as it is to the run. A cell whose
+// producer is a go test has no point before its measurement and is named as
+// checked only when measured.
+func preflightCells(ctx context.Context, output io.Writer, root, storeRoot string, cells []Selected, run cellRunner) (err error) {
+	scratch, err := os.MkdirTemp("", "overgo-validate-preflight-")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(scratch)) }()
+	var refused, unchecked []string
+	for index, sel := range cells {
+		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
+		name, args, environment, err := cellCommand(sel.ModelValidation, storeRoot)
+		switch {
+		case err != nil:
+			refused = append(refused, fmt.Sprintf("%s: %v", subject, err))
+			continue
+		case len(args) > 0 && args[0] == "test":
+			unchecked = append(unchecked, subject)
+			continue
+		}
+		if at := slices.Index(args, "-out"); at >= 0 && at+1 < len(args) {
+			args = slices.Clone(args)
+			args[at+1] = filepath.Join(scratch, fmt.Sprint(index), "checkpoint")
+		}
+		fmt.Fprintf(output, "validate -run -preflight %d/%d: %s\n", index+1, len(cells), subject)
+		if err := run(ctx, output, root, name, args, append(slices.Clone(environment), clioptions.PreflightEnvironment+"=1")...); err != nil {
+			refused = append(refused, fmt.Sprintf("%s: %v", subject, err))
+		}
+	}
+	if len(unchecked) > 0 {
+		fmt.Fprintf(output, "validate -run -preflight: %d cell(s) measured by a go test are checked only when measured: %s\n", len(unchecked), strings.Join(unchecked, ", "))
+	}
+	if len(refused) > 0 {
+		return fmt.Errorf("validate -run -preflight: %d of %d cell(s) would be refused:\n  %s", len(refused), len(cells), strings.Join(refused, "\n  "))
+	}
+	fmt.Fprintf(output, "validate -run -preflight: %d cell(s) ready, none measured\n", len(cells)-len(unchecked))
 	return nil
 }
 

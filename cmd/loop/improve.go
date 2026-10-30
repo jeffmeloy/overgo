@@ -168,9 +168,9 @@ func (w improvement) unfinished() string {
 }
 
 // file writes the gaps of the record published for commit as rows, as the cycle's
-// proposals do, but as soon as the scorecard is published and before the lanes run:
-// a cycle the lanes (about forty minutes) outlast loses nothing it found, and the
-// proposals after the lanes find those rows held already.
+// proposals do, but as soon as the scorecard is published: a cycle cut short after
+// its publication loses nothing it found, and the proposals after it find those
+// rows held already.
 func (w improvement) file(commit string) error {
 	records, err := scorecard.Records(w.records)
 	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
@@ -383,15 +383,15 @@ func obligationsDigest(plan []byte) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// measureScorecard measures again, from checkout, the validations the scorecard
-// compares, then publishes the scorecard of store with what moved since the
-// previous one, then runs the cycle lanes, which go test's cache replays for
-// the packages no change reached. The scorecard publishes before the lanes, so
-// the cells' numbers exist when a long lane run is cut short. A failed
-// validation does not discard the others' numbers: the scorecard publishes
-// regardless and the failure is returned beside it with the final error the
-// command wrote to its error file, so the cycle names each cell
-// or lane validate -run acquired nothing for, and why.
+// measureScorecard runs, from checkout, the checks the cells depend on (their
+// preflight and the cycle lanes, which go test's cache replays for the
+// packages no change reached), then measures again the validations the
+// scorecard compares and publishes the scorecard of store with what moved
+// since the previous one. A failed lane ends the cycle before its first
+// cell. A failed validation does not discard the others' numbers: the
+// scorecard publishes regardless and the failure is returned beside it with
+// the final error the command wrote to its error file, so the cycle names
+// each cell or check validate -run acquired nothing for, and why.
 func measureScorecard(checkout, store string, published func() error) error {
 	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")
 	if err != nil {
@@ -415,15 +415,20 @@ func measureScorecard(checkout, store string, published func() error) error {
 	})
 }
 
-// measurePhases runs the cycle's phases for key, the cells, the publication
-// and the lanes, in that order, skipping the cells and the publication the
-// state at statePath records as passed for that key. The cells run again
-// whenever they did not pass, and the scorecard publishes again after them,
-// since it then holds fresher numbers; the lanes always run. When the
-// publication is in hand, published runs before the lanes, so what the
-// scorecard found is filed while a cycle the lanes would cut short can still
-// file it. The report says what a resumed cycle credited and, for each phase
-// it ran, how long it took and whether it passed.
+// measurePhases runs the cycle's phases for key, the preflight, the lanes,
+// the cells and the publication, in that order, skipping the cells and the
+// publication the state at statePath records as passed for that key. The
+// preflight and the lanes are the checks the cells depend on and always run.
+// A lane that fails ends the cycle there, since numbers measured on a build
+// its tests refuse are spent before they are read. A cell the preflight
+// refuses is named before any cell is measured, and the cycle goes on: one
+// model's missing precondition leaves every other model's numbers sound, and
+// the cell, refused again in its own run, fails the cells phase by name. The
+// cells run again whenever they did not pass, and the scorecard publishes
+// again after them, since it then holds fresher numbers.
+// When the publication is in hand, published runs, so what the scorecard
+// found is filed. The report says what a resumed cycle credited and, for each
+// phase it ran, how long it took and whether it passed.
 func measurePhases(statePath, key string, report io.Writer, published func() error, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
@@ -449,6 +454,10 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 			failed = append(failed, err)
 		}
 	}
+	phase("preflight", "-run", "-preflight")
+	if !phase("lanes", "-run", "-lanes") {
+		return errors.Join(failed...)
+	}
 	remeasured := !state.Cells
 	if remeasured {
 		state.Cells = phase("cells", "-run", "-cells")
@@ -467,7 +476,6 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 			failed = append(failed, err)
 		}
 	}
-	phase("lanes", "-run", "-lanes")
 	return errors.Join(failed...)
 }
 

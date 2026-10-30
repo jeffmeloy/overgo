@@ -63,7 +63,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	execute := flags.Bool("run", false, "execute the selected validations the scorecard waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the scorecard does not compare, which the scorecard never waits on")
-	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle can publish its scorecard between them")
+	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle runs its checks before its cells")
+	preflight := flags.Bool("preflight", false, "with -run: run each cell the scorecard waits on only to where its measurement begins (clioptions.PreflightEnvironment), so what would refuse a cell is known before any is measured; measures nothing and runs no lane")
 	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
@@ -253,7 +254,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	defer store.Close()
 	var scope runScope
 	if *execute {
-		if scope, err = runScopeOf(*background, *cellsOnly, *lanesOnly); err != nil {
+		if scope, err = runScopeOf(*background, *cellsOnly, *lanesOnly, *preflight); err != nil {
 			return err
 		}
 		if scope == scopeLanes {

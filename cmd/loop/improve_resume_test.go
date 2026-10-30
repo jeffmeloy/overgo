@@ -14,7 +14,7 @@ import (
 
 // TestCycleReportsWhatItCreditedAndEachPhaseWall holds a cycle to saying what it did with
 // the interrupted run it continued: a first run names each phase it ran, how it ended and its
-// wall; the run that continues it names the phases it credited, and the lanes it ran again,
+// wall; the run that continues it names the phases it credited, and the checks it ran again,
 // so no phase is skipped or redone in silence.
 func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 	t.Parallel()
@@ -30,32 +30,62 @@ func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 		return report.String()
 	}
 	wall := regexp.MustCompile(`in [0-9.]+(µs|ms|s|m)`)
-	first := cycle("-run -lanes")
-	for _, want := range []string{"phase cells passed", "phase publication passed", "phase lanes did not pass"} {
+	first := cycle("-scorecard -publish")
+	for _, want := range []string{"phase preflight passed", "phase lanes passed", "phase cells passed", "phase publication did not pass"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("the first run's report %q does not say %q", first, want)
 		}
 	}
-	if got := len(wall.FindAllString(first, -1)); got != 3 {
-		t.Errorf("the first run's report %q gives %d phase walls, want one for each of three phases", first, got)
+	if got := len(wall.FindAllString(first, -1)); got != 4 {
+		t.Errorf("the first run's report %q gives %d phase walls, want one for each of four phases", first, got)
 	}
 	resumed := cycle("")
-	for _, want := range []string{"phase cells credited from the interrupted run", "phase publication credited from the interrupted run", "phase lanes passed"} {
+	for _, want := range []string{"phase preflight passed", "phase lanes passed", "phase cells credited from the interrupted run", "phase publication passed"} {
 		if !strings.Contains(resumed, want) {
 			t.Errorf("the resumed run's report %q does not say %q", resumed, want)
 		}
 	}
-	if strings.Contains(resumed, "phase cells passed") || len(wall.FindAllString(resumed, -1)) != 1 {
-		t.Errorf("the resumed run's report %q ran a credited phase again or gave more than the lanes' wall", resumed)
+	if strings.Contains(resumed, "phase cells passed") || len(wall.FindAllString(resumed, -1)) != 3 {
+		t.Errorf("the resumed run's report %q ran a credited phase again or gave other than the checks' and the publication's walls", resumed)
+	}
+}
+
+// TestChecksRunBeforeTheCells holds a cycle to running the checks its cells depend on, each
+// cell's preflight and then the lanes, before it measures anything. A lane that fails ends the
+// cycle there, with no cell measured, no scorecard published and nothing filed. A preflight that
+// refuses a cell names it first and the cycle goes on, since one model's missing precondition
+// leaves the others' numbers sound. The cycle's error names the check that failed.
+func TestChecksRunBeforeTheCells(t *testing.T) {
+	t.Parallel()
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
+	for failing, want := range map[string][]string{
+		preflight: {preflight, lanes, cells, publish, "filed"},
+		lanes:     {preflight, lanes},
+		"":        {preflight, lanes, cells, publish, "filed"},
+	} {
+		var ran []string
+		err := measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, func() error {
+			ran = append(ran, "filed")
+			return nil
+		}, func(_ []string, arguments ...string) error {
+			phase := strings.Join(arguments, " ")
+			ran = append(ran, phase)
+			if phase == failing {
+				return errors.New("refused")
+			}
+			return nil
+		})
+		if !slices.Equal(ran, want) || (err != nil) != (failing != "") || err != nil && !strings.Contains(err.Error(), failing) {
+			t.Errorf("a failing %q: ran %q with error %v, want %q and only a failed check named", failing, ran, err, want)
+		}
 	}
 }
 
 // TestInterruptedCycleResumesAtItsFirstUnpassedPhase holds a cycle to going on
-// from where it stopped for the same key: the cells and the publication that
-// passed are not run again when a run ended in the lanes, the lanes themselves
-// always run (go test's cache replays what passed), a cell failure runs the
-// cells and the publication again, and another key, another commit, store or
-// obligation, starts over.
+// from where it stopped for the same key: the cells that passed are not run
+// again when a run ended in the publication, the checks always run (go test's
+// cache replays the lanes that passed), a cell failure still publishes, and
+// another key, another commit, store or obligation, starts over.
 func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 	t.Parallel()
 	state := filepath.Join(t.TempDir(), cycleStateFile)
@@ -74,17 +104,18 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 		err := measurePhases(state, key, io.Discard, nil, validate)
 		return ran, err
 	}
-	const cells, publish, lanes = "-run -cells", "-scorecard -publish", "-run -lanes"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string
 		wantErr         bool
 	}{
-		{"a cycle that ends in its lanes", "commit-a|store|obligations", lanes, []string{cells, publish, lanes}, true},
-		{"the next run goes on at the lanes", "commit-a|store|obligations", "", []string{lanes}, false},
-		{"another store starts over", "commit-a|other-store|obligations", cells, []string{cells, publish, lanes}, true},
-		{"so does an obligation that changed", "commit-a|other-store|activated", "", []string{cells, publish, lanes}, false},
-		{"another commit starts over", "commit-b|other-store|activated", "", []string{cells, publish, lanes}, false},
+		{"a cycle that ends in its publication", "commit-a|store|obligations", publish, []string{preflight, lanes, cells, publish}, true},
+		{"the next run goes on at the publication", "commit-a|store|obligations", "", []string{preflight, lanes, publish}, false},
+		{"a passed cycle runs only its checks", "commit-a|store|obligations", "", []string{preflight, lanes}, false},
+		{"another store starts over", "commit-a|other-store|obligations", cells, []string{preflight, lanes, cells, publish}, true},
+		{"so does an obligation that changed", "commit-a|other-store|activated", "", []string{preflight, lanes, cells, publish}, false},
+		{"another commit starts over", "commit-b|other-store|activated", "", []string{preflight, lanes, cells, publish}, false},
 	} {
 		got, err := cycle(step.key, step.fail)
 		if !slices.Equal(got, step.want) || (err != nil) != step.wantErr {
@@ -124,12 +155,12 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 	}
 
 	// A cycle whose cells and publication passed runs them again once a file a cell's command is
-	// given has changed, and only its lanes while every such file is as it was.
+	// given has changed, and only its checks while every such file is as it was.
 	resumed := filepath.Join(t.TempDir(), cycleStateFile)
 	for _, step := range []struct {
 		consumed string
 		want     int
-	}{{"files as bound", 3}, {"files as bound", 1}, {"a file changed", 3}} {
+	}{{"files as bound", 4}, {"files as bound", 2}, {"a file changed", 4}} {
 		ran := 0
 		if err := measurePhases(resumed, "commit|store|"+digest(`,"consumed":"`+step.consumed+`"`), io.Discard, nil, func([]string, ...string) error {
 			ran++
@@ -148,8 +179,8 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := clioptions.CycleCreditEnvironment + "=" + filepath.Join(filepath.Dir(state), cycleCreditFile)
-	if len(told) != 3 {
-		t.Fatalf("the cycle ran %d phases, want three", len(told))
+	if len(told) != 4 {
+		t.Fatalf("the cycle ran %d phases, want four", len(told))
 	}
 	for index, environment := range told {
 		if !slices.Contains(environment, want) {
@@ -187,11 +218,10 @@ func TestObligationsDigestIgnoresWhatARunChanges(t *testing.T) {
 	}
 }
 
-// TestTheGapsAreFiledBeforeTheLanesRun holds a cycle to filing what its scorecard found as soon as
-// the scorecard is published: the hook runs after the publication and before the lanes, so a
-// cycle the lanes outlast has filed already; it runs again when an interrupted run's publication is
+// TestTheGapsAreFiledOnceTheScorecardPublishes holds a cycle to filing what its scorecard found as
+// soon as the scorecard is published; the hook runs again when an interrupted run's publication is
 // credited, and never when the scorecard did not publish.
-func TestTheGapsAreFiledBeforeTheLanesRun(t *testing.T) {
+func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 	t.Parallel()
 	var order []string
 	failing := ""
@@ -203,17 +233,21 @@ func TestTheGapsAreFiledBeforeTheLanesRun(t *testing.T) {
 		}
 		return nil
 	}
+	refuse := false
 	filed := func() error {
 		order = append(order, "filed")
+		if refuse {
+			return errors.New("not filed")
+		}
 		return nil
 	}
-	const cells, publish, lanes = "-run -cells", "-scorecard -publish", "-run -lanes"
+	const preflight, lanes, cells, publish = "-run -preflight", "-run -lanes", "-run -cells", "-scorecard -publish"
 	for _, step := range []struct {
 		name, key, fail string
 		want            []string
 	}{
-		{"a cycle", "commit-a|store|obligations", lanes, []string{cells, publish, "filed", lanes}},
-		{"a scorecard that did not publish", "commit-b|store|obligations", publish, []string{cells, publish, lanes}},
+		{"a cycle", "commit-a|store|obligations", "", []string{preflight, lanes, cells, publish, "filed"}},
+		{"a scorecard that did not publish", "commit-b|store|obligations", publish, []string{preflight, lanes, cells, publish}},
 	} {
 		order, failing = nil, step.fail
 		_ = measurePhases(filepath.Join(t.TempDir(), cycleStateFile), step.key, io.Discard, filed, validate)
@@ -222,11 +256,11 @@ func TestTheGapsAreFiledBeforeTheLanesRun(t *testing.T) {
 		}
 	}
 	state := filepath.Join(t.TempDir(), cycleStateFile)
-	failing, order = lanes, nil
+	failing, order, refuse = "", nil, true
 	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
-	failing, order = "", nil
+	order, refuse = nil, false
 	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
-	if want := []string{"filed", lanes}; !slices.Equal(order, want) {
+	if want := []string{preflight, lanes, "filed"}; !slices.Equal(order, want) {
 		t.Errorf("the interrupted cycle's credited publication: ran %q, want %q", order, want)
 	}
 }

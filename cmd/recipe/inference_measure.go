@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -137,6 +138,9 @@ func journeyInference(ctx context.Context, repository, path string, open func(co
 // goes beside the result on the other stream.
 func measureInference(ctx context.Context, repository, path string, open func(context.Context) (servedModel, error)) (evaluation.ExactResult, artifact.ID, error) {
 	model, active, requests, err := measuredRequest(ctx, repository, path)
+	if err == nil {
+		err = clioptions.Ready()
+	}
 	if err != nil {
 		return evaluation.ExactResult{}, artifact.ID{}, err
 	}

@@ -80,8 +80,12 @@ func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	return &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch(), host: host, process: processLedger}, nil
 }
 
-// Admit acquires directed training ownership.
+// Admit acquires directed training ownership. Every training run is admitted
+// before its weights load, so a preflight ends here (clioptions.Ready).
 func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error {
+	if err := clioptions.Ready(); err != nil {
+		return err
+	}
 	if o == nil {
 		return nil
 	}

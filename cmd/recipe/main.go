@@ -575,6 +575,9 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	if err != nil {
 		return err
 	}
+	if err := clioptions.Ready(); err != nil {
+		return err
+	}
 	ctx, stages := processmeasure.WithStages(capabilityruntime.FreshRun(ctx))
 	clock := processmeasure.NewStopwatch()
 	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)

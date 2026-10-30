@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
@@ -189,6 +190,9 @@ func runBudgetedPass(ctx context.Context, budget time.Duration, model string, pa
 func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath, protocol string) error {
 	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
+		return err
+	}
+	if err := clioptions.Ready(); err != nil {
 		return err
 	}
 	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, Protocol: protocol}

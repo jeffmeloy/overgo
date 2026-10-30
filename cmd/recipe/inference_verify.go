@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -299,6 +300,9 @@ func verifyProjection(repository, path, projectorPath, input string,
 		if !found || active.Definition.ID != definition.ID {
 			return fmt.Errorf("recipe: the code derives %s, which is not the model's active projection recipe: re-verification adopts no recipe", definition.ID)
 		}
+	}
+	if err := clioptions.Ready(); err != nil {
+		return err
 	}
 	if _, published, err := modelrecipe.Status(ctx, store, definition.ID); err != nil {
 		return err

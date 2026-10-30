@@ -39,14 +39,43 @@ const (
 	// cut short by its time limit continues from the cell it stopped at. The cycle
 	// sets it for its cells and its fill; a run by hand does not.
 	CycleCreditEnvironment = "OVERGO_CYCLE_CREDIT"
+	// PreflightEnvironment names the setting that runs a measurement's
+	// producer only to the point its measurement begins (Ready): what it
+	// resolves before then, by the code the measurement runs, is checked, and
+	// nothing is measured. A cycle runs every cell's producer so before its
+	// first cell.
+	PreflightEnvironment = "OVERGO_PREFLIGHT"
 )
 
-// Main: common command error exit. The error file is this command's alone:
-// its subprocesses do not inherit the name.
+// preflight is whether this command runs to its Ready and no further.
+var preflight bool
+
+// errReady ends a preflight where its measurement would begin; Main exits
+// with it as a success.
+var errReady = errors.New("preflight: ready, nothing measured")
+
+// Ready is called where a producer's measurement begins, after everything it
+// resolves first. It returns nil, or, under PreflightEnvironment, the error
+// Main ends the command with as a success.
+func Ready() error {
+	if preflight {
+		return errReady
+	}
+	return nil
+}
+
+// Main: common command error exit. The error file and the preflight are this
+// command's alone: its subprocesses do not inherit the names.
 func Main(run func() error) {
 	errorFile := os.Getenv(ErrorFileEnvironment)
 	_ = os.Unsetenv(ErrorFileEnvironment)
+	preflight = os.Getenv(PreflightEnvironment) != ""
+	_ = os.Unsetenv(PreflightEnvironment)
 	if err := run(); err != nil {
+		if errors.Is(err, errReady) {
+			fmt.Fprintln(os.Stdout, errReady)
+			return
+		}
 		fmt.Fprintln(os.Stderr, err)
 		if errorFile != "" {
 			_ = os.WriteFile(errorFile, []byte(err.Error()), PrivateFileMode)

@@ -190,8 +190,8 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 			}
 		}
 	}
-	for _, flags := range []struct{ background, cells, lanes bool }{{true, true, false}, {true, false, true}, {false, true, true}} {
-		if _, err := runScopeOf(flags.background, flags.cells, flags.lanes); err == nil {
+	for _, flags := range []struct{ background, cells, lanes, preflight bool }{{true, true, false, false}, {true, false, true, false}, {false, true, true, false}, {false, true, false, true}, {false, false, true, true}} {
+		if _, err := runScopeOf(flags.background, flags.cells, flags.lanes, flags.preflight); err == nil {
 			t.Errorf("flags %+v select one run, want them refused", flags)
 		}
 	}

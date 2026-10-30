@@ -243,6 +243,9 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := clioptions.Ready(); err != nil {
+		return err
+	}
 	return withPublisher(options, func(publish publishModel) error {
 		cuda, err := driver.Open()
 		if err != nil {

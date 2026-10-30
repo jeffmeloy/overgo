@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
@@ -91,6 +92,9 @@ func runSmoke(ctx context.Context, output io.Writer, repository string, budget t
 		if err != nil {
 			return err
 		}
+	}
+	if err := clioptions.Ready(); err != nil {
+		return err
 	}
 	started, passed := 0, 0
 	var failure error

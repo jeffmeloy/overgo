@@ -205,7 +205,10 @@ Applies to this file, plan paragraphs and rationale, code comments and memory fi
 - the gate judges the commit from the tree alone (unit, golden, hermetic, small device)
 - a store write never changes the gate's verdict
 - the cycle (`validate -run`) judges models (real-model, live-store and device suites, by build tag)
-- cycle phases = cells -> publish -> lanes
+- cycle phases = preflight -> lanes -> cells -> publish
+- a check a long run depends on runs before it, never after, since one failing after spends the run => a failed lane ends the cycle before its first cell
+- a cell its preflight refuses => named before any cell is measured, and the others are measured (one model's missing precondition leaves the others' numbers sound)
+- preflight = each cell's own producer run to where its measurement begins (`clioptions.Ready`) => a precondition is checked by the code that needs it, never by a copy of its rule
 - interrupted cycle => resumes at the first unpassed phase when `go run ./cmd/loop -improve` runs again
 - cycle running => plan-only landings only and never a build, a test or a push beside it
 - timing taken beside other work != a measurement

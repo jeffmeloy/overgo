@@ -92,7 +92,10 @@ activated model and task: time to first output, throughput, held-out quality,
 failures, load time, peak device memory, and setup steps. Each value is read
 from the store, or listed as a gap with its reason.
 
-One improvement cycle (`go run ./cmd/loop -improve`) runs the validations
+One improvement cycle (`go run ./cmd/loop -improve`) first runs the checks its
+measurements depend on: each measurement's preflight, which names any measurement
+whose prerequisites are missing, and the longer test runs, which stop the cycle
+if one fails. It then runs the validations
 the scorecard waits on (long-form guards, serving, media, training and projection
 proofs, held-out benchmarks that replay their newest record), publishes the
 scorecard, and files each decline and each open gap as a plan row. There is no

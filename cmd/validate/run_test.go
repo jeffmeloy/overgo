@@ -323,7 +323,7 @@ func TestValidateRunUnbound(t *testing.T) {
 	var out bytes.Buffer
 	model := testutil.ArtifactID(t, artifact.KindModel, "wan")
 	plan := Plan{Run: []Selected{{ModelValidation: ModelValidation{Model: model, ModelName: "Wan", Kind: recipe.TaskVideoGen, Validation: "video-proof"}}}}
-	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCycle)
+	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCells)
 	if err == nil || !strings.Contains(err.Error(), "no bound command") {
 		t.Fatalf("unbound run = %v", err)
 	}

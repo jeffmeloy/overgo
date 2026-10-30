@@ -51,6 +51,19 @@
       "level": 10322.5451,
       "unit": "ms",
       "bought": "scorecard-regressed-82d99de4d4606223/do: a served model's open judges its own draft layer by the rates it measures (1.0 s of the load), and Qwen3.8-27B keeps drafting; its first request's first output fell from 147.9 to 48.6 ms and its throughput rose from 25.97 to 43.94 tok/s"
+    },
+    {
+      "model": "model:sha256:731de849206bdc40565de1b8f596c0a4f581e92f2e6711eb542dbe97e8336256",
+      "name": "Qwen3.5-4B",
+      "task": "inference",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 9640852864,
+      "unit": "bytes",
+      "bought": "scorecard-regressed-82d99de4d4606223/do: a served model's open judges its own draft layer by the rates it measures, drafting once at load; Qwen3.5-4B, refused, decodes plainly, its first request's throughput 14.75 to 101.6 tok/s and first output 133 to 16.7 ms. The judgement's drafted decode holds 0.79 GB its plain serving does not (the draft layer's buffers, the span verify's arena), which the load's high-water keeps; served plainly without it the 4B peaks at 8.846e9 bytes"
     }
   ]
 }

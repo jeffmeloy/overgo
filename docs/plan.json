@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-regressed-8b083b7b94e498e7",
-      "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-4B inference peak-device-memory to 8.84844826e+09 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-94ded9a77924776c",
-          "rationale": "- Qwen3.5-4B peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803}: 8.84844826e+09 to 9.57364851e+09 (+725200256, +8.2%, allowed 500000; serving peak device memory, the newest measured attempt)\n\nCause, found 2026-10-29 (dcf1a1d66): the served 4B file (adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf) was converted before the converter shifted the draft layer's input norms (mtp.pre_fc_norm_embedding, _hidden), so its own draft layer keeps 4 of 1500 drafts. The first request after each load drafts while the runner judges its drafts (36 against 97 tok/s), and the draft layer's cells hold about 0.74 GB. Remedy, the lead's decision (owner 2026-10-30: keep no model broken): re-convert Qwen3.5-4B from its source on this machine (adaptive_new/models/Qwen3.5-4B, read only, no download) with the fixed converter, through the onboarding command into the data root's checkpoints/overgo-hfconvert, activate it as the 4B and re-point its verification record (docs/verification/qwen35-4b.json); the old file stays until the new one passes. This row's check then judges the next scorecard. The 4B's memory row (8b083b7b) is restored by it, or, where the repaired draft layer pays as the 27B's does, declared as drafting's cost. Starts once the 2026-10-30 measurement run ends, since a new file must not replace the 4B while the run reads it.\n\nRe-scoped 2026-10-30 (owner: why convert text models at all, rather than work with the model's tensors however they are packaged): the 4B is served from its own safetensors through the step native, the converter's tables applied at load, in place of re-converting it; the re-conversion path through onboarding is no longer needed. The lineage step still comes first, since the served model's identity moves from the GGUF file to its source.\n\nRe-scoped 2026-10-30 on measuring the 4B served from its own files: its cell is now keyed scorecard-regressed-94ded9a77924776c (the key without the retired conversion's recipe), and reads 9.64e9 bytes. Served plainly, as the open's judgement of its draft layer now has it (scorecard-regressed-82d99de4d4606223/do), the 4B peaks at 8.846e9 bytes, under the target: weights 8.65e9, its cache 0.19e9. The rest is the judgement's drafted decode at load, which allocates the draft layer's buffers and the span verify's arena (0.47e9 live in the pool, 0.25e9 idle in its free lists, a 0.27e9 arena) that plain serving never uses, and which the driver's high-water keeps: any timed drafted decode allocates them, and resetting the high-water after it would hide what the load held. So the decline is declared a trade (internal/scorecard/declared_trades.json, bought by the 4B's first request at 101.6 tok/s and 16.7 ms), and the check is the gap form, which reads the declared trades.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "stale-cells",
       "title": "A serving cell whose newest attempt predates the previous scorecard says so and is a gap, never a reading",
       "owner": "master-lead",

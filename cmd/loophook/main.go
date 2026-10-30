@@ -13,8 +13,9 @@
 // plan holds ANY open row -- committed progress changes the message, never
 // the verdict, so the loop runs until the plan is empty. The one sanctioned
 // pause is a recorded stop. Valves keep it from ever wedging: a
-// stop_hook_active retry passes, a live background gate steps aside, an active
-// scoped recorded stop passes, plan-complete passes.
+// stop_hook_active retry with nothing changed since its block passes, a live
+// background gate steps aside, an active scoped recorded stop passes,
+// plan-complete passes.
 package main
 
 import (
@@ -28,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -117,11 +119,12 @@ func stopDecision(stopHookActive, operatorStopped, gateRunning, planComplete, di
 }
 
 func runStop(hookJSON string) int {
-	// Re-attempt valve.
-	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
+	session := parseHook(hookJSON).Session
+	// Re-attempt valve: a retry passes while the session is as its block found it (stuckSinceBlock).
+	retry := strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`)
+	if retry && stuckSinceBlock(session) {
 		return 0
 	}
-	session := parseHook(hookJSON).Session
 	// A review session owns no row and edits nothing tracked (the guard
 	// refuses it), so it is held to no row and charged with no file, and
 	// reads no dispatch. Neither does a session in a worktree another
@@ -155,7 +158,56 @@ func runStop(hookJSON string) int {
 		return 0
 	}
 	fmt.Fprint(os.Stderr, stopMessage(verdict, headAdvancedSinceTurnStart(session), dispatch))
+	recordStopBlock(session)
 	return 2
+}
+
+// stopBlock is what the Stop gate records when it blocks a session's turn-end: the HEAD and the dirty set it found. The
+// harness marks every stop of the continuation a block began stop_hook_active, so a valve that passed each such retry
+// let one block buy an unchecked stop at any later point: on 2026-10-30 a stop 34 minutes and two landings after a block
+// passed without a word, and the row sat idle 1h44m. A retry passes only while both are as recorded, the session
+// stopping again with nothing done since, stuck rather than resting; work since the block is judged again.
+type stopBlock struct {
+	Head  string      `json:"head"`
+	Facts []dirtyFact `json:"facts"`
+}
+
+// stopBlockFile is the session's block record, beside its turn-start snapshot; empty when the state directory cannot
+// be made.
+func stopBlockFile(session string) string {
+	if processlock.EnsureStateDirectory(".") != nil {
+		return ""
+	}
+	return filepath.Join(processlock.StateDirectory, guard.SessionState(session)+"-blocked")
+}
+
+// recordStopBlock records the HEAD and the dirty set a block found.
+func recordStopBlock(session string) {
+	facts, err := currentDirtyFacts()
+	path := stopBlockFile(session)
+	if err != nil || path == "" {
+		return
+	}
+	if data, err := json.Marshal(stopBlock{Head: gitHead(), Facts: facts}); err == nil {
+		_ = os.WriteFile(path, append(data, '\n'), stateFileMode)
+	}
+}
+
+// stuckSinceBlock reports whether a retry finds the session as its last block did. A session whose state cannot be
+// read or kept is let through, so the gate never wedges it; a retry with no block recorded is judged, and its block is
+// recorded for the next.
+func stuckSinceBlock(session string) bool {
+	path := stopBlockFile(session)
+	facts, err := currentDirtyFacts()
+	if path == "" || err != nil {
+		return true
+	}
+	raw, err := os.ReadFile(path)
+	var block stopBlock
+	if err != nil || json.Unmarshal(raw, &block) != nil {
+		return false
+	}
+	return block.Head == gitHead() && slices.Equal(block.Facts, facts)
 }
 
 // gateCommitting reports a gate committing now; a test of the stop gate, which
@@ -507,8 +559,9 @@ func workIdentity(path string) string {
 // the ~2s `go run ./cmd/gate` COMPILE phase -- before the temp gate.exe exists --
 // this returns false. Ending a turn in that window false-blocks on dirty .go.
 // That block is SAFE (it errs toward "commit your work", never toward orphaning)
-// and SELF-HEALING: the very next attempt carries stop_hook_active, whose valve
-// allows (TestStopDecision "retry valve"). No wedge was ever observed.
+// and SELF-HEALING: the very next attempt carries stop_hook_active, whose valve,
+// with nothing changed since the block, allows (stuckSinceBlock). No wedge was
+// ever observed.
 // Every candidate fix is a NET LOSS: gate_status.json records only the TERMINAL
 // outcome (the early "running" write was deliberately removed after a killed gate
 // left a stale one -- cmd/gate doc), and a launch marker armed pre-compile

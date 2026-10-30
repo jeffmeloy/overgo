@@ -170,3 +170,35 @@ func TestReviewSessionIsNotHeldAndAnyOtherRoleIs(t *testing.T) {
 		t.Fatalf("the review session's state after a commit boundary and a prompt: %+v, %t", base, known)
 	}
 }
+
+// TestAStopAfterWorkSinceItsBlockIsBlockedAgain holds the retry valve to a
+// session stuck where its block found it: the harness marks every stop of the
+// continuation a block began stop_hook_active, and a retry that passed on that
+// mark alone let a stop 34 minutes and two landings after a block end the
+// turn. A retry with nothing changed since the block passes; one after a
+// commit, or after an edit, is blocked again, and passes once it stops again
+// with nothing changed.
+func TestAStopAfterWorkSinceItsBlockIsBlockedAgain(t *testing.T) {
+	write := sessionCheckout(t)
+	retry := func() int { return runStop(`{"session_id": "lead", "stop_hook_active": true}`) }
+	if got := stopHook("lead"); got != 2 {
+		t.Fatalf("a stop with the plan's row open = %d, want the block", got)
+	}
+	if got := retry(); got != 0 {
+		t.Fatalf("a retry with nothing changed since the block = %d, want it let through", got)
+	}
+	command := exec.CommandContext(t.Context(), "git", "-c", "core.hooksPath=", "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-qm", "landed")
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("fixture commit: %v %s", err, output)
+	}
+	if got := retry(); got != 2 {
+		t.Fatalf("a retry after a landing since the block = %d, want the block", got)
+	}
+	if got := retry(); got != 0 {
+		t.Fatalf("a retry with nothing changed since the second block = %d, want it let through", got)
+	}
+	write("internal/edited.go", "package internal\n")
+	if got := retry(); got != 2 {
+		t.Fatalf("a retry after an edit since the block = %d, want the block", got)
+	}
+}

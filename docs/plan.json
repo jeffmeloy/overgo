@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "stop-valve",
-      "title": "A stop the gate blocked is let through again only while HEAD and the dirty set are as its block found them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A stop the gate blocked is let through again only while HEAD and the dirty set are as its block found them",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestAStopAfterWorkSinceItsBlockIsBlockedAgain$'",
-          "rationale": "Review of 2026-10-30 (F11, P1), read from the lead's transcript's stop-hook records: the gate blocked a stop at 19:14:05Z with scorecard-regressed-82d99de4d4606223/do dispatched; the lead worked 34 minutes more, landing two commits, and its stop at 19:48:16Z passed without a word, and it sat idle 1h44m until the owner's prompt with the row open and its code unwritten. The same at 18:38:54Z then 19:04:09Z, rescued by a background job's notice. Cause, in code: runStop (cmd/loophook/main.go) allows any stop whose hook input has stop_hook_active true, and the harness sets that flag on every stop of the continuation a block began, so one block buys an unchecked stop at any later point. The change: a block records the session's HEAD and dirty set; a stop with stop_hook_active true is let through only while both are as that record holds (the session is stuck, not resting), and is blocked again otherwise. The test: a block, then HEAD or the tree changed, then a stop with stop_hook_active true, is blocked; the same stop with nothing changed passes. This puts in code what memory states as a habit (never wait, decide and proceed). Ranked after the Qwen3.5-4B throughput row, the work in hand."
-        }
-      ]
-    },
-    {
       "id": "plan-owner",
       "title": "A row a document files names the filing role its owner, as a row -add enters does",
       "owner": "master-lead",

@@ -77,6 +77,29 @@ func ValidateQwen35Repository(repository *hfrepo.Repository) (model.Spec, error)
 // Qwen35Conversion: model metadata plus streamed language tensors for GGUF
 // export; tokenizer metadata is the converter's responsibility.
 func Qwen35Conversion(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.TensorData, error) {
+	metadata, mappings, err := qwen35Parts(repository)
+	if err != nil {
+		return nil, nil, err
+	}
+	tensors, err := mappedTensorData(mappings)
+	if err != nil {
+		return nil, nil, err
+	}
+	return metadata, tensors, nil
+}
+
+// Qwen35View is Qwen35Conversion as a view reads it (gguf.View): the same
+// metadata and tensors, their bytes read from the repository's files when read.
+func Qwen35View(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.ViewTensor, error) {
+	metadata, mappings, err := qwen35Parts(repository)
+	if err != nil {
+		return nil, nil, err
+	}
+	return metadata, mappedViewTensors(mappings), nil
+}
+
+// qwen35Parts is a Qwen 3.5 repository's model metadata and tensor mappings.
+func qwen35Parts(repository *hfrepo.Repository) ([]gguf.Metadata, []tensorMapping, error) {
 	if repository == nil || repository.Tensors == nil {
 		return nil, nil, errors.New("HF/GGUF adapter: nil repository")
 	}
@@ -88,11 +111,7 @@ func Qwen35Conversion(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.Te
 	if err != nil {
 		return nil, nil, err
 	}
-	tensors, err := mappedTensorData(mappings)
-	if err != nil {
-		return nil, nil, err
-	}
-	return metadata, tensors, nil
+	return metadata, mappings, nil
 }
 
 func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, error) {

@@ -82,73 +82,9 @@ func Write(
 	if destination == nil {
 		return errors.New("GGUF destination is nil")
 	}
-	version := options.Version
-	version = cmp.Or(version, CurrentVersion)
-	if version < 2 || version > CurrentVersion {
-		return fmt.Errorf("unsupported GGUF version %d", version)
-	}
-	alignment := options.Alignment
-	alignment = cmp.Or(alignment, DefaultAlignment)
-	if !isPowerOfTwo(alignment) {
-		return fmt.Errorf("alignment %d is not a power of two", alignment)
-	}
-	if alignment > math.MaxUint32 {
-		return fmt.Errorf("alignment %d exceeds GGUF uint32 metadata", alignment)
-	}
-
-	normalizedMetadata, err := prepareMetadata(metadata, alignment)
-	if err != nil {
-		return err
-	}
-	preparedTensors, err := prepareTensors(tensors, alignment)
-	if err != nil {
-		return err
-	}
-
 	writer := &countingWriter{destination: destination, schema: binaryschema.LittleEndian}
-	if err := writer.write([]byte(Magic)); err != nil {
-		return err
-	}
-	if err := writer.uint32(version); err != nil {
-		return err
-	}
-	if err := writer.uint64(uint64(len(preparedTensors))); err != nil {
-		return err
-	}
-	if err := writer.uint64(uint64(len(normalizedMetadata))); err != nil {
-		return err
-	}
-	for _, item := range normalizedMetadata {
-		if err := writer.string(item.Key); err != nil {
-			return fmt.Errorf("write metadata key %q: %w", item.Key, err)
-		}
-		if err := writer.value(item.Value); err != nil {
-			return fmt.Errorf("write metadata %q: %w", item.Key, err)
-		}
-	}
-	for _, item := range preparedTensors {
-		if err := writer.string(item.info.Name); err != nil {
-			return fmt.Errorf("write tensor %q name: %w", item.info.Name, err)
-		}
-		if err := writer.uint32(item.info.Dimensions); err != nil {
-			return fmt.Errorf("write tensor %q dimensions: %w", item.info.Name, err)
-		}
-		for axis := uint32(0); axis < item.info.Dimensions; axis++ {
-			if err := writer.uint64(item.info.Shape[axis]); err != nil {
-				return fmt.Errorf("write tensor %q shape: %w", item.info.Name, err)
-			}
-		}
-		if err := writer.uint32(uint32(item.info.Type)); err != nil {
-			return fmt.Errorf("write tensor %q type: %w", item.info.Name, err)
-		}
-		if err := writer.uint64(item.offset); err != nil {
-			return fmt.Errorf("write tensor %q offset: %w", item.info.Name, err)
-		}
-	}
-	if len(preparedTensors) == 0 {
-		return nil
-	}
-	if err := writer.padTo(alignment); err != nil {
+	preparedTensors, alignment, err := writeHeader(writer, metadata, tensors, options)
+	if err != nil || len(preparedTensors) == 0 {
 		return err
 	}
 	for _, item := range preparedTensors {
@@ -160,6 +96,82 @@ func Write(
 		}
 	}
 	return nil
+}
+
+// writeHeader writes what precedes the tensors' payloads, padded to where the
+// first begins when there is one, and returns the tensors laid out and the
+// alignment they are laid out by: Write's header, and View's.
+func writeHeader(writer *countingWriter, metadata []Metadata, tensors []TensorData, options WriteOptions) ([]preparedTensor, uint64, error) {
+	fail := func(err error) ([]preparedTensor, uint64, error) { return nil, 0, err }
+	version := options.Version
+	version = cmp.Or(version, CurrentVersion)
+	if version < 2 || version > CurrentVersion {
+		return fail(fmt.Errorf("unsupported GGUF version %d", version))
+	}
+	alignment := options.Alignment
+	alignment = cmp.Or(alignment, DefaultAlignment)
+	if !isPowerOfTwo(alignment) {
+		return fail(fmt.Errorf("alignment %d is not a power of two", alignment))
+	}
+	if alignment > math.MaxUint32 {
+		return fail(fmt.Errorf("alignment %d exceeds GGUF uint32 metadata", alignment))
+	}
+
+	normalizedMetadata, err := prepareMetadata(metadata, alignment)
+	if err != nil {
+		return fail(err)
+	}
+	preparedTensors, err := prepareTensors(tensors, alignment)
+	if err != nil {
+		return fail(err)
+	}
+
+	if err := writer.write([]byte(Magic)); err != nil {
+		return fail(err)
+	}
+	if err := writer.uint32(version); err != nil {
+		return fail(err)
+	}
+	if err := writer.uint64(uint64(len(preparedTensors))); err != nil {
+		return fail(err)
+	}
+	if err := writer.uint64(uint64(len(normalizedMetadata))); err != nil {
+		return fail(err)
+	}
+	for _, item := range normalizedMetadata {
+		if err := writer.string(item.Key); err != nil {
+			return fail(fmt.Errorf("write metadata key %q: %w", item.Key, err))
+		}
+		if err := writer.value(item.Value); err != nil {
+			return fail(fmt.Errorf("write metadata %q: %w", item.Key, err))
+		}
+	}
+	for _, item := range preparedTensors {
+		if err := writer.string(item.info.Name); err != nil {
+			return fail(fmt.Errorf("write tensor %q name: %w", item.info.Name, err))
+		}
+		if err := writer.uint32(item.info.Dimensions); err != nil {
+			return fail(fmt.Errorf("write tensor %q dimensions: %w", item.info.Name, err))
+		}
+		for axis := uint32(0); axis < item.info.Dimensions; axis++ {
+			if err := writer.uint64(item.info.Shape[axis]); err != nil {
+				return fail(fmt.Errorf("write tensor %q shape: %w", item.info.Name, err))
+			}
+		}
+		if err := writer.uint32(uint32(item.info.Type)); err != nil {
+			return fail(fmt.Errorf("write tensor %q type: %w", item.info.Name, err))
+		}
+		if err := writer.uint64(item.offset); err != nil {
+			return fail(fmt.Errorf("write tensor %q offset: %w", item.info.Name, err))
+		}
+	}
+	if len(preparedTensors) == 0 {
+		return nil, alignment, nil
+	}
+	if err := writer.padTo(alignment); err != nil {
+		return fail(err)
+	}
+	return preparedTensors, alignment, nil
 }
 
 // WriteTo: emits parsed logical model as one canonical GGUF file; When

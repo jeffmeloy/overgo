@@ -162,16 +162,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "scorecard succession: Row.Succeeds from recorded sources, rows paired and judged by a model's predecessors, declines found by their keys; it keeps a re-converted or natively served model's readings and open declines"
+        "reason": "gguf.View, the converter's tensors opened for both writer and view, and gguf convert -view: a model served from its own safetensors reads and is identified by the bytes its conversion would write, with no GGUF on disk"
       },
       "steps": [
-        {
-          "id": "view",
-          "title": "A safetensors directory opens as the GGUF image the converter would write, its bytes read from the source on demand, no file written",
-          "status": "open",
-          "verify": "go test ./internal/hfconvert -count=1 -run '^TestAQwen35ViewIsTheBytesTheConverterWrites$'",
-          "rationale": "The first part of native, filed 2026-10-30 from a map of the runner's byte paths: once a *gguf.File exists, the runner reads tensor bytes only through an io.ReaderAt (modeldevice.Loader reads each shard's source at DataOffset plus the tensor's offset, and with claims hashes the shard from 0 to its size, header included; HostRows and the host-weight paths read through ReadTensorRange); only opening, identity and claims need a file on disk. gguf.Parse over a ReaderAt that serves a complete GGUF image gives a File every runtime path reads. The converter's Qwen3.5 tables (hfgguf.Qwen35Conversion, its name map, the norm +1 shift, the A_log transform, the value-head reorders, the F32 promotions) build metadata and tensors as streams, and writeQwen35Model adds the tokenizer and chat-template metadata and sorts the tensors before gguf.WriteFileExclusive. This step: gguf.View serves the image gguf.Write would write from metadata and tensors whose bytes are opened on read (an untransformed tensor read in place from its safetensors file, a transformed one materialized once), header and padding as Write lays them out; and hfconvert builds one Qwen3.5 model's metadata and tensors once for both the writer and the view, so a converter fix reaches a served model at its next open. The check: the view's bytes are the converted file's, byte for byte, over the converter's own Qwen3.5 test repository."
-        },
         {
           "id": "native",
           "title": "Serve Qwen3.5-4B from its own safetensors, the converter's tables applied at load, no GGUF written",

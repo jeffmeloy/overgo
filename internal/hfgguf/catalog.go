@@ -207,30 +207,60 @@ func collectTensorMappings(
 func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(mappings))
 	for _, mapping := range mappings {
-		tensor := mapping.tensor
-		shape := mapping.shape
-		storage := mapping.storage
-		var reader io.Reader = tensor.Reader()
-		if storage == gguf.DTypeF32 && tensor.DType != "F32" {
-			converted, err := safetensors.F32Reader(tensor)
-			if err != nil {
-				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
-			}
-			reader = converted
-		}
-		if mapping.transform != nil {
-			traits, _ := storage.Traits()
-			transformed, err := transformPayload(reader, traits.TypeSize, mapping.transform)
-			if err != nil {
-				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
-			}
-			reader = transformed
+		reader, err := openMapped(mapping)
+		if err != nil {
+			return nil, err
 		}
 		tensors = append(tensors, gguf.TensorData{
-			Name: mapping.name, Shape: gguf.ReverseShape(shape), Type: storage, Data: reader,
+			Name: mapping.name, Shape: gguf.ReverseShape(mapping.shape), Type: mapping.storage, Data: reader,
 		})
 	}
 	return tensors, nil
+}
+
+// mappedViewTensors are the mappings as a view reads them (gguf.View): a tensor
+// stored as its source stores it is read in place, any other is built from its
+// source on read, as mappedTensorData streams it.
+func mappedViewTensors(mappings []tensorMapping) []gguf.ViewTensor {
+	tensors := make([]gguf.ViewTensor, 0, len(mappings))
+	for _, mapping := range mappings {
+		tensor := gguf.ViewTensor{Name: mapping.name, Shape: gguf.ReverseShape(mapping.shape), Type: mapping.storage}
+		if mapping.transform == nil && !promoted(mapping) {
+			tensor.Payload = mapping.tensor
+		} else {
+			tensor.Open = func() (io.Reader, error) { return openMapped(mapping) }
+		}
+		tensors = append(tensors, tensor)
+	}
+	return tensors
+}
+
+// promoted reports whether a mapping stores as F32 a source of another dtype.
+func promoted(mapping tensorMapping) bool {
+	return mapping.storage == gguf.DTypeF32 && mapping.tensor.DType != "F32"
+}
+
+// openMapped streams one mapping's stored bytes from their start: its source
+// tensor, promoted to F32 where it is stored so, then transformed.
+func openMapped(mapping tensorMapping) (io.Reader, error) {
+	tensor := mapping.tensor
+	var reader io.Reader = tensor.Reader()
+	if promoted(mapping) {
+		converted, err := safetensors.F32Reader(tensor)
+		if err != nil {
+			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
+		}
+		reader = converted
+	}
+	if mapping.transform != nil {
+		traits, _ := mapping.storage.Traits()
+		transformed, err := transformPayload(reader, traits.TypeSize, mapping.transform)
+		if err != nil {
+			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)
+		}
+		reader = transformed
+	}
+	return reader, nil
 }
 
 // transformPayload: materialize a payload stream, mutate in place, re-emit.

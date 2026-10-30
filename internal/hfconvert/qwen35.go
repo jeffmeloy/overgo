@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -70,30 +71,10 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	if err != nil {
 		return Report{}, err
 	}
-	if name := strings.TrimSpace(options.Name); name != "" {
-		for index := range metadata {
-			if metadata[index].Key == "general.name" {
-				metadata[index] = gguf.StringMetadata("general.name", name)
-			}
-		}
-	}
-	var text qwen35TokenConfig
-	if err := json.Unmarshal(repository.Config["text_config"], &text); err != nil {
-		return Report{}, fmt.Errorf("HF converter: parse text config: %w", err)
-	}
-	if text.Vocabulary == 0 {
-		return Report{}, errors.New("HF converter: qwen3_5 vocabulary size is missing")
-	}
-	tokenizerItems, err := tokenizerMetadata(directory, text.Vocabulary, text.EOS)
+	metadata, vocabulary, err := qwen35ModelMetadata(directory, repository, metadata, options.Name)
 	if err != nil {
 		return Report{}, err
 	}
-	metadata = append(metadata, tokenizerItems...)
-	template, err := chatTemplateMetadata(directory)
-	if err != nil {
-		return Report{}, err
-	}
-	metadata = append(metadata, template...)
 	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
 	if err := modelartifact.ValidateGeneratedCatalog(metadata, tensors); err != nil {
 		return Report{}, err
@@ -106,6 +87,72 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 		return Report{}, err
 	}
 	return Report{
-		Tensors: len(tensors), VocabSize: int(text.Vocabulary), OutputBytes: written.Size(),
+		Tensors: len(tensors), VocabSize: int(vocabulary), OutputBytes: written.Size(),
 	}, nil
+}
+
+// View opens a Qwen 3.5 Hugging Face directory as the GGUF Convert would
+// write from it, named name where one is given: the same metadata and
+// tensors, their bytes read from the directory's files when read, and nothing
+// written (gguf.View). The file's Close closes the directory's files.
+func View(directory, name string) (*gguf.File, error) {
+	repository, err := hfrepo.Open(directory)
+	if err != nil {
+		return nil, err
+	}
+	file, err := viewQwen35(directory, repository, name)
+	if err != nil {
+		return nil, errors.Join(err, repository.Close())
+	}
+	return file, nil
+}
+
+func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*gguf.File, error) {
+	metadata, tensors, err := hfgguf.Qwen35View(repository)
+	if err != nil {
+		return nil, err
+	}
+	metadata, _, err = qwen35ModelMetadata(directory, repository, metadata, name)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(tensors, func(left, right gguf.ViewTensor) int { return strings.Compare(left.Name, right.Name) })
+	declared := make([]gguf.TensorData, len(tensors))
+	for index, tensor := range tensors {
+		declared[index] = gguf.TensorData{Name: tensor.Name, Shape: tensor.Shape, Type: tensor.Type}
+	}
+	if err := modelartifact.ValidateGeneratedCatalog(metadata, declared); err != nil {
+		return nil, err
+	}
+	return gguf.View(metadata, tensors, gguf.WriteOptions{}, repository)
+}
+
+// qwen35ModelMetadata is a converted Qwen 3.5 model's metadata, its language
+// model's named name where one is given, then its tokenizer's and its chat
+// template's, and its vocabulary's size.
+func qwen35ModelMetadata(directory string, repository *hfrepo.Repository, metadata []gguf.Metadata, name string) ([]gguf.Metadata, uint32, error) {
+	if name := strings.TrimSpace(name); name != "" {
+		for index := range metadata {
+			if metadata[index].Key == "general.name" {
+				metadata[index] = gguf.StringMetadata("general.name", name)
+			}
+		}
+	}
+	var text qwen35TokenConfig
+	if err := json.Unmarshal(repository.Config["text_config"], &text); err != nil {
+		return nil, 0, fmt.Errorf("HF converter: parse text config: %w", err)
+	}
+	if text.Vocabulary == 0 {
+		return nil, 0, errors.New("HF converter: qwen3_5 vocabulary size is missing")
+	}
+	tokenizerItems, err := tokenizerMetadata(directory, text.Vocabulary, text.EOS)
+	if err != nil {
+		return nil, 0, err
+	}
+	metadata = append(metadata, tokenizerItems...)
+	template, err := chatTemplateMetadata(directory)
+	if err != nil {
+		return nil, 0, err
+	}
+	return append(metadata, template...), text.Vocabulary, nil
 }

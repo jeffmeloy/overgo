@@ -158,6 +158,7 @@
     {
       "id": "stop-valve",
       "title": "A stop the gate blocked is let through again only while HEAD and the dirty set are as its block found them",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -166,6 +167,21 @@
           "status": "open",
           "verify": "go test ./cmd/loophook -count=1 -run '^TestAStopAfterWorkSinceItsBlockIsBlockedAgain$'",
           "rationale": "Review of 2026-10-30 (F11, P1), read from the lead's transcript's stop-hook records: the gate blocked a stop at 19:14:05Z with scorecard-regressed-82d99de4d4606223/do dispatched; the lead worked 34 minutes more, landing two commits, and its stop at 19:48:16Z passed without a word, and it sat idle 1h44m until the owner's prompt with the row open and its code unwritten. The same at 18:38:54Z then 19:04:09Z, rescued by a background job's notice. Cause, in code: runStop (cmd/loophook/main.go) allows any stop whose hook input has stop_hook_active true, and the harness sets that flag on every stop of the continuation a block began, so one block buys an unchecked stop at any later point. The change: a block records the session's HEAD and dirty set; a stop with stop_hook_active true is let through only while both are as that record holds (the session is stuck, not resting), and is blocked again otherwise. The test: a block, then HEAD or the tree changed, then a stop with stop_hook_active true, is blocked; the same stop with nothing changed passes. This puts in code what memory states as a habit (never wait, decide and proceed). Ranked after the Qwen3.5-4B throughput row, the work in hand."
+        }
+      ]
+    },
+    {
+      "id": "plan-owner",
+      "title": "A row a document files names the filing role its owner, as a row -add enters does",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A row a document files names the filing role its owner, as a row -add enters does",
+          "status": "open",
+          "verify": "go test ./cmd/plan -count=1 -run '^TestADocumentsRowsAreTheFilersAsAnAddedRowIs$'",
+          "rationale": "Found 2026-10-30 when stop-valve, filed first, was not dispatched: dispatch (internal/plan dispatchPriority) takes every row the role owns, in plan order, before any row that names no owner, and plan -add -from files a document's rows as the document has them, which named none. So the ten rows the lead filed from documents (the seven of the review of 2026-10-30 with stop-valve, succession-weights, native-text-weights and rules-audit) dispatched after every scorecard row the lead owns, out of the order they were filed in; they were retired and re-filed unchanged under the lead. The change: plan -add -from names the filing role the owner of each row that names none, as -add does for its one row; a row the document gives an owner keeps it. The test: a document's unowned row filed under a role is that role's, and its owned row keeps its owner."
         }
       ]
     },
@@ -187,6 +203,7 @@
     {
       "id": "stale-cells",
       "title": "A serving cell whose newest attempt predates the previous scorecard says so and is a gap, never a reading",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -201,6 +218,7 @@
     {
       "id": "run-record",
       "title": "A measurement run records its own end and each phase's expected end, and the session hooks print them",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -215,6 +233,7 @@
     {
       "id": "run-freeze",
       "title": "Host work goes on beside a measurement run; only device lanes wait, on the measurement lease",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -229,6 +248,7 @@
     {
       "id": "preflight-clean",
       "title": "The preflight is clean from a clean checkout: a cell whose runtime is another lane's waits on its lane, and quality cells check their suite setup",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -243,6 +263,7 @@
     {
       "id": "lane-cost",
       "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -257,6 +278,7 @@
     {
       "id": "hold-implementers",
       "title": "The worktree hold goes only to a session that lands or declares it implements",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -621,6 +643,7 @@
     {
       "id": "succession-weights",
       "title": "A model takes another's place on the scorecard only when their source weights match",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -635,6 +658,7 @@
     {
       "id": "native-text-weights",
       "title": "Serve every text model held as safetensors from its own files, and stop converting them",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -649,6 +673,7 @@
     {
       "id": "rules-audit",
       "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {

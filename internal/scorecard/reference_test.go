@@ -129,15 +129,17 @@ func TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence(t *test
 		t.Errorf("compatible history behind another contract = %+v and %+v, want the measured decline", filed, compared)
 	}
 
-	// Readings on another recipe, or under another environment, are not this cell's.
+	// A reading on another recipe is this cell's, a model's change of recipe being what its cells judge; one under another
+	// environment is not.
 	other := load
 	other.Scope = testutil.ArtifactID(t, artifact.KindRecipe, "another-recipe")
 	elsewhere := testutil.ArtifactID(t, artifact.KindEvidence, "another-environment")
 	mixed := timed(100, 101, 99)
 	mixed = append(mixed, read(metric.Load, Cell{Value: 100, Unit: "ms", Contract: other}), read(metric.Load, Cell{Value: 100, Unit: "ms", Contract: load, Environment: elsewhere}))
 	mixed = append(mixed, timed(100, 300)...)
-	if filed, compared := judged(metric.Load, mixed); len(filed) != 0 || len(compared) != 1 || !strings.Contains(compared[0].Why, "4 earlier readings") {
-		t.Errorf("300 ms after four readings of its own and two of another recipe and environment = %+v and %+v, want it unknown for four readings", filed, compared)
+	if filed, compared := judged(metric.Load, mixed); len(filed) != 1 || len(compared) != 1 || compared[0].Verdict != regressed ||
+		!strings.Contains(compared[0].Why, "allowed 8;") {
+		t.Errorf("300 ms after four readings of its own, one of another recipe and one under another environment = %+v and %+v, want the decline judged by the five readings of its recipes", filed, compared)
 	}
 
 	// The columns no repeat reads differently: one earlier record judges each.

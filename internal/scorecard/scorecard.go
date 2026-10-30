@@ -105,9 +105,11 @@ type Cell struct {
 	// allowed and unjudged are a reference's alone (Reference) and are never
 	// published: how far, in the cell's unit, a later reading may stand worse
 	// than the reference's value, and why nothing is judged against it, said
-	// where its earlier readings are too few to say what the cell holds.
+	// where its earlier readings are too few to say what the cell holds;
+	// borrowed says where its allowance came from when its column's gave it.
 	allowed  float64
 	unjudged string
+	borrowed string
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -195,6 +197,16 @@ type Contract struct {
 	Protocol   string      `json:"protocol,omitzero"`
 	Comparison artifact.ID `json:"comparison,omitzero"`
 	Scope      artifact.ID `json:"scope,omitzero"`
+}
+
+// measures reports whether two contracts measure the same thing: equal, or two serving aggregates whose attempts
+// differ only by the recipe they ran under, since a model's change of recipe is what its serving cells judge (Flash-Next's
+// first output rose 54% when e0a7e5113 activated a new recipe, and nothing compared it).
+func (c Contract) measures(other Contract) bool {
+	if c.Origin == originServing && other.Origin == originServing {
+		c.Scope, other.Scope = artifact.ID{}, artifact.ID{}
+	}
+	return c == other
 }
 
 // The kinds of record a cell's value comes from.

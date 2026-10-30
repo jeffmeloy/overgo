@@ -110,17 +110,21 @@ func (record Record) explained() error {
 // measurements (Earlier), with each cell of a column that a repeat of the same work
 // reads differently replaced by what the cell's own readings say of it.
 //
-// A cell's readings are the values the earlier records hold for it on its contract,
-// environment and direction, each source once and oldest first, the newest
-// referenceWindow of them. Its value is the best level they held, a level being the
+// A cell's readings are the values the earlier records hold for it on its contract (a
+// serving cell's under any of its model's recipes), environment and direction, each
+// source once and oldest first, the newest referenceWindow of them; a zero, a reading
+// that sampled nothing, is none. Its value is the best level they held, a level being the
 // median of levelReadings consecutive readings: one reading far from its neighbours is
 // no level, an improvement is one once two readings hold it, and a run of small
 // declines is judged against where the cell stood before them, not against the
 // reading before the last. What a later reading is allowed is noiseMultiple times the
 // median distance between consecutive readings, which a step among them does not
-// widen. Fewer than fewestReadings say neither, and such a cell is Unknown, never
-// holding. A level leaves with the window, so a decline that stands is a decline until
-// then. Nil when no record is earlier.
+// widen. Fewer than fewestReadings say neither: such a cell holds its newest value and
+// is allowed, as a share of it, the median share its column's judged cells are allowed,
+// so a model new to the records, or one whose readings a change of recipe has just begun,
+// is judged from its second reading; with no judged cell in its column it is Unknown,
+// never holding. A level leaves with the window, so a decline that stands is a decline
+// until then. Nil when no record is earlier.
 func Reference(records []Record) *Record {
 	reference := Earlier(records)
 	if reference == nil {
@@ -136,7 +140,7 @@ func Reference(records []Record) *Record {
 		// A longer prompt's first output is judged on its own readings, as the row's own is.
 		for index, cell := range row.Lengths {
 			row.Lengths[index] = judged(earlier, row, metric.FirstOutput, cell, func(one Row) Cell {
-				at := slices.IndexFunc(one.Lengths, func(other Cell) bool { return other.Contract == cell.Contract })
+				at := slices.IndexFunc(one.Lengths, func(other Cell) bool { return other.Contract.measures(cell.Contract) })
 				if at < 0 {
 					return Cell{}
 				}
@@ -144,7 +148,40 @@ func Reference(records []Record) *Record {
 			})
 		}
 	}
+	shares := map[metric.Name][]float64{}
+	for _, row := range reference.Rows {
+		for _, column := range repeated {
+			if cell := row.Cells[column]; cell.Measured() && cell.unjudged == "" && cell.Value != 0 {
+				shares[column] = append(shares[column], cell.allowed/math.Abs(cell.Value))
+			}
+		}
+	}
+	for _, row := range reference.Rows {
+		for _, column := range repeated {
+			if cell := row.Cells[column]; cell.Measured() {
+				cell.borrow(column, shares[column])
+				row.Cells[column] = cell
+			}
+		}
+		for index := range row.Lengths {
+			row.Lengths[index].borrow(metric.FirstOutput, shares[metric.FirstOutput])
+		}
+	}
 	return reference
+}
+
+// borrow gives a cell whose own readings are too few to judge it (judged) the median share of its value its column's
+// judged cells are allowed, and says so; a cell judged by its own readings, or one whose column has no judged cell,
+// keeps its verdict.
+func (c *Cell) borrow(column metric.Name, shares []float64) {
+	if c.unjudged == "" || len(shares) == 0 || c.Value == 0 {
+		return
+	}
+	share := median(slices.Clone(shares))
+	c.allowed = share * math.Abs(c.Value)
+	c.borrowed = fmt.Sprintf("%s, so it is allowed the %.3g of its value that the median of its column's %d judged %s cells is",
+		c.unjudged, share, len(shares), column)
+	c.unjudged = ""
 }
 
 // judged is a reference's measured cell of a repeated column with what it
@@ -160,7 +197,7 @@ func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(
 			continue
 		}
 		one := read(record.Rows[at])
-		if one.Measured() && one.Contract == cell.Contract && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+		if one.Measured() && one.Value != 0 && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
 			readings = append(readings, one.Value)
 			if one.Source.Valid() {
 				seen[one.Source] = append(seen[one.Source], one.Value)
@@ -234,8 +271,8 @@ func Earlier(records []Record) *Record {
 	reference := Record{Commit: newest.Commit, Name: newest.Name}
 	prefer := func(kept, candidate Cell, targets []Cell) bool {
 		return candidate.Measured() && (!kept.Measured() && !kept.NotApplicable || slices.ContainsFunc(targets, func(now Cell) bool {
-			return now.Measured() && candidate.Contract == now.Contract && candidate.Environment == now.Environment && candidate.Direction == now.Direction &&
-				(!kept.Measured() || kept.Contract != now.Contract || kept.Environment != now.Environment || kept.Direction != now.Direction)
+			return now.Measured() && candidate.Contract.measures(now.Contract) && candidate.Environment == now.Environment && candidate.Direction == now.Direction &&
+				(!kept.Measured() || !kept.Contract.measures(now.Contract) || kept.Environment != now.Environment || kept.Direction != now.Direction)
 		}))
 	}
 	for _, record := range slices.Backward(earlier) {
@@ -258,7 +295,7 @@ func Earlier(records []Record) *Record {
 				}
 			}
 			for _, cell := range row.Measured(metric.Quality) {
-				qualityAt := slices.IndexFunc(kept.Heldout, func(prior Cell) bool { return prior.Contract == cell.Contract })
+				qualityAt := slices.IndexFunc(kept.Heldout, func(prior Cell) bool { return prior.Contract.measures(cell.Contract) })
 				if qualityAt < 0 {
 					kept.Heldout = append(kept.Heldout, cell)
 				} else if prefer(kept.Heldout[qualityAt], cell, now.Measured(metric.Quality)) {
@@ -266,7 +303,7 @@ func Earlier(records []Record) *Record {
 				}
 			}
 			for _, cell := range row.Lengths {
-				lengthAt := slices.IndexFunc(kept.Lengths, func(prior Cell) bool { return prior.Contract == cell.Contract })
+				lengthAt := slices.IndexFunc(kept.Lengths, func(prior Cell) bool { return prior.Contract.measures(cell.Contract) })
 				if lengthAt < 0 {
 					kept.Lengths = append(kept.Lengths, cell)
 				} else if prefer(kept.Lengths[lengthAt], cell, now.Lengths) {
@@ -347,7 +384,7 @@ func (pair Pair) Compare(column metric.Name) []Comparison {
 	var comparisons []Comparison
 	for _, then := range required {
 		now, measured := pair.After.Cells[column], pair.After.Measured(column)
-		if at := slices.IndexFunc(measured, func(other Cell) bool { return other.Contract == then.Contract }); at >= 0 {
+		if at := slices.IndexFunc(measured, func(other Cell) bool { return other.Contract.measures(then.Contract) }); at >= 0 {
 			now = measured[at]
 		}
 		if verdict, why := holds(column, then, now); verdict != holding {
@@ -392,7 +429,7 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 		return Unknown, "the reference cell was published without a contract"
 	case (then.Contract.Origin == originEvaluation || then.Contract.Origin == originBenchmark) && !then.Contract.Comparison.Valid():
 		return Unknown, then.Contract.Origin + " comparison authority is unknown"
-	case now.Contract != then.Contract:
+	case !now.Contract.measures(then.Contract):
 		return Unknown, ContractDifference(now.Contract, then.Contract)
 	case then.Contract.Origin == originServing && now.Environment != then.Environment:
 		return Unknown, fmt.Sprintf("measured under environment %q, the reference under %q", now.Environment, then.Environment)
@@ -408,8 +445,15 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 		declined = now.Value*float64(now.Attempts)-then.Value*float64(now.Attempts) > failureNoise
 	}
 	if declined {
-		return regressed, fmt.Sprintf("%.9g to %.9g (%+.9g, %+.1f%%, allowed %.9g; %s)", then.Value, now.Value, now.Value-then.Value, percent*(now.Value-then.Value)/then.Value,
+		why := fmt.Sprintf("%.9g to %.9g (%+.9g, %+.1f%%, allowed %.9g; %s)", then.Value, now.Value, now.Value-then.Value, percent*(now.Value-then.Value)/then.Value,
 			max(then.allowed, unread(min(math.Abs(now.Value), math.Abs(then.Value)))), now.Label)
+		if now.Contract.Scope != then.Contract.Scope {
+			why += fmt.Sprintf("; measured under %s, the reference under %s", now.Contract.Scope, then.Contract.Scope)
+		}
+		if then.borrowed != "" {
+			why += "; " + then.borrowed
+		}
+		return regressed, why
 	}
 	return holding, ""
 }
@@ -482,9 +526,20 @@ const regressionKeyPrefix = gapKeyPrefix + "-regressed-"
 const regressionDigits = 16
 
 // regressionKey names the decline of a cell: the model, the task, the measure
-// and the full contract it was compared on, so a cell that stays declined is
-// found again under the same key whatever value it declined to.
+// and the contract it was compared on, a serving cell's without the recipe its
+// attempts ran under, so a cell that stays declined is found again under the
+// same key whatever value it declined to and whichever recipe the model serves.
 func regressionKey(row Row, column metric.Name, cell Cell) string {
+	if cell.Contract.Origin == originServing {
+		cell.Contract.Scope = artifact.ID{}
+	}
+	return recipeRegressionKey(row, column, cell)
+}
+
+// recipeRegressionKey is a decline's key with a serving cell's recipe in it, as
+// the rows filed before regressionKey left the recipe out carry it: such a row
+// is found again, and not filed twice, while its model serves that recipe.
+func recipeRegressionKey(row Row, column metric.Name, cell Cell) string {
 	sum := sha256.Sum256(fmt.Appendf(nil, "%s|%s|%s|%+v", row.Model, row.Task, column, cell.Contract))
 	return regressionKeyPrefix + hex.EncodeToString(sum[:])[:regressionDigits]
 }
@@ -511,7 +566,7 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 	for _, row := range rows {
 		for _, column := range metric.Columns {
 			for _, cell := range row.Measured(column) {
-				if regressionKey(row, column, cell) == key {
+				if regressionKey(row, column, cell) == key || recipeRegressionKey(row, column, cell) == key {
 					return !worse(cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, 0), true
 				}
 			}
@@ -530,9 +585,12 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 // one.
 type Gap struct {
 	Key, Title, Detail string
-	kind               string
-	Target             float64
-	Restore            bool
+	// RecipeKey is a serving decline's key with its recipe in it (recipeRegressionKey), which an open row filed before
+	// the key left the recipe out carries: the decline is that row's, and is not filed again.
+	RecipeKey string
+	kind      string
+	Target    float64
+	Restore   bool
 	// quality is the comparison a decline of a held-out quality was filed from, which Supported judges by its cases.
 	quality *Comparison
 }
@@ -580,7 +638,8 @@ func (record Record) Gaps(reference *Record) []Gap {
 				if comparison.Verdict == regressed {
 					target := comparison.Then.bar(cmp.Or(comparison.Now.Direction, columnDirections[column]))
 					decline := Gap{
-						Key: regressionKey(*row, column, comparison.Now), kind: string(regressed), Restore: true, Target: target,
+						Key: regressionKey(*row, column, comparison.Now), RecipeKey: recipeRegressionKey(*row, column, comparison.Now),
+						kind: string(regressed), Restore: true, Target: target,
 						Title:  fmt.Sprintf("Restore %s %s %s to %.9g %s", row.Name, row.Task, column, target, comparison.Then.Unit),
 						Detail: fmt.Sprintf("- %s %s, %+v: %s\n", row.Name, column, comparison.Now.Contract, comparison.Why),
 					}

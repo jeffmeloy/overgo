@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "scorecard-blind-declines",
-      "title": "File a served model's declines across a change of its recipe and before its fifth reading",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Judge a serving cell across its model's recipes and before its fifth reading, and key its decline without the recipe",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestAServedModelsDeclineIsFiledAcrossARecipeChange$' -count=1",
-          "rationale": "The reviewer's finding F1 (P1), confirmed and narrowed. From the record of 2026-10-25 (scorecard-20261025T194250Z) to the record of 2026-10-28 (scorecard-20261028T150740Z), Qwen3.8 Flash Next's inference row got worse: first output 1128.1 to 1742.1 ms (+54%), its 4,096-token first output 1669.5 to 2078.5 ms (+24%), its 16,384-token first output 5563.9 to 8613.5 ms (+55%), load 29.75 to 34.96 s (+18%), and throughput 73.06 to 66.84 tok/s (-9%). No row was filed, for two reasons in internal/scorecard/record.go. First, the rows did pair (same model and task, Pairs), but e0a7e5113 activated a new recipe (recipe:sha256:81d75bcb... to recipe:sha256:c45e957c...). A serving cell's contract carries its recipe as its scope, so holds() read every cell as measured on another contract (Unknown: reported, never filed), and judged() counts only the readings taken on the same contract. Second, even had the recipe held, those cells had two distinct earlier readings (first output 936.2 and 1128.1 ms), fewer than fewestReadings (5), so judged() would leave them Unknown too. Each recipe activation restarts that count, so a model a campaign keeps changing is never judged. Flash-Next is the only model whose recipe changed between the two records.\nThe change has three parts. A serving cell's readings become its model's and task's under any recipe, in one environment, so a recipe change is judged against the level the earlier recipes held. A cell with fewer than fewestReadings readings is judged, not left Unknown, by an allowance stated for it (for example its attempts' spread with a floor), chosen by replaying the published records as the four constants of Reference were, with rows in the tuning table. A serving decline's key leaves out the recipe, so its row is found again after a later activation; today validate -scorecard -gap reports such a row open for ever ('no cell of the scorecard is measured on the contract it named'). Any open serving decline row is re-keyed in the same change. The check is a test that replays Flash-Next's readings: two on one recipe, then a third on another at +54%, files a scorecard-regressed row, and a move within the allowance files none. The landing message lists the rows a replay of the published records then files."
-        }
-      ]
-    },
-    {
       "id": "flashnext-window-rows",
       "title": "Make each row of a Flash-Next verify window bitwise the single-token step, as Strata's are",
       "owner": "master-lead",

@@ -118,7 +118,7 @@ func openGap(ctx context.Context, store *overgodb.Store, records, key string, ta
 		return err
 	}
 	gaps := scorecard.Record{Rows: rows}.Gaps(scorecard.Reference(append(published, scorecard.Record{})))
-	if at := slices.IndexFunc(gaps, func(gap scorecard.Gap) bool { return gap.Key == key }); at >= 0 {
+	if at := slices.IndexFunc(gaps, func(gap scorecard.Gap) bool { return gap.Key == key || gap.RecipeKey == key }); at >= 0 {
 		return fmt.Errorf("%s is open:\n%s", key, gaps[at].Detail)
 	}
 	_, err = fmt.Fprintf(output, "%s is closed.\n", key)

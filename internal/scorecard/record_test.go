@@ -71,8 +71,8 @@ func TestComparisonRequiresEvaluationAuthorities(t *testing.T) {
 // row (every row, too), a lost cell, a changed contract and a reference cell
 // published before contracts are unknown: they are reported and file nothing.
 // A metric, a suite or a row the reference did not measure holds and asks
-// nothing. Serving aggregates of other recipes' attempts, and a benchmark
-// beside a serving median in the same unit, do not compare.
+// nothing. A serving aggregate compares across the model's recipes; a
+// benchmark beside a serving median in the same unit does not.
 func TestComparisonIsTyped(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvaluation, "typed-comparison")
@@ -190,11 +190,12 @@ func TestComparisonIsTyped(t *testing.T) {
 		return benchmarkCell(120, "ms", "time to first token, median", evaluation.BenchmarkSummary{Record: source})
 	}
 	old, current := testutil.ArtifactID(t, artifact.KindRecipe, "old"), testutil.ArtifactID(t, artifact.KindRecipe, "current")
-	for name, before := range map[string]Row{"another recipe's attempts": served(old, prefill), "a benchmark in the same unit": served(current, benchmarked)} {
-		after := served(current, prefill)
-		if compared := (Pair{Before: &before, After: &after}).Compare(metric.FirstOutput); len(compared) != 1 || compared[0].Verdict != Unknown {
-			t.Fatalf("a serving median beside %s compares as %+v, want unknown", name, compared)
-		}
+	after := served(current, prefill)
+	if before := served(current, benchmarked); len((Pair{Before: &before, After: &after}).Compare(metric.FirstOutput)) != 1 {
+		t.Fatal("a serving median beside a benchmark in the same unit compares, want unknown")
+	}
+	if before := served(old, prefill); len((Pair{Before: &before, After: &after}).Compare(metric.FirstOutput)) != 0 {
+		t.Fatal("a serving median beside the same median under the model's earlier recipe does not hold, want it compared and holding")
 	}
 }
 

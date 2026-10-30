@@ -486,10 +486,37 @@ func TestASplitModelsBenchmarkIsFoundUnderItsShards(t *testing.T) {
 	if err := runrecord.CommitVerificationClaim(t.Context(), store, record, data, evidence, shards[0]); err != nil {
 		t.Fatal(err)
 	}
+	// A model served from its own files registers its directory and no file, and its benchmark is found there.
+	directory := t.TempDir()
+	image := testutil.ArtifactBytesID(t, artifact.KindTensorSet, []byte("the image a directory serves"))
+	served, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key: "fixture/directory-benchmark", Manifests: []artifact.Manifest{served},
+		Artifacts: []artifact.Descriptor{{ID: image, Size: uint64(len("the image a directory serves"))}},
+		Locations: []artifact.LocationEvent{
+			{Location: artifact.Location{Artifact: image, Kind: artifact.LocationDirectory, Value: directory}, Action: artifact.LocationAdd},
+			{Location: artifact.Location{Artifact: served.ID, Kind: artifact.LocationDirectory, Value: directory}, Action: artifact.LocationAdd},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	viewed, err := runrecord.NewModelVerification(served.ID, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, Evidence: []artifact.ID{evidence}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runrecord.CommitVerificationClaim(t.Context(), store, viewed, data, evidence, directory); err != nil {
+		t.Fatal(err)
+	}
 	index := LatestEvidence(t.Context(), store, nil, 0)
 	for _, shard := range shards {
 		if summary := index.BenchmarksByLocation[shard]; summary.Record != record.ID || summary.DecodeTokensPerSecond != 92 || summary.PromptTokensPerSecond != 117 {
 			t.Errorf("the split model's benchmark under %s = %+v, want record %s with its rates", shard, summary, record.ID)
 		}
+	}
+	if summary := index.BenchmarksByLocation[directory]; summary.Record != viewed.ID {
+		t.Errorf("the directory model's benchmark = %+v, want record %s under its directory", summary, viewed.ID)
 	}
 }

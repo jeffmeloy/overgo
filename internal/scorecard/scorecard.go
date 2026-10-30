@@ -337,9 +337,12 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	listed := make([]artifact.ID, 0, len(entries))
+	// A model takes another's place task by task (successions).
+	listed := map[recipe.Task][]artifact.ID{}
 	for _, entry := range entries {
-		listed = append(listed, entry.Model)
+		for _, capability := range entry.Capabilities {
+			listed[capability.Task] = append(listed[capability.Task], entry.Model)
+		}
 	}
 	succeeded := successions(sources, listed)
 	var rows []Row
@@ -355,7 +358,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			if err != nil {
 				return nil, err
 			}
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[entry.Model]}
+			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -399,32 +402,38 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	return rows, comparePaths(rows)
 }
 
-// successions names, for each model listed, the models it took the place of
-// (Row.Succeeds): each model no longer listed built from the checkpoint the
-// listed model was, by their recorded architecture files' digests
-// (modelartifact.SourcesKey). A checkpoint two listed models were built from
-// names no successor, since then which one took the place is not recorded,
-// and recorded sources without an architecture file name no model. Never a
-// name: sources are what a conversion and a registration record of the files
-// they read.
-func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed []artifact.ID) map[artifact.ID][]artifact.ID {
+// successions names, for each task and each model listed for it, the models
+// it took the place of for that task (Row.Succeeds): each model no longer
+// listed for the task built from the checkpoint the listed model was, by their
+// recorded architecture files' digests (modelartifact.SourcesKey). It is task
+// by task since a conversion retired for inference can stay listed for
+// training, whose row is still its own. A checkpoint two models listed for a
+// task were built from names no successor for it, since then which one took
+// the place is not recorded, and recorded sources without an architecture
+// file name no model. Never a name: sources are what a conversion and a
+// registration record of the files they read.
+func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed map[recipe.Task][]artifact.ID) map[recipe.Task]map[artifact.ID][]artifact.ID {
 	read := func(model artifact.ID) string { return modelartifact.SourcesKey(sources[model]) }
-	heirs := map[string][]artifact.ID{}
-	for _, model := range listed {
-		if files := read(model); files != "" && !slices.Contains(heirs[files], model) {
-			heirs[files] = append(heirs[files], model)
+	byTask := map[recipe.Task]map[artifact.ID][]artifact.ID{}
+	for task, models := range listed {
+		heirs := map[string][]artifact.ID{}
+		for _, model := range models {
+			if files := read(model); files != "" && !slices.Contains(heirs[files], model) {
+				heirs[files] = append(heirs[files], model)
+			}
 		}
-	}
-	succeeded := map[artifact.ID][]artifact.ID{}
-	for model := range sources {
-		if heir := heirs[read(model)]; len(heir) == 1 && !slices.Contains(listed, model) {
-			succeeded[heir[0]] = append(succeeded[heir[0]], model)
+		succeeded := map[artifact.ID][]artifact.ID{}
+		for model := range sources {
+			if heir := heirs[read(model)]; len(heir) == 1 && !slices.Contains(models, model) {
+				succeeded[heir[0]] = append(succeeded[heir[0]], model)
+			}
 		}
+		for _, predecessors := range succeeded {
+			slices.SortFunc(predecessors, func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) })
+		}
+		byTask[task] = succeeded
 	}
-	for _, models := range succeeded {
-		slices.SortFunc(models, func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) })
-	}
-	return succeeded
+	return byTask
 }
 
 // uncaptionedGeneration is why an image or video model that takes no words has no held-out

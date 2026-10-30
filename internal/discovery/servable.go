@@ -131,7 +131,8 @@ func matchesSelectedInput(ctx context.Context, store artifact.Reader, manifest a
 			return false, err
 		}
 		for _, location := range locations {
-			if location.Kind != artifact.LocationFile {
+			// A model served from its own files is selected by its directory.
+			if location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
 				continue
 			}
 			for _, path := range selected {

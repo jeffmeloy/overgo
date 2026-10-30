@@ -3,7 +3,6 @@ package evaluation
 import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
@@ -28,11 +27,16 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 		}
 		return id
 	}
-	active, found, err := modelrecipe.ActiveRecord(t.Context(), store, parse("model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b"), recipe.TaskInference)
-	if err != nil || !found {
+	// The conversion's activation is retired since the 4B is served from its own files
+	// (RetireSupersededActivation); its retained evidence binds to the recipe it was activated under.
+	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	definition, found := active.Definition.PrimaryDependency(recipe.DependencyDefinition)
+	if model, found := activated.PrimaryDependency(recipe.DependencyModel); !found || model != parse("model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b") {
+		t.Fatal("the recipe is not the conversion's")
+	}
+	definition, found := activated.PrimaryDependency(recipe.DependencyDefinition)
 	if !found {
 		t.Fatal("definition missing")
 	}
@@ -40,7 +44,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if value.Recipe != active.Definition.ID || value.ModelDefinition != definition {
+	if value.Recipe != activated.ID || value.ModelDefinition != definition {
 		t.Fatal("activation identity differs")
 	}
 	var body planBody

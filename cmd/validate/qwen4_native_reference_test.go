@@ -81,14 +81,16 @@ func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	if _, err := runrecord.NewEnvironment(captured.Environment); err != nil {
 		t.Fatal(err)
 	}
-	active, found, err := modelrecipe.ActiveRecord(t.Context(), store, captured.Identity.Model, recipe.TaskInference)
-	if err != nil || !found || active.Definition.ID != captured.Identity.Recipe {
-		t.Fatalf("active recipe differs: found=%t err=%v", found, err)
+	// The conversion's activation is retired since the 4B is served from its own files
+	// (RetireSupersededActivation); the capture binds to the recipe it was activated under.
+	activated, err := recipe.RequireDefinition(t.Context(), store, captured.Identity.Recipe)
+	if err != nil {
+		t.Fatalf("the captured recipe: %v", err)
 	}
 	for role, expected := range map[recipe.DependencyRole]artifact.ID{
 		recipe.DependencyModel: captured.Identity.Model, recipe.DependencyProfile: captured.Identity.Profile, recipe.DependencyDefinition: captured.Identity.Definition,
 	} {
-		if actual, found := active.Definition.PrimaryDependency(role); !found || actual != expected {
+		if actual, found := activated.PrimaryDependency(role); !found || actual != expected {
 			t.Fatalf("recipe dependency %s differs", role)
 		}
 	}

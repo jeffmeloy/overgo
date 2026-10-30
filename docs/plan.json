@@ -162,16 +162,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "onboarding resumes an activated directory and records through model-config: the 4B's onboarding finishes from where it stopped"
+        "reason": "a model served from its own files selected by its directory, its benchmark indexed there, its succession decided task by task"
       },
       "steps": [
-        {
-          "id": "serve-measured",
-          "title": "A model served from its own files is selected, benchmarked and succeeded as a file is: by its directory, task by task",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./internal/discovery ./internal/evaluation -count=1 -run '^(TestAReconvertedModelKeepsItsDeclines|TestADirectoryModelIsItsViewsIdentity|TestASplitModelsBenchmarkIsFoundUnderItsShards)$'",
-          "rationale": "Filed 2026-10-30 from serving the onboarded 4B (731de849, at overgo_data/models/Qwen3.5-4B, its conversion 887f4124 retired for inference at 15:14). Three paths still read a model as a file: the catalog's selection of a named location (matchesSelectedInput read component files alone, so the long-form guard found \"not servable model locations\"), the benchmark index (a model with no file was indexed nowhere), and the scorecard's succession (a conversion retired for inference stays listed for training, so the 4B took no place). The fixes: a component located at a directory is selected by it; a model with no file is indexed under its directory; a succession is decided task by task. And the smoke oracles drop the retired conversion (text 11, chat 9)."
-        },
         {
           "id": "do",
           "title": "Restore Qwen3.5-4B inference throughput to 86.3365886 tok/s",

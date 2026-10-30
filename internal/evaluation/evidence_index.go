@@ -545,10 +545,16 @@ func LatestEvidence(
 			return nil
 		}
 		// keep indexes a record's first claim of a kind under each weights
-		// file the model registers, unless a newer record holds the file.
+		// file the model registers, or, for a model served from its own files
+		// and so registering none, under its directory, unless a newer record
+		// holds the location.
+		served := artifact.LocationFile
+		if !slices.ContainsFunc(locations, func(location artifact.Location) bool { return location.Kind == artifact.LocationFile }) {
+			served = artifact.LocationDirectory
+		}
 		keep := func(add func(string)) {
 			for _, location := range locations {
-				if location.Kind == artifact.LocationFile {
+				if location.Kind == served {
 					add(location.Value)
 				}
 			}

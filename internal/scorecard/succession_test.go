@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/testutil"
 )
@@ -15,7 +16,9 @@ import (
 // recorded architecture file is the converted model's, and which the catalog lists in its place. Its row takes the
 // converted model's place: it is paired with that model's row, judged on that model's readings, and its decline is the
 // open row's, found by that row's key and held to its target, so it is not filed again; a cell back at the target closes
-// it. A model listed beside the one it would succeed, or two listed models built from the same sources, take no place,
+// it. A succession is decided task by task, so a conversion retired for inference and still listed for training is
+// succeeded for inference alone. A model listed beside the one it would succeed, or two listed models built from the
+// same sources, take no place,
 // and a model with no recorded sources, or sources that do not declare its architecture, takes none. Without a recorded succession the new identity is a new model, and
 // the decline is not carried.
 func TestAReconvertedModelKeepsItsDeclines(t *testing.T) {
@@ -23,24 +26,31 @@ func TestAReconvertedModelKeepsItsDeclines(t *testing.T) {
 	converted, native := testutil.ArtifactID(t, artifact.KindModel, "converted"), testutil.ArtifactID(t, artifact.KindModel, "native")
 	twin, other := testutil.ArtifactID(t, artifact.KindModel, "twin"), testutil.ArtifactID(t, artifact.KindModel, "other")
 	read := []modelartifact.ConfigSource{{Name: "config.json", SHA256: "c0"}, {Name: "generation_config.json", SHA256: "g0"}}
-	sources := map[artifact.ID][]modelartifact.ConfigSource{converted: read, native: {read[1], read[0]}, other: {{Name: "config.json", SHA256: "c1"}}}
-	if got := successions(sources, []artifact.ID{native, other}); !slices.Equal(got[native], []artifact.ID{converted}) || len(got) != 1 {
+	sources := map[artifact.ID][]modelartifact.ConfigSource{converted: read, native: {read[0]}, other: {{Name: "config.json", SHA256: "c1"}}}
+	served := func(models ...artifact.ID) map[recipe.Task][]artifact.ID {
+		return map[recipe.Task][]artifact.ID{recipe.TaskInference: models}
+	}
+	if got := successions(sources, served(native, other))[recipe.TaskInference]; !slices.Equal(got[native], []artifact.ID{converted}) || len(got) != 1 {
 		t.Fatalf("successions with the converted model no longer listed = %v, want the native model in its place alone", got)
 	}
-	if got := successions(sources, []artifact.ID{converted, native}); len(got) != 0 {
+	if got := successions(sources, served(converted, native))[recipe.TaskInference]; len(got) != 0 {
 		t.Errorf("successions with both listed = %v, want none", got)
 	}
+	trained := map[recipe.Task][]artifact.ID{recipe.TaskInference: {native}, recipe.TaskTraining: {converted}}
+	if got := successions(sources, trained); !slices.Equal(got[recipe.TaskInference][native], []artifact.ID{converted}) || len(got[recipe.TaskTraining][native]) != 0 {
+		t.Errorf("successions with the conversion listed for training alone = %v, want the native model in its place for inference only", got)
+	}
 	sources[twin] = read
-	if got := successions(sources, []artifact.ID{native, twin}); len(got) != 0 {
+	if got := successions(sources, served(native, twin))[recipe.TaskInference]; len(got) != 0 {
 		t.Errorf("successions with two listed models read from the same sources = %v, want none", got)
 	}
 	delete(sources, native)
-	if got := successions(sources, []artifact.ID{native}); len(got) != 0 {
+	if got := successions(sources, served(native))[recipe.TaskInference]; len(got) != 0 {
 		t.Errorf("successions of a model with no recorded sources = %v, want none", got)
 	}
 	card := []modelartifact.ConfigSource{{Name: "model_card_sampling.json", SHA256: "s0"}}
 	sampled := map[artifact.ID][]modelartifact.ConfigSource{converted: card, native: card}
-	if got := successions(sampled, []artifact.ID{native}); len(got) != 0 {
+	if got := successions(sampled, served(native))[recipe.TaskInference]; len(got) != 0 {
 		t.Errorf("successions by a sampling card alone, which Qwen3.5-4B and 9B share = %v, want none", got)
 	}
 

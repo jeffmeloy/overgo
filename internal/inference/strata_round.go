@@ -106,6 +106,27 @@ func (r *Runner) strataRoundConversions() (bf16, f16 []gguf.TensorInfo, err erro
 	return bf16, f16, err
 }
 
+// readyStrataRound makes at the runner's open what a round request otherwise made on the first: the round's stores, its
+// converted weights read from the file and its CPU pool, and the tier's link probe, as Strata's start-up does;
+// Flash-Next's first request after load had spent 0.43 s reading the converted weights and 0.21 s probing the link. The
+// drafter stays the first drafting request's: made at open, after the load filled the card with experts, its cells
+// took memory a prompt read then took back from them.
+func (r *Runner) readyStrataRound(ctx context.Context) error {
+	round, err := r.openStrataRound(ctx)
+	if err != nil {
+		return err
+	}
+	blobs := make([]modeldevice.ExpertBlobLayer, 0, r.spec.BlockCount)
+	for layer := range int(r.spec.BlockCount) {
+		blob, found := r.rawWeights.ExpertBlobLayer(layer)
+		if !found {
+			return fmt.Errorf("strata round: layer %d's experts are not one blob", layer)
+		}
+		blobs = append(blobs, blob)
+	}
+	return r.openStrataTier(ctx, round, blobs)
+}
+
 // openStrataRound makes the round's stores and CPU pool, once.
 func (r *Runner) openStrataRound(ctx context.Context) (*strataRound, error) {
 	if r.strata != nil {
@@ -359,7 +380,8 @@ func (r *Runner) beginStrataRound(ctx context.Context, past *deviceKVCache, firs
 	}
 	share := round.share
 	if r.strataTestShare != nil {
-		share = *r.strataTestShare
+		// a check fixes the share, which PcieAuto then refines no further, however the tier was opened
+		share, round.pcie.on = *r.strataTestShare, false
 	}
 	if round.pool, err = newStrataRoundPool(blobs, round.cpu, strataRoundPCIeNum(share), lexical); err != nil {
 		return nil, err

@@ -235,6 +235,11 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		runner.cellLayers = runner.cellLayerSet()
 	}
 	runner.qsaWindows = runner.qsaWindowSet()
+	if runner.strataDraft != nil {
+		if err := runner.readyStrataRound(ctx); err != nil {
+			return nil, errors.Join(err, runner.Close())
+		}
+	}
 	return runner, nil
 }
 

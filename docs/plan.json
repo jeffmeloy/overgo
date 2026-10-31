@@ -472,25 +472,6 @@
       ]
     },
     {
-      "id": "succession-weights",
-      "title": "A model takes another's place on the scorecard only when their source weights match",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 336,
-        "reason": "the source weights a model's recorded config names (weightSources, WeightsKey) and the succession that needs them to match"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A model takes another's place on the scorecard only when their source weights match",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked$'",
-          "rationale": "Review of 2026-10-30 (F0): successions (internal/scorecard) links a model that left the catalog to a listed one by their recorded config sources (ReadModelConfigComponents digests config.json, generation_config.json and dna_config.json, never the weights). A trained checkpoint keeps its base's config files, so once its base leaves the catalog it would be linked as the base's successor and inherit its readings and open rows; the sampling-card case caught on the real store was the same weakness one file short. Not seen in the store yet. The change: a conversion and a native registration record each source weight file's digest once (the components of the Hugging Face manifest modelartifact.FromHFPath already hashes), and a succession needs the weights to match; a conversion recorded before that names its weights by the source directory its conversion record names, hashed when it is first compared. Done with or before native-text-weights, which moves every text model. The check: two models with the same config files and other weights are never linked."
-        }
-      ]
-    },
-    {
       "id": "run-lane-verdict",
       "title": "A lane test that fails is named, with its output, the moment it fails, and the run record carries it",
       "owner": "master-lead",

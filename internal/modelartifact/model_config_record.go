@@ -2,10 +2,15 @@ package modelartifact
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -28,6 +33,63 @@ func SourcesKey(sources []ConfigSource) string {
 		return ""
 	}
 	return sources[at].SHA256
+}
+
+// weightSourcePrefix opens the name a recorded source weight file is kept under among a model's sources.
+const weightSourcePrefix = "weights:"
+
+// WeightsKey names the source weights a model's sources record, a digest of each weight file's name and digest; empty
+// where none is recorded. A trained checkpoint keeps its base's config files, so the config alone (SourcesKey) would
+// take one for the other; the weights tell them apart.
+func WeightsKey(sources []ConfigSource) string {
+	var lines []string
+	for _, source := range sources {
+		if strings.HasPrefix(source.Name, weightSourcePrefix) {
+			lines = append(lines, source.Name+" "+source.SHA256)
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	slices.Sort(lines)
+	digest := sha256.Sum256([]byte(strings.Join(lines, "\n")))
+	return hex.EncodeToString(digest[:])
+}
+
+// weightSources are the digests of the weight files at the top of a model's source directory, each named under
+// weightSourcePrefix: what RecordModelConfig records beside the config files, read once where a model is converted or
+// registered, never where the catalog is walked.
+func weightSources(directory string) ([]ConfigSource, error) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+	var sources []ConfigSource
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".safetensors") {
+			continue
+		}
+		digest, err := fileSHA256(filepath.Join(directory, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		sources = append(sources, ConfigSource{Name: weightSourcePrefix + entry.Name(), SHA256: digest})
+	}
+	return sources, nil
+}
+
+// fileSHA256 is a file's digest, read whole.
+func fileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 // ConfigSources is each model's recorded sources: every file the store's
@@ -79,6 +141,13 @@ func RecordModelConfig(ctx context.Context, repository artifact.Repository, sour
 	if sequence == nil && generation == nil {
 		return artifact.ID{}, false, nil
 	}
+	// The source weights are recorded beside the config files, so a model takes another's place only on the same
+	// weights (WeightsKey).
+	weights, err := weightSources(source)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	sources = append(sources, weights...)
 	document, err := NewModelConfigDocument(model, sequence, generation, sources)
 	if err != nil {
 		return artifact.ID{}, false, err

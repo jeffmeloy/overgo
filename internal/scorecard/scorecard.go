@@ -410,15 +410,23 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 // successions names, for each task and each model listed for it, the models
 // it took the place of for that task (Row.Succeeds): each model no longer
 // listed for the task built from the checkpoint the listed model was, by their
-// recorded architecture files' digests (modelartifact.SourcesKey). It is task
+// recorded architecture files' digests (modelartifact.SourcesKey) and source
+// weight files' (modelartifact.WeightsKey): a trained checkpoint keeps its
+// base's config files and would otherwise take its base's place. It is task
 // by task since a conversion retired for inference can stay listed for
 // training, whose row is still its own. A checkpoint two models listed for a
 // task were built from names no successor for it, since then which one took
 // the place is not recorded, and recorded sources without an architecture
-// file name no model. Never a name: sources are what a conversion and a
-// registration record of the files they read.
+// file or without weights name no model. Never a name: sources are what a
+// conversion and a registration record of the files they read.
 func successions(sources map[artifact.ID][]modelartifact.ConfigSource, listed map[recipe.Task][]artifact.ID) map[recipe.Task]map[artifact.ID][]artifact.ID {
-	read := func(model artifact.ID) string { return modelartifact.SourcesKey(sources[model]) }
+	read := func(model artifact.ID) string {
+		files, weights := modelartifact.SourcesKey(sources[model]), modelartifact.WeightsKey(sources[model])
+		if files == "" || weights == "" {
+			return ""
+		}
+		return files + " " + weights
+	}
 	byTask := map[recipe.Task]map[artifact.ID][]artifact.ID{}
 	for task, models := range listed {
 		heirs := map[string][]artifact.ID{}

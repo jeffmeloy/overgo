@@ -25,8 +25,8 @@ func TestAReconvertedModelKeepsItsDeclines(t *testing.T) {
 	t.Parallel()
 	converted, native := testutil.ArtifactID(t, artifact.KindModel, "converted"), testutil.ArtifactID(t, artifact.KindModel, "native")
 	twin, other := testutil.ArtifactID(t, artifact.KindModel, "twin"), testutil.ArtifactID(t, artifact.KindModel, "other")
-	read := []modelartifact.ConfigSource{{Name: "config.json", SHA256: "c0"}, {Name: "generation_config.json", SHA256: "g0"}}
-	sources := map[artifact.ID][]modelartifact.ConfigSource{converted: read, native: {read[0]}, other: {{Name: "config.json", SHA256: "c1"}}}
+	read := []modelartifact.ConfigSource{{Name: "config.json", SHA256: "c0"}, {Name: "generation_config.json", SHA256: "g0"}, {Name: "weights:model.safetensors", SHA256: "w0"}}
+	sources := map[artifact.ID][]modelartifact.ConfigSource{converted: read, native: {read[0], read[2]}, other: {{Name: "config.json", SHA256: "c1"}}}
 	served := func(models ...artifact.ID) map[recipe.Task][]artifact.ID {
 		return map[recipe.Task][]artifact.ID{recipe.TaskInference: models}
 	}
@@ -98,5 +98,36 @@ func TestAReconvertedModelKeepsItsDeclines(t *testing.T) {
 	}
 	if restored, found := Restored(stranger.Rows, open[0].Key, open[0].Target); found || restored {
 		t.Errorf("the open row's key on a new identity with no recorded succession = (restored %t, found %t), want not found", restored, found)
+	}
+}
+
+// TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked holds a succession
+// to the weights: a trained checkpoint keeps its base's config files, so a
+// model that left the catalog is taken over only by one built from its source
+// weights, by the digests its recorded config names of each weight file
+// (modelartifact TestARecordedConfigNamesItsWeights). A model with the same
+// config files and other weights is never linked, nor one whose record names
+// no weights.
+func TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked(t *testing.T) {
+	t.Parallel()
+	weights := func(digest string) []modelartifact.ConfigSource {
+		return []modelartifact.ConfigSource{{Name: "config.json", SHA256: "c0"}, {Name: "weights:model.safetensors", SHA256: digest}}
+	}
+	left, same, other, unweighed := testutil.ArtifactID(t, artifact.KindModel, "left"), testutil.ArtifactID(t, artifact.KindModel, "same"),
+		testutil.ArtifactID(t, artifact.KindModel, "other"), testutil.ArtifactID(t, artifact.KindModel, "unweighed")
+	sources := map[artifact.ID][]modelartifact.ConfigSource{
+		left: weights("w-base"), same: weights("w-base"), other: weights("w-trained"), unweighed: {{Name: "config.json", SHA256: "c0"}},
+	}
+	served := func(models ...artifact.ID) map[recipe.Task][]artifact.ID {
+		return map[recipe.Task][]artifact.ID{recipe.TaskInference: models}
+	}
+	if got := successions(sources, served(other))[recipe.TaskInference]; len(got) != 0 {
+		t.Fatalf("a model with the same config and other weights took the place of the one that left: %v", got)
+	}
+	if got := successions(sources, served(unweighed))[recipe.TaskInference]; len(got) != 0 {
+		t.Fatalf("a model whose record names no weights took a place: %v", got)
+	}
+	if got := successions(sources, served(same, other))[recipe.TaskInference]; !slices.Equal(got[same], []artifact.ID{left}) || len(got) != 1 {
+		t.Fatalf("successions = %v, want the model built from the same weights in its place alone", got)
 	}
 }

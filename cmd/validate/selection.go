@@ -90,7 +90,7 @@ func (plan Plan) OnlyModel(name string, named func(ModelValidation) bool) (Plan,
 		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
 	}
 	if len(only.Run)+len(only.Background)+len(only.OperatorOwned) == 0 {
-		return Plan{}, fmt.Errorf("validate -run -model %s: no cell of the plan is that model's", name)
+		return Plan{}, fmt.Errorf("validate -model %s: no cell of the plan is that model's", name)
 	}
 	return only, nil
 }

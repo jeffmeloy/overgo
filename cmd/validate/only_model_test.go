@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 )
@@ -49,5 +51,19 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	}
 	if _, err := plan.OnlyModel("Carbon-500M", func(ModelValidation) bool { return false }); err == nil || !strings.Contains(err.Error(), "Carbon-500M") {
 		t.Errorf("a name no cell answers to gave %v, want a refusal naming it", err)
+	}
+
+	// The command takes -model beside -run, or alone for the plan, and reaches the selection: a store that holds no
+	// cell of the model refuses it by name.
+	storePath := t.TempDir()
+	store, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := runArgs(t.Context(), []string{"-root", "../..", "-repo", storePath, "-model", "Carbon-500M"}, io.Discard); err == nil || !strings.Contains(err.Error(), "no cell of the plan is that model's") {
+		t.Errorf("validate -model on a store without the model gave %v, want the selection's refusal", err)
 	}
 }

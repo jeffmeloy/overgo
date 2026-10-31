@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
+        "nodes": 8,
         "reason": "measured by the preflight of model-cells: the plan of one model's cells (Plan.OnlyModel), the name a decline's row gives its model (modelNamed), and validate -run -model asking both"
       },
       "steps": [
-        {
-          "id": "model-flag",
-          "title": "validate -model is taken beside -run, and alone for the plan, as its help says",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOneModelsCellsAreMeasuredAlone$'",
-          "rationale": "finish-line/model-cells landed validate -run -model, but its first use, on Qwen2.5-0.5B for scorecard-regressed-de73a5d783bae961, was refused by the command's own flag check (-budget, -model and -diagnostic go with -smoke), which runs before the selection: the step's test held Plan.OnlyModel and not the command. The flag check takes -model beside -run, and alone for the plan of that model's cells, and the test runs the command on a store without the model and holds the selection's refusal."
-        },
         {
           "id": "confirm",
           "title": "A decline is filed only when its model, measured again alone, repeats it",

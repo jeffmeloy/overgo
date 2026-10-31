@@ -464,118 +464,17 @@
       ]
     },
     {
-      "id": "prompt-attention-precision",
-      "title": "A prompt's attention reads on the tensor cores and holds the F32 path's held-out answers",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of do: the flash kernel's split products, the generic attention plan carrying the profile's admission, the model plan's tensor-core override and its open option"
-      },
-      "steps": [
-        {
-          "id": "gemma4-hold",
-          "title": "gemma4 held back from the admission until gemma-4-E4B-it's modality validation runs on the tensor-core definition",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1 -run '^TestPromptTensorCoresAdmittedPerArchitecture$'",
-          "rationale": "gemma-4-E4B-it re-validated over the gemma4 profile that admits the tensor-core prompt attention on 2026-10-31 (validate -onboard of its GGUF, 5 of 5) and read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, but its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 2026-09-08) is bound to the model definition its earlier recipe derived (model-definition:sha256:76c8e7897e6f), as its projection recipe is, and TestAcceptedE4BModalities and the text and vision coverage refuse an inference activation the accepted cells do not name. Re-running that validation is a campaign of its own (e4b-tensor-cores). Until then gemma4 is held back from the admission, so the code derives E4B's earlier definition again and its onboarding re-activates it; the paired comparison keeps measuring gemma-4-E4B-it on both paths through its open option."
-        },
-        {
-          "id": "activate",
-          "title": "The five models whose long-prompt rows the admission restores are activated over profiles that admit it",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest ./internal/modelcli -count=1 -run '^TestDenseModelsServePromptTensorCores$'",
-          "rationale": "The program a served request compiles reads the profile document its definition stored, so the admission reaches a model's requests once its definition is activated over a profile derived with it, as e0a7e5113 did for Flash-Next: cmd/profile-catalog publishes the registry's profiles, recipe verify -protocol -task inference accepts fixtures/protocol_acceptance.json on the new definition, recipe activate makes it active, and the coverage documents name the new recipe. The models whose long-prompt rows the admission restores: Qwen2.5-0.5B (qwen2), Carbon-500M-f16-ropefix and MiniCPM5-1B-native-chat (llama), gemma-4-E4B-it (gemma4) and Unlimited-OCR-bf16 (deepseek2-ocr). Measured with the probe on 2026-10-31, their first output at length reads, F32 to the split tensor-core kernel: Qwen2.5-0.5B 228.8 to 79.7 ms at 4096 tokens and 2186 to 485 ms at 16384, Carbon-500M 658 to 101 ms at 4096, MiniCPM5-1B 210 to 128 ms and 1699 to 909 ms, gemma-4-E4B-it 575 to 456 ms and 2575 to 2176 ms, Unlimited-OCR-bf16 1107 to 928 ms at 16384. The check: each one's active definition stores a profile that admits the kernel."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-a62583608bf0e651",
-      "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a62583608bf0e651 -target 401.24984999999987",
-          "rationale": "- Carbon-500M-f16-ropefix first-output, {Metric:time to prefill, a fresh prompt of 4096 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 368.02105 to 652.3737 (+284.35265, +77.3%, allowed 33.2288; serving time to prefill a fresh prompt of 4096 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-de73a5d783bae961",
-      "title": "Restore Qwen2.5-0.5B inference first-output to 1482.8359 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference first-output to 1482.8359 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-de73a5d783bae961 -target 1482.8358999999991",
-          "rationale": "- Qwen2.5-0.5B first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 1247.8831 to 2189.2073 (+941.3242, +75.4%, allowed 234.9528; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-e3cfc2367db11392",
-      "title": "Restore Unlimited-OCR-bf16 inference first-output to 1054.27505 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Unlimited-OCR-bf16 inference first-output to 1054.27505 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-e3cfc2367db11392 -target 1054.2750499999993",
-          "rationale": "- Unlimited-OCR-bf16 first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 974.56945 to 1115.0334 (+140.46395, +14.4%, allowed 79.7056; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "e4b-tensor-cores",
-      "title": "gemma-4-E4B-it's modality validation runs on its tensor-core definition, and gemma4 is admitted",
+      "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "gemma-4-E4B-it's 30 modality cells re-run on the definition the gemma4 profile with the tensor-core prompt attention derives, and the profile admits it",
+          "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
           "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^TestAcceptedE4BModalities$'",
-          "rationale": "Measured on 2026-10-31: gemma-4-E4B-it over the gemma4 profile that admits the tensor-core prompt attention read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, and the paired held-out comparison held (BBH 2 lost to 1 gained, IFEval 0 to 1, MMLU-Pro raw 1 to 0, chat 0 to 4). Its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 5b5f36e49) is bound to its earlier definition, and its projection recipe with it, so the admission waits on that validation re-run under the new definition, its inference and projection recipes activated together. The regression rows scorecard-regressed-cdbb3debaad4e309 and scorecard-regressed-d730a46b2d9a307f close with it. Serves: first-output at length on gemma-4-E4B-it, held-out-quality held."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-cdbb3debaad4e309",
-      "title": "Restore gemma-4-E4B-it inference first-output to 551.66205 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-E4B-it inference first-output to 551.66205 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-cdbb3debaad4e309 -target 551.6620500000005",
-          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill, a fresh prompt of 4096 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 516.83405 to 588.6152 (+71.78115, +13.9%, allowed 34.828; serving time to prefill a fresh prompt of 4096 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-d730a46b2d9a307f",
-      "title": "Restore gemma-4-E4B-it inference first-output to 2467.24135 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore gemma-4-E4B-it inference first-output to 2467.24135 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-d730a46b2d9a307f -target 2467.2413500000007",
-          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 2367.89575 to 2603.5185 (+235.62275, +10.0%, allowed 99.3456; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./cmd/validate -count=1 -run '^TestAcceptedE4BModalitiesNameTheServedDefinition$'",
+          "rationale": "Measured on 2026-10-31: gemma-4-E4B-it over the gemma4 profile that admits the tensor-core prompt attention read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, and the paired held-out comparison held (BBH 2 lost to 1 gained, IFEval 0 to 1, MMLU-Pro raw 1 to 0, chat 0 to 4). Its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 5b5f36e49) is bound to its earlier definition, and its projection recipe with it, so the admission waits on that validation re-run under the new definition, its inference and projection recipes activated together. The regression rows scorecard-regressed-cdbb3debaad4e309 and scorecard-regressed-d730a46b2d9a307f close with it. Serves: first-output at length on gemma-4-E4B-it, held-out-quality held.\n\nRe-scoped on 2026-10-31: gemma4 stays admitted and E4B serves the tensor-core definition, its long-prompt rows closed; the accepted 30 cells bind to the recipe the validation activated (TestAcceptedE4BModalities) until this step re-runs them on the served definition, inference and projection, so the acceptance again names the active binding. Its check is then the acceptance in that form."
         }
       ]
     },

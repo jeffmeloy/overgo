@@ -59,11 +59,11 @@
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3",
+          "Recipe": "recipe:sha256:970fac70cbd7fe9684294ec950aa7e975603961c1117a3b5d574a2414346237c",
           "Proofs": [
             "ocr-census-rebind/do"
           ],
-          "Scope": "Unlimited-OCR, the DeepSeek-OCR decoder converted to GGUF: two exact greedy continuations at registration and the greedy continuation smoke oracle run by the cited landing. Document recognition, the encoder and the projector are not claimed here; no benchmark or quality claim."
+          "Scope": "Unlimited-OCR, the DeepSeek-OCR decoder converted to GGUF: two exact greedy continuations at registration and the greedy continuation smoke oracle run by the cited landing. Document recognition, the encoder and the projector are not claimed here; no benchmark or quality claim. Re-validated on 2026-10-31 over the deepseek2-ocr profile that admits the tensor-core prompt attention (validate -onboard: its exact continuations recorded anew and replayed 5 of 5), which TestPromptTensorCoresHoldHeldOut holds to the F32 paths' held-out answers; the cited smoke ran on its earlier recipe."
         }
       ]
     },
@@ -159,11 +159,11 @@
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+          "Recipe": "recipe:sha256:5e38f487783b2d5ccdefbc684fb44165bb1abac48bb8aa1d36ecaf76c6676cff",
           "Proofs": [
             "modality-verification/retained-model-bundles"
           ],
-          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open."
+          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open. Recorded on its earlier inference recipe (recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e) on the F32 prompt attention; this recipe, derived over the gemma4 profile that admits the tensor-core prompt attention, re-validated its exact continuations 5 of 5 on 2026-10-31, and TestPromptTensorCoresHoldHeldOut holds the kernel to the F32 paths' held-out answers; e4b-tensor-cores re-runs the cells on it."
         },
         {
           "Task": "projection",

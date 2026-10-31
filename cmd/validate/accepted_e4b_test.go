@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
@@ -47,11 +48,22 @@ func TestAcceptedE4BModalities(t *testing.T) {
 	if err := checkModelValidation(t.Context(), store, spec, e4bValidationCells()); err != nil {
 		t.Fatal(err)
 	}
-	inference, active, err := modelrecipe.ActiveRecord(t.Context(), store, spec.Model, recipe.TaskInference)
-	if err != nil || !active {
-		t.Fatalf("E4B inference binding is not promoted: %v", err)
+	// The validation's text cells bind to the inference recipe it activated, superseded since E4B serves the definition
+	// its gemma4 profile with the tensor-core prompt attention derives (prompt-attention-precision/activate); the
+	// tensor-core path is held to the F32 paths by TestPromptTensorCoresHoldHeldOut, and e4b-tensor-cores re-runs the
+	// validation on it.
+	validatedID, err := artifact.ParseID("recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e")
+	if err != nil {
+		t.Fatal(err)
 	}
-	definition, bound := inference.Definition.PrimaryDependency(recipe.DependencyDefinition)
+	validated, err := recipe.RequireDefinition(t.Context(), store, validatedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validated.Model != spec.Model || validated.Task != recipe.TaskInference {
+		t.Fatal("the validated inference recipe is not E4B's")
+	}
+	definition, bound := validated.PrimaryDependency(recipe.DependencyDefinition)
 	if !bound {
 		t.Fatal("E4B inference definition is absent")
 	}

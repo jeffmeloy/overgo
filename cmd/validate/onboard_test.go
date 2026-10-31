@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 )
 
@@ -122,6 +123,29 @@ func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	fixture.tied[directory] = []InventoryModel{converted, {Location: directory, Cells: []ModelValidation{{Location: directory, Kind: "inference"}}}}
 	if err := fixture.onboard(t, directory); err != nil || !slices.Equal(fixture.ran, want) || len(fixture.validated) != 0 || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
 		t.Errorf("a run on an activated directory: %v, ran %q, validated %q, retired %v; want the steps after validation and its goldens kept", err, fixture.ran, fixture.validated, fixture.retired)
+	}
+}
+
+// TestOnboardingAgainRetiresOnlyAConversionStillServing holds validate -onboard, run again on a directory served from
+// its own files, to retiring a conversion only for the inference it still serves: the 4B's second onboarding found
+// its conversion retired for inference and still activated for training, tried to retire it again and was refused. A
+// conversion activated for training alone is left as it is; one activated for inference and training is retired.
+func TestOnboardingAgainRetiresOnlyAConversionStillServing(t *testing.T) {
+	t.Parallel()
+	fixture := newOnboardingFixture(t)
+	directory := huggingFaceDirectory(t, `{"model_type":"qwen3_5"}`)
+	conversion := testutil.ArtifactID(t, artifact.KindModel, "Tiny-LM-f16.gguf")
+	earlier := filepath.Join(filepath.Dir(fixture.converted), "Tiny-LM-f16.gguf")
+	served := InventoryModel{Location: directory, Cells: []ModelValidation{{Location: directory, Kind: recipe.TaskInference}}}
+	training := InventoryModel{Model: conversion, Location: earlier, Cells: []ModelValidation{{Location: earlier, Kind: recipe.TaskTraining}}}
+	fixture.tied[directory] = []InventoryModel{training, served}
+	if err := fixture.onboard(t, directory); err != nil || len(fixture.retired) != 0 {
+		t.Fatalf("a run again beside a conversion activated for training alone: %v, retired %v; want nothing retired", err, fixture.retired)
+	}
+	training.Cells = append(training.Cells, ModelValidation{Location: earlier, Kind: recipe.TaskInference})
+	fixture.tied[directory] = []InventoryModel{training, served}
+	if err := fixture.onboard(t, directory); err != nil || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
+		t.Fatalf("a run again beside a conversion still serving inference: %v, retired %v; want it retired", err, fixture.retired)
 	}
 }
 

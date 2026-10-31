@@ -111,8 +111,10 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 			if err != nil {
 				return err
 			}
-			if key := modelartifact.SourcesKey(sources[heir]); key == "" || key != modelartifact.SourcesKey(sources[conversion]) {
-				return fmt.Errorf("%s and %s record no sources they share, so neither takes the other's place", heir, conversion)
+			// The same config and the same weights, as a succession on the scorecard needs (modelartifact.WeightsKey).
+			config, weights := modelartifact.SourcesKey(sources[heir]), modelartifact.WeightsKey(sources[heir])
+			if config == "" || weights == "" || config != modelartifact.SourcesKey(sources[conversion]) || weights != modelartifact.WeightsKey(sources[conversion]) {
+				return fmt.Errorf("%s and %s record no config and weights they share, so neither takes the other's place", heir, conversion)
 			}
 			revision, err := runrecord.VerifyingCommit(root)
 			if err != nil {
@@ -174,7 +176,9 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 		for _, registered := range tied {
 			active := slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" })
 			if native && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) {
-				if active {
+				// The directory takes a conversion's place for inference alone: a conversion retired for inference and
+				// still activated for training is no longer superseded, and retiring it again would be refused.
+				if slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind == recipe.TaskInference }) {
 					superseded = append(superseded, registered.Model)
 				}
 				continue

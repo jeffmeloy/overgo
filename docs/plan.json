@@ -469,17 +469,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
+        "nodes": 14,
         "reason": "an estimate for retire-gather: a conversion gathered by its inference cell, and the retirement's weights check"
       },
       "steps": [
-        {
-          "id": "retire-gather",
-          "title": "Onboarding run again retires a conversion only for the inference it still serves",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingAgainRetiresOnlyAConversionStillServing$'",
-          "rationale": "From the 4B's onboarding (2026-10-30): run again on a directory whose conversion is retired for inference and still activated for training, onboarding tried to retire the conversion again and was refused (\"retirement requires an active recipe\"), since it gathered a conversion as superseded by any activated cell. The fix comes before the first model native-text-weights moves: a conversion is gathered by an activated inference cell, the activation the directory replaces, and a retirement needs the conversion's recorded config and weights to be the directory's (WeightsKey), as a succession on the scorecard does. The check: a run again beside a conversion activated for training alone retires nothing, and one still serving inference is retired.\n\nServes: setup-steps (onboarding a text model from its own files runs again without a hand step). Disappears: nothing. Evidence: TestOnboardingAgainRetiresOnlyAConversionStillServing. Batch: host."
-        },
         {
           "id": "do",
           "title": "Serve every text model held as safetensors from its own files, and stop converting them",

@@ -84,8 +84,18 @@ var lanes = []lane{
 // CycleTags are the build tags of the tests only the improvement cycle runs,
 // those that open real models or read the live store. No gate lane builds
 // with them, so a landing never compiles those tests; vet and fix read with
-// them, so every tagged file is still checked.
+// them (checkedTags), so every tagged file is still checked.
 const CycleTags = "modeltest,integration"
+
+// pairTag is the build tag of the paired held-out comparisons, each a fast path's answers against its reference's over
+// the held-out parts a measurement run asks. No lane builds with it: a comparison is the check of a change to the path
+// it compares, named in that step's verify, and the cycle's cells judge the served path's held-out quality every
+// cycle. In the cycle the four took 237 of the 304 minutes its model suites ran on 2026-10-31, answered whole again
+// each cycle, since the inference code they build on changes in nearly every one.
+const pairTag = "pairtest"
+
+// checkedTags are the tags vet and fix read the tree with, so every tagged file is still checked.
+const checkedTags = CycleTags + "," + pairTag
 
 // cycleLanes are what the improvement cycle runs in the gate's place: real
 // models, the live store and the served-model journeys, which guard what

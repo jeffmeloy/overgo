@@ -1,4 +1,4 @@
-//go:build windows && modeltest
+//go:build windows && modeltest && pairtest
 
 package evaluation
 

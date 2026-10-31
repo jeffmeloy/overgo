@@ -244,6 +244,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - only scalars cross to host (check: internal/hybridtrain TestHybridTrainDeviceResidentMatchesHost, internal/adaptiveparity TestQwen35RealTraining)
 - `cmd/train` = the one entry (`-route`, `-objective`) (check: cmd/train TestTrainRoutesEveryProbe, cmd/train TestTrainRoutesFoldedProbes)
 - quantized format => native fast path > output identity with bf16, guarded by held-out quality (check: internal/evaluation TestKQuantProductsHoldHeldOut, internal/evaluation TestQwen35CellsHoldHeldOut)
+- a paired held-out comparison of a fast path against its reference = the check of a change to that path, named in its verify and built only under `pairtest` => never in the standing cycle, whose cells judge the served path (check: internal/landing TestReachInvariants)
 
 ## Implementation
 

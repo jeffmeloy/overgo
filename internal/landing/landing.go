@@ -531,7 +531,7 @@ func (l *landing) format(ctx context.Context) error {
 func (l *landing) fix(ctx context.Context) error {
 	directories := l.goPackages()
 	if len(directories) != 0 {
-		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", CycleTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", checkedTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
 		if err != nil {
 			return err
 		}
@@ -540,7 +540,7 @@ func (l *landing) fix(ctx context.Context) error {
 			// key forgets the directory once a build is trimmed. Another checkout of the same bytes
 			// would then have the first checkout's files written and its own left as they were. So
 			// this one command is never trimmed, whatever the environment asks of the others.
-			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-trimpath=false", "-tags", CycleTags}, packages...)...); err != nil {
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-trimpath=false", "-tags", checkedTags}, packages...)...); err != nil {
 				return err
 			}
 		}
@@ -582,7 +582,7 @@ func (l *landing) generators() []generator {
 }
 
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", CycleTags, "./...")
+	_, err := l.run(ctx, nil, "go", "vet", "-tags", checkedTags, "./...")
 	return err
 }
 

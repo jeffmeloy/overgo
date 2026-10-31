@@ -214,6 +214,14 @@ func TestReachInvariants(t *testing.T) {
 			t.Fatalf("no lane is named %s; the rows naming its set would hold nothing", name)
 		}
 	}
+	for _, candidate := range everyLane {
+		if slices.Contains(strings.Split(candidate.tags, ","), pairTag) {
+			t.Errorf("lane %s builds with %s; it would answer the paired comparisons whole each time it runs", candidate.name, pairTag)
+		}
+	}
+	if !slices.Contains(strings.Split(checkedTags, ","), pairTag) {
+		t.Errorf("vet reads with %s, without %s; a paired comparison would go unchecked", checkedTags, pairTag)
+	}
 	var gateLanes, deviceLanes []string
 	for _, candidate := range lanes {
 		if slices.ContainsFunc(strings.Split(candidate.tags, ","), func(tag string) bool { return slices.Contains(strings.Split(CycleTags, ","), tag) }) {

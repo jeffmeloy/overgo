@@ -148,21 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "paired-comparisons",
-      "title": "A fast path's paired held-out comparison runs as the check of a change to that path, never in every measurement run",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A fast path's paired held-out comparison runs as the check of a change to that path, never in every measurement run",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestReachInvariants$'",
-          "rationale": "SQA-266 (P1, the lane part). The 2026-10-31 run's model suites (cmd/validate lane walls) took 304 minutes of test time, 237 of them in four paired held-out comparisons: TestQwen35CellsHoldHeldOut 105, TestFlashNextSpeculationHoldsIFEval 49, TestKQuantProductsHoldHeldOut 42, TestAttentionCellsHoldHeldOut 41. Each answers whole MMLU-Pro, IFEval or BBH parts twice, a fast path and its reference, and each was the check of the change that made its path (263d0eecb, f3219a174, 4b25f6d1c, 599de6efd). go test's cache replays a package nothing changed, but internal/evaluation builds on internal/inference, which changes between nearly every pair of runs (16 of the 99 packages its tests build on between the 2026-10-30 and 2026-10-31 runs), so the four ran whole every run. The served path's held-out quality is measured by the run's cells every run, to the digit. The change: the four build only under the tag pairtest, which no lane builds and vet reads, and a step that changes the path one compares names it in its verify."
-        }
-      ]
-    },
-    {
       "id": "finish-line",
       "title": "The loop finishes: no run of every model while the plan holds work, each step judged by its own check or its own model, one run at the end",
       "owner": "master-lead",

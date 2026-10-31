@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-1cc6a917ce8ce9cc",
-      "title": "Restore MiniCPM5-1B-native-chat inference first-output to 120.173 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore MiniCPM5-1B-native-chat inference first-output to 120.173 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1cc6a917ce8ce9cc -target 120.17299999999996",
-          "rationale": "- MiniCPM5-1B-native-chat first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c}: 104.3986 to 126.1225 (+21.7239, +20.8%, allowed 15.7744; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-54998f10ce918c75",
       "title": "Restore webssl-dino-to-rae-bridge reconstruction first-output to 11222.0168 ms",
       "owner": "master-lead",

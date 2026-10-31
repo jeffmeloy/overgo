@@ -470,16 +470,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "measured by the preflight of train-beside: onboarding goes on beside a registration of the directory's weights activated for training alone"
+        "reason": "measured by the preflight of catalog-bound: one named bound for the readers of the whole servable catalog"
       },
       "steps": [
-        {
-          "id": "catalog-bound",
-          "title": "The servable catalog is read under one bound above the store's models",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest ./internal/discovery -count=1 -run '^TestTheCatalogBoundHoldsTheStore$'",
-          "rationale": "MiniCPM5-1B's onboarding from its directory on 2026-10-31 validated and retired its conversion, and its long-form guard was refused: longform: discovery: model catalog exceeds listing bound 256. The store holds 258 models after the day's onboardings, and the guard (cmd/longform catalogLimit) and the evaluator's -all workers (cmd/evaluate -catalog-limit, default 256) read the servable catalog under a bound of 256, which refuses a truncated read: every benchmark cell of the next measurement run would be refused as well. The catalog is read whole and never sampled, so the bound only has to stand above the store's models: one bound, discovery.CatalogBound, 10000 as the smoke check already used, for the three readers."
-        },
         {
           "id": "move",
           "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",

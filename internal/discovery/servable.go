@@ -42,6 +42,11 @@ type Entry struct {
 	Stale string
 }
 
+// CatalogBound is the listing bound of a reader of the whole servable catalog: the catalog is read whole and never
+// sampled, so the bound only refuses a truncated read, and it stands far above the store's models (258 on 2026-10-31,
+// past the 256 the long-form guard and the evaluator bounded it to, which refused every read).
+const CatalogBound = 10_000
+
 // Servable lists models with active inference recipes; presence is a stat of
 // recorded locations (manifest first, then components; recorded-but-missing
 // or unrecorded reports Present=false).

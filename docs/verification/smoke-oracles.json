@@ -8,15 +8,15 @@
     "reference": "evidence:sha256:8c986b85b491909fee204e01766351becbefd993126e58ef9f7c8e6a091aec74"
   },
   {
-    "model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
+    "model": "model:sha256:d22730102298d4e2774f2906ec865f056d886de09535aff78c45a1a89bed3d93",
     "domain": "text",
     "chat": false,
     "claim": "Exact tokenization and within-case native likelihood ordering only; no numerical parity tolerance, factual accuracy or scientific quality claim.",
     "reference_file": "docs/verification/smoke-qwen05-reference.json",
-    "reference": "evidence:sha256:86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573"
+    "reference": "evidence:sha256:8fef088cb5b14b85c5e2f877f0bc432ef8aceca3750b6b10c57f0261c49773a0"
   },
   {
-    "model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+    "model": "model:sha256:b213fc011904d992d738d24f7592d7e7bbb3b953e2f1e30e9298933335050e09",
     "domain": "text",
     "chat": true,
     "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",

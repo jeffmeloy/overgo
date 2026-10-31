@@ -22,6 +22,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
@@ -79,7 +80,7 @@ func run() error {
 	protocol := flag.String("protocol", evaluation.PromptingRawCompletion.Label(), "how each model is asked: raw-completion scores the plain prompt's options by likelihood and stays the recorded anchor; chat-template asks a multiple-choice question through the model's declared chat template for its letter at once; exploratory-reasoning asks it there with thinking on and a long sampled answer, and publishes every question it asks as development evidence")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
 	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled. A family a measurement run scores a part of, mmlu-pro, bbh and ifeval, is that part; append /whole for every case of it (mmlu-pro/whole), or /N for N of its cases taken evenly through the whole (mmlu-pro/40)")
-	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
+	catalogLimit := flag.Int("catalog-limit", discovery.CatalogBound, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
 	transcriptionManifest := flag.String("transcription-manifest", "", "score stored transcription runs from separate suite and prediction files")

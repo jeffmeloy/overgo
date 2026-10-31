@@ -7,7 +7,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -37,11 +36,16 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 		return id
 	}
 	model := parse("model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32")
-	active, found, err := modelrecipe.ActiveRecord(t.Context(), store, model, recipe.TaskInference)
-	if err != nil || !found || active.Definition.ID.String() != "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c" {
-		t.Fatalf("MiniCPM activation differs: %v", err)
+	// The conversion's activation is retired since MiniCPM5-1B is served from its own files
+	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.
+	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	definition, found := active.Definition.PrimaryDependency(recipe.DependencyDefinition)
+	if served, found := activated.PrimaryDependency(recipe.DependencyModel); !found || served != model {
+		t.Fatal("the recipe is not MiniCPM5's conversion's")
+	}
+	definition, found := activated.PrimaryDependency(recipe.DependencyDefinition)
 	if !found {
 		t.Fatal("MiniCPM model definition is absent")
 	}
@@ -60,7 +64,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if value.Recipe != active.Definition.ID || value.ModelDefinition != definition || value.CodeCommit != "f278ca230121df1d0bedf8fc58bf7881a9ebc475" {
+			if value.Recipe != activated.ID || value.ModelDefinition != definition || value.CodeCommit != "f278ca230121df1d0bedf8fc58bf7881a9ebc475" {
 				t.Fatal("retained model, recipe or producer differs")
 			}
 			var body planBody

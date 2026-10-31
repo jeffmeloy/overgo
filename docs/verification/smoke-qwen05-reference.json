@@ -67,5 +67,5 @@
   "generated_text": " Paris. It is",
   "wall_seconds": 9.303853599994909,
   "scope": "Exact tokenization and within-case native likelihood ordering only; no numerical parity tolerance, factual accuracy or scientific quality claim.",
-  "model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8"
+  "model": "model:sha256:d22730102298d4e2774f2906ec865f056d886de09535aff78c45a1a89bed3d93"
 }

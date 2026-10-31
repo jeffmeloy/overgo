@@ -84,12 +84,17 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	}
 	readRetainedEvidence(t, store, retained.Inputs["qwen-current-bundle.json"], &acquisition)
 	model := parse("model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8")
-	active, found, err := modelrecipe.ActiveRecord(t.Context(), store, model, recipe.TaskInference)
-	if err != nil || !found {
-		t.Fatalf("active model absent: %v", err)
+	// The conversion's activation is retired since Qwen2.5-0.5B is served from its own files
+	// (native-text-weights/move); its retained evidence binds to the recipe it was activated under.
+	activated, err := recipe.RequireDefinition(t.Context(), store, parse("recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	definition, found := active.Definition.PrimaryDependency(recipe.DependencyDefinition)
-	if !found || acquisition.Identity.Model != model || acquisition.Identity.Definition != definition || acquisition.Identity.Recipe != active.Definition.ID || acquisition.Producer != "85c67e71c17dc0d72ae65571c6a2a9cf33372c83" || acquisition.ModelLoads != 1 || acquisition.Failure != "evaluation: resource evidence is not process isolated" {
+	if served, found := activated.PrimaryDependency(recipe.DependencyModel); !found || served != model {
+		t.Fatal("the recipe is not Qwen2.5-0.5B's conversion's")
+	}
+	definition, found := activated.PrimaryDependency(recipe.DependencyDefinition)
+	if !found || acquisition.Identity.Model != model || acquisition.Identity.Definition != definition || acquisition.Identity.Recipe != activated.ID || acquisition.Producer != "85c67e71c17dc0d72ae65571c6a2a9cf33372c83" || acquisition.ModelLoads != 1 || acquisition.Failure != "evaluation: resource evidence is not process isolated" {
 		t.Fatal("original acquisition authority or disposition differs")
 	}
 	data, err := os.ReadFile(filepath.Join(root, "fixtures/qwen25_serving_golden.json"))
@@ -107,7 +112,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindExact(exact, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: active.Definition.ID, CodeCommit: acquisition.Producer, Environment: acquisition.Environment, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
+	plan, err := BindExact(exact, ExactAuthorities{ModelDefinition: definition, RuntimeRecipe: activated.ID, CodeCommit: acquisition.Producer, Environment: acquisition.Environment, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 	if err != nil || plan.Identity() != retained.Plan {
 		t.Fatalf("current exact protocol differs: %v", err)
 	}
@@ -149,7 +154,7 @@ func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprintf("%x", sha256.Sum256(nativeBytes)) != "86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573" {
+	if fmt.Sprintf("%x", sha256.Sum256(nativeBytes)) != "8fef088cb5b14b85c5e2f877f0bc432ef8aceca3750b6b10c57f0261c49773a0" {
 		t.Fatal("native likelihood reference differs")
 	}
 	var native struct {

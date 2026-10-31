@@ -54,7 +54,7 @@ func runSmoke(ctx context.Context, output io.Writer, repository string, budget t
 		scope = "selected"
 		selection = append(selection, model)
 	}
-	entries, err := discovery.ServableWithMemo(ctx, reader, 10_000, nil, selection...)
+	entries, err := discovery.ServableWithMemo(ctx, reader, discovery.CatalogBound, nil, selection...)
 	fmt.Fprintf(output, "[smoke] discovery=%.1fs models=%d\n", time.Since(began).Seconds(), len(entries))
 	if err != nil {
 		return errors.Join(err, reader.Close())

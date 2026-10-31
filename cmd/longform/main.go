@@ -40,10 +40,6 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// The listing bound matches the evaluation pass: the servable catalog is
-// read whole, never sampled.
-const catalogLimit = 256
-
 // promptTailTokens is how much of the judged prompt's end the record
 // keeps as text beside the output it continues.
 const promptTailTokens = 48
@@ -147,7 +143,7 @@ func listTargets(ctx context.Context, options options) ([]target, error) {
 func readTargets(ctx context.Context, store *overgodb.Store, options options, readBenchmarks func() map[string]evaluation.BenchmarkSummary) ([]target, error) {
 	requested := options.Models
 	memo := discovery.LoadMemo(ctx, store)
-	entries, err := discovery.ServableWithMemo(ctx, store, catalogLimit, memo, requested...)
+	entries, err := discovery.ServableWithMemo(ctx, store, discovery.CatalogBound, memo, requested...)
 	if err != nil {
 		return nil, err
 	}

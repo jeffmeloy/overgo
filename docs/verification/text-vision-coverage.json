@@ -3,31 +3,31 @@
   "Scope": "Join previously accepted protocol scopes to current model and recipe identities. Preserve original producer sources and failed quality cases; this does not promote current implementation quality or performance.",
   "Models": [
     {
-      "Model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
+      "Model": "model:sha256:d22730102298d4e2774f2906ec865f056d886de09535aff78c45a1a89bed3d93",
       "Domains": null,
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca",
+          "Recipe": "recipe:sha256:1a0b06838824501ec4adb6ac211323778a1138298e59fb82b03d725de69dff67",
           "Proofs": [
             "modality-verification/resident-publication"
           ],
-          "Scope": "Four native exact cases; two likelihood sequences and candidate ordering. Resource isolation and throughput are separate."
+          "Scope": "Four native exact cases; two likelihood sequences and candidate ordering. Resource isolation and throughput are separate. Recorded on Qwen2.5-0.5B's conversion (model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8) on the F32 prompt attention and joined to the model served from its own safetensors, the same weights byte for byte (native-text-weights/move); its prompts read on the tensor-core kernel, which TestPromptTensorCoresHoldHeldOut holds to the F32 paths' held-out answers."
         }
       ]
     },
     {
-      "Model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+      "Model": "model:sha256:b213fc011904d992d738d24f7592d7e7bbb3b953e2f1e30e9298933335050e09",
       "Domains": null,
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c",
+          "Recipe": "recipe:sha256:0361f2ddfc1eae3df570de4af0fccf9e3f6b3c89d88d4bfe01954d0e1668aa1d",
           "Proofs": [
             "modality-verification/retained-model-bundles",
             "modality-verification/ifeval-parity-report"
           ],
-          "Scope": "Four CPU and CUDA native text cases; full MMLU-Pro; BBH/MuSR generated-letter-opener; 541 IFEval prompts, 834 instructions and 1668 matched verdicts. Preserve capped and unsuccessful quality responses."
+          "Scope": "Four CPU and CUDA native text cases; full MMLU-Pro; BBH/MuSR generated-letter-opener; 541 IFEval prompts, 834 instructions and 1668 matched verdicts. Preserve capped and unsuccessful quality responses. Recorded on MiniCPM5-1B's conversion (model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32) on the F32 prompt attention and joined to the model served from its own safetensors, the same weights byte for byte (native-text-weights/move); its prompts read on the tensor-core kernel, which TestPromptTensorCoresHoldHeldOut holds to the F32 paths' held-out answers."
         }
       ]
     },
@@ -313,7 +313,7 @@
     "docs/verification/qwen35-4b-retained.json": "d22d7394e77a1d5a9407e697a655d75dbaa00621890eb13902b058bf3922c6e6",
     "docs/verification/qwen35-9b-retained.json": "04bb3632ec2a0139d5fc07b11d21ff7b0758d32830938e18d0d13aacf66b5bd3",
     "docs/verification/rxbrain-vqa-retained.json": "9410388415f20784dfbed90079f902e99d255013fb095f3a3988a716bf38f16e",
-    "docs/verification/smoke-qwen05-reference.json": "86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573",
+    "docs/verification/smoke-qwen05-reference.json": "8fef088cb5b14b85c5e2f877f0bc432ef8aceca3750b6b10c57f0261c49773a0",
     "fixtures/e4b_multimodal_golden.json": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
     "fixtures/e4b_vision/hidden_mask_golden.json": "5cd1b9c3c720e3664f88861a0169f04a71deeaa045228a31dc7fc2ab7bb3b91e",
     "fixtures/qwen25_serving_golden.json": "b6d7d8c8f35aa9dce6ada81aca2ddafbdeefba5ff25305312c57d1fac9f02a1e"

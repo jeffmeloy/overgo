@@ -148,6 +148,72 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "paired-comparisons",
+      "title": "A fast path's paired held-out comparison runs as the check of a change to that path, never in every measurement run",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A fast path's paired held-out comparison runs as the check of a change to that path, never in every measurement run",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestReachInvariants$'",
+          "rationale": "SQA-266 (P1, the lane part). The 2026-10-31 run's model suites (cmd/validate lane walls) took 304 minutes of test time, 237 of them in four paired held-out comparisons: TestQwen35CellsHoldHeldOut 105, TestFlashNextSpeculationHoldsIFEval 49, TestKQuantProductsHoldHeldOut 42, TestAttentionCellsHoldHeldOut 41. Each answers whole MMLU-Pro, IFEval or BBH parts twice, a fast path and its reference, and each was the check of the change that made its path (263d0eecb, f3219a174, 4b25f6d1c, 599de6efd). go test's cache replays a package nothing changed, but internal/evaluation builds on internal/inference, which changes between nearly every pair of runs (16 of the 99 packages its tests build on between the 2026-10-30 and 2026-10-31 runs), so the four ran whole every run. The served path's held-out quality is measured by the run's cells every run, to the digit. The change: the four build only under the tag pairtest, which no lane builds and vet reads, and a step that changes the path one compares names it in its verify."
+        }
+      ]
+    },
+    {
+      "id": "finish-line",
+      "title": "The loop finishes: no run of every model while the plan holds work, each step judged by its own check or its own model, one run at the end",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A run of every model starts only when the plan is empty, a run left one unfinished or none has completed, a hand start included",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestAHandStartedRunWaitsForTheTrigger$'",
+          "rationale": "SQA-267 (P1, its part 0). The owner on 2026-10-31: rerunning the whole scorecard after every fix is wrong, neither the doctrine nor the automation asks for it, and the lead is to stop retesting the entire scorecard indefinitely without finishing. The automation starts a cycle when the plan empties or when landings that moved what it measures reach a limit (cmd/loop CycleDue), but no limit is set and the plan never empties, so it starts none, and the lead started both runs of 2026-10-31 by hand with go run ./cmd/loop -improve, which asked nothing: the second after a fix to three records whose own checks had passed on the card, an 8-hour run for it. The change: -improve asks HandStartDue and refuses, saying why, unless the plan is empty, a run left a cycle unfinished, or no cycle has completed. A fix is judged by its own check, and a decline by its own model's cells (model-cells)."
+        },
+        {
+          "id": "model-cells",
+          "title": "One model's cells are measured alone, so a decline's row is judged without a run of every model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOneModelsCellsAreMeasuredAlone$'",
+          "rationale": "The rows a scorecard files for a declined cell carry the check go run ./cmd/validate -scorecard -gap \u003ckey\u003e -target \u003cvalue\u003e, which reads the store's newest readings (openGap, scorecard.Build), but validate -run measures every model's cells or none, so each such row could close only on a run of every model, about 8 hours, and that run filed the next rows. The change: validate -run -cells -model \u003cname\u003e measures the named model's cells alone into the store, as the cycle measures them (the same commands, attempts and medians), so the gap check reads the decline's own model measured again in minutes."
+        },
+        {
+          "id": "cell-credit",
+          "title": "A cell whose inputs are unchanged since its last reading is credited with it, not measured again",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestACellWhoseInputsAreUnchangedIsCredited$'",
+          "rationale": "SQA-266 (P1, the cell part): SelectValidation schedules every active cell, 110 on 2026-10-31, as re-acquired every cycle, so a change to one model measures all of them again, and a held-out benchmark reuses an answer only where the code that answers now gave it, so a change anywhere in internal/inference answers every suite again. The 2026-10-30 scorecard's readings name 45 code commits, so some are kept already. Measure first which cells the 2026-10-31 run measured again although their model files, the execution identity of the code they run, the device and the driver were those of their last reading, and what they cost. The change: such a cell is credited with that reading, labelled unchanged since its scorecard, and a change to code every model runs measures them all again."
+        },
+        {
+          "id": "attribution",
+          "title": "A worsened cell whose model, recipe and code identity are unchanged is reported, not filed as a row",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestADeclineWithUnchangedInputsIsReportedNotFiled$'",
+          "rationale": "SQA-267 (P1, the finish line): each published scorecard files a row for every cell worse than its earlier readings past its noise allowance, so the run that confirms a finished plan can file rows from noise on code that changed nothing the cell reads, and the plan never empties. A decline is filed only when something the cell reads changed since the reading it is compared with, and otherwise it is printed as a reading beside its allowance. A reading names its commit, not the identity of the code it ran (scorecard Cell code_commit), so this step builds on the identity each reading records for cell-credit."
+        }
+      ]
+    },
+    {
+      "id": "review-register",
+      "title": "A filing beside the review session's uncommitted findings is still a filing",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A change to the plan and the findings register alone lands as a filing, carrying the register",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAFilingBesideTheFindingsRegisterIsAFiling$'",
+          "rationale": "On 2026-10-31 the filing of paired-comparisons and finish-line was refused (paired-comparisons/file is not a step of the plan at e63fd568a467 ... land the plan's edit alone first), because docs/sqa_findings.json held SQA-266 to SQA-268, which the guard refused the review session's commit of: a change counts as the plan's alone only when no other path changes (planOnly, internal/landing/landing.go:363), so while the register is dirty no row can be filed, and it is dirty after every review. The owner on 2026-10-31: a review session writes its findings into docs/sqa_findings.json itself, and when the guard refuses its commit the edit stays saved and its commit is the lead's call. The filing went in with the landing of a decline row its check closed. A change to the plan and the register alone is judged as a filing, by the plan it holds, and carries the register; any other path makes it a change judged by the terms its row had before it, as now. Serves: the loop, which can file the rows a run or a request needs whenever a review has run."
+        }
+      ]
+    },
+    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",
@@ -633,17 +699,137 @@
       ]
     },
     {
-      "id": "scorecard-regressed-f66104b4117e6e82",
-      "title": "Restore gemma-4-E4B-it inference throughput to 72.5535414 tok/s",
+      "id": "scorecard-regressed-1cc6a917ce8ce9cc",
+      "title": "Restore MiniCPM5-1B-native-chat inference first-output to 120.173 ms",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Restore gemma-4-E4B-it inference throughput to 72.5535414 tok/s",
+          "title": "Restore MiniCPM5-1B-native-chat inference first-output to 120.173 ms",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f66104b4117e6e82 -target 72.55354143285395",
-          "rationale": "- gemma-4-E4B-it throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 76.4369881 to 68.1929881 (-8.24399997, -10.8%, allowed 3.88344664; serving output tokens over decode time, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-1cc6a917ce8ce9cc -target 120.17299999999996",
+          "rationale": "- MiniCPM5-1B-native-chat first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c}: 104.3986 to 126.1225 (+21.7239, +20.8%, allowed 15.7744; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-54998f10ce918c75",
+      "title": "Restore webssl-dino-to-rae-bridge reconstruction first-output to 11222.0168 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore webssl-dino-to-rae-bridge reconstruction first-output to 11222.0168 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-54998f10ce918c75 -target 11222.0168",
+          "rationale": "- webssl-dino-to-rae-bridge first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:d649df7f77dcfc72357ef4f52d8e7b5b49fc2a5ea3e12153afaef255300ff969}: 10524.1608 to 11468.8525 (+944.6917, +9.0%, allowed 697.856; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-a62583608bf0e651",
+      "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-a62583608bf0e651 -target 401.24984999999987",
+          "rationale": "- Carbon-500M-f16-ropefix first-output, {Metric:time to prefill, a fresh prompt of 4096 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2}: 368.02105 to 652.3737 (+284.35265, +77.3%, allowed 33.2288; serving time to prefill a fresh prompt of 4096 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-cdbb3debaad4e309",
+      "title": "Restore gemma-4-E4B-it inference first-output to 551.66205 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-E4B-it inference first-output to 551.66205 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-cdbb3debaad4e309 -target 551.6620500000005",
+          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill, a fresh prompt of 4096 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 516.83405 to 588.6152 (+71.78115, +13.9%, allowed 34.828; serving time to prefill a fresh prompt of 4096 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-d730a46b2d9a307f",
+      "title": "Restore gemma-4-E4B-it inference first-output to 2467.24135 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore gemma-4-E4B-it inference first-output to 2467.24135 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-d730a46b2d9a307f -target 2467.2413500000007",
+          "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 2367.89575 to 2603.5185 (+235.62275, +10.0%, allowed 99.3456; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-de73a5d783bae961",
+      "title": "Restore Qwen2.5-0.5B inference first-output to 1482.8359 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Qwen2.5-0.5B inference first-output to 1482.8359 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-de73a5d783bae961 -target 1482.8358999999991",
+          "rationale": "- Qwen2.5-0.5B first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 1247.8831 to 2189.2073 (+941.3242, +75.4%, allowed 234.9528; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-e3cfc2367db11392",
+      "title": "Restore Unlimited-OCR-bf16 inference first-output to 1054.27505 ms",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Unlimited-OCR-bf16 inference first-output to 1054.27505 ms",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-e3cfc2367db11392 -target 1054.2750499999993",
+          "rationale": "- Unlimited-OCR-bf16 first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 974.56945 to 1115.0334 (+140.46395, +14.4%, allowed 79.7056; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-inference",
+      "title": "Measure inference's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+          "rationale": "- Qwen3.5-4B held-out-quality: no held-out evaluation of this recipe\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- Qwen2.5-0.5B load-time: not measured since the previous scorecard, published 2026-10-30T09:44:20Z: the newest attempt its cell reads started 2026-10-11T08:10:55Z\n- Qwen2.5-0.5B peak-device-memory: not measured since the previous scorecard, published 2026-10-30T09:44:20Z: the newest attempt its cell reads started 2026-10-11T08:10:55Z\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

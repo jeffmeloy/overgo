@@ -14,6 +14,161 @@
   },
   "findings": [
     {
+      "id": "SQA-268",
+      "status": "open",
+      "severity": "P1",
+      "category": "measurement-cost",
+      "classification": "late-break-detection",
+      "title": "Find broken software in minutes, before the hours: the preflight stops before any model is loaded",
+      "evidence_commit": "c5fafcdf9ec8414280c10a19bdab6fe96914837d",
+      "sources": [
+        {
+          "path": "internal/clioptions/command.go",
+          "symbol": "Ready; PreflightEnvironment: a producer runs only to the point its measurement begins"
+        },
+        {
+          "path": "cmd/longform/main.go",
+          "symbol": "run: Ready after catalog resolution, 'no models loaded or measured during setup'"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "measurePhases: a cell the preflight refuses is named and the cycle goes on"
+        },
+        {
+          "path": "cmd/validate/smoke.go",
+          "symbol": "runSmoke: loads every active inference model with small requests"
+        }
+      ],
+      "evidence": "The 2026-10-31 run (commit 6f9237525) passed its preflight for all 110 cells between 01:57 and 02:06, Flash-Next's long-form guard among them ('validate -run -preflight 35/110 ... no models loaded or measured during setup; preflight: ready, nothing measured'), because Ready is called before any model is loaded or the device opened. The lanes then ran 5h30m (02:07 to 07:37), and only after them did cell 35 load Flash-Next and find it broken: 'loaded, 24791 corpus tokens, rungs [1024 2048 4096 8192] owned allocations: retained=48489668096 bytes ... ERROR physical GPU memory admission: insufficient device capacity: requested 48 bytes; available 0' (overgo_data/scratch/measure-run-20261031b.log, lines 915 to 924). Flash-Next's serving, ifeval, bbh and mmlu-pro cells in the same run are not broken, so the break is the long-form guard's own device memory, which one load and one request at its largest rung shows in about a minute. In the 2026-10-30 run the same cell was broken by a missing short-prompt benchmark and reported among the broken cells at the run's end. Even a break the preflight does find does not stop the run: the cycle measures on and reports it hours later.",
+      "recommended_change": "Owner 2026-10-31: check for broken software before running for hours. (1) The preflight goes one step further, once per model rather than per cell: load the model, run one request at the largest shape any of its cells asks for (long-form's largest rung, the serving cell's context, the longest benchmark prompt), confirm the device memory that leaves, and release it. Ready moves after that step; validate -smoke already loads every active inference model with small requests and is the code to extend. (2) This quick check runs first, before the lanes. A break it finds stops the run there, names the model and the message, and is filed as a row; with SQA-267 the full run starts only once the quick check finds nothing broken. (3) The quick check runs alone (a validate -run flag), so a fix's own verify can run it in minutes.",
+      "displaced_surface": "The preflight's stop point (Ready before any model is loaded) and measurePhases measuring on after a preflight refusal.",
+      "impact": "A model broken in loading, device memory or its first request is found only when its cell's turn comes, after 5h30m of lanes and part of the cells; the run ends broken and the fix waits for another run.",
+      "expected_benefit": {
+        "outcome": "A break in loading, device memory or the first request is found in the first half hour of a run, or by a fix's own check, instead of 6 hours or more in.",
+        "uncertainty": "Loading every model once costs time (about 20 models at seconds to a minute each; Flash-Next's weights load about 30 s); a break that shows only deep in a long measurement still shows only there."
+      },
+      "likely_effort": "Small to moderate: one per-model load-and-largest-request pass built on validate -smoke, Ready after it, and a stop on a preflight refusal in measurePhases.",
+      "plan_references": [],
+      "plan_coverage": "run-lane-verdict (70f31e6f5) names a broken lane test the moment it breaks; nothing finds a broken model before its cell.",
+      "closure_criteria": [
+        "A run on a tree where one model's load leaves no device memory for its largest request stops in the quick check, before any lane test, naming that model and the message.",
+        "The quick check loads each model at most once and asks its largest shape; its wall is recorded in the run record.",
+        "A preflight refusal stops the run before the lanes."
+      ],
+      "comparison": "Read from the 2026-10-31 and 2026-10-30 run logs and source; nothing measured by the reviewer.",
+      "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"we should be able to check for broken SW before running for hours?\"; \"software does not fail. it is either broken or not broken\")"
+    },
+    {
+      "id": "SQA-267",
+      "status": "open",
+      "severity": "P1",
+      "category": "loop-termination",
+      "classification": "unreachable-completion-condition",
+      "title": "Give the loop a finish line: no full scorecard run while known code fixes are open",
+      "evidence_commit": "c5fafcdf9ec8414280c10a19bdab6fe96914837d",
+      "sources": [
+        {
+          "path": "cmd/loophook/doctrine.go",
+          "symbol": "turn contract: a turn ends only when the plan is EMPTY"
+        },
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "runStop; stop message 'plan is EMPTY'"
+        },
+        {
+          "path": "cmd/validate/selection.go",
+          "symbol": "SelectValidation: every active cell 'run: re-acquired every cycle'"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "measurePhases: preflight, lanes, cells, publication; one broken cell marks the whole run broken"
+        },
+        {
+          "path": "internal/scorecard",
+          "symbol": "decline filing: one scorecard-regressed row per worsened cell"
+        }
+      ],
+      "evidence": "The loop ends a turn only when the plan is empty. Each published scorecard files a row for every cell (about 110 cells, up to 7 measures each) worse than its earlier readings past its noise allowance, and a serving or memory row closes only on stored readings the next run refreshes, so each fix waits on a full run of about 9 hours (5h30m lanes, about 3h15m cells), and that run files rows again, some from machine state rather than code (Flash-Next's weight upload 28 s at 21:00 and 36 s at 21:40 on 2026-10-30, same code). A run passes only when every cell passes: 11 of the 12 runs since 2026-10-12 ended 'cells did not pass'. Since 2026-10-12: 917 commits, 12 runs, 8 scorecards; 25 plan items open, 10 filed by scorecards. An empty plan is unreachable by construction. Yet a row's check already reads the store's attempts, so a fix closes on its own model's measurement: the Qwen3.5-4B throughput row (8ce06a06d) and Flash-Next's first request (eacf5f6d3) closed that way on 2026-10-30 before any run.",
+      "recommended_change": "Owner 2026-10-31: do not run the whole scorecard until the code is fixed. (0) loop -improve refuses to start while the plan holds open code rows, unless code every model runs changed or the owner asks for a run; each fix closes by measuring only its own model; one full run confirms the finished list; pushes follow landings, not runs. (1) A finish line: a target list the owner approves (models, measures, levels); until set, today's open rows' targets plus 'hold within noise' for every other cell, and nothing added except a regression a change caused or an owner addition. (2) A landing measures the cells of the models it touches and stores them, and its row closes on them. (3) The scorecard is a report assembled from stored measurements, not a gate; see SQA-266. (4) A new row only where a change caused it: the cell's model files, code identity or recipe changed since its last reading; a worsening without such a change is no regression, since nothing changed that could break it: either nothing is broken, or the measure is broken (it reads differently on identical inputs) and the measure is fixed; it is never filed as a row against the model. (5) A broken cell marks only its own model broken, never the run.",
+      "displaced_surface": "The whole-plan-empty stop condition, the full run as the only closer of serving rows, and the push rule tied to measurement runs.",
+      "impact": "Without it the loop alternates fix, 9-hour run and newly filed rows indefinitely, and the owner sees days of testing with no end.",
+      "expected_benefit": {
+        "outcome": "Rows close in minutes on their own model's measurement; a full run happens once per finished list or when shared code changes; the loop reports done when the targets are met.",
+        "uncertainty": "Timing cells are noisy; a single-model closure must use the same three-attempt median the scorecard uses."
+      },
+      "likely_effort": "Moderate: a launch refusal in loop -improve, a target list record, change-attribution in decline filing, and a broken cell marking only its own model.",
+      "plan_references": [],
+      "plan_coverage": "No plan row covers the stop condition or run launching; lane-cost and stale-cells covered parts of the run's cost and truth.",
+      "closure_criteria": [
+        "loop -improve refuses to start while open code rows remain, naming them, unless shared code changed or the owner asked.",
+        "From a plan whose targets are met, a run on an unchanged tree files nothing and the loop reports done.",
+        "A worsened cell whose model files, code identity and recipe are unchanged is reported, not filed.",
+        "A broken cell marks only its own model broken, and the run publishes the rest."
+      ],
+      "comparison": "Counts from overgo_data/scratch/measure-run-*.log, overgo_data/scorecards and git log since 2026-10-12; nothing measured by the reviewer.",
+      "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")"
+    },
+    {
+      "id": "SQA-266",
+      "status": "open",
+      "severity": "P1",
+      "category": "measurement-cost",
+      "classification": "unconditional-remeasurement",
+      "title": "Measure only what changed: credit cells and long lane tests whose inputs are unchanged",
+      "evidence_commit": "c5fafcdf9ec8414280c10a19bdab6fe96914837d",
+      "sources": [
+        {
+          "path": "cmd/validate/selection.go",
+          "symbol": "SelectValidation default 'run: re-acquired every cycle'"
+        },
+        {
+          "path": "cmd/validate/bound_records.go",
+          "symbol": "benchmark cells reuse stored answers given by the code that answers now"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "validateIn: inferencesurface.LinkFlag execution identities"
+        },
+        {
+          "path": "internal/evaluation/qwen35_cells_heldout_windows_model_test.go",
+          "symbol": "TestQwen35CellsHoldHeldOut"
+        },
+        {
+          "path": "internal/evaluation/flashnext_speculation_windows_test.go",
+          "symbol": "TestFlashNextSpeculationHoldsIFEval"
+        },
+        {
+          "path": "internal/evaluation/kquant_products_heldout_windows_model_test.go",
+          "symbol": "TestKQuantProductsHoldHeldOut"
+        },
+        {
+          "path": "internal/evaluation/attention_cells_heldout_windows_model_test.go",
+          "symbol": "TestAttentionCellsHoldHeldOut"
+        }
+      ],
+      "evidence": "Every active cell, 110 on 2026-10-31, is scheduled 'run: re-acquired every cycle', so a change to one model re-measures all of them. Four lane tests took 4h of the 2026-10-31 run's 5h30m of lanes (.overgo-runtime/cycle/.overgo-runtime/lane_walls.json): TestQwen35CellsHoldHeldOut 105 min, TestFlashNextSpeculationHoldsIFEval 49, TestKQuantProductsHoldHeldOut 42, TestAttentionCellsHoldHeldOut 41. Each answers a held-out suite twice, through an optimisation and without it; the optimised arm repeats what the run's quality cells score, and the reference arm matters only when the optimisation's code or the model changes. The identity this needs exists: benchmark cells already reuse stored answers given by the same answering code, and validateIn links the measured checkout's execution identities into each command. lane-cost was re-scoped (c8198d322) on the ground that a whole package's closure changes on nearly every commit; a key on the guarded code's execution identity and the model avoids that.",
+      "recommended_change": "Key each cell and each long lane test on its inputs: the model's files, the execution identity of the code it runs, and the device and driver. Where the key equals the one at its last pass, credit that pass and print 'unchanged since <scorecard>' instead of running it. Re-measure in full only when code every model runs changes. stale-cells (043e3200b) then treats an unchanged-input credit as a reading and only a changed-input cell left unmeasured as a gap.",
+      "displaced_surface": "The unconditional re-acquisition default in SelectValidation and the four held-out A/B tests' unconditional runs in the models lane.",
+      "impact": "Each run costs about 9 hours whatever changed, and every fix waits on it.",
+      "expected_benefit": {
+        "outcome": "A run after a one-model change takes minutes to an hour instead of about 9 hours.",
+        "uncertainty": "Execution identity must cover every input a cell reads (kernels, recipe, tokenizer); a missed input would credit a stale reading."
+      },
+      "likely_effort": "Moderate: a per-cell and per-test input key, credit in selection and the lane runner, and stale-cells' exception.",
+      "plan_references": [
+        "lane-cost",
+        "stale-cells"
+      ],
+      "plan_coverage": "lane-cost/do (c6d47dd37) reports stalls but reruns everything; no row credits unchanged inputs.",
+      "closure_criteria": [
+        "Two runs on a commit that changes one model's recipe re-measure only that model's cells and only the lane tests whose code identity changed.",
+        "The scorecard keeps every other cell as a reading, labelled unchanged since its scorecard.",
+        "A change to shared runtime code re-measures everything."
+      ],
+      "comparison": "Read from the 2026-10-31 run log, lane_walls.json and source; nothing measured by the reviewer.",
+      "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")"
+    },
+    {
       "id": "SQA-254",
       "status": "open",
       "severity": "P2",
@@ -4535,7 +4690,7 @@
       }
     }
   },
-  "next_finding_number": 266,
+  "next_finding_number": 269,
   "publication_context": {
       "checked_head": "eacf5f6d3d2e9fd437ee3041b71102374abb3ede",
       "committed_plan_git_blob": "dad653edb4bf0b7774610c0eaf6e8049f0334ee5",
@@ -4544,6 +4699,9 @@
       "publication": "Immediately re-read/reconcile JSON and HEAD under existing nonblocking publication locks; report-only commit preserving unrelated index/worktree. No implementation gate."
     },
   "ranked_active_finding_ids": [
+    "SQA-267",
+    "SQA-268",
+    "SQA-266",
     "SQA-254",
     "SQA-245",
     "SQA-218",

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"strings"
 	"time"
 
 	"overgo/internal/processcontrol"
@@ -18,6 +20,8 @@ type GoTestOptions struct {
 	// Progress receives each package's terminal event as the stream reports
 	// it, in stream order, before the report is complete.
 	Progress func(PackageProgress)
+	// Tests receives each top-level test's start and end as the stream reports them, in stream order.
+	Tests func(TestProgress)
 	// ActiveTimeout bounds each top-level test's unpaused time and event silence.
 	// Zero leaves timing to the command and parent context. Callers disabling
 	// Go's aggregate timeout must supply this budget or an explicit parent limit.
@@ -30,6 +34,31 @@ type PackageProgress struct {
 	Package string
 	Action  string
 	Elapsed time.Duration
+}
+
+// TestProgress is a top-level test's lifecycle event: run when it starts, and the action that ended it (pass, fail
+// or skip) with the elapsed time go test measured.
+type TestProgress struct {
+	Package, Test, Action string
+	Elapsed               time.Duration
+}
+
+// testProgressObserver forwards every event to next and each top-level test's start and end to tests.
+func testProgressObserver(tests func(TestProgress), next func(goTestEvent)) func(goTestEvent) {
+	if tests == nil {
+		return next
+	}
+	return func(event goTestEvent) {
+		next(event)
+		if event.Test == "" || strings.Contains(event.Test, "/") || !slices.Contains([]string{"run", "pass", "fail", "skip"}, event.Action) {
+			return
+		}
+		progress := TestProgress{Package: event.Package, Test: event.Test, Action: event.Action}
+		if event.Elapsed != nil && *event.Elapsed > 0 {
+			progress.Elapsed = time.Duration(*event.Elapsed * float64(time.Second))
+		}
+		tests(progress)
+	}
 }
 
 // packageProgressObserver forwards every event to next and each package
@@ -74,7 +103,7 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 		writer.Close()
 		finished <- err
 	}()
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, deadline.observe))
+	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, testProgressObserver(options.Tests, deadline.observe)))
 	if parseErr != nil {
 		cancel(parseErr)
 	}

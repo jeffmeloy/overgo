@@ -460,11 +460,14 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	if invocation.Target != nil {
 		selected = invocation.Target.MatchString
 	}
+	// Each long test's wall is reported and kept, and one running past twice its median is reported stalled as it runs.
+	watch := newLaneWatch(root, output)
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: name, Args: slices.Insert(slices.Clone(args), 1, "-json"), Dir: root, Env: append(os.Environ(), environment...),
 	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
 		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
-	}})
+	}, Tests: watch.observe})
+	watch.close()
 	required := requiredPass(report, invocation.Packages, selected)
 	if err == nil {
 		return required

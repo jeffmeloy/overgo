@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "run-lane-verdict",
-      "title": "A lane test that fails is named, with its output, the moment it fails, and the run record carries it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A lane test that fails is named, with its output, the moment it fails, and the run record carries it",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds$'",
-          "rationale": "Review of 2026-10-30 23:50 (F12, P1): the 2026-10-31 run's models lane failed cmd/validate in its first minute (four accepted-coverage tests on Qwen3.5-4B's served files) and cmd/evaluate at 7 minutes, and measurePhases ends a cycle at a failed lane before any cell, so the run would have spent about four more hours, internal/evaluation's held-out tests, to publish nothing; the failing tests' names and output print only when the whole go test command ends (acquire prints report.Diagnostics after it returns), so nothing said so until about 03:45. The change: acquire's test observer prints each failing test's name and output tail when the test fails; the run record's lanes phase takes the failure as its verdict at once, so the prompt and stop hooks show it; once a lane has failed, its queued packages whose recorded wall passes a set limit are skipped and reported as skipped by the failure, since no cell will run. The check: a lane whose first package fails records the failure in the run record before the next package ends."
-        }
-      ]
-    },
-    {
       "id": "landing-beside-run",
       "title": "A landing waiting on a run's device turn leaves the checkout free for the next row",
       "owner": "master-lead",

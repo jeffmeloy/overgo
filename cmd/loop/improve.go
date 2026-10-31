@@ -90,9 +90,22 @@ func (r *runRecorder) phase(name string) func(passed bool) {
 	at := len(r.run.Phases) - 1
 	r.write()
 	return func(passed bool) {
+		// The tests that failed in the phase were recorded by its process as they failed (plan.RecordFailure).
+		if kept, read := plan.ReadMeasurementRun(r.root); read && kept.Started.Equal(r.run.Started) && at < len(kept.Phases) {
+			r.run.Phases[at].Failed = kept.Phases[at].Failed
+		}
 		r.run.Phases[at].Ended, r.run.Phases[at].Passed = time.Now(), passed
 		r.write()
 	}
+}
+
+// environment is what a phase's validate is given to record its failures in this run's record; none where no record
+// is kept.
+func (r *runRecorder) environment() []string {
+	if r == nil {
+		return nil
+	}
+	return []string{clioptions.MeasurementRunEnvironment + "=" + plan.MeasurementRunPath(r.root)}
 }
 
 // credited records the phase named as one an interrupted run's credit stood for.
@@ -523,7 +536,7 @@ func measurePhases(statePath, key string, report io.Writer, published func() err
 	phase := func(name string, arguments ...string) bool {
 		_ = os.Remove(errorFile)
 		started, ended := time.Now(), run.phase(name)
-		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile, cycleCreditEnvironment(filepath.Dir(statePath))}, arguments...)
+		err := validate(append([]string{clioptions.ErrorFileEnvironment + "=" + errorFile, cycleCreditEnvironment(filepath.Dir(statePath))}, run.environment()...), arguments...)
 		ended(err == nil)
 		verdict := "passed"
 		if err != nil {

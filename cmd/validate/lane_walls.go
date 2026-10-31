@@ -3,13 +3,16 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
+	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/tensorstats"
 	"overgo/internal/testevidence"
@@ -32,6 +35,11 @@ const (
 	stallMultiple = 2
 	// medianQuantile is the quantile a median is.
 	medianQuantile = 0.5
+	// skippedAfterFailure is the wall, in the runs before, past which a lane's queued package is skipped once a lane
+	// test has failed: a failed lane runs no cell, and on 2026-10-31 internal/evaluation's held-out tests, 3h58m of
+	// the models lane's 5h23m the run before, were still to run after cmd/validate failed in its first minute; each
+	// other package of the lane took under 15 minutes.
+	skippedAfterFailure = 15 * time.Minute
 )
 
 // laneWalls are lane tests' recorded walls in seconds, newest last, by package and test.
@@ -55,21 +63,55 @@ func (walls laneWalls) median(key string) (time.Duration, bool) {
 	return time.Duration(tensorstats.Quantile(recorded, medianQuantile) * float64(time.Second)), true
 }
 
+// packageWall is the wall the lane tests of the package a command names as ./directory took in the runs before: the
+// sum of their newest recorded walls.
+func (walls laneWalls) packageWall(pkg string) time.Duration {
+	suffix := "/" + strings.TrimPrefix(pkg, "./")
+	var wall float64
+	for key, recorded := range walls {
+		name, _, _ := strings.Cut(key, " ")
+		if strings.HasSuffix(name, suffix) && len(recorded) > 0 {
+			wall += recorded[len(recorded)-1]
+		}
+	}
+	return time.Duration(wall * float64(time.Second))
+}
+
 // laneWatch watches a lane's go test run: it reports a test running past stallMultiple times its median wall while
-// it runs, and reports and records each test that took reportedTestWall or more when it passes.
+// it runs, reports and records each test that took reportedTestWall or more when it passes, and reports each test
+// that fails, with its output, when it fails, adding it to the run record at record where a measurement run gives
+// one (clioptions.MeasurementRunEnvironment).
 type laneWatch struct {
-	root    string
-	output  io.Writer
-	walls   laneWalls
-	after   func(time.Duration, func()) func() bool
-	mu      sync.Mutex
-	running map[string]func() bool
+	root     string
+	output   io.Writer
+	walls    laneWalls
+	record   string
+	after    func(time.Duration, func()) func() bool
+	mu       sync.Mutex
+	running  map[string]func() bool
+	failures []string
 }
 
 // newLaneWatch watches a run in the checkout at root, reporting to output.
 func newLaneWatch(root string, output io.Writer) *laneWatch {
-	return &laneWatch{root: root, output: output, walls: readLaneWalls(root), running: map[string]func() bool{},
-		after: func(wait time.Duration, report func()) func() bool { return time.AfterFunc(wait, report).Stop }}
+	return &laneWatch{root: root, output: output, walls: readLaneWalls(root), record: os.Getenv(clioptions.MeasurementRunEnvironment),
+		running: map[string]func() bool{},
+		after:   func(wait time.Duration, report func()) func() bool { return time.AfterFunc(wait, report).Stop }}
+}
+
+// long is whether the lane tests of the package a command names as ./directory took skippedAfterFailure or more in
+// the runs before.
+func (w *laneWatch) long(pkg string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.walls.packageWall(pkg) >= skippedAfterFailure
+}
+
+// failed is each test that has failed in the run, as package and test.
+func (w *laneWatch) failed() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.Clone(w.failures)
 }
 
 // observe takes one top-level test's start or end (testevidence.GoTestOptions.Tests).
@@ -92,6 +134,16 @@ func (w *laneWatch) observe(progress testevidence.TestProgress) {
 	if stop := w.running[key]; stop != nil {
 		stop()
 		delete(w.running, key)
+	}
+	if progress.Action == "fail" {
+		w.failures = append(w.failures, key)
+		fmt.Fprintf(w.output, "%s\t%s\t%s\t%s\n", progress.Action, progress.Package, progress.Test, progress.Elapsed.Round(time.Second))
+		fmt.Fprintf(w.output, "validate -run: %s failed:\n%s\n", key, strings.TrimRight(progress.Output, "\n"))
+		if w.record != "" {
+			if err := plan.RecordFailure(w.record, key); err != nil {
+				fmt.Fprintf(w.output, "validate -run: the run record %s does not name %s: %v\n", w.record, key, err)
+			}
+		}
 	}
 	if progress.Action == "pass" && progress.Elapsed >= reportedTestWall {
 		fmt.Fprintf(w.output, "%s\t%s\t%s\t%s\n", progress.Action, progress.Package, progress.Test, progress.Elapsed.Round(time.Second))

@@ -460,25 +460,75 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 	if invocation.Target != nil {
 		selected = invocation.Target.MatchString
 	}
-	// Each long test's wall is reported and kept, and one running past twice its median is reported stalled as it runs.
+	// Each long test's wall is reported and kept, one running past twice its median is reported stalled as it runs,
+	// and one that fails is reported, and recorded in the run this lane is a phase of, as it fails.
 	watch := newLaneWatch(root, output)
-	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
-		Path: name, Args: slices.Insert(slices.Clone(args), 1, "-json"), Dir: root, Env: append(os.Environ(), environment...),
-	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
-		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
-	}, Tests: watch.observe})
-	watch.close()
-	required := requiredPass(report, invocation.Packages, selected)
-	if err == nil {
-		return required
+	// The lane's own tests record nothing in that run.
+	inherited := slices.DeleteFunc(os.Environ(), func(variable string) bool {
+		return strings.HasPrefix(variable, clioptions.MeasurementRunEnvironment+"=")
+	})
+	packages, skipped := invocation.Packages, []string(nil)
+	for {
+		run, stop := context.WithCancel(ctx)
+		var ended []string
+		stopped := false
+		report, err := testevidence.RunGoTestCommand(run, processcontrol.Command{
+			Path: name, Args: slices.Insert(laneArguments(args, invocation.Packages, packages), 1, "-json"), Dir: root,
+			Env: append(slices.Clone(inherited), environment...),
+		}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
+			fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
+			ended = append(ended, done.Package)
+			// A failed lane runs no cell: once a test has failed, a long package still queued is not waited for.
+			if !stopped && len(watch.failed()) > 0 && slices.ContainsFunc(queued(packages, ended), watch.long) {
+				stopped = true
+				stop()
+			}
+		}, Tests: watch.observe})
+		stop()
+		watch.close()
+		for _, diagnostic := range report.Diagnostics {
+			fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
+		}
+		if !stopped {
+			required := requiredPass(report, packages, selected)
+			if err == nil && len(skipped) == 0 {
+				return required
+			}
+			if required != nil {
+				err = errors.Join(err, required)
+			}
+			if len(skipped) > 0 {
+				err = errors.Join(fmt.Errorf("%s failed; %s skipped after the failure", strings.Join(watch.failed(), ", "), strings.Join(skipped, ", ")), err)
+			}
+			return err
+		}
+		rest := queued(packages, ended)
+		long := slices.DeleteFunc(slices.Clone(rest), func(pkg string) bool { return !watch.long(pkg) })
+		skipped = append(skipped, long...)
+		fmt.Fprintf(output, "validate -run: %s failed, so %s, whose lane tests took %s or more in the runs before, are skipped: no cell runs after a failed lane\n",
+			strings.Join(watch.failed(), ", "), strings.Join(long, ", "), skippedAfterFailure)
+		if packages = slices.DeleteFunc(rest, watch.long); len(packages) == 0 {
+			return fmt.Errorf("%s failed; %s skipped after the failure", strings.Join(watch.failed(), ", "), strings.Join(skipped, ", "))
+		}
 	}
-	for _, diagnostic := range report.Diagnostics {
-		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
-	}
-	if required != nil {
-		err = fmt.Errorf("%w; %s", err, required)
-	}
-	return err
+}
+
+// samePackage is whether the package go test reports as path is the one a command names as pkg (./directory).
+func samePackage(pkg, path string) bool {
+	return path == pkg || strings.HasSuffix(path, "/"+strings.TrimPrefix(pkg, "./"))
+}
+
+// queued are the packages a command names that no reported package end is.
+func queued(packages, ended []string) []string {
+	return slices.DeleteFunc(slices.Clone(packages), func(pkg string) bool {
+		return slices.ContainsFunc(ended, func(path string) bool { return samePackage(pkg, path) })
+	})
+}
+
+// laneArguments are a go test command's arguments with each of the packages it names that kept does not hold left
+// out.
+func laneArguments(args, named, kept []string) []string {
+	return slices.DeleteFunc(slices.Clone(args), func(arg string) bool { return slices.Contains(named, arg) && !slices.Contains(kept, arg) })
 }
 
 // requiredPass says why one go test run's report does not prove what the run
@@ -497,9 +547,8 @@ func requiredPass(report testevidence.GoTestReport, packages []string, selected 
 	}
 	var refused, declared []string
 	for _, pkg := range packages {
-		relative := strings.TrimPrefix(pkg, "./")
 		at := slices.IndexFunc(report.Executions, func(execution testevidence.PackageExecution) bool {
-			return execution.Package == pkg || strings.HasSuffix(execution.Package, "/"+relative)
+			return samePackage(pkg, execution.Package)
 		})
 		if at < 0 {
 			refused = append(refused, pkg+" is absent: the run reported no such package")

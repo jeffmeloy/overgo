@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,7 +35,10 @@ type MeasurementRun struct {
 // MeasurementPhase is one phase of a run: when it began, when it is expected to
 // end by the wall the same phase took in the run before (zero where none took
 // it), when it ended and whether it passed, or that an interrupted run's credit
-// stood for it.
+// stood for it. Failed names each test that failed in it, as its process
+// records it the moment the test fails (RecordFailure): a failed lane decides
+// the run, and on 2026-10-31 one failed in its first minute and said so only
+// when the lane ended hours later.
 type MeasurementPhase struct {
 	Name     string    `json:"name"`
 	Started  time.Time `json:"started"`
@@ -42,11 +46,33 @@ type MeasurementPhase struct {
 	Ended    time.Time `json:"ended,omitzero"`
 	Passed   bool      `json:"passed,omitzero"`
 	Credited bool      `json:"credited,omitzero"`
+	Failed   []string  `json:"failed,omitempty"`
 }
+
+// runRecordMode is the run record's file mode: local process state.
+const runRecordMode = 0o600
+
+// reportedFailures is how many of a phase's failed tests the run's report names; the rest are counted.
+const reportedFailures = 3
 
 // MeasurementRunPath is where the run record of the checkout at root is kept.
 func MeasurementRunPath(root string) string {
 	return filepath.Join(root, processlock.StateDirectory, measurementRunFile)
+}
+
+// RecordFailure adds failed to the phase of the run recorded at path that is running; a record with no phase
+// running is left as it is.
+func RecordFailure(path, failed string) error {
+	var run MeasurementRun
+	if err := jsonfile.Decode(path, &run); err != nil {
+		return err
+	}
+	at := slices.IndexFunc(run.Phases, func(phase MeasurementPhase) bool { return phase.Ended.IsZero() && !phase.Credited })
+	if at < 0 {
+		return nil
+	}
+	run.Phases[at].Failed = append(run.Phases[at].Failed, failed)
+	return jsonfile.Write(path, run, runRecordMode)
 }
 
 // ReadMeasurementRun reads the newest run's record of the checkout at root;
@@ -90,6 +116,12 @@ func (run MeasurementRun) Report() string {
 			fmt.Fprintf(&b, "; %s running since %s, no earlier run timed it", phase.Name, at(phase.Started))
 		default:
 			fmt.Fprintf(&b, "; %s running since %s, expected to end %s", phase.Name, at(phase.Started), at(phase.Expected))
+		}
+		if len(phase.Failed) > 0 {
+			fmt.Fprintf(&b, ", failed: %s", strings.Join(phase.Failed[:min(len(phase.Failed), reportedFailures)], ", "))
+			if more := len(phase.Failed) - reportedFailures; more > 0 {
+				fmt.Fprintf(&b, " and %d more", more)
+			}
 		}
 	}
 	switch {

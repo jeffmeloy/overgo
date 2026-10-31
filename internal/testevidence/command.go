@@ -37,25 +37,41 @@ type PackageProgress struct {
 }
 
 // TestProgress is a top-level test's lifecycle event: run when it starts, and the action that ended it (pass, fail
-// or skip) with the elapsed time go test measured.
+// or skip) with the elapsed time go test measured. A failed test carries the tail of its output and its subtests',
+// up to GoTestOptions.DiagnosticBytes, so its failure is read as it fails, not when the whole command ends.
 type TestProgress struct {
 	Package, Test, Action string
 	Elapsed               time.Duration
+	Output                string
 }
 
-// testProgressObserver forwards every event to next and each top-level test's start and end to tests.
-func testProgressObserver(tests func(TestProgress), next func(goTestEvent)) func(goTestEvent) {
+// testProgressObserver forwards every event to next and each top-level test's start and end to tests, keeping the
+// newest tail bytes of each running test's output for its failure.
+func testProgressObserver(tests func(TestProgress), tail int, next func(goTestEvent)) func(goTestEvent) {
 	if tests == nil {
 		return next
 	}
+	outputs := map[string][]byte{}
 	return func(event goTestEvent) {
 		next(event)
-		if event.Test == "" || strings.Contains(event.Test, "/") || !slices.Contains([]string{"run", "pass", "fail", "skip"}, event.Action) {
+		top, _, _ := strings.Cut(event.Test, "/")
+		key := event.Package + " " + top
+		if top != "" && event.Action == "output" && tail > 0 {
+			kept := append(outputs[key], event.Output...)
+			outputs[key] = kept[max(len(kept)-tail, 0):]
+		}
+		if top == "" || top != event.Test || !slices.Contains([]string{"run", "pass", "fail", "skip"}, event.Action) {
 			return
 		}
 		progress := TestProgress{Package: event.Package, Test: event.Test, Action: event.Action}
 		if event.Elapsed != nil && *event.Elapsed > 0 {
 			progress.Elapsed = time.Duration(*event.Elapsed * float64(time.Second))
+		}
+		if event.Action == "fail" {
+			progress.Output = string(outputs[key])
+		}
+		if event.Action != "run" {
+			delete(outputs, key)
 		}
 		tests(progress)
 	}
@@ -103,7 +119,7 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 		writer.Close()
 		finished <- err
 	}()
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, testProgressObserver(options.Tests, deadline.observe)))
+	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, testProgressObserver(options.Tests, options.DiagnosticBytes, deadline.observe)))
 	if parseErr != nil {
 		cancel(parseErr)
 	}

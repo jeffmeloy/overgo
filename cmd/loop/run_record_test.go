@@ -4,11 +4,13 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
@@ -20,7 +22,9 @@ import (
 // keeps of itself (plan.MeasurementRun): its commit and process, each phase as
 // validate ran it with its verdict, the fill, the rows it filed and its end.
 // The second run expects each phase to end after the wall the first recorded
-// for it, and the record reads as the hooks print it.
+// for it, and the record reads as the hooks print it. A phase's validate is
+// given the record, and the test it records as failed while the phase runs is
+// kept when the phase ends.
 func TestARunRecordsItsEnd(t *testing.T) {
 	t.Parallel()
 	repository := t.TempDir()
@@ -33,9 +37,16 @@ func TestARunRecordsItsEnd(t *testing.T) {
 	run := &runRecorder{root: repository}
 	improver := improvement{root: repository, plan: emptyPlan(t), records: records, run: run, fill: func(string) error { return nil }}
 	improver.measure = func(_ string, filed func() error) error {
-		return measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, filed, run, func(_ []string, arguments ...string) error {
+		return measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, filed, run, func(environment []string, arguments ...string) error {
 			switch strings.Join(arguments, " ") {
 			case "-run -cells":
+				for _, variable := range environment {
+					if record, found := strings.CutPrefix(variable, clioptions.MeasurementRunEnvironment+"="); found {
+						if err := plan.RecordFailure(record, "overgo/cmd/benchmark TestACellMeasures"); err != nil {
+							t.Error(err)
+						}
+					}
+				}
 				return errors.New("a cell refused its measurement")
 			case "-scorecard -publish":
 				published = published.Add(time.Hour)
@@ -73,7 +84,11 @@ func TestARunRecordsItsEnd(t *testing.T) {
 			t.Fatalf("the first run expects %s to end with no earlier run to time it", phase.Name)
 		}
 	}
-	if report := first.Report(); !strings.Contains(report, "cells did not pass") || !strings.Contains(report, "filing 0 rows") {
+	if cells := first.Phases[2]; !slices.Equal(cells.Failed, []string{"overgo/cmd/benchmark TestACellMeasures"}) || len(first.Phases[1].Failed) != 0 {
+		t.Fatalf("the cells phase records failures %v and the lanes %v, want the one test its process recorded, in the cells alone", cells.Failed, first.Phases[1].Failed)
+	}
+	if report := first.Report(); !strings.Contains(report, "cells did not pass") || !strings.Contains(report, "filing 0 rows") ||
+		!strings.Contains(report, "failed: overgo/cmd/benchmark TestACellMeasures") {
 		t.Fatalf("the first run reads %q", report)
 	}
 

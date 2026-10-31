@@ -1345,9 +1345,10 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 			handler.ServeHTTP(responses[index], request)
 		})
 	}
-	// Both requests hold a slot once their goroutines have run; the
-	// scheduler, not a clock, paces the look.
-	for handler.sessions.Available() != 0 {
+	// Both requests hold a slot once their goroutines have leased one and
+	// marked it busy, after the lease (activateSession); the scheduler, not a
+	// clock, paces the look.
+	for !handler.slotBusy[0].Load() || !handler.slotBusy[1].Load() {
 		runtime.Gosched()
 	}
 

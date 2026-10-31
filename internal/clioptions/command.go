@@ -45,6 +45,11 @@ const (
 	// nothing is measured. A cycle runs every cell's producer so before its
 	// first cell.
 	PreflightEnvironment = "OVERGO_PREFLIGHT"
+	// MeasurementRunEnvironment names the record of the measurement run a
+	// validate -run is a phase of (plan.MeasurementRun): each lane test that
+	// fails is added to it as it fails. The cycle sets it; a run by hand does
+	// not, and records nothing.
+	MeasurementRunEnvironment = "OVERGO_MEASUREMENT_RUN"
 )
 
 // preflight is whether this command runs to its Ready and no further.

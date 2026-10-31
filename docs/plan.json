@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "prompt-attention-precision",
-      "title": "A prompt's attention reads on the tensor cores and holds the F32 path's held-out answers",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of do: the flash kernel's split products, the generic attention plan carrying the profile's admission, the model plan's tensor-core override and its open option"
-      },
-      "steps": [
-        {
-          "id": "activate",
-          "title": "The five models whose long-prompt rows the admission restores are activated over profiles that admit it",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest ./internal/modelcli -count=1 -run '^TestDenseModelsServePromptTensorCores$'",
-          "rationale": "The program a served request compiles reads the profile document its definition stored, so the admission reaches a model's requests once its definition is activated over a profile derived with it, as e0a7e5113 did for Flash-Next: cmd/profile-catalog publishes the registry's profiles, recipe verify -protocol -task inference accepts fixtures/protocol_acceptance.json on the new definition, recipe activate makes it active, and the coverage documents name the new recipe. The models whose long-prompt rows the admission restores: Qwen2.5-0.5B (qwen2), Carbon-500M-f16-ropefix and MiniCPM5-1B-native-chat (llama), gemma-4-E4B-it (gemma4) and Unlimited-OCR-bf16 (deepseek2-ocr). Measured with the probe on 2026-10-31, their first output at length reads, F32 to the split tensor-core kernel: Qwen2.5-0.5B 228.8 to 79.7 ms at 4096 tokens and 2186 to 485 ms at 16384, Carbon-500M 658 to 101 ms at 4096, MiniCPM5-1B 210 to 128 ms and 1699 to 909 ms, gemma-4-E4B-it 575 to 456 ms and 2575 to 2176 ms, Unlimited-OCR-bf16 1107 to 928 ms at 16384. The check: each one's active definition stores a profile that admits the kernel."
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",
@@ -483,6 +464,51 @@
       ]
     },
     {
+      "id": "native-text-weights",
+      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "measured by the preflight of do: the views of qwen2 and llama checkpoints, the tensor mapping their conversion and view share, and onboarding serving them as they are"
+      },
+      "steps": [
+        {
+          "id": "move",
+          "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^TestEveryViewedTextModelServesFromItsDirectory$'",
+          "rationale": "The moves the do step's code makes possible, which need the card and the store and so wait for the measurement run to end: every text model held as a Hugging Face directory of an architecture a view serves is onboarded from its directory under overgo_data/models (Qwen2.5-0.5B as qwen2, Carbon-500M and MiniCPM5-1B as llama), each with its bench, its reference answers (fixtures/answer_log_probabilities, re-pointed to the directory) and its held-out check, its config recorded with its weights so it takes its conversion's place on the scorecard, and the conversion retired for inference. A source only adaptive_new/models holds is copied to overgo_data/models first, its top-level files only, no download. The duplicate GGUFs are then listed with their sizes for removal by hand once no committed record reads them. The gemma-4 and Unlimited-OCR checkpoints need views of their own before they move. The check: in the live store, no activated inference cell is a conversion of a directory a view serves.\n\nServes: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion. Disappears: the conversions of those models from the served path. Evidence: TestEveryViewedTextModelServesFromItsDirectory. Batch: device and store, after the run."
+        }
+      ]
+    },
+    {
+      "id": "prompt-attention-precision",
+      "title": "A prompt's attention reads on the tensor cores and holds the F32 path's held-out answers",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "measured by the preflight of do: the flash kernel's split products, the generic attention plan carrying the profile's admission, the model plan's tensor-core override and its open option"
+      },
+      "steps": [
+        {
+          "id": "reprofile",
+          "title": "An activated model is re-validated over the catalog's changed profile by one onboarding mode, and gemma-4-E4B-it and Unlimited-OCR-bf16 take it",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingReprofilesAnActivatedModel$'",
+          "rationale": "The admission reaches a served model once its definition is activated over a profile derived with it, and no command does that for a model already activated by its exact suite. recipe verify -protocol, which activated Flash-Next over its profile (e0a7e5113), was tried on gemma-4-E4B-it on 2026-10-31 after cmd/profile-catalog published the 137 profiles: seven of fixtures/protocol_acceptance.json's eight cases were accepted, and the required tool call answered nothing (protocol case chat-tool answered \"\", finishing \"\"), a fixture written for a tool-calling model. validate -onboard refuses an activated model, since validating again would re-record its goldens, and libraryintake.Validate, which records and replays a fresh exact suite, is reached only through it. A hand sequence is a system defect: onboarding takes an explicit mode that re-validates an activated model whose stored profile the catalog has since changed, recording its goldens anew under the new definition, refused where the profile is unchanged, so no golden is re-recorded by accident. gemma-4-E4B-it and Unlimited-OCR-bf16 are then re-validated by it. Qwen2.5-0.5B, Carbon-500M and MiniCPM5-1B take the admission with native-text-weights/move, whose onboarding from their directories stores their definitions over the current profiles."
+        },
+        {
+          "id": "activate",
+          "title": "The five models whose long-prompt rows the admission restores are activated over profiles that admit it",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest ./internal/modelcli -count=1 -run '^TestDenseModelsServePromptTensorCores$'",
+          "rationale": "The program a served request compiles reads the profile document its definition stored, so the admission reaches a model's requests once its definition is activated over a profile derived with it, as e0a7e5113 did for Flash-Next: cmd/profile-catalog publishes the registry's profiles, recipe verify -protocol -task inference accepts fixtures/protocol_acceptance.json on the new definition, recipe activate makes it active, and the coverage documents name the new recipe. The models whose long-prompt rows the admission restores: Qwen2.5-0.5B (qwen2), Carbon-500M-f16-ropefix and MiniCPM5-1B-native-chat (llama), gemma-4-E4B-it (gemma4) and Unlimited-OCR-bf16 (deepseek2-ocr). Measured with the probe on 2026-10-31, their first output at length reads, F32 to the split tensor-core kernel: Qwen2.5-0.5B 228.8 to 79.7 ms at 4096 tokens and 2186 to 485 ms at 16384, Carbon-500M 658 to 101 ms at 4096, MiniCPM5-1B 210 to 128 ms and 1699 to 909 ms, gemma-4-E4B-it 575 to 456 ms and 2575 to 2176 ms, Unlimited-OCR-bf16 1107 to 928 ms at 16384. The check: each one's active definition stores a profile that admits the kernel."
+        }
+      ]
+    },
+    {
       "id": "scorecard-regressed-a62583608bf0e651",
       "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
       "owner": "master-lead",
@@ -554,25 +580,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-e3cfc2367db11392 -target 1054.2750499999993",
           "rationale": "- Unlimited-OCR-bf16 first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 974.56945 to 1115.0334 (+140.46395, +14.4%, allowed 79.7056; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "native-text-weights",
-      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of do: the views of qwen2 and llama checkpoints, the tensor mapping their conversion and view share, and onboarding serving them as they are"
-      },
-      "steps": [
-        {
-          "id": "move",
-          "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^TestEveryViewedTextModelServesFromItsDirectory$'",
-          "rationale": "The moves the do step's code makes possible, which need the card and the store and so wait for the measurement run to end: every text model held as a Hugging Face directory of an architecture a view serves is onboarded from its directory under overgo_data/models (Qwen2.5-0.5B as qwen2, Carbon-500M and MiniCPM5-1B as llama), each with its bench, its reference answers (fixtures/answer_log_probabilities, re-pointed to the directory) and its held-out check, its config recorded with its weights so it takes its conversion's place on the scorecard, and the conversion retired for inference. A source only adaptive_new/models holds is copied to overgo_data/models first, its top-level files only, no download. The duplicate GGUFs are then listed with their sizes for removal by hand once no committed record reads them. The gemma-4 and Unlimited-OCR checkpoints need views of their own before they move. The check: in the live store, no activated inference cell is a conversion of a directory a view serves.\n\nServes: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion. Disappears: the conversions of those models from the served path. Evidence: TestEveryViewedTextModelServesFromItsDirectory. Batch: device and store, after the run."
         }
       ]
     },

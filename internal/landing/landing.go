@@ -103,6 +103,10 @@ type landing struct {
 	quietMachine string
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
+	// tree is the worktree of its own the candidate is checked out in once the landing lets the checkout go while
+	// its lanes wait for a turn another holds (letGo), where the stages from the lanes on read it; empty while they
+	// read the checkout.
+	tree string
 	// planned is the plan the candidate holds and advanced is it with the
 	// landed steps removed. terms is the plan the change is judged by,
 	// counts the candidate's rows' counts, read before the landed steps leave
@@ -137,6 +141,14 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
+	// The worktree the candidate was checked out in, if the checkout was let go, goes before the scratch it is in.
+	defer func() {
+		if l.tree != "" {
+			if _, removed := l.git(context.WithoutCancel(ctx), "worktree", "remove", "--force", l.tree); removed != nil {
+				fmt.Fprintf(options.Log, "land: the worktree %s the lanes read is left: %v\n", l.tree, removed)
+			}
+		}
+	}()
 	// Where the run's time went is recorded however it ends. A record that
 	// cannot be written is said and changes nothing: the landing stands.
 	l.spent = spent{Reference: options.Ref, Started: time.Now(), Outcome: gateClass, Stages: map[string]time.Duration{}}
@@ -656,7 +668,7 @@ func (l *landing) verify(ctx context.Context) error {
 		if strings.TrimSpace(verifier) == "" {
 			continue
 		}
-		if _, err := planverify.Execute(ctx, l.Repo, verifier, nil); err != nil {
+		if _, err := planverify.Execute(ctx, l.stageRoot(), verifier, nil); err != nil {
 			return err
 		}
 	}
@@ -666,30 +678,44 @@ func (l *landing) verify(ctx context.Context) error {
 // regularFile is the Git mode the advanced plan is staged with.
 const regularFile = "100644"
 
+// settled holds the commit to the candidate the checks passed. While the stages read the checkout, its working tree
+// must still be the candidate. Once the landing let the checkout go (letGo), the stages read the candidate in a
+// worktree of its own, and the commit publishes it whatever the checkout holds by then, which is left as edited.
+func (l *landing) settled(ctx context.Context) error {
+	if l.tree != "" {
+		_, err := l.staged(ctx, "read-tree", l.candidate)
+		return err
+	}
+	now, err := l.capture(ctx)
+	if err != nil {
+		return err
+	}
+	if now != l.candidate {
+		changed, err := gitauthority.Query(ctx, l.Repo, "diff-tree", "-r", "--name-only", l.candidate, now)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("land: the tree changed during the landing: %s; land again once it is settled",
+			strings.ReplaceAll(strings.TrimSpace(string(changed)), "\n", ", "))
+	}
+	return nil
+}
+
 // commit publishes the candidate the checks passed, its plan advanced past
 // the row, onto the HEAD the landing found. The working tree must still be
-// the candidate, and HEAD moves by one compare-and-set, so a refusal writes
-// nothing: the plan keeps its row and any edit made meanwhile. Only a
-// landed commit advances the working plan, and only while that plan is
-// still the candidate's; a plan edited during the landing is left as
-// edited and the landing says so.
+// the candidate unless the checkout was let go (settled), and HEAD moves by
+// one compare-and-set, so a refusal writes nothing: the plan keeps its row
+// and any edit made meanwhile. Only a landed commit advances the working
+// plan, and only while that plan is still the candidate's; a plan edited
+// during the landing is left as edited and the landing says so.
 func (l *landing) commit(ctx context.Context) (landed string, err error) {
 	lock, err := authoritylock.AcquireContext(ctx, l.Repo)
 	if err != nil {
 		return "", err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	now, err := l.capture(ctx)
-	if err != nil {
+	if err := l.settled(ctx); err != nil {
 		return "", err
-	}
-	if now != l.candidate {
-		changed, err := gitauthority.Query(ctx, l.Repo, "diff-tree", "-r", "--name-only", l.candidate, now)
-		if err != nil {
-			return "", err
-		}
-		return "", fmt.Errorf("land: the tree changed during the landing: %s; land again once it is settled",
-			strings.ReplaceAll(strings.TrimSpace(string(changed)), "\n", ", "))
 	}
 	advanced := filepath.Join(l.scratch, "plan.json")
 	if err := plan.Save(advanced, l.advanced); err != nil {
@@ -780,6 +806,15 @@ func (l *landing) staged(ctx context.Context, arguments ...string) (string, erro
 // output; a failure carries the tail of both streams. Each stream has its
 // own buffer: the two are drained concurrently.
 func (l *landing) run(ctx context.Context, environment []string, name string, arguments ...string) (string, error) {
+	return l.runIn(ctx, l.Repo, environment, name, arguments...)
+}
+
+// stageRoot is the directory the stages read the candidate in: the worktree it was checked out in once the checkout
+// was let go (letGo), or the checkout.
+func (l *landing) stageRoot() string { return cmp.Or(l.tree, l.Repo) }
+
+// runIn is run in the directory named.
+func (l *landing) runIn(ctx context.Context, directory string, environment []string, name string, arguments ...string) (string, error) {
 	// Every command says whose it is, so a measurement it runs does not wait for this landing.
 	if environment == nil {
 		environment = os.Environ()
@@ -787,7 +822,7 @@ func (l *landing) run(ctx context.Context, environment []string, name string, ar
 	environment = append(slices.Clone(environment), quietmachine.HeldEnvironment+"=1")
 	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: name, Args: arguments, Dir: l.Repo, Env: environment, Stdout: &output, Stderr: &diagnostics,
+		Path: name, Args: arguments, Dir: directory, Env: environment, Stdout: &output, Stderr: &diagnostics,
 	})
 	if err == nil && receipt.ExitCode != 0 {
 		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(output.String()+diagnostics.String()))

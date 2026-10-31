@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
+	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testskip"
@@ -234,6 +235,27 @@ func HoldLaneTurn(work func() error) error {
 	return processcontrol.ResourceTransaction(laneTurn, work)
 }
 
+// letGo frees the checkout while the lanes wait for a lane turn another holds, a measurement run's above all: on
+// 2026-10-30 a landing waited on the run's turn for hours, and as a landing ships the checkout's dirty tree, no other
+// row could be edited until it landed. The candidate the host stages passed is checked out in a worktree of its own,
+// where the lanes, the row's check and the scorecard read it, and the commit publishes it whatever the checkout holds
+// by then (settled). A turn that is free is taken over the checkout as before, and a merge keeps its checkout.
+func (l *landing) letGo(ctx context.Context) error {
+	if held, err := processcontrol.ResourceTransactionHeld(laneTurn); err != nil || !held || len(l.merging) > 0 {
+		return err
+	}
+	tree := filepath.Join(l.scratch, "tree")
+	if _, err := l.git(ctx, "worktree", "add", "--detach", "--no-checkout", tree, l.head); err != nil {
+		return err
+	}
+	l.tree = tree
+	if _, err := l.runIn(ctx, tree, gitauthority.RepositoryEnvironment(), "git", gitauthority.WriterArguments("read-tree", "-u", "--reset", l.candidate)...); err != nil {
+		return err
+	}
+	fmt.Fprintf(l.Log, "land: the lane turn is held, so the lanes wait on the change as it stood, in %s: the checkout is free\n", tree)
+	return nil
+}
+
 // inLaneTurn runs work in the lane turn, waiting for it with no side of the quiet machine held, which it takes again
 // once the turn is its own: a timed cell of a run that holds the turn takes the machine alone, and would otherwise
 // wait on a landing that waits on the run.
@@ -283,7 +305,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	var reached []lane
 	var skipped []string
 	started := time.Now()
-	reaches, err := discover(l.Repo, lanes...)
+	reaches, err := discover(l.stageRoot(), lanes...)
 	if err != nil {
 		return err
 	}
@@ -298,6 +320,9 @@ func (l *landing) lanes(ctx context.Context) error {
 	if len(reached) == 0 {
 		l.details["lanes"] = describeLanes(discovery, 0, nil, skipped)
 		return nil
+	}
+	if err := l.letGo(ctx); err != nil {
+		return err
 	}
 	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
 	waiting := time.Now()
@@ -315,7 +340,7 @@ func (l *landing) lanes(ctx context.Context) error {
 				environment = append(os.Environ(), candidate.environment...)
 			}
 			began := time.Now()
-			output, err := l.run(ctx, environment, "go", candidate.arguments(changed.Name())...)
+			output, err := l.runIn(ctx, l.stageRoot(), environment, "go", candidate.arguments(changed.Name())...)
 			wall := time.Since(began).Round(time.Millisecond)
 			mu.Lock()
 			defer mu.Unlock()

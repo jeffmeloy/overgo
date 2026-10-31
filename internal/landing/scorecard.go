@@ -51,11 +51,11 @@ var timedMetrics = []struct {
 // options and environment. It reports and never refuses: a slice that does
 // not measure says why.
 func (l *landing) scorecard(ctx context.Context) error {
-	reaches, err := discover(l.Repo, slice)
+	reaches, err := discover(l.stageRoot(), slice)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(sliceDocument))); !reaches(slice, l.paths) || err != nil {
+	if _, err := os.Stat(filepath.Join(l.stageRoot(), filepath.FromSlash(sliceDocument))); !reaches(slice, l.paths) || err != nil {
 		l.details["scorecard"] = "not reached"
 		return nil
 	}
@@ -68,7 +68,7 @@ func (l *landing) scorecard(ctx context.Context) error {
 	if runtime.GOOS == "windows" {
 		binary += ".exe"
 	}
-	if _, err := l.run(ctx, nil, "go", "build", "-o", binary, "./cmd/benchmark"); err != nil {
+	if _, err := l.runIn(ctx, l.stageRoot(), nil, "go", "build", "-o", binary, "./cmd/benchmark"); err != nil {
 		l.details["scorecard"] = "failed: the benchmark does not build"
 		return nil
 	}
@@ -111,7 +111,7 @@ func (l *landing) runSlice(ctx context.Context, directory, binary string) (metri
 	}
 	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: binary, Args: []string{"-slice", sliceDocument}, Dir: l.Repo,
+		Path: binary, Args: []string{"-slice", sliceDocument}, Dir: l.stageRoot(),
 		Env:    append(os.Environ(), clioptions.ErrorFileEnvironment+"="+errorFile.Name()),
 		Stdout: &output, Stderr: &diagnostics,
 	})

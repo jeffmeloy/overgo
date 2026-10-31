@@ -130,7 +130,7 @@ func (run MeasurementRun) Report() string {
 	case !processcontrol.ProcessAlive(run.Process):
 		b.WriteString("; its process is gone with no end recorded: the run was cut short")
 	default:
-		b.WriteString("; running: plan-only commits, no device work, no push until it ends")
+		b.WriteString("; running: a landing's lanes wait for its device turn with the checkout free, no device tests by hand, no push until it ends")
 	}
 	return b.String()
 }

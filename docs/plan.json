@@ -472,21 +472,6 @@
       ]
     },
     {
-      "id": "landing-beside-run",
-      "title": "A landing waiting on a run's device turn leaves the checkout free for the next row",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A landing waiting on a run's device turn leaves the checkout free for the next row",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWaitingOnARunLeavesTheCheckoutFree$'",
-          "rationale": "Review of 2026-10-30 23:50 (F13, P1): the succession-weights landing waited on the run's lane turn (run-freeze, 9b8300d08) from 22:13; a landing ships the checkout's dirty tree, so no other row could be edited until it landed, and the stop gate let the turn end while it waited. The freeze came back for every row with device lanes, as hours of waiting rather than a rule. The landing already captures its ship set as a tree through its private index (capture). The change: a landing whose host stages have passed runs its lanes on that tree checked out apart from the checkout (a snapshot worktree), so the checkout is free for the next row while it waits, and the commit is still the captured tree; the run record's running line (MeasurementRun.Report), which still says plan-only commits and no device work, says what holds: landings wait for the run's device turn, no device tests by hand, no push. The check: a landing waiting on the run's turn does not block an edit to another file or the next row's landing."
-        }
-      ]
-    },
-    {
       "id": "draft-verdict-record",
       "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
       "owner": "master-lead",

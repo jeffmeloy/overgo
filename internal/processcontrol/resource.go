@@ -99,6 +99,15 @@ func ResourceTransaction(name string, action func() error) error {
 	return resourceTransaction(name, action)
 }
 
+// ResourceTransactionHeld says whether another holds the transaction on name (ResourceTransaction) now, without
+// waiting for it to end.
+func ResourceTransactionHeld(name string) (bool, error) {
+	if !validResourceName(name) {
+		return false, errors.New("processcontrol: invalid resource transaction")
+	}
+	return resourceTransactionHeld(name)
+}
+
 // inheritedResources reacquires handles before launching further descendants.
 // Names carry identity only; the OS still proves membership or exclusivity.
 func inheritedResources() error {

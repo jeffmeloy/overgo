@@ -62,7 +62,7 @@ func TestTheHooksPrintTheRunsEnd(t *testing.T) {
 	cells := plan.MeasurementPhase{Name: "cells", Started: lanes.Ended, Expected: lanes.Ended.Add(2*time.Hour + 38*time.Minute)}
 	keep(plan.MeasurementRun{Commit: "bc1d47e13606fddb", Process: os.Getpid(), Started: began, Phases: []plan.MeasurementPhase{lanes, cells}})
 	want := "cells running since " + at(cells.Started) + ", expected to end " + at(cells.Expected)
-	if printed := prompted(); !strings.Contains(printed, want) || !strings.Contains(printed, "no device work") {
+	if printed := prompted(); !strings.Contains(printed, want) || !strings.Contains(printed, "the checkout free") {
 		t.Fatalf("the prompt hook printed %q for a running run, want %q", printed, want)
 	}
 	if blocked := captured(&os.Stderr, func() { stopHook("lead") }); !strings.Contains(blocked, want) {

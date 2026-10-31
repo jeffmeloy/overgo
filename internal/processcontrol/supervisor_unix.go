@@ -25,6 +25,10 @@ func resourceTransaction(string, func() error) error {
 	return errors.New("processcontrol: physical resource transactions require Windows")
 }
 
+func resourceTransactionHeld(string) (bool, error) {
+	return false, errors.New("processcontrol: physical resource transactions require Windows")
+}
+
 // Unix containment uses process groups: the command leads its own
 // group, an interrupt delivers SIGTERM to the whole group, and
 // termination delivers SIGKILL to the group.

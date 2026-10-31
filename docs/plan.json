@@ -464,70 +464,6 @@
       ]
     },
     {
-      "id": "native-text-weights",
-      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "measured by the preflight of do: the views of qwen2 and llama checkpoints, the tensor mapping their conversion and view share, and onboarding serving them as they are"
-      },
-      "steps": [
-        {
-          "id": "move",
-          "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^TestEveryViewedTextModelServesFromItsDirectory$'",
-          "rationale": "The moves the do step's code makes possible, which need the card and the store and so wait for the measurement run to end: every text model held as a Hugging Face directory of an architecture a view serves is onboarded from its directory under overgo_data/models (Qwen2.5-0.5B as qwen2, Carbon-500M and MiniCPM5-1B as llama), each with its bench, its reference answers (fixtures/answer_log_probabilities, re-pointed to the directory) and its held-out check, its config recorded with its weights so it takes its conversion's place on the scorecard, and the conversion retired for inference. A source only adaptive_new/models holds is copied to overgo_data/models first, its top-level files only, no download. The duplicate GGUFs are then listed with their sizes for removal by hand once no committed record reads them. The gemma-4 and Unlimited-OCR checkpoints need views of their own before they move. The check: in the live store, no activated inference cell is a conversion of a directory a view serves.\n\nServes: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion. Disappears: the conversions of those models from the served path. Evidence: TestEveryViewedTextModelServesFromItsDirectory. Batch: device and store, after the run."
-        }
-      ]
-    },
-    {
-      "id": "draft-verdict-record",
-      "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestARecordedDraftVerdictRunsNoProbe$'",
-          "rationale": "Review of 2026-10-30 23:50 (F14, P2), taken by the lead for what it buys: 8ce06a06d times plain and drafted decoding at every served open, 0.64 s of the 4B's load and 1.0 s of the 27B's, and the 4B's probe raises its peak by 0.79 GB; three trades are declared for it (two load-time, one peak-device-memory). The verdict is the same for the same weights, device and build. The change: the verdict is recorded in the store under the model identity, the device and the runtime build, reused at load, and probed again only when one of them changes; the three trades are withdrawn when the cells come back. The check: a second open of the same model with a recorded verdict runs no probe."
-        }
-      ]
-    },
-    {
-      "id": "flashnext-long-read",
-      "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b0f22870d3200ec6 -target 5563.9",
-          "rationale": "Split from flashnext-first-request on 2026-10-30, whose first output and throughput are met and whose load is declared a trade. The 16,384-token first output reads 6.2 s against 5563.9 ms on 2026-10-25, and Strata reads the same prompt in 4.94 to 5.04 s (the reviewer's bench, scratchpad round/alt62): the read takes 5.85 s and the round's setup after it 0.34 s. Measured on the served model: the n-gram embedding's rows for the read are fetched from the model file in two loads of 131,072 rows, 0.26 s on the read's path before its chunks run (inference feedNGramInputs, model.HostRows); the rest is the chunks' MoE products on the card and the host experts' on the CPU (hostexpert, about 2.5 s of CPU over the read). First suspects, each measured before it is changed: the n-gram rows fetched for the next chunk while the current one runs; the host experts' share of a long read, against where Strata's read computes them; and the chunk size a long read takes."
-        }
-      ]
-    },
-    {
-      "id": "executor-setup",
-      "title": "Load and resolve only the kernels a model's graphs launch, so a first request pays for its own",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Load each kernel module, and resolve each function, when a graph first launches from it",
-          "status": "open",
-          "verify": "false",
-          "rationale": "Every model's first request runs the executor's setup (ensureResources): loading the three kernel modules from PTX (ops_f32 6.1 MB, strata_qsa 4.4 MB, strata_native 2.5 MB; about 6, 8 and 5 ms each with the driver's compiled cache warm) and resolving all 446 functions, then setting the large-shared kernels' limits, about 30 ms of a first request in a CPU profile. The Strata decode port added strata_native and with it 13 ms to Qwen3.5-9B's first request on a fresh load (44 to 57 ms at 8cc359407, each read twice); Qwen2.5-0.5B's measured attempts stepped 115 to 131 ms across the same window. After cells-first-request (the cell layers' needless cuBLAS, about 70 ms) and first-request-setup (the bundle's hash, about 5 ms), the first-output rows still stand above their targets on fresh measurements from a clean tree: Bonsai-27B 120 ms (target 102.7), Qwen3.5-9B 54 ms (39.1), Qwen2.5-0.5B 129 to 132 ms (125); gemma-4-E4B-it read 200 and 311 ms, its first request reading its weights back after the other models' loads. The change loads a module, and resolves a function, only when a graph first launches from it, before the graph runs or is captured, so a model pays for the kernels it uses: most models never launch the native module's 70 functions or the QSA module's 123. The launches index the function table directly in many hand-written files and setup configures some functions up front, so the change is mechanical but wide. The check is set before the code lands, with the test that holds it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-f150c20a36aed39b",
       "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
       "owner": "master-lead",
@@ -569,21 +505,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-9867412d419e3bb1 -target 158.54860000000002",
           "rationale": "- gemma-4-E4B-it first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833}: 126.6166 to 167.5657 (+40.9491, +32.3%, allowed 31.932; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-regressed-cd642dc19119292f",
-      "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen2.5-0.5B inference first-output to 124.9848 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-cd642dc19119292f -target 124.98480000000002",
-          "rationale": "- Qwen2.5-0.5B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca}: 103.9276 to 129.256 (+25.3284, +24.4%, allowed 21.0572; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },
@@ -734,6 +655,70 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-e3cfc2367db11392 -target 1054.2750499999993",
           "rationale": "- Unlimited-OCR-bf16 first-output, {Metric:time to prefill, a fresh prompt of 16384 tokens Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3}: 974.56945 to 1115.0334 (+140.46395, +14.4%, allowed 79.7056; serving time to prefill a fresh prompt of 16384 tokens, the median of the newest attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+        }
+      ]
+    },
+    {
+      "id": "native-text-weights",
+      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "measured by the preflight of do: the views of qwen2 and llama checkpoints, the tensor mapping their conversion and view share, and onboarding serving them as they are"
+      },
+      "steps": [
+        {
+          "id": "move",
+          "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^TestEveryViewedTextModelServesFromItsDirectory$'",
+          "rationale": "The moves the do step's code makes possible, which need the card and the store and so wait for the measurement run to end: every text model held as a Hugging Face directory of an architecture a view serves is onboarded from its directory under overgo_data/models (Qwen2.5-0.5B as qwen2, Carbon-500M and MiniCPM5-1B as llama), each with its bench, its reference answers (fixtures/answer_log_probabilities, re-pointed to the directory) and its held-out check, its config recorded with its weights so it takes its conversion's place on the scorecard, and the conversion retired for inference. A source only adaptive_new/models holds is copied to overgo_data/models first, its top-level files only, no download. The duplicate GGUFs are then listed with their sizes for removal by hand once no committed record reads them. The gemma-4 and Unlimited-OCR checkpoints need views of their own before they move. The check: in the live store, no activated inference cell is a conversion of a directory a view serves.\n\nServes: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion. Disappears: the conversions of those models from the served path. Evidence: TestEveryViewedTextModelServesFromItsDirectory. Batch: device and store, after the run."
+        }
+      ]
+    },
+    {
+      "id": "draft-verdict-record",
+      "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestARecordedDraftVerdictRunsNoProbe$'",
+          "rationale": "Review of 2026-10-30 23:50 (F14, P2), taken by the lead for what it buys: 8ce06a06d times plain and drafted decoding at every served open, 0.64 s of the 4B's load and 1.0 s of the 27B's, and the 4B's probe raises its peak by 0.79 GB; three trades are declared for it (two load-time, one peak-device-memory). The verdict is the same for the same weights, device and build. The change: the verdict is recorded in the store under the model identity, the device and the runtime build, reused at load, and probed again only when one of them changes; the three trades are withdrawn when the cells come back. The check: a second open of the same model with a recorded verdict runs no probe."
+        }
+      ]
+    },
+    {
+      "id": "flashnext-long-read",
+      "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b0f22870d3200ec6 -target 5563.9",
+          "rationale": "Split from flashnext-first-request on 2026-10-30, whose first output and throughput are met and whose load is declared a trade. The 16,384-token first output reads 6.2 s against 5563.9 ms on 2026-10-25, and Strata reads the same prompt in 4.94 to 5.04 s (the reviewer's bench, scratchpad round/alt62): the read takes 5.85 s and the round's setup after it 0.34 s. Measured on the served model: the n-gram embedding's rows for the read are fetched from the model file in two loads of 131,072 rows, 0.26 s on the read's path before its chunks run (inference feedNGramInputs, model.HostRows); the rest is the chunks' MoE products on the card and the host experts' on the CPU (hostexpert, about 2.5 s of CPU over the read). First suspects, each measured before it is changed: the n-gram rows fetched for the next chunk while the current one runs; the host experts' share of a long read, against where Strata's read computes them; and the chunk size a long read takes."
+        }
+      ]
+    },
+    {
+      "id": "executor-setup",
+      "title": "Load and resolve only the kernels a model's graphs launch, so a first request pays for its own",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Load each kernel module, and resolve each function, when a graph first launches from it",
+          "status": "open",
+          "verify": "false",
+          "rationale": "Every model's first request runs the executor's setup (ensureResources): loading the three kernel modules from PTX (ops_f32 6.1 MB, strata_qsa 4.4 MB, strata_native 2.5 MB; about 6, 8 and 5 ms each with the driver's compiled cache warm) and resolving all 446 functions, then setting the large-shared kernels' limits, about 30 ms of a first request in a CPU profile. The Strata decode port added strata_native and with it 13 ms to Qwen3.5-9B's first request on a fresh load (44 to 57 ms at 8cc359407, each read twice); Qwen2.5-0.5B's measured attempts stepped 115 to 131 ms across the same window. After cells-first-request (the cell layers' needless cuBLAS, about 70 ms) and first-request-setup (the bundle's hash, about 5 ms), the first-output rows still stand above their targets on fresh measurements from a clean tree: Bonsai-27B 120 ms (target 102.7), Qwen3.5-9B 54 ms (39.1), Qwen2.5-0.5B 129 to 132 ms (125); gemma-4-E4B-it read 200 and 311 ms, its first request reading its weights back after the other models' loads. The change loads a module, and resolves a function, only when a graph first launches from it, before the graph runs or is captured, so a model pays for the kernels it uses: most models never launch the native module's 70 functions or the QSA module's 123. The launches index the function table directly in many hand-written files and setup configures some functions up front, so the change is mechanical but wide. The check is set before the code lands, with the test that holds it."
         }
       ]
     },

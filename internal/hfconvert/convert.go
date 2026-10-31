@@ -5,6 +5,7 @@ package hfconvert
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -692,7 +692,34 @@ func readOptionalJSON(path string, destination any) error {
 var layerNamePattern = regexp.MustCompile(`^model\.layers\.(\d+)\.(.+)$`)
 
 func modelTensors(source *safetensors.Source, profile archProfile, config modelConfig) ([]gguf.TensorData, error) {
-	tensors := make([]gguf.TensorData, 0, len(source.Tensors))
+	mapped, err := profileTensors(source, profile, config)
+	if err != nil {
+		return nil, err
+	}
+	tensors := make([]gguf.TensorData, len(mapped))
+	for index, tensor := range mapped {
+		reader, err := tensor.open()
+		if err != nil {
+			return nil, fmt.Errorf("HF converter: tensor %q: %w", tensor.view.Name, err)
+		}
+		tensors[index] = gguf.TensorData{Name: tensor.view.Name, Shape: tensor.view.Shape, Type: tensor.view.Type, Data: reader}
+	}
+	return tensors, nil
+}
+
+// profileTensor is one tensor of a checkpoint converted by its profile (archProfiles), as the conversion stores it:
+// what a view of the checkpoint reads (gguf.ViewTensor), in place where the checkpoint stores it so, and a fresh
+// reader of its stored bytes, which the conversion writes.
+type profileTensor struct {
+	view gguf.ViewTensor
+	open func() (io.Reader, error)
+}
+
+// profileTensors are a profile checkpoint's tensors as its conversion stores them, ordered by name: each named as
+// GGUF names it, a bias promoted to F32, and the q and k rows of an interleaved-RoPE architecture permuted from
+// rotate-half, the others read as the checkpoint stores them.
+func profileTensors(source *safetensors.Source, profile archProfile, config modelConfig) ([]profileTensor, error) {
+	tensors := make([]profileTensor, 0, len(source.Tensors))
 	sawOutput := false
 	for sourceName, tensor := range source.Tensors {
 		destinationName, ok := modelTensorName(sourceName, profile)
@@ -702,30 +729,63 @@ func modelTensors(source *safetensors.Source, profile archProfile, config modelC
 		if destinationName == "output.weight" {
 			sawOutput = true
 		}
-		dataType, reader, err := modelTensorReader(tensor, destinationName)
+		dataType, _, err := modelTensorReader(tensor, destinationName)
 		if err != nil {
 			return nil, fmt.Errorf("HF converter: tensor %q: %w", sourceName, err)
 		}
-		// Interleaved-RoPE archs: HF q/k rows (weights AND biases) permute from rotate-half
-		if heads := ropePermuteHeads(destinationName, profile, config); heads != 0 {
-			reader, err = permuteRopeRows(reader, tensor.Shape, dataType, heads)
-			if err != nil {
-				return nil, fmt.Errorf("HF converter: permute %q: %w", sourceName, err)
+		heads := ropePermuteHeads(destinationName, profile, config)
+		open := func() (io.Reader, error) {
+			_, reader, err := modelTensorReader(tensor, destinationName)
+			if err != nil || heads == 0 {
+				return reader, err
 			}
+			return permuteRopeRows(reader, tensor.Shape, dataType, heads)
 		}
-		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType, Data: reader,
-		})
+		view := gguf.ViewTensor{Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType}
+		if heads == 0 && !strings.HasSuffix(destinationName, ".bias") {
+			view.Payload = tensor
+		} else {
+			view.Open = open
+		}
+		tensors = append(tensors, profileTensor{view: view, open: open})
 	}
 	// Tied embeddings: runtime output head falls back to token_embd; no duplicate tensor.
 	if !sawOutput && !config.TiedEmbeddings {
 		return nil, errors.New("HF converter: lm_head.weight is missing and embeddings are untied")
 	}
-	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
+	slices.SortFunc(tensors, func(left, right profileTensor) int { return strings.Compare(left.view.Name, right.view.Name) })
 	if len(tensors) == 0 {
 		return nil, errors.New("HF converter: no tensors found")
 	}
 	return tensors, nil
+}
+
+// viewProfile serves a checkpoint its profile converts (archProfiles) as the GGUF its conversion would write, without
+// writing it: the conversion's metadata and tensors, each read in place where the checkpoint stores it as the
+// conversion does, so a model served from its own files reads the bytes its conversion holds.
+func viewProfile(directory, name string, config modelConfig) (*gguf.File, error) {
+	if err := validateConfig(config); err != nil {
+		return nil, err
+	}
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		return nil, err
+	}
+	profile := archProfiles[config.ModelType]
+	metadata, err := modelMetadata(directory, cmp.Or(strings.TrimSpace(name), filepath.Base(directory)), profile, config)
+	mapped, mappedErr := profileTensors(source, profile, config)
+	var file *gguf.File
+	if err = errors.Join(err, mappedErr); err == nil {
+		tensors := make([]gguf.ViewTensor, len(mapped))
+		for index, tensor := range mapped {
+			tensors[index] = tensor.view
+		}
+		file, err = viewed(directory, metadata, tensors, source)
+	}
+	if err != nil {
+		return nil, errors.Join(err, source.Close())
+	}
+	return file, nil
 }
 
 var layerTensorMapping = map[string]string{

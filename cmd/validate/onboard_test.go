@@ -149,6 +149,37 @@ func TestOnboardingAgainRetiresOnlyAConversionStillServing(t *testing.T) {
 	}
 }
 
+// TestTextModelsOnboardFromTheirSafetensors holds validate -onboard to serving every text model held as a Hugging Face
+// directory of an architecture the converter writes from its own files, never converting it: a Qwen 3.5 checkpoint, a
+// qwen2 one (Qwen2.5-0.5B) and a llama one (Carbon-500M, MiniCPM5-1B) each register, record and activate as the
+// directory, have their declarations recorded under it and take the long-form guard, and no conversion is written. A
+// directory of an architecture no view serves yet is still converted.
+func TestTextModelsOnboardFromTheirSafetensors(t *testing.T) {
+	t.Parallel()
+	for _, modelType := range []string{"qwen3_5", "qwen2", "llama"} {
+		fixture := newOnboardingFixture(t)
+		directory := huggingFaceDirectory(t, `{"model_type":"`+modelType+`"}`)
+		if err := fixture.onboard(t, directory); err != nil {
+			t.Fatalf("%s: %v", modelType, err)
+		}
+		want := []string{
+			"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
+			"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
+		}
+		if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) {
+			t.Errorf("%s onboarding ran %q and validated %q; want %q and the directory itself", modelType, fixture.ran, fixture.validated, want)
+		}
+		if _, err := os.Stat(fixture.converted); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s: a conversion was written at %s: %v", modelType, fixture.converted, err)
+		}
+	}
+	fixture := newOnboardingFixture(t)
+	directory := huggingFaceDirectory(t, `{"model_type":"gemma4"}`)
+	if err := fixture.onboard(t, directory); err != nil || len(fixture.ran) == 0 || !strings.HasPrefix(fixture.ran[0], "go run ./cmd/gguf convert -source "+directory) {
+		t.Errorf("a gemma4 directory, which no view serves yet, ran %q (%v); want it converted", fixture.ran, err)
+	}
+}
+
 // TestOneCommandOnboardsADeclaredModel holds validate -onboard to the one
 // order that takes a model directory to validated with no hand step between:
 // a Hugging Face directory converts to GGUF under the checkpoints, recording
@@ -200,7 +231,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 func TestOnboardingReusesOnlyTheSameSourcesConversion(t *testing.T) {
 	t.Parallel()
 	fixture := newOnboardingFixture(t)
-	first := huggingFaceDirectory(t, `{"model_type":"llama"}`)
+	first := huggingFaceDirectory(t, `{"model_type":"gemma4"}`)
 	if err := fixture.onboard(t, first); err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +245,7 @@ func TestOnboardingReusesOnlyTheSameSourcesConversion(t *testing.T) {
 			t.Fatalf("%s: %v, ran %q, validated %q", name, err, fixture.ran, fixture.validated)
 		}
 	}
-	second := huggingFaceDirectory(t, `{"model_type":"qwen2"}`)
+	second := huggingFaceDirectory(t, `{"model_type":"gemma4_unified"}`)
 	refusedBeforeAnyStep("another directory of the same name", fixture.onboard(t, second))
 	if data, err := os.ReadFile(converted); err != nil || string(data) != "converted" {
 		t.Fatalf("the first directory's conversion was disturbed: %q, %v", data, err)

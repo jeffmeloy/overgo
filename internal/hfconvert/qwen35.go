@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -93,14 +94,23 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	}, nil
 }
 
-// View opens a Qwen 3.5 Hugging Face directory as the GGUF Convert would
-// write from it, named name where one is given: the same metadata and
-// tensors, their bytes read from the directory's files when read, and nothing
-// written (gguf.View). The file's Close closes the directory's files.
+// View opens a Hugging Face directory of a text architecture the converter
+// writes, a Qwen 3.5 checkpoint or one of a profile (archProfiles), as the
+// GGUF Convert would write from it, named name where one is given: the same
+// metadata and tensors, their bytes read from the directory's files when
+// read, and nothing written (gguf.View). The file's Close closes the
+// directory's files.
 func View(directory, name string) (*gguf.File, error) {
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return nil, err
+	}
+	var config modelConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
+		return nil, fmt.Errorf("HF converter: config: %w", err)
+	}
+	if _, profiled := archProfiles[config.ModelType]; profiled {
+		return viewProfile(directory, name, config)
 	}
 	repository, err := hfrepo.Open(directory)
 	if err != nil {
@@ -114,10 +124,15 @@ func View(directory, name string) (*gguf.File, error) {
 }
 
 // Viewed reports whether View serves directory as it is, so its model is
-// served from its own files and never converted: a Qwen 3.5 checkpoint.
+// served from its own files and never converted: a Qwen 3.5 checkpoint, or one
+// of a text architecture the converter writes by profile.
 func Viewed(directory string) bool {
 	var config modelConfig
-	return jsonfile.Decode(filepath.Join(directory, "config.json"), &config) == nil && config.ModelType == "qwen3_5"
+	if jsonfile.Decode(filepath.Join(directory, "config.json"), &config) != nil {
+		return false
+	}
+	_, profiled := archProfiles[config.ModelType]
+	return config.ModelType == "qwen3_5" || profiled
 }
 
 // init makes gguf.Open serve a directory as its View, so a model registered
@@ -135,6 +150,12 @@ func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*
 	if err != nil {
 		return nil, err
 	}
+	return viewed(directory, metadata, tensors, repository)
+}
+
+// viewed is the GGUF a view of directory serves from metadata and tensors, its tensors ordered by name and held to
+// the catalog a conversion is held to, closing closer with it.
+func viewed(directory string, metadata []gguf.Metadata, tensors []gguf.ViewTensor, closer io.Closer) (*gguf.File, error) {
 	slices.SortFunc(tensors, func(left, right gguf.ViewTensor) int { return strings.Compare(left.Name, right.Name) })
 	declared := make([]gguf.TensorData, len(tensors))
 	for index, tensor := range tensors {
@@ -143,7 +164,7 @@ func viewQwen35(directory string, repository *hfrepo.Repository, name string) (*
 	if err := modelartifact.ValidateGeneratedCatalog(metadata, declared); err != nil {
 		return nil, err
 	}
-	return gguf.View(metadata, tensors, gguf.WriteOptions{}, directory, repository)
+	return gguf.View(metadata, tensors, gguf.WriteOptions{}, directory, closer)
 }
 
 // qwen35ModelMetadata is a converted Qwen 3.5 model's metadata, its language

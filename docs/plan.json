@@ -156,6 +156,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "run-lanes-1031",
+      "title": "The measurement run's models lane passes again: the accepted coverage names the Qwen3.5-4B the catalog serves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The measurement run's models lane passes again: the accepted coverage names the Qwen3.5-4B the catalog serves",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^(TestAcceptedTextVisionEvidence|TestAcceptedModalityCoverage|TestAcceptedProtocolCoverageProjection|TestStructuredMediaReportProjection)$'",
+          "rationale": "The 2026-10-31 run (36786ae43, started 22:07) failed its models lane: cmd/validate in its first minute and cmd/evaluate at 7 minutes, so it could publish no scorecard; it was stopped at 23:59 rather than spend four more hours on internal/evaluation. Run by hand with the lane's tags and environment, cmd/validate's four accepted-coverage tests fail on one cause: docs/verification/text-vision-coverage.json accepts Qwen3.5-4B's inference under its conversion (model 887f4124, recipe 49d1ed7c), and since fc7ae6f0f the catalog serves the 4B from its own safetensors (model 731de849, recipe c082e914), so the accepted activation is omitted from the catalog and the served one is unaccepted. Only the cycle's models lane runs these tests, against the live store, so the landing that moved the catalog never ran them. The change: the cell is joined to the served model and recipe, keeping its proofs, which were recorded on the conversion of the same weights, and saying so in its scope; the reviewed digest moves with it. cmd/evaluate's failure is read the same way and fixed in this row. The check: the four tests pass against the live store."
+        }
+      ]
+    },
+    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",
@@ -472,6 +487,85 @@
       ]
     },
     {
+      "id": "succession-weights",
+      "title": "A model takes another's place on the scorecard only when their source weights match",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 336,
+        "reason": "the source weights a model's recorded config names (weightSources, WeightsKey) and the succession that needs them to match"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "A model takes another's place on the scorecard only when their source weights match",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked$'",
+          "rationale": "Review of 2026-10-30 (F0): successions (internal/scorecard) links a model that left the catalog to a listed one by their recorded config sources (ReadModelConfigComponents digests config.json, generation_config.json and dna_config.json, never the weights). A trained checkpoint keeps its base's config files, so once its base leaves the catalog it would be linked as the base's successor and inherit its readings and open rows; the sampling-card case caught on the real store was the same weakness one file short. Not seen in the store yet. The change: a conversion and a native registration record each source weight file's digest once (the components of the Hugging Face manifest modelartifact.FromHFPath already hashes), and a succession needs the weights to match; a conversion recorded before that names its weights by the source directory its conversion record names, hashed when it is first compared. Done with or before native-text-weights, which moves every text model. The check: two models with the same config files and other weights are never linked."
+        }
+      ]
+    },
+    {
+      "id": "run-lane-verdict",
+      "title": "A lane test that fails is named, with its output, the moment it fails, and the run record carries it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A lane test that fails is named, with its output, the moment it fails, and the run record carries it",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds$'",
+          "rationale": "Review of 2026-10-30 23:50 (F12, P1): the 2026-10-31 run's models lane failed cmd/validate in its first minute (four accepted-coverage tests on Qwen3.5-4B's served files) and cmd/evaluate at 7 minutes, and measurePhases ends a cycle at a failed lane before any cell, so the run would have spent about four more hours, internal/evaluation's held-out tests, to publish nothing; the failing tests' names and output print only when the whole go test command ends (acquire prints report.Diagnostics after it returns), so nothing said so until about 03:45. The change: acquire's test observer prints each failing test's name and output tail when the test fails; the run record's lanes phase takes the failure as its verdict at once, so the prompt and stop hooks show it; once a lane has failed, its queued packages whose recorded wall passes a set limit are skipped and reported as skipped by the failure, since no cell will run. The check: a lane whose first package fails records the failure in the run record before the next package ends."
+        }
+      ]
+    },
+    {
+      "id": "landing-beside-run",
+      "title": "A landing waiting on a run's device turn leaves the checkout free for the next row",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A landing waiting on a run's device turn leaves the checkout free for the next row",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestALandingWaitingOnARunLeavesTheCheckoutFree$'",
+          "rationale": "Review of 2026-10-30 23:50 (F13, P1): the succession-weights landing waited on the run's lane turn (run-freeze, 9b8300d08) from 22:13; a landing ships the checkout's dirty tree, so no other row could be edited until it landed, and the stop gate let the turn end while it waited. The freeze came back for every row with device lanes, as hours of waiting rather than a rule. The landing already captures its ship set as a tree through its private index (capture). The change: a landing whose host stages have passed runs its lanes on that tree checked out apart from the checkout (a snapshot worktree), so the checkout is free for the next row while it waits, and the commit is still the captured tree; the run record's running line (MeasurementRun.Report), which still says plan-only commits and no device work, says what holds: landings wait for the run's device turn, no device tests by hand, no push. The check: a landing waiting on the run's turn does not block an edit to another file or the next row's landing."
+        }
+      ]
+    },
+    {
+      "id": "draft-verdict-record",
+      "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestARecordedDraftVerdictRunsNoProbe$'",
+          "rationale": "Review of 2026-10-30 23:50 (F14, P2), taken by the lead for what it buys: 8ce06a06d times plain and drafted decoding at every served open, 0.64 s of the 4B's load and 1.0 s of the 27B's, and the 4B's probe raises its peak by 0.79 GB; three trades are declared for it (two load-time, one peak-device-memory). The verdict is the same for the same weights, device and build. The change: the verdict is recorded in the store under the model identity, the device and the runtime build, reused at load, and probed again only when one of them changes; the three trades are withdrawn when the cells come back. The check: a second open of the same model with a recorded verdict runs no probe."
+        }
+      ]
+    },
+    {
+      "id": "rules-audit",
+      "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleCitesItsCheck$'",
+          "rationale": "Review of 2026-10-30 (F9), the owner's rule of the same morning that rules are deterministic code: b0c74066b restated the run-order rule in skill.md and README although its phase-order tests enforce it, and the rule that a known fix is filed and worked, not asked about, went to memory as prose; skill.md is 439 lines and memory 678. The change: every behavioural line of skill.md and the plan's doctrine either cites the check that enforces it, with a test failing on a line that cites none, or becomes a check, or is deleted, and the counts are reported; and the decision rule becomes code: a plan question with a recommended option resolves to it at the end of the lead's turn unless the owner answered."
+        }
+      ]
+    },
+    {
       "id": "flashnext-long-read",
       "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
       "owner": "master-lead",
@@ -502,21 +596,6 @@
       ]
     },
     {
-      "id": "succession-weights",
-      "title": "A model takes another's place on the scorecard only when their source weights match",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A model takes another's place on the scorecard only when their source weights match",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestModelsWithTheSameConfigButOtherWeightsAreNeverLinked$'",
-          "rationale": "Review of 2026-10-30 (F0): successions (internal/scorecard) links a model that left the catalog to a listed one by their recorded config sources (ReadModelConfigComponents digests config.json, generation_config.json and dna_config.json, never the weights). A trained checkpoint keeps its base's config files, so once its base leaves the catalog it would be linked as the base's successor and inherit its readings and open rows; the sampling-card case caught on the real store was the same weakness one file short. Not seen in the store yet. The change: a conversion and a native registration record each source weight file's digest once (the components of the Hugging Face manifest modelartifact.FromHFPath already hashes), and a succession needs the weights to match; a conversion recorded before that names its weights by the source directory its conversion record names, hashed when it is first compared. Done with or before native-text-weights, which moves every text model. The check: two models with the same config files and other weights are never linked."
-        }
-      ]
-    },
-    {
       "id": "native-text-weights",
       "title": "Serve every text model held as safetensors from its own files, and stop converting them",
       "owner": "master-lead",
@@ -528,21 +607,6 @@
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestTextModelsOnboardFromTheirSafetensors$'",
           "rationale": "After the 4B (scorecard-regressed-82d99de4d4606223/native) serves from its own safetensors, every text model held as a Hugging Face directory does too (Qwen2.5-0.5B, Carbon-500M, MiniCPM5-1B, gemma-4-12B-it, gemma-4-E4B-it and their kin), each with its bench and held-out check, and onboarding stops converting them: a text model registers from its directory as every other modality's does. Their GGUF conversions are then leftovers and are removed once no committed record reads them (75 GB under adaptive_new/checkpoints/overgo-hfconvert is read-only, so the records are re-pointed and the owner removes that folder's copies). GGUF stays the format for models published only as GGUF quantizations. Serves: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion, and the correctness of every converter fix reaching its models at their next load.\n\nOwner 2026-10-30: work with native safetensors and delete the duplicate GGUFs. The duplicates, each made from a safetensors directory on this machine. Under adaptive_new/checkpoints/overgo-hfconvert: Carbon-500M (4 files, 4.0 GB, three of them superseded), MiniCPM5-1B-f16 (2.2), Qwen2.5-0.5B-f16 (1.0), Qwen3.5-4B-f16 with two projectors (10.1), Unlimited-OCR with two projectors (7.5), gemma-4-12B-it-fp8 as bf16 and as native (39.1), gemma-4-E4B-it with two projectors (16.9). Under overgo_data/models: MiniCPM5-1B-native-chat.gguf (2.2) and Unlimited-OCR-bf16's two GGUFs (6.7). About 90 GB in all. Sources are served from overgo_data/models, never from adaptive_new: a source only adaptive_new/models holds (Qwen3.5-4B, Unlimited-OCR, gemma-4-E4B-it, gemma-4-12B-it-fp8) is copied there first, with no download. Projectors are served from their source the same way. Each duplicate goes once its model serves from its source with its bench and held-out check passing and no committed record reads it (records re-pointed). The system lists them with their sizes, and the owner runs the removal, since a hard delete of model files is the owner's to run. Models published only as GGUF (Qwen3.5-9B Q8_0, Qwen3.8-27B Q6_K, Flash-Next IQ4_XS, the nemotron ASR's q8_0) keep their files.\n\nFrom the 4B's onboarding (2026-10-30, the first model served from its own files: onboarded at overgo_data/models/Qwen3.5-4B, its conversion 887f4124 retired for inference, its long-form guard passing at 61.5 tok/s decode on a 2048-token prompt): onboarding run again on a directory whose conversion is retired for inference and still activated for training tries to retire it again and fails (\"retirement requires an active recipe\"), since it gathers a conversion as superseded by any activated cell; it is to gather a conversion by an activated inference cell, the activation it replaces. Fix it before the first model this row moves. A model whose source only adaptive_new holds is copied as its top-level files (the 4B's thirteen, 9.3 GB, in 13 s), never its .git or documentation directories."
-        }
-      ]
-    },
-    {
-      "id": "rules-audit",
-      "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleCitesItsCheck$'",
-          "rationale": "Review of 2026-10-30 (F9), the owner's rule of the same morning that rules are deterministic code: b0c74066b restated the run-order rule in skill.md and README although its phase-order tests enforce it, and the rule that a known fix is filed and worked, not asked about, went to memory as prose; skill.md is 439 lines and memory 678. The change: every behavioural line of skill.md and the plan's doctrine either cites the check that enforces it, with a test failing on a line that cites none, or becomes a check, or is deleted, and the counts are reported; and the decision rule becomes code: a plan question with a recommended option resolves to it at the end of the lead's turn unless the owner answered."
         }
       ]
     },

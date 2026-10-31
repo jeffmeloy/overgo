@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"overgo/internal/gitauthority"
+	"overgo/internal/plan"
 	"overgo/internal/scorecard"
 )
 
@@ -111,6 +112,33 @@ func decideCycle(last string, moved, limit int) cycleDecision {
 		return cycleDecision{Due: true, Reason: "landings that moved what a cycle measures reached the limit"}
 	}
 	return cycleDecision{Reason: "what a cycle measures moved, but the landings are below the limit, so it waits for the plan to empty"}
+}
+
+// HandStartDue says whether a cycle started by hand (-improve) is due, by the trigger's terms with the dispatched step
+// beside them: a cycle a run left unfinished continues at its own commit, and otherwise one is due only when no cycle
+// has completed, or what a cycle measures moved since the last that did and the landings that moved it reached the
+// limit or the plan is empty. While a step is dispatched none is: a fix is judged by its own check, and a decline by
+// its own model's cells, never by a cycle of every model started for it (owner, 2026-10-31: stop retesting the whole
+// scorecard without finishing). The second run of 2026-10-31 was started by hand after a fix to three records whose
+// checks had passed on the card, and spent 9 hours 5 minutes.
+func (w *improvement) HandStartDue(dispatch plan.Dispatch) (bool, string, error) {
+	if begun := w.unfinished(); begun != "" {
+		return true, "the cycle a run began at " + begun[:min(len(begun), commitAbbreviation)] + " continues", nil
+	}
+	last, moved, err := w.movedSince()
+	if err != nil {
+		return false, "", err
+	}
+	decision := decideCycle(last, moved, w.limit)
+	switch {
+	case last == "" || decision.Due:
+		return true, decision.Reason, nil
+	case moved == 0:
+		return false, decision.Reason, nil
+	case dispatch.Complete:
+		return true, "the plan is empty and what a cycle measures moved", nil
+	}
+	return false, "the plan holds " + dispatch.Item + "/" + dispatch.Step + ", judged by its own check or its own model's cells, not by a run of every model", nil
 }
 
 // landingsThatMovedTheSurface counts the commits after the newest published scorecard's that touch

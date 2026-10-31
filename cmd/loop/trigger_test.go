@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
 	"overgo/internal/testutil"
 )
@@ -197,4 +199,52 @@ func TestDecideCycleNamesItsReason(t *testing.T) {
 			t.Errorf("%s: decideCycle = %+v, want due %t with a reason", name, got, test.due)
 		}
 	}
+}
+
+// TestAHandStartedRunWaitsForTheTrigger holds -improve, started by hand, to the trigger's terms with the dispatched step
+// beside them: a cycle is due when none has completed, never while nothing it measures moved, and once something moved
+// only when the plan is empty or the landings reached the limit; a dispatched step starts none, a fix its own check
+// judges nor a decline its own model's cells judge, and a cycle a run left unfinished continues whatever the plan holds.
+func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
+	t.Parallel()
+	repository, records := t.TempDir(), filepath.Join(t.TempDir(), "scorecards")
+	git := func(arguments ...string) string { return gitFixture(t, repository, arguments...) }
+	land := func(file, message string) {
+		t.Helper()
+		testutil.WriteTextFile(t, repository, file, message+"\n")
+		git("add", "-A")
+		git("commit", "-q", "-m", message)
+	}
+	surface := func(context.Context, string) (map[string]bool, error) {
+		return map[string]bool{"internal/evaluation": true}, nil
+	}
+	world := &improvement{watch: true, root: repository, records: records, surface: surface}
+	fix := plan.Dispatch{Item: "run-lanes", Step: "do", Verify: "go test ./internal/evaluation -run '^TestTheFix$'"}
+	gap := plan.Dispatch{Item: "scorecard-regressed-x", Step: proposalStep, Verify: "go run ./cmd/validate -scorecard -gap scorecard-regressed-x -target 1"}
+	check := func(name string, dispatch plan.Dispatch, want bool) {
+		t.Helper()
+		due, reason, err := world.HandStartDue(dispatch)
+		if err != nil || due != want || reason == "" {
+			t.Fatalf("%s: a hand-started cycle is due = %t (%q, %v), want %t with a reason", name, due, reason, err, want)
+		}
+	}
+	git("init", "-q", "-b", "master")
+	land("internal/evaluation/a.go", "measured: first")
+	check("no cycle has completed", fix, true)
+
+	if _, err := scorecard.Publish(records, time.Date(2026, time.October, 31, 6, 0, 0, 0, time.UTC), scorecard.Record{Commit: git("rev-parse", "HEAD")}); err != nil {
+		t.Fatal(err)
+	}
+	check("nothing moved since the cycle, a gap dispatched", gap, false)
+
+	land("internal/evaluation/a.go", "a fix to what the cycle measures")
+	check("a fix its own check judges", fix, false)
+	check("a decline its own model's cells judge", gap, false)
+	check("an empty plan", plan.Dispatch{Complete: true}, true)
+	world.limit = 1
+	check("the landings reached the limit", fix, true)
+	world.limit = 0
+
+	testutil.WriteTextFile(t, repository, filepath.Join(processlock.StateDirectory, cycleCreditFile), `{"Commit":"`+git("rev-parse", "HEAD")+`"}`)
+	check("a cycle a run left unfinished", fix, true)
 }

@@ -121,7 +121,7 @@ func run(args []string) error {
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
-	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
+	improveOnce := flags.Bool("improve", false, "run one improvement cycle now if one is due (HandStartDue says why when none is), as an emptied plan does: measure the scorecard, judge each cell against what its earlier readings held, and file the declines and the other gaps as rows")
 	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
 	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
 	leftovers := flags.Bool("leftovers", false, "list every place files accumulate (helper copies, worktrees, branches, stashes, experiment outputs, temporary folders, bin, tmp, store backups), one line an entry with its bytes and the rule that decided it, and every directory no line of the table names; writes the same listing to the trunk checkout's process state and removes nothing")
@@ -155,7 +155,20 @@ func run(args []string) error {
 		}
 		return err
 	case *improveOnce:
-		added, err := loop.Improve(improvementFor(*repoPath))
+		// A cycle started by hand is due by the trigger's terms, never for a fix its own check judges (HandStartDue).
+		world := improvementFor(*repoPath)
+		dispatch, err := dispatched()
+		if err != nil {
+			return err
+		}
+		due, reason, err := world.HandStartDue(dispatch)
+		if err != nil {
+			return err
+		}
+		if !due {
+			return fmt.Errorf("loop: no measurement run is due: %s", reason)
+		}
+		added, err := loop.Improve(world)
 		fmt.Printf("loop: improvement cycle proposed=%d row(s)\n", added)
 		return err
 	case *publishStrategySpec != "":
@@ -286,14 +299,9 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	if err := w.awaitValidation(); err != nil {
 		return loop.Step{}, false, err
 	}
-	// The dispatch arrives as data; the prose line is never parsed back.
-	out, err := planCommand("-prompt", "-json")
+	dispatch, err := dispatched()
 	if err != nil {
 		return loop.Step{}, false, err
-	}
-	var dispatch plan.Dispatch
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &dispatch); err != nil {
-		return loop.Step{}, false, fmt.Errorf("unparseable dispatch %q: %w", strings.TrimSpace(out), err)
 	}
 	if dispatch.Complete {
 		return loop.Step{}, false, nil
@@ -302,6 +310,19 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 		return loop.Step{}, false, fmt.Errorf("%w: %s", loop.ErrWorkWaiting, dispatch.Waiting)
 	}
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
+}
+
+// dispatched is the plan's current row, as data: the prose line is never parsed back.
+func dispatched() (plan.Dispatch, error) {
+	out, err := planCommand("-prompt", "-json")
+	if err != nil {
+		return plan.Dispatch{}, err
+	}
+	var dispatch plan.Dispatch
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &dispatch); err != nil {
+		return plan.Dispatch{}, fmt.Errorf("unparseable dispatch %q: %w", strings.TrimSpace(out), err)
+	}
+	return dispatch, nil
 }
 
 // awaitValidation waits for a live plan or gate mutation to release its

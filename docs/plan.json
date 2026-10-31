@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-lanes-1031",
-      "title": "The measurement run's models lane passes again: the accepted coverage names the Qwen3.5-4B the catalog serves",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The measurement run's models lane passes again: the accepted coverage names the Qwen3.5-4B the catalog serves",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest,integration ./cmd/validate -count=1 -run '^(TestAcceptedTextVisionEvidence|TestAcceptedModalityCoverage|TestAcceptedProtocolCoverageProjection|TestStructuredMediaReportProjection)$'",
-          "rationale": "The 2026-10-31 run (36786ae43, started 22:07) failed its models lane: cmd/validate in its first minute and cmd/evaluate at 7 minutes, so it could publish no scorecard; it was stopped at 23:59 rather than spend four more hours on internal/evaluation. Run by hand with the lane's tags and environment, cmd/validate's four accepted-coverage tests fail on one cause: docs/verification/text-vision-coverage.json accepts Qwen3.5-4B's inference under its conversion (model 887f4124, recipe 49d1ed7c), and since fc7ae6f0f the catalog serves the 4B from its own safetensors (model 731de849, recipe c082e914), so the accepted activation is omitted from the catalog and the served one is unaccepted. Only the cycle's models lane runs these tests, against the live store, so the landing that moved the catalog never ran them. The change: the cell is joined to the served model and recipe, keeping its proofs, which were recorded on the conversion of the same weights, and saying so in its scope; the reviewed digest moves with it. cmd/evaluate's failure is read the same way and fixed in this row. The check: the four tests pass against the live store."
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

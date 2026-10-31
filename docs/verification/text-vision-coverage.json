@@ -68,17 +68,17 @@
       ]
     },
     {
-      "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
+      "Model": "model:sha256:731de849206bdc40565de1b8f596c0a4f581e92f2e6711eb542dbe97e8336256",
       "Domains": null,
       "Cells": [
         {
           "Task": "inference",
-          "Recipe": "recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803",
+          "Recipe": "recipe:sha256:c082e9148297ef469c688850984fe15cdc1bcb69c3c8199c1124d4f7295848fd",
           "Proofs": [
             "modality-verification/qwen4-native-reference",
             "modality-verification/qwen4-verification-publication"
           ],
-          "Scope": "Four native text cases; 12032 generated MMLU-Pro cases; 541 IFEval prompts and 1668 matched verdicts. No throughput claim."
+          "Scope": "Four native text cases; 12032 generated MMLU-Pro cases; 541 IFEval prompts and 1668 matched verdicts, recorded on Qwen3.5-4B's conversion (model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b) and joined to the model served from its own safetensors, the same weights (fc7ae6f0f). No throughput claim."
         }
       ]
     },

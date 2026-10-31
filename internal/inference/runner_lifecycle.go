@@ -153,7 +153,10 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}
 		// The round's drafter is placed before the experts, as Strata loads its drafter before it sizes its expert tier.
 		if strataRound {
-			if strataDraft, err = openStrataDraftFile(ctx, cuda, options.Draft); err != nil {
+			drafter := processmeasure.Stage(ctx, "round drafter")
+			strataDraft, err = openStrataDraftFile(ctx, cuda, options.Draft)
+			drafter()
+			if err != nil {
 				return fail(err)
 			}
 		}

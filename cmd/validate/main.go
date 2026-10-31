@@ -92,7 +92,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
 	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
 	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
-	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit")
+	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit. With -run: measure that model's cells alone, and no lane, the model named by its scorecard row, its file or its identity, so a decline's row is judged without a run of every model")
 	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
 	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
 	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
@@ -294,6 +294,15 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
+	if *execute && *smokeModel != "" {
+		named, err := modelNamed(ctx, store, *smokeModel)
+		if err != nil {
+			return err
+		}
+		if plan, err = plan.OnlyModel(*smokeModel, named); err != nil {
+			return err
+		}
+	}
 	if *execute {
 		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}

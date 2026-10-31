@@ -154,16 +154,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "measured by the preflight of do: the hand start's trigger (HandStartDue), the -improve refusal that asks it, and the dispatch read it shares with the loop driver"
+        "reason": "measured by the preflight of model-cells: the plan of one model's cells (Plan.OnlyModel), the name a decline's row gives its model (modelNamed), and validate -run -model asking both"
       },
       "steps": [
-        {
-          "id": "model-cells",
-          "title": "One model's cells are measured alone, so a decline's row is judged without a run of every model",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOneModelsCellsAreMeasuredAlone$'",
-          "rationale": "The rows a scorecard files for a declined cell carry the check go run ./cmd/validate -scorecard -gap \u003ckey\u003e -target \u003cvalue\u003e, which reads the store's newest readings (openGap, scorecard.Build), but validate -run measures every model's cells or none, so each such row could close only on a run of every model, about 8 hours, and that run filed the next rows. The change: validate -run -cells -model \u003cname\u003e measures the named model's cells alone into the store, as the cycle measures them (the same commands, attempts and medians), so the gap check reads the decline's own model measured again in minutes."
-        },
         {
           "id": "cell-credit",
           "title": "A cell whose inputs are unchanged since its last reading is credited with it, not measured again",

@@ -100,6 +100,24 @@ func lastRecord(storeRoot string) (*scorecard.Record, error) {
 	return &published[len(published)-1], nil
 }
 
+// modelNamed answers whether a cell is of the model name names: by the name its scorecard row shows, which a decline's
+// row carries in its title, the name of the file the catalog finds it by, or its identity.
+func modelNamed(ctx context.Context, store *overgodb.Store, name string) (func(ModelValidation) bool, error) {
+	rows, err := scorecard.Build(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	models := map[artifact.ID]bool{}
+	for _, row := range rows {
+		if row.Name == name {
+			models[row.Model] = true
+		}
+	}
+	return func(cell ModelValidation) bool {
+		return models[cell.Model] || cell.ModelName == name || cell.Model.String() == name
+	}, nil
+}
+
 // openGap fails while the gap key names is open on the scorecard the store
 // holds now, compared with the measurements published before it: the verifier
 // of the row the loop proposed for the gap. A decline's key names one cell and

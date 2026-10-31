@@ -79,6 +79,22 @@ type Plan struct {
 	Suites []SelectedSuite `json:"suites"`
 }
 
+// OnlyModel is the plan of the models named alone: their cells, and no lane, so a decline's row is judged by its own
+// model measured again (validate -run -model), never by a run of every model. It refuses a name no cell answers to.
+func (plan Plan) OnlyModel(name string, named func(ModelValidation) bool) (Plan, error) {
+	keep := func(cells []Selected) []Selected {
+		return slices.DeleteFunc(slices.Clone(cells), func(sel Selected) bool { return !named(sel.ModelValidation) })
+	}
+	only := Plan{
+		Scorecard: plan.Scorecard, Run: keep(plan.Run), Background: keep(plan.Background), OperatorOwned: keep(plan.OperatorOwned),
+		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
+	}
+	if len(only.Run)+len(only.Background)+len(only.OperatorOwned) == 0 {
+		return Plan{}, fmt.Errorf("validate -run -model %s: no cell of the plan is that model's", name)
+	}
+	return only, nil
+}
+
 // SelectedSuite is one lane of the improvement cycle, the real-model suites
 // no landing runs, in the plan: the go command's arguments and added
 // environment that run it.

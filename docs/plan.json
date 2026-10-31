@@ -464,6 +464,32 @@
       ]
     },
     {
+      "id": "native-text-weights",
+      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "an estimate for retire-gather: a conversion gathered by its inference cell, and the retirement's weights check"
+      },
+      "steps": [
+        {
+          "id": "retire-gather",
+          "title": "Onboarding run again retires a conversion only for the inference it still serves",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingAgainRetiresOnlyAConversionStillServing$'",
+          "rationale": "From the 4B's onboarding (2026-10-30): run again on a directory whose conversion is retired for inference and still activated for training, onboarding tried to retire the conversion again and was refused (\"retirement requires an active recipe\"), since it gathered a conversion as superseded by any activated cell. The fix comes before the first model native-text-weights moves: a conversion is gathered by an activated inference cell, the activation the directory replaces, and a retirement needs the conversion's recorded config and weights to be the directory's (WeightsKey), as a succession on the scorecard does. The check: a run again beside a conversion activated for training alone retires nothing, and one still serving inference is retired.\n\nServes: setup-steps (onboarding a text model from its own files runs again without a hand step). Disappears: nothing. Evidence: TestOnboardingAgainRetiresOnlyAConversionStillServing. Batch: host."
+        },
+        {
+          "id": "do",
+          "title": "Serve every text model held as safetensors from its own files, and stop converting them",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestTextModelsOnboardFromTheirSafetensors$'",
+          "rationale": "After the 4B (scorecard-regressed-82d99de4d4606223/native) serves from its own safetensors, every text model held as a Hugging Face directory does too (Qwen2.5-0.5B, Carbon-500M, MiniCPM5-1B, gemma-4-12B-it, gemma-4-E4B-it and their kin), each with its bench and held-out check, and onboarding stops converting them: a text model registers from its directory as every other modality's does. Their GGUF conversions are then leftovers and are removed once no committed record reads them (75 GB under adaptive_new/checkpoints/overgo-hfconvert is read-only, so the records are re-pointed and the owner removes that folder's copies). GGUF stays the format for models published only as GGUF quantizations. Serves: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion, and the correctness of every converter fix reaching its models at their next load.\n\nOwner 2026-10-30: work with native safetensors and delete the duplicate GGUFs. The duplicates, each made from a safetensors directory on this machine. Under adaptive_new/checkpoints/overgo-hfconvert: Carbon-500M (4 files, 4.0 GB, three of them superseded), MiniCPM5-1B-f16 (2.2), Qwen2.5-0.5B-f16 (1.0), Qwen3.5-4B-f16 with two projectors (10.1), Unlimited-OCR with two projectors (7.5), gemma-4-12B-it-fp8 as bf16 and as native (39.1), gemma-4-E4B-it with two projectors (16.9). Under overgo_data/models: MiniCPM5-1B-native-chat.gguf (2.2) and Unlimited-OCR-bf16's two GGUFs (6.7). About 90 GB in all. Sources are served from overgo_data/models, never from adaptive_new: a source only adaptive_new/models holds (Qwen3.5-4B, Unlimited-OCR, gemma-4-E4B-it, gemma-4-12B-it-fp8) is copied there first, with no download. Projectors are served from their source the same way. Each duplicate goes once its model serves from its source with its bench and held-out check passing and no committed record reads it (records re-pointed). The system lists them with their sizes, and the owner runs the removal, since a hard delete of model files is the owner's to run. Models published only as GGUF (Qwen3.5-9B Q8_0, Qwen3.8-27B Q6_K, Flash-Next IQ4_XS, the nemotron ASR's q8_0) keep their files.\n\nFrom the 4B's onboarding (2026-10-30, the first model served from its own files: onboarded at overgo_data/models/Qwen3.5-4B, its conversion 887f4124 retired for inference, its long-form guard passing at 61.5 tok/s decode on a 2048-token prompt): onboarding run again on a directory whose conversion is retired for inference and still activated for training tries to retire it again and fails (\"retirement requires an active recipe\"), since it gathers a conversion as superseded by any activated cell; it is to gather a conversion by an activated inference cell, the activation it replaces. Fix it before the first model this row moves. A model whose source only adaptive_new holds is copied as its top-level files (the 4B's thirteen, 9.3 GB, in 13 s), never its .git or documentation directories."
+        }
+      ]
+    },
+    {
       "id": "draft-verdict-record",
       "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
       "owner": "master-lead",
@@ -505,21 +531,6 @@
           "status": "open",
           "verify": "false",
           "rationale": "Every model's first request runs the executor's setup (ensureResources): loading the three kernel modules from PTX (ops_f32 6.1 MB, strata_qsa 4.4 MB, strata_native 2.5 MB; about 6, 8 and 5 ms each with the driver's compiled cache warm) and resolving all 446 functions, then setting the large-shared kernels' limits, about 30 ms of a first request in a CPU profile. The Strata decode port added strata_native and with it 13 ms to Qwen3.5-9B's first request on a fresh load (44 to 57 ms at 8cc359407, each read twice); Qwen2.5-0.5B's measured attempts stepped 115 to 131 ms across the same window. After cells-first-request (the cell layers' needless cuBLAS, about 70 ms) and first-request-setup (the bundle's hash, about 5 ms), the first-output rows still stand above their targets on fresh measurements from a clean tree: Bonsai-27B 120 ms (target 102.7), Qwen3.5-9B 54 ms (39.1), Qwen2.5-0.5B 129 to 132 ms (125); gemma-4-E4B-it read 200 and 311 ms, its first request reading its weights back after the other models' loads. The change loads a module, and resolves a function, only when a graph first launches from it, before the graph runs or is captured, so a model pays for the kernels it uses: most models never launch the native module's 70 functions or the QSA module's 123. The launches index the function table directly in many hand-written files and setup configures some functions up front, so the change is mechanical but wide. The check is set before the code lands, with the test that holds it."
-        }
-      ]
-    },
-    {
-      "id": "native-text-weights",
-      "title": "Serve every text model held as safetensors from its own files, and stop converting them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve every text model held as safetensors from its own files, and stop converting them",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTextModelsOnboardFromTheirSafetensors$'",
-          "rationale": "After the 4B (scorecard-regressed-82d99de4d4606223/native) serves from its own safetensors, every text model held as a Hugging Face directory does too (Qwen2.5-0.5B, Carbon-500M, MiniCPM5-1B, gemma-4-12B-it, gemma-4-E4B-it and their kin), each with its bench and held-out check, and onboarding stops converting them: a text model registers from its directory as every other modality's does. Their GGUF conversions are then leftovers and are removed once no committed record reads them (75 GB under adaptive_new/checkpoints/overgo-hfconvert is read-only, so the records are re-pointed and the owner removes that folder's copies). GGUF stays the format for models published only as GGUF quantizations. Serves: setup-steps (one step fewer per text model), load-time where reading the source costs no more than the conversion, and the correctness of every converter fix reaching its models at their next load.\n\nOwner 2026-10-30: work with native safetensors and delete the duplicate GGUFs. The duplicates, each made from a safetensors directory on this machine. Under adaptive_new/checkpoints/overgo-hfconvert: Carbon-500M (4 files, 4.0 GB, three of them superseded), MiniCPM5-1B-f16 (2.2), Qwen2.5-0.5B-f16 (1.0), Qwen3.5-4B-f16 with two projectors (10.1), Unlimited-OCR with two projectors (7.5), gemma-4-12B-it-fp8 as bf16 and as native (39.1), gemma-4-E4B-it with two projectors (16.9). Under overgo_data/models: MiniCPM5-1B-native-chat.gguf (2.2) and Unlimited-OCR-bf16's two GGUFs (6.7). About 90 GB in all. Sources are served from overgo_data/models, never from adaptive_new: a source only adaptive_new/models holds (Qwen3.5-4B, Unlimited-OCR, gemma-4-E4B-it, gemma-4-12B-it-fp8) is copied there first, with no download. Projectors are served from their source the same way. Each duplicate goes once its model serves from its source with its bench and held-out check passing and no committed record reads it (records re-pointed). The system lists them with their sizes, and the owner runs the removal, since a hard delete of model files is the owner's to run. Models published only as GGUF (Qwen3.5-9B Q8_0, Qwen3.8-27B Q6_K, Flash-Next IQ4_XS, the nemotron ASR's q8_0) keep their files.\n\nFrom the 4B's onboarding (2026-10-30, the first model served from its own files: onboarded at overgo_data/models/Qwen3.5-4B, its conversion 887f4124 retired for inference, its long-form guard passing at 61.5 tok/s decode on a 2048-token prompt): onboarding run again on a directory whose conversion is retired for inference and still activated for training tries to retire it again and fails (\"retirement requires an active recipe\"), since it gathers a conversion as superseded by any activated cell; it is to gather a conversion by an activated inference cell, the activation it replaces. Fix it before the first model this row moves. A model whose source only adaptive_new holds is copied as its top-level files (the 4B's thirteen, 9.3 GB, in 13 s), never its .git or documentation directories."
         }
       ]
     },

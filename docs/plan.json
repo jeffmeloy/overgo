@@ -472,6 +472,32 @@
       ]
     },
     {
+      "id": "rules-audit",
+      "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 260,
+        "reason": "dispatch going on under an unanswered decision's recommendation, and plan -paragraph"
+      },
+      "steps": [
+        {
+          "id": "decide",
+          "title": "Dispatch takes an unanswered decision's recommendation once no other row is ready: a plan question never holds the loop",
+          "status": "open",
+          "verify": "go test ./internal/plan -count=1 -run '^TestAQuestionNeverHoldsTheLoop$'",
+          "rationale": "The rules-audit row's decision rule, landed ahead of its citation work, which waits on the audit of every rule line. skill.md's working loop says an open decision takes the recommended default and continues, but dispatch held a row an unanswered decision blocks until the decision was answered, and once every open row waited on one, it reported waiting on decisions: the loop stalled on a question, the rule kept in prose. The change: a row an unanswered decision blocks is passed over while another row is ready, as before; once none is, it goes on under the decision's recommended option, and the dispatch line says which decisions it went on under; the plan keeps the decision open, so an answer given before then is the one taken. It also adds plan -paragraph, which rewrites or removes a standing paragraph of the doctrine through the plan's writer, so the citation work can edit the plan's standing paragraphs as the plan's other edits are made. The check: a plan whose every open row waits on a decision dispatches that row under the recommendation and says so.\n\nServes: the loop (dispatch never waits on a question). Disappears: the decision wait in dispatch. Evidence: TestAQuestionNeverHoldsTheLoop, TestParagraphRewritesAStandingParagraph. Batch: host."
+        },
+        {
+          "id": "do",
+          "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleCitesItsCheck$'",
+          "rationale": "Review of 2026-10-30 (F9), the owner's rule of the same morning that rules are deterministic code: b0c74066b restated the run-order rule in skill.md and README although its phase-order tests enforce it, and the rule that a known fix is filed and worked, not asked about, went to memory as prose; skill.md is 439 lines and memory 678. The change: every behavioural line of skill.md and the plan's doctrine either cites the check that enforces it, with a test failing on a line that cites none, or becomes a check, or is deleted, and the counts are reported; and the decision rule becomes code: a plan question with a recommended option resolves to it at the end of the lead's turn unless the owner answered."
+        }
+      ]
+    },
+    {
       "id": "draft-verdict-record",
       "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
       "owner": "master-lead",
@@ -483,21 +509,6 @@
           "status": "open",
           "verify": "go test ./internal/inference -count=1 -run '^TestARecordedDraftVerdictRunsNoProbe$'",
           "rationale": "Review of 2026-10-30 23:50 (F14, P2), taken by the lead for what it buys: 8ce06a06d times plain and drafted decoding at every served open, 0.64 s of the 4B's load and 1.0 s of the 27B's, and the 4B's probe raises its peak by 0.79 GB; three trades are declared for it (two load-time, one peak-device-memory). The verdict is the same for the same weights, device and build. The change: the verdict is recorded in the store under the model identity, the device and the runtime build, reused at load, and probed again only when one of them changes; the three trades are withdrawn when the cells come back. The check: a second open of the same model with a recorded verdict runs no probe."
-        }
-      ]
-    },
-    {
-      "id": "rules-audit",
-      "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryRuleCitesItsCheck$'",
-          "rationale": "Review of 2026-10-30 (F9), the owner's rule of the same morning that rules are deterministic code: b0c74066b restated the run-order rule in skill.md and README although its phase-order tests enforce it, and the rule that a known fix is filed and worked, not asked about, went to memory as prose; skill.md is 439 lines and memory 678. The change: every behavioural line of skill.md and the plan's doctrine either cites the check that enforces it, with a test failing on a line that cites none, or becomes a check, or is deleted, and the counts are reported; and the decision rule becomes code: a plan question with a recommended option resolves to it at the end of the lead's turn unless the owner answered."
         }
       ]
     },

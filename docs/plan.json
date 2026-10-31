@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-8e4ef06d64763091",
-      "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore SenseNova-U1-8B-MoT-Infographic-V3 image-gen first-output to 13140.2805 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8e4ef06d64763091 -target 13140.280499999997",
-          "rationale": "- SenseNova-U1-8B-MoT-Infographic-V3 first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee}: 12117.8769 to 13225.0002 (+1107.1233, +9.1%, allowed 1022.4036; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-206f3f994f77c003",
       "title": "Restore Qwen3.8 Flash Next inference peak-device-memory to 4.94024422e+10 bytes",
       "owner": "master-lead",

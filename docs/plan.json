@@ -470,16 +470,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "measured by the preflight of do: the views of qwen2 and llama checkpoints, the tensor mapping their conversion and view share, and onboarding serving them as they are"
+        "reason": "measured by the preflight of train-beside: onboarding goes on beside a registration of the directory's weights activated for training alone"
       },
       "steps": [
-        {
-          "id": "train-beside",
-          "title": "A directory onboards beside the training registration of its own weights file",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOnboardingBesideATrainingRegistrationOfItsWeights$'",
-          "rationale": "Onboarding Qwen2.5-0.5B from its directory on 2026-10-31 was refused: validate: onboard: C:/Users/jeffm/overgo_data/models/Qwen2.5-0.5B is already activated as its model.safetensors, the weights file its training recipe reads (training-proof). Onboarding counts any activated cell as the directory's model already activated; a directory served as it is takes inference alone, so a registration activated for training alone stays beside it, and one activated for inference still refuses. Fix it before the first model this step moves; Carbon-500M and MiniCPM5-1B hold the same training registrations."
-        },
         {
           "id": "move",
           "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",

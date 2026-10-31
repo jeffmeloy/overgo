@@ -187,6 +187,11 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 				activated = true
 				continue
 			}
+			// A registration activated for training alone, as the directory's own weights file a training recipe reads,
+			// stays beside the directory, which takes inference alone.
+			if native && !slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind == recipe.TaskInference }) {
+				continue
+			}
 			if active {
 				return fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
 					directory, registered.Location)

@@ -149,6 +149,30 @@ func TestOnboardingAgainRetiresOnlyAConversionStillServing(t *testing.T) {
 	}
 }
 
+// TestOnboardingBesideATrainingRegistrationOfItsWeights holds validate -onboard of a directory served from its own files
+// to going on beside the registration of its weights file a training recipe reads: Qwen2.5-0.5B's model.safetensors,
+// activated for training, refused its directory's onboarding as already activated. Activated for training alone it is
+// left as it is, and the directory validates and takes its conversion's place; activated for inference, it refuses.
+func TestOnboardingBesideATrainingRegistrationOfItsWeights(t *testing.T) {
+	t.Parallel()
+	fixture := newOnboardingFixture(t)
+	directory := huggingFaceDirectory(t, `{"model_type":"qwen2"}`)
+	weights := filepath.Join(directory, "model.safetensors")
+	conversion := testutil.ArtifactID(t, artifact.KindModel, "Tiny-LM-f16.gguf")
+	earlier := filepath.Join(filepath.Dir(fixture.converted), "Tiny-LM-f16.gguf")
+	converted := InventoryModel{Model: conversion, Location: earlier, Cells: []ModelValidation{{Location: earlier, Kind: recipe.TaskInference}}}
+	trained := InventoryModel{Location: weights, Cells: []ModelValidation{{Location: weights, Kind: recipe.TaskTraining}}}
+	fixture.tied[directory] = []InventoryModel{converted, trained}
+	if err := fixture.onboard(t, directory); err != nil || !slices.Equal(fixture.validated, []string{directory + "|"}) || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
+		t.Fatalf("onboarding beside its weights activated for training: %v, validated %q, retired %v; want the directory validated and its conversion retired", err, fixture.validated, fixture.retired)
+	}
+	trained.Cells = append(trained.Cells, ModelValidation{Location: weights, Kind: recipe.TaskInference})
+	fixture.tied[directory] = []InventoryModel{converted, trained}
+	if err := fixture.onboard(t, directory); err == nil || !strings.Contains(err.Error(), "already activated") {
+		t.Fatalf("onboarding beside its weights activated for inference: %v, want it refused", err)
+	}
+}
+
 // TestTextModelsOnboardFromTheirSafetensors holds validate -onboard to serving every text model held as a Hugging Face
 // directory of an architecture the converter writes from its own files, never converting it: a Qwen 3.5 checkpoint, a
 // qwen2 one (Qwen2.5-0.5B) and a llama one (Carbon-500M, MiniCPM5-1B) each register, record and activate as the

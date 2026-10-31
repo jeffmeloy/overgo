@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-f065cb6d0649f0de",
-      "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f065cb6d0649f0de -target 39.13759999999999",
-          "rationale": "- Qwen3.5-9B first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84}: 29.6668 to 119.0857 (+89.4189, +301.4%, allowed 9.4708; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261029T123721Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-9867412d419e3bb1",
       "title": "Restore gemma-4-E4B-it inference first-output to 158.5486 ms",
       "owner": "master-lead",

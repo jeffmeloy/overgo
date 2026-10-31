@@ -148,21 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "model-cell-kind",
-      "title": "A decline's row is judged by the one cell that reads its metric, measured alone",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "validate -run -model \u003cname\u003e -validation \u003ckind\u003e measures only that model's cells of that validation",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOneModelsCellsOfOneValidationAreMeasuredAlone$'",
-          "rationale": "The regression rows ranked first (Bonsai-27B-Q1_0, Qwen3.5-9B, gemma-4-E4B-it, Qwen3.8 Flash Next, SenseNova and others) each name one cell: a timing or memory reading of the serving validation, or a load. Measuring the model's every cell to judge one of them runs its whole held-out suites. With -validation the selection keeps only the named model's cells of that validation (serving for a first-output, throughput, load-time or peak-device-memory decline), and refuses a validation none of its cells has. Serves: a decline judged in the minutes its one cell takes, so the plan empties."
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

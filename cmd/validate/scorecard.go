@@ -101,8 +101,9 @@ func lastRecord(storeRoot string) (*scorecard.Record, error) {
 }
 
 // modelNamed answers whether a cell is of the model name names: by the name its scorecard row shows, which a decline's
-// row carries in its title, the name of the file the catalog finds it by, or its identity.
-func modelNamed(ctx context.Context, store *overgodb.Store, name string) (func(ModelValidation) bool, error) {
+// row carries in its title, the name of the file the catalog finds it by, or its identity; and, when validation is
+// given, whether it is a cell of that validation, the one a decline's metric is read from.
+func modelNamed(ctx context.Context, store *overgodb.Store, name, validation string) (func(ModelValidation) bool, error) {
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {
 		return nil, err
@@ -114,7 +115,8 @@ func modelNamed(ctx context.Context, store *overgodb.Store, name string) (func(M
 		}
 	}
 	return func(cell ModelValidation) bool {
-		return models[cell.Model] || cell.ModelName == name || cell.Model.String() == name
+		return (models[cell.Model] || cell.ModelName == name || cell.Model.String() == name) &&
+			(validation == "" || cell.Validation == validation)
 	}, nil
 }
 

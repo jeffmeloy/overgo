@@ -93,6 +93,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
 	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
 	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit. Otherwise: plan, and with -run measure, that model's cells alone, and no lane, the model named by its scorecard row, its file or its identity, so a decline's row is judged without a run of every model")
+	cellValidation := flags.String("validation", "", "with -model: only that model's cells of this validation, the one a decline's metric is read from (serving for first-output, throughput, load-time or peak-device-memory; mmlu, bbh, ifeval and the other suites for held-out-quality)")
 	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
 	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
 	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
@@ -135,6 +136,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if *budget != 0 || *diagnostic {
 		return errors.New("-budget and -diagnostic go with -smoke")
+	}
+	if *cellValidation != "" && *smokeModel == "" {
+		return errors.New("-validation goes with -model")
 	}
 	if *onboardPath != "" {
 		steps, err := newOnboarding(*root, *repository, output)
@@ -295,11 +299,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
 	if *smokeModel != "" {
-		named, err := modelNamed(ctx, store, *smokeModel)
+		named, err := modelNamed(ctx, store, *smokeModel, *cellValidation)
 		if err != nil {
 			return err
 		}
-		if plan, err = plan.OnlyModel(*smokeModel, named); err != nil {
+		if plan, err = plan.OnlyModel(strings.TrimSpace(*smokeModel+" "+*cellValidation), named); err != nil {
 			return err
 		}
 	}

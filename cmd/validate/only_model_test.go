@@ -67,3 +67,29 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 		t.Errorf("validate -model on a store without the model gave %v, want the selection's refusal", err)
 	}
 }
+
+// TestOneModelsCellsOfOneValidationAreMeasuredAlone holds validate -model -validation to the named model's cells of that
+// validation, the one cell a timing decline is read from, and refuses -validation without -model.
+func TestOneModelsCellsOfOneValidationAreMeasuredAlone(t *testing.T) {
+	t.Parallel()
+	declined := testutil.ArtifactID(t, artifact.KindModel, "Bonsai-27B")
+	cell := func(validation string) ModelValidation {
+		return ModelValidation{
+			Model: declined, ModelName: "Bonsai-27B.gguf", Location: "C:/models/Bonsai-27B.gguf",
+			Kind: recipe.TaskInference, Modality: "text", Validation: validation,
+			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "Bonsai-27B"),
+		}
+	}
+	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell(servingValidation), cell("mmlu-pro"), cell("bbh")}})
+	served := func(cell ModelValidation) bool { return cell.Model == declined && cell.Validation == servingValidation }
+	only, err := plan.OnlyModel("Bonsai-27B serving", served)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept := append(append(only.Run, only.Background...), only.OperatorOwned...); len(kept) != 1 || kept[0].Validation != servingValidation {
+		t.Errorf("one validation of one model kept %v, want its serving cell alone", kept)
+	}
+	if err := runArgs(t.Context(), []string{"-validation", servingValidation}, io.Discard); err == nil || !strings.Contains(err.Error(), "-validation goes with -model") {
+		t.Errorf("-validation without -model gave %v, want it refused", err)
+	}
+}

@@ -95,6 +95,10 @@ func SessionState(session string) string {
 // landing is a command that lands a change through the gate.
 var landing = regexp.MustCompile(`(?i)\./cmd/(?:loop\b[^\n;&|]*\s-land\b|gate\b)`)
 
+// Landing reports whether a command lands a change through the gate: what makes a session an implementing one, whose
+// turns hold its worktree.
+func Landing(command string) bool { return landing.MatchString(command) }
+
 // removal is the command that removes leftovers, or withdraws from the store
 // the locations of a run's checkpoints; its listing alone removes nothing.
 var removal = regexp.MustCompile(`(?i)\./cmd/loop\b[^\n;&|]*\s--?(?:delete|withdraw)\b`)

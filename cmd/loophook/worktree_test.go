@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/guard"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 )
 
 // TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn begins implementing
@@ -42,6 +43,10 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The sessions that implement here have landed here; one that has not takes no hold
+	// (TestOnlyAnImplementingSessionTakesTheHold).
+	recordImplementer("one")
+	recordImplementer("three")
 	git := func(arguments ...string) {
 		t.Helper()
 		command := exec.CommandContext(t.Context(), "git", append([]string{"-c", "core.hooksPath=", "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid"}, arguments...)...)
@@ -148,5 +153,57 @@ func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
 	}
 	if beginTurn(hookInput{Prompt: "a harness that names no session"}); holder("") != "" {
 		t.Error("a session the harness does not name was sent away, which no later message of its could undo")
+	}
+}
+
+// TestOnlyAnImplementingSessionTakesTheHold holds the worktree's hold to the
+// sessions that implement here: a session that has never landed here and does
+// not declare a takeover takes no free hold, as a review session that had not
+// said so did twice on 2026-10-30 while the lead was between turns; a session's
+// landing records it as implementing and takes the hold when it is free; one
+// that has landed takes the free hold as its turn begins; and one that
+// declares a takeover takes it.
+func TestOnlyAnImplementingSessionTakesTheHold(t *testing.T) {
+	sessionCheckout(t)
+	holder := func(session string) string {
+		t.Helper()
+		base, known := readTurnBase(session)
+		if !known {
+			t.Fatalf("session %s has no state", session)
+		}
+		return base.Holder
+	}
+	held := func() string {
+		data, _ := os.ReadFile(filepath.Join(processlock.StateDirectory, guard.WorktreeHolder))
+		return string(data)
+	}
+	beginTurn(hookInput{Session: "reviewer", Prompt: "look over the stop valve's change"})
+	if held() != "" || holder("reviewer") != "" {
+		t.Fatalf("a session that never landed took the free hold (%q)", held())
+	}
+	beginTurn(hookInput{Session: "lead", Prompt: "continue"})
+	if held() != "" {
+		t.Fatal("a session that has not yet landed here took the hold")
+	}
+	runPostCommit(`{"session_id": "lead", "tool_input": {"command": "go run ./cmd/loop -land row/do -message-file message.txt"}}`)
+	if !implementer("lead") || held() != "lead" {
+		t.Fatalf("a session's landing did not record it implementing (%t) or take the free hold (%q)", implementer("lead"), held())
+	}
+	if beginTurn(hookInput{Session: "reviewer", Prompt: "and the run record"}); holder("reviewer") != "lead" {
+		t.Fatalf("a session that never landed is told %q holds the worktree, want the lead", holder("reviewer"))
+	}
+	releaseWorktree("lead")
+	beginTurn(hookInput{Session: "reviewer", Prompt: "again"})
+	beginTurn(hookInput{Session: "lead", Prompt: "next row"})
+	if held() != "lead" || holder("lead") != "" {
+		t.Fatalf("the lead, which has landed here, did not take the free hold as its turn began (%q)", held())
+	}
+	runPostCommit(`{"session_id": "reviewer", "tool_input": {"command": "go test ./cmd/loophook"}}`)
+	if implementer("reviewer") {
+		t.Fatal("a command that lands nothing recorded its session implementing")
+	}
+	beginTurn(hookInput{Session: "reviewer", Prompt: "Take over this worktree: the lead is gone"})
+	if held() != "reviewer" {
+		t.Fatal("a session that declared a takeover did not take the hold")
 	}
 }

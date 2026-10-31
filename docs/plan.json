@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "hold-implementers",
-      "title": "The worktree hold goes only to a session that lands or declares it implements",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The worktree hold goes only to a session that lands or declares it implements",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestOnlyAnImplementingSessionTakesTheHold$'",
-          "rationale": "Review of 2026-10-30 (F8): holdWorktree (cmd/loophook/main.go:217) gives the worktree's hold to any session that starts a turn while the lead is between turns; a review session took it at 03:42 and 09:25, and a run-end notice reaching the lead then would have been told it may land nothing. The change: the hold goes only to a session that has landed in this checkout or declares it implements; a session that never landed never takes it."
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

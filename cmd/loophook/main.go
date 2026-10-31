@@ -23,8 +23,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +59,10 @@ func turnBaseFile(session string) string {
 type hookInput struct {
 	Session string `json:"session_id"`
 	Prompt  string `json:"prompt"`
+	// ToolInput is a tool hook's call, as far as the loop reads it: the command a Bash call ran.
+	ToolInput struct {
+		Command string `json:"command"`
+	} `json:"tool_input"`
 }
 
 func main() {
@@ -248,10 +254,39 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 // so the orphan check measures only work created after the commit. The old
 // dispatch-marker lifecycle is retired: cmd/loop owns continuity.
 func runPostCommit(hookJSON string) {
+	input := parseHook(hookJSON)
+	// A session that lands here implements: it is recorded so, and takes the worktree's hold when it is free.
+	if guard.Landing(input.ToolInput.Command) {
+		recordImplementer(input.Session)
+		if base, known := readTurnBase(input.Session); known && !base.Review {
+			writeTurnBase(input.Session, false, holdWorktree(input.Session, false))
+		}
+	}
 	if strings.Contains(hookJSON, "cmd/gate") {
-		session := parseHook(hookJSON).Session
-		base, _ := readTurnBase(session)
-		writeTurnBase(session, base.Review, base.Holder)
+		base, _ := readTurnBase(input.Session)
+		writeTurnBase(input.Session, base.Review, base.Holder)
+	}
+}
+
+// implementersFile lists, in the worktree's process state, the sessions that have landed here, one a line: the
+// sessions whose turns take the worktree's hold.
+const implementersFile = "implementers"
+
+// implementer reports whether the session has landed here.
+func implementer(session string) bool {
+	listed, err := os.ReadFile(filepath.Join(processlock.StateDirectory, implementersFile))
+	return err == nil && session != "" && slices.Contains(strings.Fields(string(listed)), session)
+}
+
+// recordImplementer records the session as one that has landed here.
+func recordImplementer(session string) {
+	if session == "" || strings.ContainsAny(session, " \t\r\n") || implementer(session) || processlock.EnsureStateDirectory(".") != nil {
+		return
+	}
+	file, err := os.OpenFile(filepath.Join(processlock.StateDirectory, implementersFile), os.O_WRONLY|os.O_CREATE|os.O_APPEND, stateFileMode)
+	if err == nil {
+		_, _ = file.WriteString(session + "\n")
+		_ = file.Close()
 	}
 }
 
@@ -265,10 +300,13 @@ const takeoverDeclaration = "take over this worktree"
 const stateFileMode = 0o600
 
 // holdWorktree takes the worktree for an implementing session as its turn
-// begins, and returns the session that holds it when that is another. The
-// first session to begin a turn here holds it, a session that holds it keeps
-// it, and one that declares a takeover takes it. A session the harness does
-// not name takes none.
+// begins, and returns the session that holds it when that is another. A
+// session that has landed here (implementer) takes it when it is free, a
+// session that holds it keeps it, and one that declares a takeover takes it.
+// Any other session takes none: it works beside no holder, or is told who
+// holds it. A review session that had not said so took the hold twice on
+// 2026-10-30 while the lead was between turns. A session the harness does not
+// name takes none.
 func holdWorktree(session string, takeover bool) (holder string) {
 	path, err := filepath.Join(processlock.StateDirectory, guard.WorktreeHolder), processlock.EnsureStateDirectory(".")
 	if session == "" || err != nil {
@@ -278,7 +316,11 @@ func holdWorktree(session string, takeover bool) (holder string) {
 		_ = os.WriteFile(path, []byte(session), stateFileMode)
 		return ""
 	}
-	if file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stateFileMode); err == nil {
+	if !implementer(session) {
+		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+			return ""
+		}
+	} else if file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, stateFileMode); err == nil {
 		_, _ = file.WriteString(session)
 		_ = file.Close()
 		return ""

@@ -77,6 +77,19 @@
       "level": 49433735344,
       "unit": "bytes",
       "bought": "Strata's decode round for Flash-Next (8cc359407), whose experts fill the card memory the round leaves free, as Strata's layout does, for chat decode at Strata's rate: the peak is the card's capacity less what other processes hold, 0.3 percent above the 2026-10-30 reading; declared in scorecard-regressed-206f3f994f77c003/do"
+    },
+    {
+      "model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+      "name": "granite-speech-5.0-470m-turboctc",
+      "task": "transcription",
+      "column": "load-time",
+      "contract": {
+        "metric": "load phase",
+        "origin": "serving"
+      },
+      "level": 1411.4699,
+      "unit": "ms",
+      "bought": "Granite's transcription served from its GPU-resident recipe (77f131776, 2026-10-18), which declared load-time worse by about 306 ms (1079.6 to 1385.8 ms) for a first complete request of 592.8 ms resident; declared in scorecard-regressed-52e09bb29afba8ca/do"
     }
   ]
 }

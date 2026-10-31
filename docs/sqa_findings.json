@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "60open,3deferred,24resolved. New271 distinguishes a completed run record from actual unattended continuation. Existing261/268 automation recommendations reaffirmed; shared attention repair's priority credited. No new runtime failure or safe source reduction established by this targeted sample.",
-      "priority": "Keep existing durability/numerical/recovery safety priorities. Operational261/271/268 follow: unblock independent commits safely, identify the real continuation owner, and surface known producer readiness failures before costly work.",
-      "declined_candidates": "No new wakeup scheduler,notification framework,blanket dependency builder,all-model smoke/confirmation pass or timing-based acceptance. Do not retire record/render tests as duplicates of driver tests."
+      "assessment": "63open,3deferred,24resolved. Concrete native serving and measured latency progress credited. New274 is a15node production deletion with all tests retained; no broader safe reduction established in rotated cache/retention/browser samples.",
+      "priority": "Durability and numerical/recovery correctness remain first. Existing261/268/271 automation gaps precede small cleanup. Align Gemma activation scope with its actual accepted-evidence prerequisite using existing dispatch.",
+      "declined_candidates": "No new reprofile command, scheduler, notification framework, all-model preflight, repeated full cycle or literal lint. No speculative larger catalog cap and no wholesale cache-signature replacement without accounting for persisted evidence and load proof."
     },
   "committed_plan": {
-    "git_blob": "166bdbae3fb98cdd6a56a01bae0fd016ee4f5eed",
+    "git_blob": "b67fad8a86d3138aa090e45b66b9c8545bf51571",
     "path": "docs/plan.json",
-    "revision": "6d352d639d90cfb883ba7c98d77befbc1a2bf07c",
-    "sha256": "fbe03c5161bda3c85150829a6fe4ec1a5189d4ff48fce0a41693ead881816436",
+    "revision": "b8eedd9da289a548232896f336738eb4fd9c1770",
+    "sha256": "1a89b5dfc3d7551d9437ab34bd4ab0e4bb5f44044f22509ee85df2cfecebcb4a",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -754,7 +754,7 @@
       "category": "measurement-cost",
       "classification": "late-runtime-admission-failure-with-overbroad-probe-proposal",
       "title": "Expose the guard's actual readiness failure without a second all-model workload",
-      "evidence_commit": "b985335411244bd4682c810b833b9b786eb0e46a",
+      "evidence_commit": "b8eedd9da289a548232896f336738eb4fd9c1770",
       "sources": [
         {
           "path": "internal/clioptions/command.go",
@@ -773,7 +773,7 @@
           "symbol": "runSmoke: loads every active inference model with small requests"
         }
       ],
-      "evidence": "Retained measure-run-20261031b.log35/110 reports FlashNext loaded48489668096bytes, rungs1024/2048/4096/8192, then physical admission requested48bytes with available0. No 'warm' stage follows. cmd/longform.run calls Ready after catalog lookup before driver/model open; measureModel calls Warm on rungs[0] before Short/Ladder. Thus the retained failure is consistent with the first1024-token warm prefix, not proof that testing largest8192 shape detects every path. The next serving cell loads successfully. cmd/validate.runSmoke also calls Ready before serve/OpenRunner and uses a separate oracle/default-open path. Unsupported assumption: one largest request per model covers every cell's recipe, lifecycle, transient workspace and order; guard and serving already demonstrate different contracts. Cause, from 2314b1de7 (2026-10-31): Flash-Next's decode round fills the card memory the round leaves free, by the design 8cc359407 declared, so the peak is the card's 49140 MiB less what other processes hold; after the load the long-form check's own request finds 0 bytes available. Declaring that peak a trade closed the peak-memory row and left this check broken: it has measured nothing in the 2026-10-30 and 2026-10-31 runs, and no plan row names it.",
+      "evidence": "Retained measure-run-20261031b.log35/110 reports FlashNext loaded48489668096bytes, rungs1024/2048/4096/8192, then physical admission requested48bytes with available0. No 'warm' stage follows. cmd/longform.run calls Ready after catalog lookup before driver/model open; measureModel calls Warm on rungs[0] before Short/Ladder. Thus the retained failure is consistent with the first1024-token warm prefix, not proof that testing largest8192 shape detects every path. The next serving cell loads successfully. cmd/validate.runSmoke also calls Ready before serve/OpenRunner and uses a separate oracle/default-open path. Unsupported assumption: one largest request per model covers every cell's recipe, lifecycle, transient workspace and order; guard and serving already demonstrate different contracts. Cause, from 2314b1de7 (2026-10-31): Flash-Next's decode round fills the card memory the round leaves free, by the design 8cc359407 declared, so the peak is the card's 49140 MiB less what other processes hold; after the load the long-form check's own request finds 0 bytes available. Declaring that peak a trade closed the peak-memory row and left this check broken: it has measured nothing in the 2026-10-30 and 2026-10-31 runs, and no plan row names it. Rechecked atb8eedd9da: fe475df7e only replaces the discovery listing cap with shared CatalogBound. It fixes the separate256/258 prerequisite refusal; readiness still precedes model loading/warm and the retained allocation failure remains unresolved.",
       "recommended_change": "Correct the specific guard admission/setup path and expose its readiness truth through its existing producer and run-record owners before committing to another full cycle. Reuse the failing producer's own declared load/warm/fit boundary; do not clone it into smoke, move Ready generically across all producers, or add a new all-model largest-shape pass/flag. First compare retained guard versus serving options/lifetime and determine the smallest existing producer prefix that detects this failure; any reordered prefix must preserve device ownership, cleanup and avoid duplicate loads. Keep known setup failures explicit before long work while preserving valid partial evidence from unrelated models. No new SQA workload or blanket early-stop policy. Sequence this known broken-producer repair before another full cycle expected to exercise the same guard; existing partial-result ownership remains valid for unrelated admitted cells. Missing profiles,missing recorded baselines and actual capacity failures require their own existing producers,not one copied preflight rule.",
       "displaced_surface": "Target the gap between catalog-ready and the actual guard-ready boundary at existing producer/consumer owners. No complete replacement/net AST saving established: setup ownership/reuse may require growth. Smoke's per-model oracle loop is not proven redundant with the guard. Do not remove existing warm/short/ladder stages, add fixture frameworks or promise one load covers every cell.",
       "impact": "Catalog preflight currently cannot establish runtime capacity, and a known broken guard can be discovered after hours. A second broad probe would itself cost time and still not prove all shapes/recipes safe. Protect exact memory admission, failure records and device/resource lifetime.",
@@ -1228,7 +1228,7 @@
         "executor-setup/do",
         "draft-verdict-record/do"
       ],
-      "plan_coverage": "Short-first-output rows for Bonsai,Qwen9B,gemma and SenseNova now closed after shared preload/isolated acquisition. executor-setup/do still exists but should be reconsidered against this repair before a wider per-function redesign. flashnext-long-read/do and draft-verdict-record/do remain open. Native migration is not completed. Flash peak-memory row is now closed by an explicit declared trade, not restoration.",
+      "plan_coverage": "Shared preload repair remains credited; executor-setup/do, flashnext-long-read/do and draft-verdict-record/do remain open. Native migration now completed in09fc2300f; served Qwen/MiniCPM directory probes show large long-prompt gains. Carbon/OCR re-onboarding is recorded inb8eedd9da; Gemma's earlier accepted modality definition requires the separately filed e4b-tensor-cores/do. This does not establish a universal draft cause or restore Flash-Next's long read.",
       "closure_criteria": [
         "Credit the landed throughput repair. Retained normal evidence separates signature deletion, recurring draft/plain decision and load warmup; account load plus first request and preserve explicit trade history without claiming all latency/memory obligations restored.",
         "Only one default-drafting decision remains; displaced heuristic/probe code, fields and tests are removed or explicitly justified. Both served callers and explicit overrides retain correct cancellation, failed-open cleanup and token behavior.",
@@ -2406,6 +2406,58 @@
         "Existing ordinary/stop-prefix/multiple-choice/prompt-major/terminal streaming cases remain; no helper, fixture, selector or test growth."
       ],
       "comparison": "The deciding comparison is the existing writeSSE delegation and named body, with the full-file AST/type comparison already retained. Use existing native streaming coverage during implementation validation; no added SQA test run or benchmark."
+    },
+    {
+      "id": "SQA-274",
+      "status": "open",
+      "severity": "P3",
+      "category": "production-consolidation",
+      "classification": "source-confirmed-obsolete-branch",
+      "title": "Delete the displaced directory-success fallback",
+      "evidence_commit": "b8eedd9da289a548232896f336738eb4fd9c1770",
+      "sources": [
+        {
+          "path": "internal/discovery/servable.go",
+          "symbol": "presence; holds; identifyLocation; ServableWithMemo"
+        },
+        {
+          "path": "internal/discovery/capability.go",
+          "symbol": "capabilityCatalog presence consumer"
+        },
+        {
+          "path": "internal/discovery/projector.go",
+          "symbol": "activeComponent via ActiveProjector/ActiveDraft"
+        },
+        {
+          "path": "internal/discovery/directory_image_test.go",
+          "symbol": "TestADirectoryThatIsItsConversionsImageServesFromItself"
+        },
+        {
+          "path": "internal/discovery/directory_model_test.go",
+          "symbol": "TestADirectoryModelIsItsViewsIdentity"
+        },
+        {
+          "path": "internal/discovery/moved_model_test.go",
+          "symbol": "TestMovedModelResolvesByIdentity"
+        }
+      ],
+      "evidence": "6d8b18ec2 added a directory-first pass calling holds for every recorded directory until success. The later directory-only pass can run its holds branch only when found remains empty and no file was recorded. At that point every directory already failed the same descriptor check. identifyLocation returns the cached per-call path+kind identity, including failed identities, so the second check cannot become successful even if filesystem state changes between passes. ServableWithMemo, capabilityCatalog and activeComponent all share presence; the latter two can expose the missing-location diagnostic, so deleting the entire fallback loop would change behavior.",
+      "impact": "Repeated cached checks and unreachable success logic add maintenance to the common model/projector/draft presence path. Low impact; no extra model-file hashing occurs in the second check because the per-call map already owns it. No elapsed or memory saving measured.",
+      "recommended_change": "Delete only the later if holds(...) { found = location.Value } block. Retain the initial directory preference/identity validation and the later recorded = cmp.Or(recorded, location.Value) diagnostic. Update its old comment to describe diagnostic retention. Keep file, remote and moved-location fallback ordering, exact ID+size checks, memo scope and failure returns. No new wrapper, option, fixture or dependency.",
+      "displaced_surface": "Production internal/discovery/servable.go2222->2207AST(-15) in an in-memory parsed comparison. Retain directory_image_test393,directory_model_test428,moved_model_test402; whole compared surface3445->3430. Helpers/wrappers/migration0; fixtures/files/bytes0 change; same three top-level test setups and gate selections. Other callers/tests unchanged, so repository delta is the same15node deletion. No numerical, cancellation, platform/build-tag or resource-lifetime distinction is lost; unavailable-directory diagnostics remain.",
+      "expected_benefit": {
+        "outcome": "One existing first pass owns directory success; later code retains only failure-location reporting. Less production surface with unchanged correctness tests.",
+        "uncertainty": "Source/AST proof only; no compiled candidate or test run. Runtime effect is limited to eliminated map lookups on failed directory-only entries; do not claim saved loads or digest passes."
+      },
+      "likely_effort": "Small local deletion and comment correction.",
+      "plan_references": [],
+      "plan_coverage": "native-text-weights/carbon-image and move have landed. This is advisory removal of their displaced path, not another model migration or plan change.",
+      "closure_criteria": [
+        "Only the initial directory pass can establish directory success; ID/size validation and file/remote/moved fallbacks remain intact.",
+        "Directory-only absence still reports the first recorded directory to capability/projector callers.",
+        "Retain exact-byte directory preference, wrong-byte file fallback, virtual identity/selection and relocation refusal cases in existing tests; no unique case migrates or disappears."
+      ],
+      "comparison": "Trace the two holds calls with the same path/kind/descriptor and per-call identity map; existing directory_image/model/moved native test owners supply the deciding comparison in the implementation's normal affected validation. This trivial deletion requires no new test or SQA confidence run."
     },
     {
       "id": "SQA-225",
@@ -4555,21 +4607,21 @@
   ],
   "gate_test_assessment": {
       "retained_evidence": [
-        "6ca699967 retained gate: production+139AST,test+611AST,record schemas0,CUDA+26source lines/0entry points,fixtures0files/0bytes. This is capability/correctness growth, not a net reduction.",
-        "Same landing: invariants14.578s; host tests3m22.298s; lanes17m30.185s with device11m40.196s,web2m52.746s,CUDA5m49.112s(16executed/0cached); paired verify25m52.071s; scorecard12.978s. Lane durations overlap and must not be summed as sequential elapsed savings.",
-        "Committed held-out report records per-model discordances across BBH/IFEval and additional MMLU-Pro probes,13losses/20wins total. New permanent test coversBBH/IFEval only, with rawBBH and model-specific IFEval protocol; do not claim it executes MMLU-Pro. No SQA rerun.",
-        "a81608e15 repaired the planned check's GPU enablement and added activation.1f425ce71 then ordered native migration before overlapping activations and filed reprofile after retained generic-protocol refusal. No new full measurement cycle or external completion-delivery proof.",
-        "6d352d639 retained host-only gate: production+31,test+238AST,fixtures/schema/CUDA0; invariants1m34.224s,host tests1m34.846s,lanes782ms(all skipped),verify1.92s. Counts are recorded implementation results; SQA ran none."
+        "fe475df7e catalog fix gate:+9production/+127testAST,fixtures/schema/CUDA0; invariants12.503s,host1m33.086s,lanes2m43.534s(web2m42.751s,CUDA34.808s;1executed/15cached),verify17.39s. Retained Carbon scorecard38.1008ms first-output,1284.3681ms load,1806593536bytes peak,446.2872tokens/s; distinct short-prompt identity, not long-prompt speed proof.",
+        "6d8b18ec2 directory preference:+35production/+393testAST; invariants1m24.792s,host3m24.696s,lanes2m44.61s(web2m43.829s,CUDA34.602s;1executed/15cached),verify1.404s. Feature and regression coverage growth, not a net reduction.",
+        "09fc2300f migration closure:+0production/+261testAST; invariants1m27.295s,host1m44.015s,lanes748ms(all device/web/CUDA skipped),verify20.846s. The live inventory test adds one store/inventory setup, not a model execution.",
+        "b8eedd9da plan rescope:verify108ms, no production/test change. Retained times are not added across overlapping lanes or extrapolated into SQA savings."
       ],
-      "caching": "Credit native Go caching and existing lane selection,phase/cell resume,answer identity and idempotent publication. No confidence rerun,new selector,telemetry or ratchet.",
+      "caching": "Credit native Go caching, existing lane selection and phase/cell resume. Native-view resume issue263 remains despite successful one-time migration; no new cache, selector, telemetry or confidence run.",
       "test_dispositions": [
-        "SIMPLIFY236: all four signTest callers reuse ExactPairedBinary; delete signTest/math and the new rawRuntime embedding. RETAIN cellsRuntime chat shaping, raw BBH, isolated stores, feature-arm direction, model path and missing-model distinctions. No test retired.",
-        "RETAIN/EXTEND273: existing four paired tests get native cleanup registration; immediate checked closes remain. REUSE existing FlashNext cleanup pattern. No new fixture or test execution is requested.",
-        "RETAIN kernel parity table,exact replay,staging/noncausal fallback and per-architecture admission; their geometry and production wiring are different from held-out model answers. Do not delete one layer because another passed.",
-        "SIMPLIFY existing242 batch-order assertion using slices.Equal; retain one-batch/zero-open,cancel/released-content/missing-content semantics and mixed presence. Store.VisitContents storage order differs from artifact.ReadContents caller order; do not merge them blindly.",
-        "SIMPLIFY existing224 emitter delivery body through named; retain [DONE],synchronizedSSE sticky error/mutex and actual HTTP event-stream/admission/cancel cases. Existing252 fixture consolidation remains distinct.",
-        "RETAIN dependency fixture checks for file-order independence,present unfinished siblings,exact reference spelling andcycles; missing hard edges in the live plan are not evidence those tests should be removed.",
-        "RETAIN TestOnboardingBesideATrainingRegistrationOfItsWeights: training-only weights permit native registration and conversion retirement; mixed inference still refuses. TestOnboardingAgainRetiresOnlyAConversionStillServing owns a different object (converted GGUF) and already-active-directory retry; neither test displaces the other without moving these cases."
+        "RETAIN TestADirectoryThatIsItsConversionsImageServesFromItself: directory preference for exact same bytes and file fallback for wrong directory bytes are distinct.393test nodes for35production nodes buys these new conditions; don't replace real requirement with a self-comparison.",
+        "RETAIN TestADirectoryModelIsItsViewsIdentity and TestMovedModelResolvesByIdentity: virtual identity, claim invalidation/empty directory/selection, and relocated-file identity refusal have separate owners. No cases move for274's trivial deletion; retained tests total1223AST.",
+        "RETAIN TestSelectedServableScope: selected metadata/hash filtering, full-catalog denominator, explicit truncated refusal, no publication and corrupt-unrelated activation. Catalog-bound live test is114AST/one read-only store pass; it establishes only today's store below the cap. Do not expand it into recurring census or claim a universal catalog bound.",
+        "RETAIN TestEveryViewedTextModelServesFromItsDirectory as the requested migration check: training-only conversions stay. Its no-conversion assertion is not alone proof that every directory has an active accepted recipe; existing activation/coverage owners supply that distinct requirement.",
+        "RETAIN cache paging policy, non-power-of-two cap and fixed-state layout checks. Round-trip/schema/corrupt-header tests protect different boundaries; no safe complete consolidation established in this sample.",
+        "RETAIN profile/dataset retention tests. Both reuse Release/releaseEverything but their authority and physical-location requirements differ; a new generic fixture would not demonstrate net savings.",
+        "RETAIN browser lifecycle test: real clean-end reconnect, remount abort, operation delivery, changed-inventory refresh and hidden-page pause/resume. It does not cover missed workspace changes during disconnected/overflow intervals (218). RETAIN driver fakeWorld stop/budget/feedback cases, separate from record/render tests.",
+        "SIMPLIFY274 production only: retain all tests, fixtures, setup executions and gate selection. Existing236/269/270 consolidation proposals remain separate;273 cleanup adds necessary recovery surface and must not be mislabeled a reduction."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -4943,12 +4995,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded source sample only; no whole-model numerical-domain guarantee, all-finding revalidation, production performance measurement or fault reproduction.",
-      "AST counts include comments. Hypothetical replacements were parsed in memory, not compiled/executed as application tests; only existing standalone statistics owner was typechecked.",
-      "New273 is a source-confirmed failure-cleanup gap, not a current observed device leak. Hardware/model memory amounts and time savings were not measured.",
-      "Retained probe timings precede activation; successful paired acceptance is evidence under its declared cases/statistic, not universal equivalence. Native model migration/reprofile remain open. Concurrent committed prerequisite fix6d352d639 is credited separately; no uncommitted worker edits are assessed.",
-      "Recorded completion is not delivery. Existing261/268/271 remain current without a new notification failure or historical ten-hour claim.",
-      "Report-only publication re-reads current report/HEAD/plan, preserves owner fields exactly, uses existing locks nonblocking and leaves implementation worktree/index untouched."
+      "Bounded committed-source review; not exhaustive type resolution or re-execution of89historical findings. Changed-source mapping and current sampled owners were checked; earlier evidence remains scoped to its recorded revision.",
+      "AST counts include comments; proposed deletion only parsed in memory. Typecheck covers original standalone directory signature declarations, not the complete discovery package.",
+      "Native migration/gains are retained implementation evidence. Gemma acceptance/hold is pending at this pin; uncommitted worker edits are excluded. No new runtime memory, corruption or leak incident observed.",
+      "Directory sum-size/max-mtime signature has a source-visible collision: equal-sized older-member changes can leave the maximum unchanged. The sampled test advances config time above every member, so it does not decide that case. Downstream VerifyClaims provides separate byte proof; served wrong-byte acceptance is not established. Further recommendation needs the existing tiny directory fixture/claim-proof owner and full persistence/migration costs, not a new signature registry.",
+      "Cache format20/4/8/44-byte fields andfloat32scalar4bytes are codec dimensions, not arbitrary tuning. Page sizing usesuint64 arithmetic and real context/session policy; no admitted model-range overflow counterexample established. Do not infer numerical equivalence from paired-test nonsignificance or correlate speed with quality acceptance.",
+      "Report publication re-reads HEAD/current report/committed plan, preserves owner values, parses replacement, uses existing locks nonblocking and commits only docs/sqa_findings.json. No production gate or hook/security change."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -5018,13 +5070,13 @@
       }
     }
   },
-  "next_finding_number": 274,
+  "next_finding_number": 275,
   "publication_context": {
-      "checked_head": "6d352d639d90cfb883ba7c98d77befbc1a2bf07c",
-      "committed_plan_git_blob": "166bdbae3fb98cdd6a56a01bae0fd016ee4f5eed",
-      "assessment": "Substantive landed repair/sequence credit, expanded exact reduction236 and new failure-cleanup273; not a timestamp-only update.",
-      "newer_commit_note": "bb34c32af and6d352d639 arrived before publication. Re-read committed onboarding callers/tests and plan; source of all twelve original AST sample files and statistics owner unchanged. Reconciled final pin6d352d639; working tree clean at this check.",
-      "publication": "Re-read current report,HEAD andplan,parse replacement,preserve raw owner values,and path-limit commit under existing nonblocking locks. No production gate or hook/security changes."
+      "checked_head": "b8eedd9da289a548232896f336738eb4fd9c1770",
+      "committed_plan_git_blob": "b67fad8a86d3138aa090e45b66b9c8545bf51571",
+      "assessment": "Substantive native migration/served timing credit, activation rescope, fresh bounded AST and reduction274; not a timestamp-only update.",
+      "newer_commit_note": "Initial and final review pin checked before publication. Worker modality tests, plan/coverage and dense activation test edits are excluded and preserved.",
+      "publication": "Re-read report/HEAD/plan, parse candidate, preserve raw owner fields and commit only the report under existing nonblocking locks."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -5067,6 +5119,7 @@
     "SQA-222",
     "SQA-221",
     "SQA-224",
+    "SQA-274",
     "SQA-225",
     "SQA-226",
     "SQA-252",
@@ -5093,35 +5146,32 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "6ca699967 lands the shared split-product attention repair and profile admission for qwen2,llama,gemma4,deepseek2-ocr. Retained kernel comparison improves maximum sampled distance1.74e-4->4.84e-6 under1e-5; paired verification completed. This corrects the prior status that the implementation was uncommitted. Served definitions still bind their old profiles, so activation remains outstanding.",
-      "Recorded candidate timings remain228.8->79.7ms and2186->485ms for Qwen0.5B at4096/16384tokens,658->101ms for Carbon4096,210->128ms and1699->909ms for MiniCPM,575->456ms and2575->2176ms for gemmaE4B,1107->928ms for OCR16384. These are retained probe results, not newly deployed readings. The gate's served Qwen scorecard remained103.0269ms first-output,1412.7368ms load,1357530624bytes peak,484.2653tokens/s with identical outputs. Flash-Next long prompts deliberately worsened0.3-0.4percent for precision.",
-      "New273 corrects shared test teardown: answerCells.Fatal can bypass trailing Runner.Close in four paired tests. Reuse the existing native cleanup pattern and retain immediate between-arm closes. Necessary104test-node growth is explicit.",
-      "Updated236 accounts for the fourth statistical caller and its unnecessary rawRuntime embedding. Whole comparison4212->4187(-25AST); adding required273 yields+79overall. No helper, fixture, model run or timing claim is hidden in that accounting. Retain all numerical and recovery coverage.",
-      "1f425ce71 improves sequencing: native-text-weights/move now precedes activation so Qwen,Carbon,MiniCPM are registered once over current profiles; reprofile reuses onboarding for gemma/OCR instead of a manual command chain. This is filed work, not completed automation. The generic protocol fixture rejected gemma's tool case after7of8accepted; task-specific existing validation must own activation rather than assuming every model supports tool calling.",
-      "Dependencies: actual Current/ResolveDispatch and native dependency tests enforce declared prerequisites, but the sampled native move/reprofile/activate/symptom steps still rely on ordering without explicit depends_on. Keep only genuine edges through the existing dependency owner; do not add a second scheduler or blanket serialization. Independent reprofile code can progress while store/device work waits.261/268/271 remain open; no new actual wakeup delivery evidence.",
-      "Existing224 remains valid: sseEmitter.write duplicates named's error/flush/context sequence even though writeSSE already delegates wire formatting. Existing242 remains valid: batch-read equality must include length, not only a visited prefix. Do not create duplicate findings. Query/blob/retention source and273 concerns are distinct;272 remains unchanged.",
-      "Constants/geometry:64/128/256head widths,16-element MMA fragments,64rows/128threads and8/4padding are explicit kernel/launch layout choices; current reference fixture includes non-divisible token counts,group7/8,past context,capacity>logical,window,softcap,key bias andtwo sequences. Retain fallback exclusions and bit-identical replay. The1e-5 bound is supported by that fixture, not a universal bound for arbitrary magnitudes. No new admitted model-range counterexample established.",
-      "Distribution: cellsChance0.05 is an existing exact paired-decision contract; no normal approximation is introduced. Per-family/per-suite losses and wins must remain visible; aggregate13losses/20wins cannot establish every family's quality, and nonsignificance is not equivalence. Correlated cases and architecture representativeness remain limits of retained evidence; no new statistical framework or threshold is proposed.",
-      "Prior findings/implementation responses were reconciled after provisional review. Existing IDs retain earlier bounded evidence except236; no new independent third-party claim. All implementation-owned values are preserved raw-exact.",
-      "Concurrent progress6d352d639 fixes a prerequisite in the existing onboarding owner: training-only registration of a directory weight file no longer blocks native inference onboarding; inference registration still refuses. Existing newOnboardingFixture covers both states. Gate reports+31production/+238test,fixtures0; retain this distinct training-weight-file versus converted-GGUF behavior. This is necessary coverage growth; no safe complete test consolidation was established in the bounded reconciliation. The actual model move and reprofile/activation are still pending."
+      "Native migration completed in09fc2300f: all eight currently viewable text directories pass the retained conversion-retirement check. Qwen0.5B and MiniCPM5 activate current profiles; Qwen's training GGUF remains required. Carbon's byte-identical view now wins over its duplicate GGUF locations. This avoids disk conversion for supported directory views; it does not establish arbitrary new architecture support or authorize duplicate-file deletion by SQA.",
+      "Retained served-directory probes: Qwen4096/16384 first output75.9/466.1ms versus229/2178ms; MiniCPM117.7/901.5ms versus219/1684ms. These are isolated implementation measurements. The report no longer labels all speed gains as pending activation. Carbon and OCR later re-onboarding results are recorded inb8eedd9da (Carbon651->99ms at4096; OCR1115->928ms at16384), not a new whole-catalog cycle.",
+      "b8eedd9da removed the proposed custom reprofile mode after existing validate -onboard proved sufficient. Gemma revalidation5/5 and faster prompts do not replace its accepted30text/audio/image/video cells bound to the earlier definition and projection recipe. Hold/re-admission remains planned; do not claim it implemented at this pin.",
+      "Sequencing recommendation: reconcile activate's five-model verifier/rationale with gemma4-hold and e4b-tensor-cores before executing it; the committed activate wording still includes held Gemma. Use existing plan.DependsOn/dispatch where acceptance truly requires the E4B campaign, or explicitly scope the earlier activation check to the admitted models. Preserve the30-cell requirement. No new scheduler or broad rerun. Worktree edits may already be addressing this; they are excluded.",
+      "fe475df7e corrects the observed256/258 catalog refusal across longform/evaluate/smoke. CatalogBound10000 is an administrative listing cap, not an ABI, memory or statistical bound; truncation still refuses rather than samples. LocalServable/model-config already use math.MaxInt for whole-catalog consumers. No current10000-limit failure established, so do not add a speculative capacity mechanism or a recurring census.",
+      "New274 removes only the unreachable second directory-success branch after the new preferred-directory pass. Keep holds/identifyLocation as the common validation owner and keep missing-location diagnostics. Entire affected production/test comparison3445->3430(-15nodes), no test or fixture deletion and no measured timing/memory claim.",
+      "Rechecked272 snapshot/head race,218 GUI reconnect inventory gap and271 record-versus-continuation gap in current source; unchanged. Retain separate DB profile/dataset authority tests and actual browser lifecycle behavior. Existing273 native failure cleanup and236 statistical consolidation are unchanged by the intervening commits.",
+      "The retained measurement_run still ends2026-10-31T11:00:43.0520986-04:00 with9rows filed. Neither that timestamp nor hook rendering proves delivered wakeup. loop.Run owns supervised continuation, stops, budgets and replay; -improve remains one-shot. No new completion-delivery incident is claimed.",
+      "Prior source impact checked against all listed finding paths: only268's production paths changed (catalog-bound wiring), with other affected references limited to plan metadata. That cap repair does not repair Flash-Next's separate warm/allocation failure. Existing rankings retain durability/numerical/recovery priority; low-impact274 is below those concerns. Implementation-owned fields are preserved raw-exact."
     ],
-  "reviewed_at": "2026-10-31T21:41:14Z",
-  "reviewed_master": "6d352d639d90cfb883ba7c98d77befbc1a2bf07c",
+  "reviewed_at": "2026-10-31T23:43:05Z",
+  "reviewed_master": "b8eedd9da289a548232896f336738eb4fd9c1770",
   "schema_version": 1,
   "scope": [
-      "Fresh bounded review, finally pinned to committed master6d352d639d90cfb883ba7c98d77befbc1a2bf07c after reconciling concurrent landings. Repository skill.md and initial committed plan read before source sampling; provisional conclusions recorded before prior findings. Internal SQA overlaps earlier implementation in this chat, not independent third-party review.",
-      "Rotated callers: prompt attention admission/paired arms/load/teardown; batched content reads, released locators and blob lifetime; SSE delivery and one workbench event stream; plan dispatch/dependencies and onboarding admission. Initially uncommitted onboarding work was excluded; its later committed change6d352d639 was then read separately before publication.",
-      "Actual committed AST,12files: prompt_tensor_cores_heldout559; attention_cells_heldout906; qwen35_cells_heldout625; kquant_products_heldout458; prompt_tensor_cores_test122; runner_lifecycle3137; launch_attention_layout4705; batch_reader_test423; protocol_io1090; one_event_stream_test601; dispatch1354; dependency_test823. Total14803=10286production+4517test,70functions,3443parser-local bindings. File basenames resolve under internal/evaluation,model,inference,cuda/executor,overgodb,server,plan as named by findings.",
-      "Standard Go AST comparisons were in-memory only; no proposed production/test file was written to the repository. Additional paired_binary.go416AST typechecked successfully with125resolved uses and standard math imports. Cross-package model/runtime/GUI calls otherwise traced manually; no whole-repository typecheck or census.",
-      "No application, test, model, gate, benchmark, profile, service, worker messaging or automation mutation performed. Historical runtime results below are retained implementation evidence.",
-      "Concurrent-landing reconciliation added actual committed AST for cmd/validate/onboard.go1619 and onboard_test.go2249:14files18671AST=11905production+6766test,90functions,4256parser-local bindings. The original twelve files are byte-unchanged between1f425ce71 and6d352d639, confirmed by Git diff; no repeat analysis or workload."
+      "Fresh bounded review of committed master b8eedd9da289a548232896f336738eb4fd9c1770; repository instructions and committed plan identity read first. Provisional source conclusions were recorded before reading prior findings. Internal SQA overlaps this chat's earlier implementation; not independent third-party review.",
+      "Rotated sample: native-directory discovery and identity/caller lifetime; cache paging and serialized shape bounds; query projection and blob-retention authority; GUI stream reconnection/inventory refresh; loop start, prerequisites, partial failure, publication and continuation. Excluded uncommitted accepted-modality tests, plan/coverage edits and dense-activation test.",
+      "Actual Go AST: 16 committed files, 13931 nodes = 7273 production + 6658 test; 77 functions and 2963 parser-local identifier bindings. Initial14: servable2222,directory_image_test393,catalog_bound_model_test114,selection_test760,viewed_text_models_model_test261,cache_paging114,cache_state3635,device_cache_paging_test2012,profile_catalog_retention_test175,dataset_catalog_retention_test385,stream_events66,webui_browser_stream_lifecycle_test808,loop/driver1236,loop/driver_test920. Additional caller tests directory_model428 and moved_model402.",
+      "In-memory parsed deletion comparison: servable.go2222->2207, test surface unchanged. Unmodified directorySignature/directoryInfo declarations typechecked with real standard-library imports:69uses/26definitions, no stubs. Package-wide runtime/discovery types and JavaScript were traced manually; no full census or application build.",
+      "No new tests, gate, model workload, benchmark, profile, service, worker messaging or automation mutation. Retained commit/gate/run records are implementation evidence, not measurements made by SQA."
     ],
   "sqa_response": {
-      "reviewed_master": "6d352d639d90cfb883ba7c98d77befbc1a2bf07c",
-      "assessment": "62open,3deferred,24resolved. Shared prompt-attention implementation and quality check have landed; activation is pending. New273 covers paired-runner failure cleanup;236 now prices all four callers and the redundant raw adapter.",
-      "evidence": "14files18671AST,90functions,4256local bindings after concurrent onboarding reconciliation; separate statistics416AST/125typed uses. Retained6ca699967 and6d352d639 gate/probe evidence credited; no new workload.",
+      "reviewed_master": "b8eedd9da289a548232896f336738eb4fd9c1770",
+      "assessment": "63open,3deferred,24resolved. Native migration and Qwen/MiniCPM served speed gains now established by retained implementation evidence; Gemma's new profile still needs modality acceptance. New274 removes an obsolete directory fallback success branch.",
+      "evidence": "16files13931AST=7273production+6658test,77functions,2963local bindings; directory signature declarations typechecked69uses.15production-node in-memory reduction. No workload run.",
       "new_findings": [
-        "SQA-273"
+        "SQA-274"
       ],
       "resolved_findings": [],
       "partially_addressed_findings": [],
@@ -5130,11 +5180,11 @@
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "plan_git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
-        "status": "Owner objects and unknown fields preserved raw-exact; newer6ca699967/1f425ce71 and concurrent6d352d639 implementation/sequencing responses assessed separately."
+        "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
+        "status": "Both owner objects and every implementation-owned finding field preserved raw-exact; newer native migration/rescope commit evidence assessed separately."
       },
-      "recommendation": "Keep the landed precision repair, complete existing native migration/reprofile/activation once, and preserve per-family numerical acceptance. Register native failure cleanup in four paired tests. Consolidate the existing statistics/raw adapter through236 with combined growth shown honestly.",
-      "next_action": "Implementation owner handles adoption and normal affected verification. SQA publishes this report only; no worker messages or further model tests.",
-      "uncertainty": "Served speed gains still require activation. No current data-loss/device-leak/wakeup incident newly observed; no runtime savings claimed for AST reductions."
+      "recommendation": "Keep the successful native migration. Finish activation with Gemma's30modality cells and projection binding as genuine prerequisites, reusing onboard and plan dispatch. Retain263 resume and271 supervised-completion recommendations; remove only the redundant branch identified by274.",
+      "next_action": "Implementation owner adopts changes through normal affected verification; SQA report-only publication.",
+      "uncertainty": "No new whole-catalog cycle, external wake delivery or memory savings established. Gemma work in the live tree is not counted as landed."
     }
 }

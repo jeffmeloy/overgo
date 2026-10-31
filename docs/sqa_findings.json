@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "59open,3deferred,24resolved after new270. Shared module preload materially improves retained short-first-output readings; existing drafting policy/load-memory and long-prompt issues remain distinct. No new production correctness defect established by this rotation.270 removes93test AST nodes and makes the serving filter assertion reach its actual owner.",
-      "priority": "Keep existing durability,numerical/recovery issues ahead of operational and test maintenance. Re-read blob publication confirms254 remains the leading sampled safety concern.261/268 retain their bounded queue/readiness conclusions; no new automatic reruns or lazy-loader redesign recommended.",
-      "declined_candidates": "Do not merge verifyPack into copyVerified: one-open pack traversal versus loose-file priority/error semantics differ. Do not replace shape/format constants by cosmetic names or add overflow defenses without admitted failure. Do not add a new selector/framework to reduce repeated test setup."
+      "assessment": "60open,3deferred,24resolved. New271 distinguishes a completed run record from actual unattended continuation. Existing261/268 automation recommendations reaffirmed; shared attention repair's priority credited. No new runtime failure or safe source reduction established by this targeted sample.",
+      "priority": "Keep existing durability/numerical/recovery safety priorities. Operational261/271/268 follow: unblock independent commits safely, identify the real continuation owner, and surface known producer readiness failures before costly work.",
+      "declined_candidates": "No new wakeup scheduler,notification framework,blanket dependency builder,all-model smoke/confirmation pass or timing-based acceptance. Do not retire record/render tests as duplicates of driver tests."
     },
   "committed_plan": {
-    "git_blob": "891a21fc6eafee250fec06491139049e111d2272",
+    "git_blob": "165cfe7254ee1f7599584991e5d652c4984ace62",
     "path": "docs/plan.json",
-    "revision": "2314b1de755d63469ce05e1144a2921528d888a4",
-    "sha256": "58acd3d75081f718b344fd394f25df92673889879613ee1a17c4bb7d5cff3426",
+    "revision": "b985335411244bd4682c810b833b9b786eb0e46a",
+    "sha256": "006b39ee5703b9d4bb97646831a5e32414fbe14512e9e9301905b1544f1d4475",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -544,7 +544,7 @@
       "category": "development-serialization",
       "classification": "checkout-repaired-commit-turn-still-blocked",
       "title": "Free the commit queue from a landing waiting for the device",
-      "evidence_commit": "42ee2b685a8ad73b4eed450793e0647b5ffb0b98",
+      "evidence_commit": "b985335411244bd4682c810b833b9b786eb0e46a",
       "sources": [
         {
           "path": "cmd/loop/improve.go",
@@ -595,8 +595,8 @@
           "symbol": "TestCommitsOfTwoWorktreesTakeTurns"
         }
       ],
-      "evidence": "6f9237525 fixes checkout isolation and stale blanket hook messaging: letGo captures the candidate, stageRoot routes checks there and settled preserves later edits; retained native fixture/gate passed. Remaining chain: Run acquires holdTurn before integrate/parents/shipSet/checks, releasing only at return; lanes calls letGo then inLaneTurn, which releases quiet ownership but not landing_turn.lock. A device-waiting candidate therefore blocks later host/report-only commits. Native-text-weights/do began about02:43 Eastern and was observed waiting behind the cycle at07:47; OS byte-range contention confirmed. Fresh13:29Z record shows lanes02:06:53-07:37:04 Eastern, cells started07:37:04 without an end. Unsupported assumption: freeing checkout editing also frees independent commit progress; the blocked report is an admitted counterexample. Retained e63fd568a gate now quantifies the wait:7h59m6.920s waiting for the device within an8h5m31.650s lane stage. The cycle ended11:00:43 Eastern; current landing turn must still be checked before publication. This converts the earlier wait observation to completed retained evidence, not a new SQA timing run.",
-      "recommended_change": "Keep captured-candidate, HEAD/plan and quiet/device protections. Separate device waiting from reserving the commit turn at the existing Run/holdTurn/inLaneTurn owners, using existing reach discovery. Reacquisition must integrate/revalidate against current HEAD and plan before publication; merely unlocking and publishing the old checked tree is unsafe. First decide the smallest safe ordering using the existing native checkout/turn fixture with a host-only successor and changed HEAD. No new scheduler, selector, telemetry or SQA execution. Replacement remains a bounded design hypothesis until that comparison establishes safety.",
+      "evidence": "6f9237525 fixes checkout isolation and stale blanket hook messaging: letGo captures the candidate, stageRoot routes checks there and settled preserves later edits; retained native fixture/gate passed. Remaining chain: Run acquires holdTurn before integrate/parents/shipSet/checks, releasing only at return; lanes calls letGo then inLaneTurn, which releases quiet ownership but not landing_turn.lock. A device-waiting candidate therefore blocks later host/report-only commits. Native-text-weights/do began about02:43 Eastern and was observed waiting behind the cycle at07:47; OS byte-range contention confirmed. Fresh13:29Z record shows lanes02:06:53-07:37:04 Eastern, cells started07:37:04 without an end. Unsupported assumption: freeing checkout editing also frees independent commit progress; the blocked report is an admitted counterexample. Retained e63fd568a gate now quantifies the wait:7h59m6.920s waiting for the device within an8h5m31.650s lane stage. The cycle ended11:00:43 Eastern; current landing turn must still be checked before publication. This converts the earlier wait observation to completed retained evidence, not a new SQA timing run. Targeted automation follow-up atb98533541 confirms holdTurn still covers Run and inLaneTurn still releases quiet ownership only; this remains a commit-queue sequencing issue, distinct from completion delivery271.",
+      "recommended_change": "Keep captured-candidate, HEAD/plan and quiet/device protections. Separate device waiting from reserving the commit turn at the existing Run/holdTurn/inLaneTurn owners, using existing reach discovery. Reacquisition must integrate/revalidate against current HEAD and plan before publication; merely unlocking and publishing the old checked tree is unsafe. First decide the smallest safe ordering using the existing native checkout/turn fixture with a host-only successor and changed HEAD. No new scheduler, selector, telemetry or SQA execution. Replacement remains a bounded design hypothesis until that comparison establishes safety. Treat the device wait as a resource dependency, not a reason to reserve unrelated host publication; remove the written/manual wait instruction only when the existing revalidation owner makes that safe.",
       "displaced_surface": "Landed checkout repair+545production/+522test; landing.go4291+lanes2506+checkout_free_test522=7319. turn.go1219/turn_test690 retain cross-worktree exclusion. Displace only commit-turn ownership during device waiting, reusing capture/integrate/commit and native fixtures. Replacement/revalidation AST cost is not yet established and may grow; no net code/runtime saving claimed.",
       "impact": "Editing proceeds but independent commits queue for hours. Repair must not ship an unchecked newer parent, erase edits, ignore changed plan terms or weaken device isolation.",
       "expected_benefit": {
@@ -614,13 +614,86 @@
       "comparison": "Existing native checkout/turn fixture: hold lane, capture candidate, admit host-only successor, then release lane and require safe revalidation/refusal after HEAD moved. Smallest deciding comparison; no new model run, permanent suite or scheduler."
     },
     {
+      "id": "SQA-271",
+      "status": "open",
+      "severity": "P2",
+      "category": "automation-continuation",
+      "classification": "source-established-handoff-boundary-with-unverified-external-delivery",
+      "title": "Give unattended measurement completion an actual continuation owner",
+      "evidence_commit": "b985335411244bd4682c810b833b9b786eb0e46a",
+      "sources": [
+        {
+          "path": "cmd/loop/main.go",
+          "symbol": "run: improveOnce returns after loop.Improve; configured execution calls loop.Run"
+        },
+        {
+          "path": "cmd/loop/improve.go",
+          "symbol": "runRecorder.end/write; improvement.Measure/Fill"
+        },
+        {
+          "path": "internal/loop/driver.go",
+          "symbol": "Run; improve; Improve"
+        },
+        {
+          "path": "internal/plan/measurement_run.go",
+          "symbol": "ReadMeasurementRun; MeasurementRun.Report"
+        },
+        {
+          "path": "cmd/loophook/main.go",
+          "symbol": "measurementRun; runPrompt; runDoctrine; runStop"
+        },
+        {
+          "path": "cmd/loop/run_record_test.go",
+          "symbol": "TestARunRecordsItsEnd"
+        },
+        {
+          "path": "cmd/loophook/run_record_test.go",
+          "symbol": "TestTheHooksPrintTheRunsEnd"
+        },
+        {
+          "path": "internal/loop/improvement_test.go",
+          "symbol": "TestDriverStartsATriggeredCycleBeforeTheNextStep; TestCycleFilesDeclinesAndAcceptsNothing"
+        },
+        {
+          "path": "internal/loop/driver_test.go",
+          "symbol": "TestLoopDriverCycle"
+        },
+        {
+          "path": "internal/loop/continuation_test.go",
+          "symbol": "TestLoopContinuationAfterCommit; TestLoopContinuationHonorsStopAfterCommit"
+        },
+        {
+          "path": ".overgo-runtime/measurement_run.json",
+          "symbol": "retained 6f9237525 run: ended 2026-10-31T11:00:43.0520986-04:00; filed 9"
+        }
+      ],
+      "evidence": "The two real entry paths have different contracts: run(improveOnce) calls Improve, prints the proposed count and returns; configured run constructs execWorld and calls loop.Run. runRecorder.end writes Ended, and measurementRun/Report format a record only when a prompt/stop/doctrine hook is invoked. Neither the writer nor those readers initiate an idle session. The existing supervised Run re-reads work after a successful cycle and honors stops/budgets; a cycle error returns after preserving partial evidence. TestARunRecordsItsEnd proves recording, TestTheHooksPrintTheRunsEnd proves rendering when explicitly invoked, and the driver tests prove continuation inside a live driver. These are distinct contracts. Unsupported assumption: a completion timestamp or hook text proves an idle lead was notified and continued. Admitted counterexample: a one-shot run finishes with no live supervisor and no later hook invocation; its record changes but this code initiates no next action. The retained Oct31 run ended at11:00:43 Eastern and filed9 rows, but that file contains no delivery/acknowledgment or next-dispatch evidence. Source comment records a prior detached run unnoticed for five hours; the user's separate approximately ten-hour claim and any current external wakeup failure are not independently established here.",
+      "recommended_change": "Unnecessary behavior: detach a one-shot measurement and rely on a later conversational check to continue authorized work. For an unattended campaign, reuse the already configured cmd/loop -> loop.Run owner and its existing strategy, role, stop, budget and trigger contracts; preserve -improve as a deliberate one-cycle command. Before adding code, inspect the existing launch/wait record to establish which path actually owned the affected run and whether an external completion action was delivered. If the live driver already owns it, repair that demonstrated boundary only. Successful eligible completion should reach the next committed-plan dispatch; failed/paused/budget-exhausted outcomes must remain explicit terminal/repair outcomes and must not silently restart the expensive cycle. Remove any redundant manual wait/poll/wakeup rule displaced by the chosen existing owner. Do not create a second scheduler, notification bus, timer, acknowledgment registry or new recurring workload.",
+      "displaced_surface": "Reuse rather than replace both legitimate entry modes. Selected ten-file baseline12147AST=8865production+3282test; no implementation candidate and no net AST reduction established. Choosing the existing supervised entry needs0new production/test/fixture surface and can remove a manual handoff; exact removed launcher/rule surface awaits evidence of the real launch. Any required wiring or native-fixture extension must be counted as growth. Keep run-record702 and hook-render602 test AST: phase failures, partial results, interrupted process, times and rendering are not duplicate continuation coverage. Keep driver920 and existing triggeredWorld/continuation fixtures. No new model setup or gate suite.",
+      "impact": "A recorded end can coexist with an unattended stall. The repair concerns ownership of authorized continuation, not numerical inference or data mutation. Preserve explicit stops, execution identity, strategy authority, exact completed evidence and unrelated workers; never use a wakeup to broaden authorization.",
+      "expected_benefit": {
+        "outcome": "Replace an unowned conversational handoff with an existing deterministic continuation owner, or establish the exact external boundary that failed.",
+        "uncertainty": "The code boundary is established; current launcher ownership and external wakeup delivery are not. No new measured delay, saved-hours claim or proof of a current failed wakeup."
+      },
+      "likely_effort": "First resolve the existing launch/completion evidence; zero production code if the existing driver is suitable. Any demonstrated boundary repair remains unpriced.",
+      "plan_references": [],
+      "plan_coverage": "No committed plan row explicitly establishes completion-to-next-dispatch ownership for the detached workflow. Existing loop/trigger/report owners should be reused; SQA does not change launch configuration or run workers.",
+      "closure_criteria": [
+        "Identify the actual run launcher and continuation owner from retained evidence; distinguish completed record, completion delivery and next dispatch.",
+        "An eligible successful cycle proceeds through the existing owner without another user prompt; failure, interruption, pause and budget outcomes remain truthful and do not trigger duplicate cycles.",
+        "Retain record/render/partial-evidence cases and explicit-stop/attempt/invocation limits. Count any wiring/test growth and name removed manual rules or handoffs.",
+        "Use retained lifecycle evidence or one affected existing native driver fixture; no SQA model run, new recurring monitor or delivery framework."
+      ],
+      "comparison": "Read the existing launch/wait evidence alongside the recorded end and next dispatch first. If implementation wiring changes, extend the existing triggeredWorld case in TestDriverStartsATriggeredCycleBeforeTheNextStep only where its boundary is missing: completed cycle -> one next dispatch, with stop/failure outcomes preserved by their existing owners. No wall-time threshold or extra model workload."
+    },
+    {
       "id": "SQA-268",
       "status": "open",
       "severity": "P2",
       "category": "measurement-cost",
       "classification": "late-runtime-admission-failure-with-overbroad-probe-proposal",
       "title": "Expose the guard's actual readiness failure without a second all-model workload",
-      "evidence_commit": "42ee2b685a8ad73b4eed450793e0647b5ffb0b98",
+      "evidence_commit": "b985335411244bd4682c810b833b9b786eb0e46a",
       "sources": [
         {
           "path": "internal/clioptions/command.go",
@@ -640,7 +713,7 @@
         }
       ],
       "evidence": "Retained measure-run-20261031b.log35/110 reports FlashNext loaded48489668096bytes, rungs1024/2048/4096/8192, then physical admission requested48bytes with available0. No 'warm' stage follows. cmd/longform.run calls Ready after catalog lookup before driver/model open; measureModel calls Warm on rungs[0] before Short/Ladder. Thus the retained failure is consistent with the first1024-token warm prefix, not proof that testing largest8192 shape detects every path. The next serving cell loads successfully. cmd/validate.runSmoke also calls Ready before serve/OpenRunner and uses a separate oracle/default-open path. Unsupported assumption: one largest request per model covers every cell's recipe, lifecycle, transient workspace and order; guard and serving already demonstrate different contracts. Cause, from 2314b1de7 (2026-10-31): Flash-Next's decode round fills the card memory the round leaves free, by the design 8cc359407 declared, so the peak is the card's 49140 MiB less what other processes hold; after the load the long-form check's own request finds 0 bytes available. Declaring that peak a trade closed the peak-memory row and left this check broken: it has measured nothing in the 2026-10-30 and 2026-10-31 runs, and no plan row names it.",
-      "recommended_change": "Correct the specific guard admission/setup path and expose its readiness truth through its existing producer and run-record owners before committing to another full cycle. Reuse the failing producer's own declared load/warm/fit boundary; do not clone it into smoke, move Ready generically across all producers, or add a new all-model largest-shape pass/flag. First compare retained guard versus serving options/lifetime and determine the smallest existing producer prefix that detects this failure; any reordered prefix must preserve device ownership, cleanup and avoid duplicate loads. Keep known setup failures explicit before long work while preserving valid partial evidence from unrelated models. No new SQA workload or blanket early-stop policy.",
+      "recommended_change": "Correct the specific guard admission/setup path and expose its readiness truth through its existing producer and run-record owners before committing to another full cycle. Reuse the failing producer's own declared load/warm/fit boundary; do not clone it into smoke, move Ready generically across all producers, or add a new all-model largest-shape pass/flag. First compare retained guard versus serving options/lifetime and determine the smallest existing producer prefix that detects this failure; any reordered prefix must preserve device ownership, cleanup and avoid duplicate loads. Keep known setup failures explicit before long work while preserving valid partial evidence from unrelated models. No new SQA workload or blanket early-stop policy. Sequence this known broken-producer repair before another full cycle expected to exercise the same guard; existing partial-result ownership remains valid for unrelated admitted cells. Missing profiles,missing recorded baselines and actual capacity failures require their own existing producers,not one copied preflight rule.",
       "displaced_surface": "Target the gap between catalog-ready and the actual guard-ready boundary at existing producer/consumer owners. No complete replacement/net AST saving established: setup ownership/reuse may require growth. Smoke's per-model oracle loop is not proven redundant with the guard. Do not remove existing warm/short/ladder stages, add fixture frameworks or promise one load covers every cell.",
       "impact": "Catalog preflight currently cannot establish runtime capacity, and a known broken guard can be discovered after hours. A second broad probe would itself cost time and still not prove all shapes/recipes safe. Protect exact memory admission, failure records and device/resource lifetime.",
       "expected_benefit": {
@@ -4738,10 +4811,11 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Final2314b1de7 trade/plan delta reconciled; source files unchanged. Any newer working changes are excluded/untouched; immediately re-read report/HEAD before publication.",
-      "AST includes comments and is a source maintenance proxy. Typed extraction omits package integration; hypothetical model-test merge is syntax-checked,not compiled/run. No measured new elapsed,memory or numerical outcome.",
-      "Existing findings rechecked by current changed-path reconciliation plus named source reads,not a fresh all-repository census. Preserve all implementation-owned/unknown fields raw-exact and rebuild only reviewer response.",
-      "Retained per-model measurements do not establish independence,stationarity,universal hardware performance or one cause for every regression. Strata remains a comparison,not presumed optimal."
+      "Targeted follow-up only; unchanged findings retain their own evidence revisions and are not represented as newly audited in full.",
+      "AST counts include comments and are maintenance proxies; bindings parser-local/manual callers only. No typecheck, model workload, test/gate, profile or benchmark ran.",
+      "Retained completion record establishes end and filed count, not notification delivery or idle-session resumption. Exact historical ten-hour claim remains unverified. Existing driver errors remain terminal; its presence alone does not establish that an external launcher uses it.",
+      "Current priority already favors the shared fix. Missing hard edges are a sequencing improvement opportunity only where actual dependency is established; no new scheduler or forced all-model confirmation is recommended.",
+      "Preserve implementation_review, master_lead_triage and unknown implementation-owned fields byte-exact; re-read report,HEAD and plan before report-only publication."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -4811,13 +4885,13 @@
       }
     }
   },
-  "next_finding_number": 271,
+  "next_finding_number": 272,
   "publication_context": {
-      "checked_head": "2314b1de755d63469ce05e1144a2921528d888a4",
-      "committed_plan_git_blob": "891a21fc6eafee250fec06491139049e111d2272",
-      "assessment": "Substantive update:shared module-load diagnosis/retained gains credited;new270 source net reduction and actual-predicate test migration; repaired malformed reviewer recommendation257;source safety priorities retained.",
-      "newer_commit_note": "Initialc77189c0c advanced to2314b1de7, changing only declared trade and plan; reviewed delta and attributed memory acceptance honestly. No code sample changed.",
-      "publication": "Re-read report,parse replacement,preserve owner fields byte-exact. Acquire existing commit ownership nonblocking,force-add only report,path-limited commit; no production gate or hook/security change."
+      "checked_head": "b985335411244bd4682c810b833b9b786eb0e46a",
+      "committed_plan_git_blob": "165cfe7254ee1f7599584991e5d652c4984ace62",
+      "assessment": "Owner-requested scope extension with concrete completion-ownership finding, existing queue/readiness recommendations and prerequisite sequencing recommendations.",
+      "newer_commit_note": "Report-only follow-up pins current b98533541; recent plan/trade-only changes read and credited. Other existing findings preserve prior bounded evidence.",
+      "publication": "Re-read/reconcile report and current HEAD; parse replacement and preserve owner fields raw-exact. Acquire existing commit locks nonblocking and commit only docs/sqa_findings.json; no implementation gate or hook/security changes."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -4829,6 +4903,7 @@
     "SQA-263",
     "SQA-264",
     "SQA-261",
+    "SQA-271",
     "SQA-268",
     "SQA-266",
     "SQA-258",
@@ -4883,32 +4958,29 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "3c202cd72 reuses ensureResources through preloadModules at New and NewWithWorker. Partial module failures unload local handles; assignment happens after function/config success, ordinary request retries retain error reporting. e.mu read ownership and worker serialization protect Close. Background context cannot cancel an in-flight driver load; no new premature-free/deadlock counterexample established. No new abstraction recommended.",
-      "Retained module preload observations support a shared cause for several short-first-output regressions, not every historical model/metric. Bonsai90.2/82.4ms versus102.68target;Qwen9B22.37/21.99 versus39.14;gemma81.68/66.62 versus158.55. SenseNova image12.22/11.81s versus13.14028target closes its row but does not isolate module timing causally. Gemma long-prompt targets remain missed. Load+first request and original trade history remain visible.",
-      "b07bfcecb keeps model validation filtering inside modelNamed/OnlyModel; timing rows can use serving without unrelated suites.270 merges its duplicate native plan body and consumes the actual predicate; missing validation conjunct would evade the current handwritten-predicate assertion. No production functional defect claimed.",
-      "Pack keys use1byte kind+SHA256,8byte offset,4byte payload size; widths derive the persisted layout. readPackIndex bounds count by physical room before allocation. Production pack limit4096 bounds uint32 size; tests use a larger private limit for64KiB members. Malformed offset addition alone did not establish silent acceptance: subsequent seek/read/hash errors retain refusal; no extra branch proposed.",
-      "copyVerified is already shared by verify and writePack. verifyPack intentionally streams one open pack with one4096-byte buffer; replacing it by per-ID reads would reopen files and invoke loose-copy precedence. Keep hash,descriptor bounds,release exclusion,context and reader-close ownership. Existing223 remains the safe test-only merge after preserving all cancellation states.",
-      "4096 threshold is tied to measured filesystem allocation/record distribution, not universally optimal; format widths are ABI facts.256members of64KiB andvolume/8 in TestPackStreamsItsMembers target whole-payload allocation, not distribution/timing inference. Retain serial allocation signal; no new benchmark/ratchet.",
-      "Runtime activity snapshots share existing projectedDocuments for three durable document families. eventHub has bounded queues,resync and cleanup; cursor duplicate suppression and download state publication are distinct requirements. Existing252 can reuse the retained framed probe; keep real HTTP/auth/reconnect in browser owner. wholePercent's100 is percent units; no supported downloaded-size overflow case established, and unknown total returns0 rather than a false completion.",
-      "Source-owned model dimensions and temporary memory vary by lifecycle; module count3 derives the embedded bundle, not a geometry sample. No changes to numerical ordering,CUDA calibration or format layout recommended.",
-      "2314b1de7 now commits Flash peak-memory trade49433735344bytes and closes its row; no physical reduction: retained reading remains about31MB above the original target. The verifier change and declared acceptance are explicit. Source256 and267 remain resolved; preload does not close draft-policy257 or guard-readiness268."
+      "Automation is now an explicit review dimension: start/admission -> phase/failure -> completion -> eligible dispatch/recovery, with no implication that logging an event delivers it.271 records the source-proven handoff boundary and the missing real-launch/delivery evidence.",
+      "Credit b98533541: one shared prompt-attention precision repair now precedes five long-prompt symptom rows. The retained comparisons localize slowdowns to01c01d66d; restoring speed must retain independent held-out quality and cannot simply re-enable the numerically weaker path. This is sequencing progress, not a landed speed fix.",
+      "The five symptom steps and native-text-weights/move currently have no depends_on edge to prompt-attention-precision/do. Default master order is correct today; a later reorder or explicit ready-row selection is not prohibited by a hard prerequisite. Use existing Step.DependsOn/Current/ResolveDispatch only where the adopted repair is truly required; preserve legitimate independent recovery. Do not add an automatic correlation grouper or blanket dependency. No observed out-of-order landing is established.",
+      "Smallest sequencing recommendation: settle the shared precision/profile change before repeating the five affected long-prompt checks, reuse matching retained results through existing scorecard/gap owners, and coordinate native re-registration so profiles are not stored twice. Keep family-specific numerical cases distinct; timing co-movement alone does not prove a universal shared cause.",
+      "261 still shows a full commit turn held while waiting on the device; freeing checkout edits does not free the commit queue.268 still shows catalog readiness before real guard setup; use that producer's failure boundary rather than a second all-model probe. These automation/ordering recommendations are updates to existing IDs.",
+      "Test dispositions: retain TestARunRecordsItsEnd (phase/failure/partial/end), TestTheHooksPrintTheRunsEnd (render and dead process), TestLoopDriverCycle (retry/attempt/budget/pause), triggeredWorld continuation, and dependency/priority tests (blocked rows,exact edges,cycles,role/order). No merge/remove recommendation established for this sample; recording,rendering and scheduling are separate failure signals.",
+      "Recent MiniCPM/bridge remeasurements close their existing rows; Granite/Flash declarations explicitly accept load/memory trades, not physical reductions. No fresh SQA performance measurements; prior270 test-consolidation recommendation remains separate."
     ],
-  "reviewed_at": "2026-10-31T17:42:04Z",
-  "reviewed_master": "2314b1de755d63469ce05e1144a2921528d888a4",
+  "reviewed_at": "2026-10-31T19:22:32Z",
+  "reviewed_master": "b985335411244bd4682c810b833b9b786eb0e46a",
   "schema_version": 1,
   "scope": [
-      "Pin 2314b1de755d63469ce05e1144a2921528d888a4;27-item committed plan891a21fc6eafee250fec06491139049e111d2272 and skill85513241e6f5e4d4a658e4929b0a0f0022b6e177 read before source review. Internal SQA overlaps this chat's past implementation; no independent third-party claim.",
-      "Fresh12-file Go AST: internal/cuda/executor/executor.go=17183; internal/inference/runner_lifecycle.go=3108; internal/overgodb/blob_pack.go=1581; internal/overgodb/blobs.go=1184; internal/overgodb/blob_pack_test.go=1807; internal/server/event_hub.go=735; internal/server/runtime_activity.go=1259; internal/server/one_event_stream_test.go=601; cmd/validate/main.go=2240; cmd/validate/selection.go=1238; cmd/validate/scorecard.go=3084; cmd/validate/only_model_test.go=654. Total34674=31612production+3062test,169functions,7181parser-local bindings. Whole files counted; semantic review bounded to constructors/module setup/close,load sequence,pack/loose publication/read/verification,stream snapshot/events and model/validation command flow. No recurring census. All12 files unchanged through final2314b1de7 trade/plan landing.",
-      "Exact readPackIndex and actual format constants typechecked with standard imports:21definitions/90uses/133expressions. Other bindings parser-local/manual caller traces only; no whole-package/CUDA type check. External complete test candidate654->561 parsed; no test/application function executed.",
-      "Additional callers/config/fixtures read: device.Worker.Do,runner_lifecycle two constructor paths,hub_workspace observe/wholePercent and progress publisher,runtimeServingProbe,scorecard.Build empty-store path,skill test citation,precheck packing and4096-byte content owner. Module changes and source/filter changes inspected beyond latest plan-only diff.",
-      "Provisional conclusions formed before prior findings/owner responses. Then reconciled existing257/267/223/252 and checked changed paths against prior safety/recovery evidence. No production/tests/plan/skill changes,agents,new models/services,gates,benchmarks or profiles."
+      "Targeted owner-requested follow-up: automation gaps and work sequencing at b985335411244bd4682c810b833b9b786eb0e46a. Read repository doctrine and committed plan first. This is not a new broad recurring census; previous2314b1de7 inference/DB/GUI review remains retained evidence. Internal SQA overlaps this chat's prior implementation, not independent third-party review.",
+      "Actual bounded committed Go AST: cmd/loop/main.go=2478; cmd/loop/improve.go=3131; internal/loop/driver.go=1236; internal/loop/driver_test.go=920; internal/plan/measurement_run.go=666; cmd/loop/run_record_test.go=702; cmd/loophook/run_record_test.go=602; internal/plan/dispatch.go=1354; internal/plan/dispatch_priority_test.go=235; internal/plan/dependency_test.go=823. Total12147=8865production+3282test;84functions;2173parser-local bindings. Semantics traced for one-shot/supervised entry,run record/hook readers,driver failure/stop/budget and dependency dispatch. No whole-package/type resolution or application/test execution.",
+      "Additional reads: internal/loop/improvement_test.go and continuation_test.go, cmd/loophook/main.go, internal/plan/plan.go, landing turn/lanes owners, committed shared-attention plan and retained measurement_run record. Report and existing owner responses then reconciled; no new claim of external wakeup delivery.",
+      "Updated the existing overgo-sqa-review automation's scope only, preserving active two-hour schedule and target. Repository changes remain report-only; no implementation, plan/skill change, worker dispatch/message, model run, test/gate, benchmark/profile or service."
     ],
   "sqa_response": {
-      "reviewed_master": "2314b1de755d63469ce05e1144a2921528d888a4",
-      "assessment": "59open,3deferred,24resolved. No new production defect established. Shared module preload explains a measured component of recovered short-first-output; longer prompts,draft calibration and guard/queue issues remain separate.270 consolidates existing tests and replaces a handwritten predicate with its production owner.",
-      "evidence": "12files34674ASTnodes;169functions;7181localbindings. Exact pack index typecheck21/90/133. Complete270candidate654->561test,7216->7123combined. Retained load/serving/gate evidence only.",
+      "reviewed_master": "b985335411244bd4682c810b833b9b786eb0e46a",
+      "assessment": "Automation gaps and work sequencing are now explicit recurring SQA scope.60open,3deferred,24resolved; new271 establishes a handoff boundary, not proof of a current delivery failure.",
+      "evidence": "10committed files12147AST;84functions;2173local bindings. Retained Oct31 run ended11:00:43Eastern,filed9. Actual one-shot/supervised and hook/driver paths traced; no execution.",
       "new_findings": [
-        "SQA-270"
+        "SQA-271"
       ],
       "resolved_findings": [],
       "partially_addressed_findings": [
@@ -4922,8 +4994,8 @@
         "plan_git_blob": "542ab22f90d1b795282d8f78d4105f87db030c60",
         "status": "Owner objects/comments and unknown fields preserved raw-exact. Later committed implementation and plan responses assessed separately."
       },
-      "recommendation": "Batch270 with normal validation work;retain existing223/252 reductions and distinct recovery/transport requirements. Preserve shared module loader and reconsider wider lazy-module work against recovered readings;draft-verdict reuse must still resolve policy and calibration costs. No new recurring workloads.",
-      "next_action": "Implementation lead owns adoption and ordinary affected verification. SQA publishes only this report while preserving active worker/index ownership.",
-      "uncertainty": "No SQA runtime execution. Shared module cost does not explain all models/metrics; full remaining policy/recovery repair cost unpriced."
+      "recommendation": "Reuse the existing supervised continuation owner where authorized; preserve one-shot behavior and terminal failures/stops/budgets. Address commit-queue wait261 and producer-readiness268 before repeating costly cycles. Preserve shared-fix-first ordering and encode only genuine prerequisites in existing dependency fields. Consolidate manual handoffs/rules without a new framework.",
+      "next_action": "Implementation lead owns launch evidence, adoption and normal affected verification. SQA changes only the report and its own recurring review scope.",
+      "uncertainty": "No fresh runtime delivery or delay evidence, no proven current wakeup failure, no net AST saving claimed for ownership/ordering recommendations."
     }
 }

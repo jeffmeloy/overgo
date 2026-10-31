@@ -477,17 +477,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 260,
-        "reason": "dispatch going on under an unanswered decision's recommendation, and plan -paragraph"
+        "nodes": 0,
+        "reason": "measured at the first landing: dispatch under a decision's recommendation with its line, and plan -paragraph with its usage and checks, 408 nodes"
       },
       "steps": [
-        {
-          "id": "decide",
-          "title": "Dispatch takes an unanswered decision's recommendation once no other row is ready: a plan question never holds the loop",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^TestAQuestionNeverHoldsTheLoop$'",
-          "rationale": "The rules-audit row's decision rule, landed ahead of its citation work, which waits on the audit of every rule line. skill.md's working loop says an open decision takes the recommended default and continues, but dispatch held a row an unanswered decision blocks until the decision was answered, and once every open row waited on one, it reported waiting on decisions: the loop stalled on a question, the rule kept in prose. The change: a row an unanswered decision blocks is passed over while another row is ready, as before; once none is, it goes on under the decision's recommended option, and the dispatch line says which decisions it went on under; the plan keeps the decision open, so an answer given before then is the one taken. It also adds plan -paragraph, which rewrites or removes a standing paragraph of the doctrine through the plan's writer, so the citation work can edit the plan's standing paragraphs as the plan's other edits are made. The check: a plan whose every open row waits on a decision dispatches that row under the recommendation and says so.\n\nServes: the loop (dispatch never waits on a question). Disappears: the decision wait in dispatch. Evidence: TestAQuestionNeverHoldsTheLoop, TestParagraphRewritesAStandingParagraph. Batch: host."
-        },
         {
           "id": "do",
           "title": "Every behavioural rule cites the check that enforces it, becomes one, or goes; a recommended plan answer resolves in code",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/worklease"
@@ -24,6 +25,8 @@ type Dispatch struct {
 	Verify    string      `json:"verify,omitzero"`
 	Line      string      `json:"line"`
 	Waiting   string      `json:"waiting,omitzero"`
+	// Decided names each unanswered decision the row goes on under, at its recommended option (byRecommendation).
+	Decided []string `json:"decided,omitempty"`
 }
 
 // Shared Git revision query used by dispatch.
@@ -79,10 +82,18 @@ func dispatchLine(dispatch Dispatch) string {
 	case dispatch.Complete:
 		return "plan complete: every item is done"
 	case dispatch.Step == ".":
-		return fmt.Sprintf("%s: %s -- open the rung (define its steps)", dispatch.Item, dispatch.ItemTitle)
+		return fmt.Sprintf("%s: %s -- open the rung (define its steps)", dispatch.Item, dispatch.ItemTitle) + decidedNote(dispatch)
 	default:
-		return fmt.Sprintf("%s / %s: %s -- %s", dispatch.Item, dispatch.Step, dispatch.ItemTitle, dispatch.StepTitle)
+		return fmt.Sprintf("%s / %s: %s -- %s", dispatch.Item, dispatch.Step, dispatch.ItemTitle, dispatch.StepTitle) + decidedNote(dispatch)
 	}
+}
+
+// decidedNote says which unanswered decisions a row goes on under, at their recommended options.
+func decidedNote(dispatch Dispatch) string {
+	if len(dispatch.Decided) == 0 {
+		return ""
+	}
+	return " (unanswered, taken at the recommended option: " + strings.Join(dispatch.Decided, "; ") + ")"
 }
 
 // ResolveDispatch resolves the current row for the repository at root and
@@ -220,10 +231,15 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
 	}
-	for _, item := range document.Items {
-		if item.Status == StatusOpen && awaiting[item.ID] {
-			return finishDispatch(Dispatch{Waiting: "remaining rows wait on owner decisions; see plan -decisions"}), nil
+	if decided, taken := byRecommendation(document); len(taken) > 0 && slices.ContainsFunc(document.Items, func(item Item) bool {
+		return item.Status == StatusOpen && awaiting[item.ID]
+	}) {
+		dispatch, err := selectDispatch(decided, role, reference)
+		if err == nil && dispatch.Item != "" {
+			dispatch.Decided = taken
+			dispatch.Line = dispatchLine(dispatch)
 		}
+		return dispatch, err
 	}
 	for _, item := range document.Items {
 		if item.Status == StatusOpen {
@@ -233,8 +249,24 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	return finishDispatch(Dispatch{Complete: true}), nil
 }
 
+// byRecommendation is the plan with each unanswered decision taken at its recommendation, and the decisions it took:
+// once no row is ready but those a question blocks, they go on under the recommended option, and an answer given
+// before then is the one they go on under. The loop never waits on a question.
+func byRecommendation(document Plan) (Plan, []string) {
+	decided := slices.Clone(document.Decisions)
+	var taken []string
+	for at := range decided {
+		if decided[at].Answer == "" {
+			decided[at].Answer = decided[at].Recommendation
+			taken = append(taken, decided[at].ID+": "+decided[at].Recommendation)
+		}
+	}
+	document.Decisions = decided
+	return document, taken
+}
+
 // awaitingDecision are the items an unanswered owner decision blocks:
-// dispatch moves past them until the owner answers.
+// dispatch moves past them while another row is ready (byRecommendation).
 func awaitingDecision(document Plan) map[string]bool {
 	blocked := map[string]bool{}
 	for _, decision := range document.Decisions {

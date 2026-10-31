@@ -46,27 +46,43 @@ func TestADecisionBlocksNamedItems(t *testing.T) {
 	}
 }
 
-// TestDispatchPassesRowsAwaitingADecision holds dispatch to the owner's
-// open decisions: a row an unanswered decision blocks is passed over for
-// the next ready row, an answer releases it, and when every open row waits
-// on a decision dispatch says so instead of offering one.
-func TestDispatchPassesRowsAwaitingADecision(t *testing.T) {
-	t.Parallel()
+// decisionFixture is a plan of two rows, the first blocked by an unanswered decision whose recommendation is a.
+func decisionFixture() Plan {
 	row := func(id string) Item {
 		return Item{ID: id, Title: id, Status: StatusOpen, Steps: []Step{{ID: "do", Title: id, Status: StatusOpen, Verify: "true"}}}
 	}
 	decision := Decision{ID: "choose", Question: "Which?", Options: []string{"a", "b"}, Recommendation: "a", Blocks: []string{"first"}, Asked: "2026-09-28"}
-	document := Plan{Campaign: "fixture", Items: []Item{row("first"), row("second")}, Decisions: []Decision{decision}}
+	return Plan{Campaign: "fixture", Items: []Item{row("first"), row("second")}, Decisions: []Decision{decision}}
+}
+
+// TestDispatchPassesRowsAwaitingADecision holds dispatch to the open
+// decisions: a row an unanswered decision blocks is passed over for the
+// next ready row, and an answer releases it.
+func TestDispatchPassesRowsAwaitingADecision(t *testing.T) {
+	t.Parallel()
+	document := decisionFixture()
 	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "second" {
 		t.Fatalf("with first awaiting a decision, dispatch = %+v, %v; want second", dispatch, err)
 	}
 	document.Decisions[0].Answer = "a"
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "first" {
-		t.Fatalf("with the decision answered, dispatch = %+v, %v; want first", dispatch, err)
+	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "first" || len(dispatch.Decided) != 0 {
+		t.Fatalf("with the decision answered, dispatch = %+v, %v; want first, no decision taken by default", dispatch, err)
 	}
-	document.Decisions[0].Answer = ""
+}
+
+// TestAQuestionNeverHoldsTheLoop holds dispatch to never waiting on a question: when every open row waits on an
+// unanswered decision, the row goes on under the decision's recommended option, and dispatch says so; the plan it
+// read keeps the decision open, so an answer given before then is the one the row goes on under.
+func TestAQuestionNeverHoldsTheLoop(t *testing.T) {
+	t.Parallel()
+	document := decisionFixture()
 	document.Items = document.Items[:1]
-	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "" || !strings.Contains(dispatch.Waiting, "owner decisions") {
-		t.Fatalf("with every row awaiting a decision, dispatch = %+v, %v; want it to wait on the decision", dispatch, err)
+	dispatch, err := selectDispatch(document, "", "")
+	if err != nil || dispatch.Item != "first" || dispatch.Waiting != "" || len(dispatch.Decided) != 1 || dispatch.Decided[0] != "choose: a" ||
+		!strings.Contains(dispatch.Line, "taken at the recommended option: choose: a") {
+		t.Fatalf("with every row awaiting a decision, dispatch = %+v, %v; want first under the recommended option, said so", dispatch, err)
+	}
+	if document.Decisions[0].Answer != "" {
+		t.Fatal("dispatch wrote an answer into the plan it read")
 	}
 }

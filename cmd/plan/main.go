@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ func main() {
 	rationaleFile := flag.String("rationale-file", "", "in place of -reason: a file that holds the edit's words")
 	addstep := flag.Bool("addstep", false, "add an open step to a row, last unless -before names a step: -addstep -title <t> -vcmd <cmd> -rationale-file <file> [-before <step-id>] <item-id> <step-id>")
 	note := flag.Bool("note", false, "add a paragraph to a step's reasoning, before its closing Serves lines: -note -rationale-file <file> <item-id> <step-id>")
+	paragraph := flag.Bool("paragraph", false, "rewrite a standing paragraph of the doctrine, numbered as the plan holds them from 0: -paragraph -rationale-file <file> <index>; an empty file removes it")
 	show := flag.Bool("show", false, "print one row whole, with each step's check, what it awaits and the reasoning -prompt leaves out: -show <item-id>")
 	retire := flag.Bool("retire", false, "remove a row, or one step, that will not be worked: -retire -reason <why> <item-id>[/<step-id>]. A landing completes an open step by its check and records it in a Landed-Row trailer; a retirement runs no check and leaves no trailer, so the commit's message carries the reason")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
@@ -65,7 +67,7 @@ func main() {
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
 		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
-			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
+			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -78,6 +80,7 @@ type cli struct {
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
+	paragraph                                    bool
 	from, reason, rationaleFile                  string
 	nodes                                        int
 }
@@ -137,6 +140,8 @@ func run(c cli, args []string) error {
 		return editPlan(role, c, args, "step added")
 	case c.note:
 		return editPlan(role, c, args, "reasoning added to")
+	case c.paragraph:
+		return rewriteParagraph(role, c, args)
 	case c.retire:
 		return editPlan(role, c, args, "retired; no Landed-Row trailer records it, so the commit's message says why")
 	case c.show:
@@ -186,7 +191,7 @@ func run(c cli, args []string) error {
 			return nil
 		})
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -retire, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -paragraph, -retire, -stop is required")
 	}
 }
 
@@ -434,6 +439,37 @@ func editPlan(role string, c cli, args []string, did string) error {
 		case c.retire:
 			// The row goes whole, or with the last step it had.
 			document.Items = slices.Delete(document.Items, item, item+1)
+		}
+		return document, nil
+	})
+}
+
+// rewriteParagraph replaces the text of the standing paragraph of the doctrine at the index named, as a file holds it,
+// through the plan's lock and its one writer: a paragraph that names the checks its rules hold to, or keeps only the
+// rules some check holds, is written as any plan edit is. An empty file removes the paragraph. A campaign's or a row's
+// paragraph is the campaign's or the row's own, and is refused.
+func rewriteParagraph(role string, c cli, args []string) error {
+	if len(args) != 1 || c.rationaleFile == "" {
+		return errors.New("usage: plan -paragraph -rationale-file <file> <index>")
+	}
+	index, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("plan: paragraph %q is not an index: %w", args[0], err)
+	}
+	text, err := os.ReadFile(c.rationaleFile)
+	if err != nil {
+		return err
+	}
+	words := strings.TrimSpace(string(text))
+	return mutatePlan(commandWorktree, role, fmt.Sprintf("paragraph %d rewritten", index), func(document plan.Plan) (plan.Plan, error) {
+		if index < 0 || index >= len(document.Doctrine) || document.Doctrine[index].Governs != "standing" {
+			return document, fmt.Errorf("plan: paragraph %d is not a standing paragraph of the doctrine", index)
+		}
+		document.Doctrine = slices.Clone(document.Doctrine)
+		if words == "" {
+			document.Doctrine = slices.Delete(document.Doctrine, index, index+1)
+		} else {
+			document.Doctrine[index].Text = words
 		}
 		return document, nil
 	})

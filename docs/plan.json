@@ -470,16 +470,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "measured by the preflight of catalog-bound: one named bound for the readers of the whole servable catalog"
+        "reason": "measured by the preflight of carbon-image: the catalog serves a directory holding a component's bytes ahead of a file holding them"
       },
       "steps": [
-        {
-          "id": "carbon-image",
-          "title": "A directory whose view is its conversion's image is served from the directory, as the model it already is",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags=modeltest ./internal/discovery -count=1 -run '^TestADirectoryThatIsItsConversionsImageServesFromItself$'",
-          "rationale": "Carbon-500M's directory validated 5 of 5 on 2026-10-31, yet the store ties no model of its own to it: the catalog serves its conversion alone, model-config refuses the directory as not a servable location, and TestEveryViewedTextModelServesFromItsDirectory finds both its copies (overgo_data/models and adaptive_new/models) served by C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf. A directory's model is the identity of the bytes its view serves (discovery TestADirectoryModelIsItsViewsIdentity), and every one of Carbon's 254 tensors in the view is the conversion's byte for byte, so the view is likely the conversion's image and the directory's identity the conversion's (model:sha256:0754fb8aca42), whose recorded location is the GGUF. Measure first whether the two images are equal; then the catalog records the directory as a location of the model it already is and serves it from there, so the GGUF is a duplicate to list for removal, with no retirement and no new definition: Carbon-500M takes the tensor-core prompt attention once its definition is stored over the current llama profile (prompt-attention-precision/reprofile), and its 4096-token row (scorecard-regressed-a62583608bf0e651) closes with it, measured with the probe at 658 to 101 ms. Qwen2.5-0.5B and MiniCPM5-1B moved; their documents and retained acceptances follow the store (fe475df7e), and every other directory a view serves passes the move's check."
-        },
         {
           "id": "move",
           "title": "Every text model a view serves is onboarded from its directory and takes its conversion's place",

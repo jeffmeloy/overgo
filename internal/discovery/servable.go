@@ -175,7 +175,19 @@ func presence(
 			return recorded, false
 		}
 		found, componentRecorded := "", ""
+		// A directory that serves the component's bytes is served from ahead of a file holding the same bytes: a model
+		// is served from its own files, and a conversion whose image its directory's view is (Carbon-500M's, to the
+		// byte) is the same model, its file a duplicate.
 		for _, location := range locations {
+			if location.Kind == artifact.LocationDirectory && holds(location.Value, descriptor, identities, memo) {
+				found = location.Value
+				break
+			}
+		}
+		for _, location := range locations {
+			if found != "" {
+				break
+			}
 			// A remote model's bytes live with its provider: the remote
 			// location is its serving location and its presence.
 			if location.Kind == artifact.LocationRemote {

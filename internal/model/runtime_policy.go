@@ -46,10 +46,11 @@ type runtimePolicy struct {
 	NormalizationBias       NormalizationBiasPolicy
 	Recurrent               recurrentRuntimePolicy
 	ActivationResidualScale float32
-	// PromptTensorCores admits the architecture's dense causal attention to the half-precision tensor-core prompt
-	// kernel, for an architecture whose held-out quality held with it (Flash-Next's MMLU-Pro); off, the F32 paths, where
-	// gemma-4-12B-it-fp8's BBH fell under the kernel. Omitted when off, so a profile document written before it encodes
-	// as it was written.
+	// PromptTensorCores admits the architecture's dense causal attention to the tensor-core prompt kernel, whose FP16
+	// products split each operand into its rounding and the remainder, for an architecture whose held-out quality held
+	// with it (internal/evaluation TestPromptTensorCoresHoldHeldOut); off, the F32 paths, as for every architecture after
+	// gemma-4-12B-it-fp8's BBH fell under the kernel's single rounding. Omitted when off, so a profile document written
+	// before it encodes as it was written.
 	PromptTensorCores bool `json:",omitempty"`
 }
 

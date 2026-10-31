@@ -832,6 +832,20 @@ func (p ModelPlan) Layer(layer uint32) (LayerPlan, error) {
 // Profile: compiled architecture policy.
 func (p ModelPlan) Profile() ArchitectureProfile { return p.profile.clone() }
 
+// WithPromptTensorCores is the plan with its dense causal attention on the tensor-core prompt kernel, or on the F32
+// paths, whatever its stored profile admits: the two arms a paired held-out comparison holds the kernel to
+// (inference.OpenOptions.PromptTensorCores).
+func (p ModelPlan) WithPromptTensorCores(on bool) ModelPlan {
+	p.profile = p.profile.clone()
+	p.profile.Runtime.PromptTensorCores = on
+	p.spec = p.spec.withProfile(p.profile)
+	p.layers = slices.Clone(p.layers)
+	for index := range p.layers {
+		p.layers[index].AttentionGraph.TensorCores = on
+	}
+	return p
+}
+
 // SameExecutionProfile reports whether two sealed plans share one policy contract.
 func (p ModelPlan) SameExecutionProfile(other ModelPlan) bool { return p.profile.equal(other.profile) }
 

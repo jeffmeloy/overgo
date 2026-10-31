@@ -459,6 +459,9 @@
    "RopeFrequencyBase": 10000
   },
   "Name": "deepseek2-ocr",
+  "Runtime": {
+   "PromptTensorCores": true
+  },
   "Validation": {
    "ExpertMetadata": 1,
    "Hybrid": 21
@@ -904,7 +907,8 @@
   },
   "Runtime": {
    "ActivationResidualScale": 0.7071067811865476,
-   "EmbeddingScale": 1
+   "EmbeddingScale": 1,
+   "PromptTensorCores": true
   },
   "Validation": {
    "Attention": 8
@@ -1619,6 +1623,9 @@
   "Rotary": {
    "Kind": 3
   },
+  "Runtime": {
+   "PromptTensorCores": true
+  },
   "Validation": {
    "ExpertMetadata": 2,
    "Hybrid": 27
@@ -2318,7 +2325,10 @@
   }
  },
  {
-  "Name": "qwen2"
+  "Name": "qwen2",
+  "Runtime": {
+   "PromptTensorCores": true
+  }
  },
  {
   "Capabilities": 4,

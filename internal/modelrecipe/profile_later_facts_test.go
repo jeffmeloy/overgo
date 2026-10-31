@@ -11,9 +11,9 @@ import (
 // (laterProfileFacts) to the provenance it was written with: without the fact, its policy holding it at zero, it
 // stands; holding the fact otherwise without its provenance, it is refused; and a document derived now covers it.
 func TestProfileDocumentsBeforeALaterFact(t *testing.T) {
-	profile, found := model.LookupArchitecture("llama")
+	profile, found := model.LookupArchitecture("baichuan")
 	if !found {
-		t.Fatal("llama profile absent")
+		t.Fatal("baichuan profile absent")
 	}
 	current, err := CatalogProfileProvenance(profile)
 	if err != nil {

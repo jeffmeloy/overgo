@@ -3795,6 +3795,12 @@ __device__ __forceinline__ unsigned int half2_pack(float low, float high) {
 	return *reinterpret_cast<const unsigned int *>(&packed);
 }
 
+// half2_remainder packs what FP16 rounding left of two values, given their packed rounding.
+__device__ __forceinline__ unsigned int half2_remainder(float low, float high, unsigned int packed) {
+	const __half2 rounded = *reinterpret_cast<const __half2 *>(&packed);
+	return half2_pack(low - __low2float(rounded), high - __high2float(rounded));
+}
+
 // mma_f16_16x8x16 multiplies FP16 fragments on tensor cores and accumulates in f32.
 __device__ __forceinline__ void mma_f16_16x8x16(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
 	asm volatile("mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 "
@@ -6760,8 +6766,11 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
 // copy from the f32 cache into shared memory by cp.async (the value tile during the scores, the next key tile during
 // the value product); each warp keeps its queries as FP16 mma fragments, its scores and an online softmax in
 // registers and its output in f32 accumulators, so no score leaves the multiprocessor. Products are m16n8k16 FP16
-// with f32 accumulation: queries, keys, values and probabilities round to FP16 as their fragments load, which
-// differs from the strided-batched f32 path at FP16 rounding of the operands. The scores scale, cap and take the key
+// with f32 accumulation, each operand split into its FP16 rounding and what that rounding left (half2_remainder): a
+// score is the high parts' product plus each high part with the other's remainder, three products where one was, and
+// an output likewise, so the kernel differs from the strided-batched f32 path at the remainders' rounding rather than
+// the operands'. Rounded once, MiniCPM5-1B's IFEval answered 37 of 55 prompts against the f32 path's 40; split, 39,
+// for 1.9 to 4.5 times the f32 path's speed at 16384 tokens. The scores scale, cap and take the key
 // bias as attention_online_softmax_f32 does, and a row with no key it may read writes zeros.
 #define ATTENTION_FLASH_ROWS 64u
 #define ATTENTION_FLASH_THREADS 128u
@@ -6840,6 +6849,7 @@ __device__ __forceinline__ void attention_flash(
 
     // Queries as m16n8k16 A fragments, one per 16 channels.
     unsigned int queries[WIDTH / 16u][4];
+    unsigned int queries_lo[WIDTH / 16u][4];
     const float * query_row[2];
     for (unsigned int half = 0; half < 2u; ++half) {
         query_row[half] = query + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH;
@@ -6860,6 +6870,10 @@ __device__ __forceinline__ void attention_flash(
         queries[step][1] = half2_pack(high.x, high.y);
         queries[step][2] = half2_pack(low_far.x, low_far.y);
         queries[step][3] = half2_pack(high_far.x, high_far.y);
+        queries_lo[step][0] = half2_remainder(low.x, low.y, queries[step][0]);
+        queries_lo[step][1] = half2_remainder(high.x, high.y, queries[step][1]);
+        queries_lo[step][2] = half2_remainder(low_far.x, low_far.y, queries[step][2]);
+        queries_lo[step][3] = half2_remainder(high_far.x, high_far.y, queries[step][3]);
     }
 
     // The keys any row of the block reads.
@@ -6900,7 +6914,11 @@ __device__ __forceinline__ void attention_flash(
             for (unsigned int step = 0; step < WIDTH / 16u; ++step) {
                 const float2 near = *reinterpret_cast<const float2 *>(key_row + step * 16u);
                 const float2 far = *reinterpret_cast<const float2 *>(key_row + step * 16u + 8u);
-                mma_f16_16x8x16(scores[column], queries[step], half2_pack(near.x, near.y), half2_pack(far.x, far.y));
+                const unsigned int k0 = half2_pack(near.x, near.y), k1 = half2_pack(far.x, far.y);
+                mma_f16_16x8x16(scores[column], queries[step], k0, k1);
+                mma_f16_16x8x16(scores[column], queries_lo[step], k0, k1);
+                mma_f16_16x8x16(scores[column], queries[step],
+                    half2_remainder(near.x, near.y, k0), half2_remainder(far.x, far.y, k1));
             }
         }
 
@@ -6969,13 +6987,21 @@ __device__ __forceinline__ void attention_flash(
                 half2_pack(scores[2u * step + 1u][0], scores[2u * step + 1u][1]),
                 half2_pack(scores[2u * step + 1u][2], scores[2u * step + 1u][3])};
             const float * value_rows = value_tile + (step * 16u + 2u * t) * VALUE_STRIDE + g;
+            const unsigned int probabilities_lo[4] = {
+                half2_remainder(scores[2u * step][0], scores[2u * step][1], probabilities[0]),
+                half2_remainder(scores[2u * step][2], scores[2u * step][3], probabilities[1]),
+                half2_remainder(scores[2u * step + 1u][0], scores[2u * step + 1u][1], probabilities[2]),
+                half2_remainder(scores[2u * step + 1u][2], scores[2u * step + 1u][3], probabilities[3])};
 #pragma unroll
             for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
                 const float * column = value_rows + tile * 8u;
-                mma_f16_16x8x16(
-                    weighted[tile], probabilities,
-                    half2_pack(column[0], column[VALUE_STRIDE]),
-                    half2_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]));
+                const unsigned int v0 = half2_pack(column[0], column[VALUE_STRIDE]);
+                const unsigned int v1 = half2_pack(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE]);
+                mma_f16_16x8x16(weighted[tile], probabilities, v0, v1);
+                mma_f16_16x8x16(weighted[tile], probabilities_lo, v0, v1);
+                mma_f16_16x8x16(weighted[tile], probabilities,
+                    half2_remainder(column[0], column[VALUE_STRIDE], v0),
+                    half2_remainder(column[8u * VALUE_STRIDE], column[9u * VALUE_STRIDE], v1));
             }
         }
     }

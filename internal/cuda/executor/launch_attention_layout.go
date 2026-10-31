@@ -187,8 +187,8 @@ func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
 }
 
 // flashAttention reports a prompt's causal attention the tensor-core kernel reads, where its model admits the kernel
-// (AttentionAttributes.TensorCores, off by default since its half-precision products moved dense models' held-out
-// quality): grouped or not, with an optional
+// (AttentionAttributes.TensorCores, from the profile; its products split into FP16 roundings and their remainders since
+// one rounding of each moved dense models' held-out quality): grouped or not, with an optional
 // window, softcap and key bias, its keys and values as wide as its queries and as a kernel takes, and at least the
 // strided-batched path's floor of queries (a decode span keeps the decode kernel). An encoder's attention, which
 // is not causal, keeps the f32 paths its reference tolerances hold (Gemma E4B's vision tower read half-precision

@@ -290,6 +290,9 @@ type AttentionGraphPlan struct {
 	Window          uint32
 	Softcap         float32
 	MaxALiBiBias    float32
+	// TensorCores admits the causal attention to the tensor-core prompt kernel, as the profile admits it
+	// (Runtime.PromptTensorCores).
+	TensorCores bool
 }
 
 // Build: materializes compiled attention controls.
@@ -309,7 +312,7 @@ func (p AttentionGraphPlan) Build(
 	return builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
 		Sinks: sinks, BlockIDs: blockIDs, Scale: scale, Softcap: p.Softcap,
 		MaxALiBiBias: p.MaxALiBiBias, Causal: p.Causal,
-		ChunkedWindow: p.ChunkedWindow, QueryStart: queryStart, Window: p.Window,
+		ChunkedWindow: p.ChunkedWindow, QueryStart: queryStart, Window: p.Window, TensorCores: p.TensorCores,
 	})
 }
 
@@ -328,6 +331,7 @@ func (s Spec) attentionGraphPlan(profile ArchitectureProfile, layer uint32) Atte
 		plan.Softcap = s.AttentionSoftcap
 	}
 	plan.UseSinks = policy.UseSinks
+	plan.TensorCores = profile.Runtime.PromptTensorCores
 	return plan
 }
 

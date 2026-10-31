@@ -13,9 +13,10 @@ import (
 )
 
 // flashAttentionTolerance bounds the tensor-core kernel's distance from the f32 reference: its queries, keys, values
-// and probabilities round to FP16 (11 significant bits) before their f32-accumulated products, which moves these
-// outputs (values up to 0.63) by up to 1.74e-4.
-const flashAttentionTolerance = 5e-4
+// and probabilities are each split into an FP16 rounding and its remainder before their f32-accumulated products, which
+// moves these outputs (values up to 0.63) by up to 4.84e-6 (the softcap case), where one FP16 rounding of each moved
+// them by up to 1.74e-4.
+const flashAttentionTolerance = 1e-5
 
 // TestExecutorFlashAttentionMatchesReference holds a prompt's dense attention on tensor cores to the reference across
 // the head widths the kernel takes: plain and grouped heads (groups of 7 and 8, the 0.5B and 1B models' shapes), a past

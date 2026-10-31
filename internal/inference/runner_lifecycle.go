@@ -45,6 +45,10 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if err != nil {
 		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
+	if options.PromptTensorCores != nil {
+		program.Model = program.Model.WithPromptTensorCores(*options.PromptTensorCores)
+		spec = program.Model.Spec()
+	}
 	promptCacheCapacity := options.PromptCacheEntries
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = runtimePolicy.Serving.PromptCacheEntries

@@ -352,6 +352,10 @@ type OpenOptions struct {
 	// JudgeOwnDrafts times the model's own next-token layer's drafted decoding against plain decoding at open, and drafts
 	// by default only where it is faster (judgeOwnDrafts): a served model's open.
 	JudgeOwnDrafts bool
+	// PromptTensorCores holds a prompt's dense causal attention on the tensor-core kernel (true) or on the F32 paths
+	// (false) whatever the stored profile admits; nil serves the profile's: the two arms a paired held-out check of the
+	// kernel runs (internal/evaluation TestPromptTensorCoresHoldHeldOut).
+	PromptTensorCores *bool
 }
 
 func (r *Runner) Spec() model.Spec {

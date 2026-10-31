@@ -158,18 +158,18 @@
       },
       "steps": [
         {
-          "id": "cell-credit",
-          "title": "A cell whose inputs are unchanged since its last reading is credited with it, not measured again",
+          "id": "model-flag",
+          "title": "validate -model is taken beside -run, and alone for the plan, as its help says",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestACellWhoseInputsAreUnchangedIsCredited$'",
-          "rationale": "SQA-266 (P1, the cell part): SelectValidation schedules every active cell, 110 on 2026-10-31, as re-acquired every cycle, so a change to one model measures all of them again, and a held-out benchmark reuses an answer only where the code that answers now gave it, so a change anywhere in internal/inference answers every suite again. The 2026-10-30 scorecard's readings name 45 code commits, so some are kept already. Measure first which cells the 2026-10-31 run measured again although their model files, the execution identity of the code they run, the device and the driver were those of their last reading, and what they cost. The change: such a cell is credited with that reading, labelled unchanged since its scorecard, and a change to code every model runs measures them all again."
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOneModelsCellsAreMeasuredAlone$'",
+          "rationale": "finish-line/model-cells landed validate -run -model, but its first use, on Qwen2.5-0.5B for scorecard-regressed-de73a5d783bae961, was refused by the command's own flag check (-budget, -model and -diagnostic go with -smoke), which runs before the selection: the step's test held Plan.OnlyModel and not the command. The flag check takes -model beside -run, and alone for the plan of that model's cells, and the test runs the command on a store without the model and holds the selection's refusal."
         },
         {
-          "id": "attribution",
-          "title": "A worsened cell whose model, recipe and code identity are unchanged is reported, not filed as a row",
+          "id": "confirm",
+          "title": "A decline is filed only when its model, measured again alone, repeats it",
           "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestADeclineWithUnchangedInputsIsReportedNotFiled$'",
-          "rationale": "SQA-267 (P1, the finish line): each published scorecard files a row for every cell worse than its earlier readings past its noise allowance, so the run that confirms a finished plan can file rows from noise on code that changed nothing the cell reads, and the plan never empties. A decline is filed only when something the cell reads changed since the reading it is compared with, and otherwise it is printed as a reading beside its allowance. A reading names its commit, not the identity of the code it ran (scorecard Cell code_commit), so this step builds on the identity each reading records for cell-credit."
+          "verify": "go test ./cmd/loop -count=1 -run '^TestADeclineIsFiledOnlyWhenItsModelRepeatsIt$'",
+          "rationale": "SQA-267 (P1, the finish line), in place of attribution, which cell-credit's measurement refuted. A run of every model files a row for each cell that fell beyond its allowance, and some such falls do not repeat: the 2026-10-31 run filed seven declines, among them Qwen2.5-0.5B's 16384-token prefill at +75.4% and Carbon-500M's 4096-token prefill at +77.3%, each from one run's reading. A decline whose inputs are unchanged was to be reported, not filed, but the inputs of every cell changed between three of the last four pairs of runs (cell-credit's measurement), so that rule would hold back none. The change: once a run has published, each model a decline names is measured again alone, through the cells validate -run -model measures, and the decline is filed only when that reading falls beyond the allowance too; one that does not repeat is printed beside both readings and filed as no row. A decline of held-out quality, whose readings are answers to fixed cases, is filed as before. So the run that confirms an emptied plan files the falls that hold, and the plan empties once they are fixed."
         }
       ]
     },

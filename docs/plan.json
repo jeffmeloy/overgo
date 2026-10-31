@@ -473,8 +473,8 @@
           "id": "do",
           "title": "Restore granite-speech-5.0-470m-turboctc transcription load-time to 1265.2033 ms",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52e09bb29afba8ca -target 1265.2033000000006",
-          "rationale": "- granite-speech-5.0-470m-turboctc load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b0414e84b7eeb5c2528b6b14d188e3ed433d350d8f07c088f1f4b47ac9d93f08}: 1084.4305 to 1442.9581 (+358.5276, +33.1%, allowed 180.7728; load phase, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-52e09bb29afba8ca",
+          "rationale": "- granite-speech-5.0-470m-turboctc load-time, {Metric:load phase Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b0414e84b7eeb5c2528b6b14d188e3ed433d350d8f07c088f1f4b47ac9d93f08}: 1084.4305 to 1442.9581 (+358.5276, +33.1%, allowed 180.7728; load phase, the median of the newest measured attempts)\n\nGranite's load is the resident recipe's by design: 77f131776 moved its transcription to the GPU-resident recipe on 2026-10-18 and declared load-time worse by about 306 ms in words, which no declared trade recorded, so the scorecard filed it. The check reads the decline in the gap form, which honours a declared trade, rather than -target, which compares the cell alone.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     },

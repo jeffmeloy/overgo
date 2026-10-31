@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-206f3f994f77c003",
-      "title": "Restore Qwen3.8 Flash Next inference peak-device-memory to 4.94024422e+10 bytes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Qwen3.8 Flash Next inference peak-device-memory to 4.94024422e+10 bytes",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-206f3f994f77c003",
-          "rationale": "- Qwen3.8 Flash Next peak-device-memory, {Metric:peak device memory Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:c45e957c883507b6b824eaeb2372b2af18cc1e402a83acd94339b67df35ad0e0}: 4.93039766e+10 to 4.94362651e+10 (+132288492, +0.3%, allowed 98465600; serving peak device memory, the newest measured attempt)\n\nFlash-Next's peak is the card's fill: the round's experts take the card memory it leaves free (modeldevice ReserveExpertMemory frees the coldest only for another owner), by the design 8cc359407 declared, so the reading is the card's 49140 MiB less what other processes hold. The check reads the decline in the gap form, which honours a declared trade, rather than -target, which compares the cell alone.\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261030T094420Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-52e09bb29afba8ca",
       "title": "Restore granite-speech-5.0-470m-turboctc transcription load-time to 1265.2033 ms",
       "owner": "master-lead",

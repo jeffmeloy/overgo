@@ -64,6 +64,19 @@
       "level": 9640852864,
       "unit": "bytes",
       "bought": "scorecard-regressed-82d99de4d4606223/do: a served model's open judges its own draft layer by the rates it measures, drafting once at load; Qwen3.5-4B, refused, decodes plainly, its first request's throughput 14.75 to 101.6 tok/s and first output 133 to 16.7 ms. The judgement's drafted decode holds 0.79 GB its plain serving does not (the draft layer's buffers, the span verify's arena), which the load's high-water keeps; served plainly without it the 4B peaks at 8.846e9 bytes"
+    },
+    {
+      "model": "model:sha256:d7ff4ba52790c0fd4169982fe91872b73bc33e0f15029f2d614802e63e463da7",
+      "name": "Qwen3.8 Flash Next",
+      "task": "inference",
+      "column": "peak-device-memory",
+      "contract": {
+        "metric": "peak device memory",
+        "origin": "serving"
+      },
+      "level": 49433735344,
+      "unit": "bytes",
+      "bought": "Strata's decode round for Flash-Next (8cc359407), whose experts fill the card memory the round leaves free, as Strata's layout does, for chat decode at Strata's rate: the peak is the card's capacity less what other processes hold, 0.3 percent above the 2026-10-30 reading; declared in scorecard-regressed-206f3f994f77c003/do"
     }
   ]
 }

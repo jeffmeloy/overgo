@@ -10,6 +10,9 @@ import (
 
 type Library struct{}
 
+// Preload loads nothing where cuBLAS is not loaded.
+func Preload() {}
+
 func Open() (*Library, error) {
 	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
 }

@@ -1581,6 +1581,8 @@ func New(deviceOrdinal int) (*Executor, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The first product that needs cuBLAS opens it; its DLLs load beside the work that follows (cublas.Preload).
+	cublas.Preload()
 	return &Executor{worker: worker, ownsWorker: true}, nil
 }
 
@@ -1589,6 +1591,7 @@ func NewWithWorker(worker *device.Worker) (*Executor, error) {
 	if worker == nil {
 		return nil, errors.New("CUDA executor requires a worker")
 	}
+	cublas.Preload()
 	return &Executor{worker: worker}, nil
 }
 

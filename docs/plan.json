@@ -478,16 +478,9 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "ready: readyStrataRound making the round and its tier at a round runner's open, and a fixed PCIe share stopping PcieAuto"
+        "reason": "cuBLAS's background load where an executor is made (cublas.Preload) and the round's session cells made at open (readyQSASession), with the load ledger's stage for the round"
       },
       "steps": [
-        {
-          "id": "first-output",
-          "title": "Flash-Next's first prompt read pays no one-time setup: cuBLAS loads beside the weights and the round's session cells are made at open",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-8412c1a92845efda -target 1128.1209",
-          "rationale": "Measured 2026-10-30 on the served Flash-Next with timing and a CPU profile of its first prompt read (41 tokens, 1.70 s, against 0.34 s for a warm 255-token read): loading cuBLAS's two DLLs at the first product that needs it took 0.42 s, and the round's session cells, which Strata's one session serves every request from at fixed addresses and the first request made, took 0.95 s with their pinned host pages (0.52 s) and the experts they moved. The change: the executor starts cuBLAS's load in the background where it is made, covered by the weight upload, and the round's open makes the session cells. Measured once: first read 0.50 s, first output 0.69 s against its 1128.1 ms target; load 32.6 s, the cells' time moved there. The row's load and 16,384-token first output stay open under its do step."
-        },
         {
           "id": "do",
           "title": "Find and remove what the Strata port added to Flash-Next's load, first output and longer prompts' first output",

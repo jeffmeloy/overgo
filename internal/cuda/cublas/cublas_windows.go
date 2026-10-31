@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -29,6 +30,14 @@ type Library struct {
 	gemmEx            *syscall.Proc
 	lt                ltProcs
 }
+
+// preloaded holds the libraries a Preload loaded for the process's life, so the Open that later needs them maps no DLL.
+var preloaded = sync.OnceFunc(func() { _, _ = Open() })
+
+// Preload loads cuBLAS and cuBLASLt in the background, once a process, where a device executor is made: the first
+// product that needs cuBLAS opens it, and loading the two DLLs there took 0.42 s of Qwen3.8 Flash Next's first prompt
+// read, which the load's weight upload now covers. It needs no context and holds no device memory.
+func Preload() { go preloaded() }
 
 // Binding is one entry point of a toolkit library and where its address goes.
 type Binding struct {

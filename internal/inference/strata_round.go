@@ -124,7 +124,26 @@ func (r *Runner) readyStrataRound(ctx context.Context) error {
 		}
 		blobs = append(blobs, blob)
 	}
-	return r.openStrataTier(ctx, round, blobs)
+	if err := r.openStrataTier(ctx, round, blobs); err != nil {
+		return err
+	}
+	return r.readyQSASession(ctx)
+}
+
+// readyQSASession makes, at open, the session cells a round request's sequence holds (newQSACells): Strata's one
+// session serves every request at fixed addresses, and the first request made them, their pinned host pages taking
+// 0.52 s of Qwen3.8 Flash Next's first output, as many seconds of the load as they take now.
+func (r *Runner) readyQSASession(ctx context.Context) error {
+	if r.qsaLayers == nil || r.qsaSession != nil {
+		return nil
+	}
+	r.qsaStreamed = true
+	defer func() { r.qsaStreamed = false }()
+	cells, err := r.newQSACells(ctx, r.qsaSequenceCapacity(0))
+	if err != nil {
+		return err
+	}
+	return cells.release(ctx)
 }
 
 // openStrataRound makes the round's stores and CPU pool, once.

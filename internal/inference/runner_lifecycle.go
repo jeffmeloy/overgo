@@ -236,7 +236,10 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	runner.qsaWindows = runner.qsaWindowSet()
 	if runner.strataDraft != nil {
-		if err := runner.readyStrataRound(ctx); err != nil {
+		readied := processmeasure.Stage(ctx, "strata round")
+		err := runner.readyStrataRound(ctx)
+		readied()
+		if err != nil {
 			return nil, errors.Join(err, runner.Close())
 		}
 	}

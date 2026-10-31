@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "e4b-tensor-cores",
-      "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./cmd/validate -count=1 -run '^TestAcceptedE4BModalitiesNameTheServedDefinition$'",
-          "rationale": "Measured on 2026-10-31: gemma-4-E4B-it over the gemma4 profile that admits the tensor-core prompt attention read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, and the paired held-out comparison held (BBH 2 lost to 1 gained, IFEval 0 to 1, MMLU-Pro raw 1 to 0, chat 0 to 4). Its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 5b5f36e49) is bound to its earlier definition, and its projection recipe with it, so the admission waits on that validation re-run under the new definition, its inference and projection recipes activated together. The regression rows scorecard-regressed-cdbb3debaad4e309 and scorecard-regressed-d730a46b2d9a307f close with it. Serves: first-output at length on gemma-4-E4B-it, held-out-quality held.\n\nRe-scoped on 2026-10-31: gemma4 stays admitted and E4B serves the tensor-core definition, its long-prompt rows closed; the accepted 30 cells bind to the recipe the validation activated (TestAcceptedE4BModalities) until this step re-runs them on the served definition, inference and projection, so the acceptance again names the active binding. Its check is then the acceptance in that form."
-        }
-      ]
-    },
-    {
       "id": "draft-verdict-record",
       "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
       "owner": "master-lead",
@@ -505,6 +490,21 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b0f22870d3200ec6 -target 5563.9",
           "rationale": "Split from flashnext-first-request on 2026-10-30, whose first output and throughput are met and whose load is declared a trade. The 16,384-token first output reads 6.2 s against 5563.9 ms on 2026-10-25, and Strata reads the same prompt in 4.94 to 5.04 s (the reviewer's bench, scratchpad round/alt62): the read takes 5.85 s and the round's setup after it 0.34 s. Measured on the served model: the n-gram embedding's rows for the read are fetched from the model file in two loads of 131,072 rows, 0.26 s on the read's path before its chunks run (inference feedNGramInputs, model.HostRows); the rest is the chunks' MoE products on the card and the host experts' on the CPU (hostexpert, about 2.5 s of CPU over the read). First suspects, each measured before it is changed: the n-gram rows fetched for the next chunk while the current one runs; the host experts' share of a long read, against where Strata's read computes them; and the chunk size a long read takes."
+        }
+      ]
+    },
+    {
+      "id": "e4b-tensor-cores",
+      "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./cmd/validate -count=1 -run '^TestAcceptedE4BModalitiesNameTheServedDefinition$'",
+          "rationale": "Measured on 2026-10-31: gemma-4-E4B-it over the gemma4 profile that admits the tensor-core prompt attention read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, and the paired held-out comparison held (BBH 2 lost to 1 gained, IFEval 0 to 1, MMLU-Pro raw 1 to 0, chat 0 to 4). Its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 5b5f36e49) is bound to its earlier definition, and its projection recipe with it, so the admission waits on that validation re-run under the new definition, its inference and projection recipes activated together. The regression rows scorecard-regressed-cdbb3debaad4e309 and scorecard-regressed-d730a46b2d9a307f close with it. Serves: first-output at length on gemma-4-E4B-it, held-out-quality held.\n\nRe-scoped on 2026-10-31: gemma4 stays admitted and E4B serves the tensor-core definition, its long-prompt rows closed; the accepted 30 cells bind to the recipe the validation activated (TestAcceptedE4BModalities) until this step re-runs them on the served definition, inference and projection, so the acceptance again names the active binding. Its check is then the acceptance in that form."
         }
       ]
     },

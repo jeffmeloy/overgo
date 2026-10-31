@@ -148,40 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "finish-line",
-      "title": "The loop finishes: no run of every model while the plan holds work, each step judged by its own check or its own model, one run at the end",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 8,
-        "reason": "measured by the preflight of model-cells: the plan of one model's cells (Plan.OnlyModel), the name a decline's row gives its model (modelNamed), and validate -run -model asking both"
-      },
-      "steps": [
-        {
-          "id": "confirm",
-          "title": "A decline is filed only when its model, measured again alone, repeats it",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestADeclineIsFiledOnlyWhenItsModelRepeatsIt$'",
-          "rationale": "SQA-267 (P1, the finish line), in place of attribution, which cell-credit's measurement refuted. A run of every model files a row for each cell that fell beyond its allowance, and some such falls do not repeat: the 2026-10-31 run filed seven declines, among them Qwen2.5-0.5B's 16384-token prefill at +75.4% and Carbon-500M's 4096-token prefill at +77.3%, each from one run's reading. A decline whose inputs are unchanged was to be reported, not filed, but the inputs of every cell changed between three of the last four pairs of runs (cell-credit's measurement), so that rule would hold back none. The change: once a run has published, each model a decline names is measured again alone, through the cells validate -run -model measures, and the decline is filed only when that reading falls beyond the allowance too; one that does not repeat is printed beside both readings and filed as no row. A decline of held-out quality, whose readings are answers to fixed cases, is filed as before. So the run that confirms an emptied plan files the falls that hold, and the plan empties once they are fixed."
-        }
-      ]
-    },
-    {
-      "id": "review-register",
-      "title": "A filing beside the review session's uncommitted findings is still a filing",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A change to the plan and the findings register alone lands as a filing, carrying the register",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAFilingBesideTheFindingsRegisterIsAFiling$'",
-          "rationale": "On 2026-10-31 the filing of paired-comparisons and finish-line was refused (paired-comparisons/file is not a step of the plan at e63fd568a467 ... land the plan's edit alone first), because docs/sqa_findings.json held SQA-266 to SQA-268, which the guard refused the review session's commit of: a change counts as the plan's alone only when no other path changes (planOnly, internal/landing/landing.go:363), so while the register is dirty no row can be filed, and it is dirty after every review. The owner on 2026-10-31: a review session writes its findings into docs/sqa_findings.json itself, and when the guard refuses its commit the edit stays saved and its commit is the lead's call. The filing went in with the landing of a decline row its check closed. A change to the plan and the register alone is judged as a filing, by the plan it holds, and carries the register; any other path makes it a change judged by the terms its row had before it, as now. Serves: the loop, which can file the rows a run or a request needs whenever a review has run."
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

@@ -359,9 +359,14 @@ func (l *landing) shipSet(ctx context.Context) error {
 	return nil
 }
 
-// planOnly reports a change to the plan alone.
+// findingsRegister is the register a review session writes its findings into: a record no code reads, as the plan is
+// one no code compiles, and one the guard keeps a review session from committing, so it waits for the lead's next
+// landing.
+const findingsRegister = "docs/sqa_findings.json"
+
+// planOnly reports a change to the plan alone, or to the plan and the findings register a review left uncommitted.
 func (l *landing) planOnly() bool {
-	return !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path })
+	return !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path && changed != findingsRegister })
 }
 
 // capture writes the working tree, as git add -A stages it, through the

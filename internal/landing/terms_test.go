@@ -180,3 +180,37 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 		t.Fatalf("rows of 4, 6 and 3 nodes landed together with 5 added: %d between them before, and the plan gives %v; want 13, then the first row still open charged to 1, the other its own 3, and the row not landed untouched", had, counts)
 	}
 }
+
+// TestAFilingBesideTheFindingsRegisterIsAFiling holds a change to the plan and to the findings register a review left
+// uncommitted to a filing: it lands a step the plan's edit adds, by the check that edit gives it, and its commit
+// carries the register. The same edit with code beside it is judged by the terms its row had before it, as any is.
+func TestAFilingBesideTheFindingsRegisterIsAFiling(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage, findingsRegister: "{}\n"})
+	fixture.commitPlan(rowPlan(0, [2]string{"do", "false"}))
+	if err := plan.Save(fixture.planPath(), rowPlan(0, [2]string{"do", "false"}, [2]string{"file", "true"})); err != nil {
+		t.Fatal(err)
+	}
+	fixture.write(findingsRegister, "{\"findings\": [\"SQA-1\"]}\n")
+	fixture.write("internal/p/p.go", oneFunction)
+	carrying := &landing{Options: Options{Repo: fixture.repo, Ref: "row/file"}, scratch: t.TempDir()}
+	if err := carrying.parents(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := carrying.shipSet(ctx); err == nil || !strings.Contains(err.Error(), "land the plan's edit alone first") {
+		t.Errorf("a filing beside the register that carries code landed a step it added itself: %v", err)
+	}
+
+	fixture.write("internal/p/p.go", emptyPackage)
+	filing := fixture.candidateOf("row/file")
+	if !slices.Equal(filing.verifiers, []string{"true"}) {
+		t.Fatalf("a filing beside the findings register is checked by %q, want the check its plan gives the step", filing.verifiers)
+	}
+	if _, err := filing.commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held := fixture.git("show", "HEAD:"+findingsRegister); !strings.Contains(held, "SQA-1") {
+		t.Errorf("the filing's commit holds the register as %q, want the review's findings", held)
+	}
+}

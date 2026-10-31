@@ -1583,7 +1583,9 @@ func New(deviceOrdinal int) (*Executor, error) {
 	}
 	// The first product that needs cuBLAS opens it; its DLLs load beside the work that follows (cublas.Preload).
 	cublas.Preload()
-	return &Executor{worker: worker, ownsWorker: true}, nil
+	executor := &Executor{worker: worker, ownsWorker: true}
+	executor.preloadModules()
+	return executor, nil
 }
 
 // NewWithWorker: binds executor to caller-owned CUDA worker/context
@@ -1592,7 +1594,27 @@ func NewWithWorker(worker *device.Worker) (*Executor, error) {
 		return nil, errors.New("CUDA executor requires a worker")
 	}
 	cublas.Preload()
-	return &Executor{worker: worker}, nil
+	executor := &Executor{worker: worker}
+	executor.preloadModules()
+	return executor, nil
+}
+
+// preloadModules loads the kernel modules and looks up their functions on the worker in the background, where the
+// executor is made, so the load's weight upload covers them: a first request loaded all three, about 25 ms on this
+// card before the lookups, and Bonsai-27B-Q1_0's first output rose by Strata's native module's share when that module
+// joined the two (8cc359407). A failure leaves the modules for the first request to load and report.
+func (e *Executor) preloadModules() {
+	go func() {
+		e.mu.RLock()
+		defer e.mu.RUnlock()
+		if e.closed || e.worker == nil {
+			return
+		}
+		_ = e.worker.Do(context.Background(), func(state *device.State) error {
+			_, err := e.ensureResources(state, false, 0, 0, 0)
+			return err
+		})
+	}()
 }
 
 func (e *Executor) Close() error {

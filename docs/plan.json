@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-f150c20a36aed39b",
-      "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore Bonsai-27B-Q1_0 inference first-output to 102.681 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-f150c20a36aed39b -target 102.68100000000001",
-          "rationale": "- Bonsai-27B-Q1_0 first-output, {Metric:time to prefill Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6}: 97.9666 to 108.8949 (+10.9283, +11.2%, allowed 4.7144; serving time to prefill, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261028T150740Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-f065cb6d0649f0de",
       "title": "Restore Qwen3.5-9B inference first-output to 39.1376 ms",
       "owner": "master-lead",

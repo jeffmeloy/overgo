@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "scorecard-regressed-54998f10ce918c75",
-      "title": "Restore webssl-dino-to-rae-bridge reconstruction first-output to 11222.0168 ms",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore webssl-dino-to-rae-bridge reconstruction first-output to 11222.0168 ms",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-54998f10ce918c75 -target 11222.0168",
-          "rationale": "- webssl-dino-to-rae-bridge first-output, {Metric:time to the whole output Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:d649df7f77dcfc72357ef4f52d8e7b5b49fc2a5ea3e12153afaef255300ff969}: 10524.1608 to 11468.8525 (+944.6917, +9.0%, allowed 697.856; serving time to the whole output, the median of the newest measured attempts)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-a62583608bf0e651",
       "title": "Restore Carbon-500M-f16-ropefix inference first-output to 401.24985 ms",
       "owner": "master-lead",

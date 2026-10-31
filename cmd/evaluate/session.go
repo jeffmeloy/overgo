@@ -14,6 +14,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelcli"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
@@ -105,29 +106,38 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return fail(err)
 	}
 	identity := description.Identity
-	environment, err := cudaEnvironment(value.Device)
+	campaign, err := nativeCampaign(store, identity, value, func(chatShaped bool) evaluation.Runtime {
+		if chatShaped {
+			return chatShapedRuntime{runner}
+		}
+		return runner
+	})
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
+	}
+	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit}, nil
+}
+
+// nativeCampaign is the campaign a local model's session answers under: its environment, the prompting the manifest
+// names and the runtime that prompting takes, and the runner's code as what answers every case, whose answers are
+// kept under its identity where this build counted one. A preflight builds it before the weights load, with a
+// runtime that answers nothing (unloadedRuntime), and so holds the session's own authorities.
+func nativeCampaign(store *overgodb.Store, identity modelrecipe.ProgramIdentity, value manifest, runtime func(chatShaped bool) evaluation.Runtime) (*evaluation.Campaign, error) {
+	environment, err := cudaEnvironment(value.Device)
+	if err != nil {
+		return nil, err
 	}
 	prompting, err := evaluation.PromptingNamed(cmp.Or(value.Protocol, evaluation.PromptingRawCompletion.Label()))
 	if err != nil {
-		_ = runner.Close()
-		return fail(err)
+		return nil, err
 	}
-	runtime := evaluation.Runtime(runner)
-	if prompting != evaluation.PromptingRawCompletion {
-		runtime = chatShapedRuntime{runner}
-	}
-	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
+	campaign, err := evaluation.NewIsolatedCampaign(store, runtime(prompting != evaluation.PromptingRawCompletion), identity, environment, value.CodeCommit)
 	if err != nil {
-		_ = runner.Close()
-		return fail(err)
+		return nil, err
 	}
 	campaign.WithPrompting(prompting)
-	// The runner answers every case here, so its answers are kept under its code's identity where this build counted one.
-	evaluation.AnsweredBy[inference.Runner](campaign)
-	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit}, nil
+	return evaluation.AnsweredBy[inference.Runner](campaign), nil
 }
 
 // chatShapedRuntime scores multiple-choice prompts through the model's

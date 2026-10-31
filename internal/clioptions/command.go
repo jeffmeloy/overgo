@@ -64,6 +64,10 @@ func Ready() error {
 	return nil
 }
 
+// Preflighting reports whether this command runs as a preflight: a producer whose setup before Ready repeats work its
+// measurement does again does that setup only then.
+func Preflighting() bool { return preflight }
+
 // Main: common command error exit. The error file and the preflight are this
 // command's alone: its subprocesses do not inherit the names.
 func Main(run func() error) {

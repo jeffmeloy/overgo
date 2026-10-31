@@ -12,14 +12,19 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/inference"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
+	"overgo/internal/sequencescore"
+	"overgo/internal/tokenizer"
 )
 
 // servableModels lists trusted, present targets in deterministic size order.
@@ -192,10 +197,15 @@ func runAllWorkerPass(ctx context.Context, repository string, device int, family
 	if err != nil {
 		return err
 	}
+	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, Protocol: protocol}
+	if clioptions.Preflighting() {
+		if err := derivedReady(ctx, shared, modelPath, family); err != nil {
+			return err
+		}
+	}
 	if err := clioptions.Ready(); err != nil {
 		return err
 	}
-	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, Protocol: protocol}
 	session, err := openEvaluationSession(ctx, shared, modelRequest{Path: modelPath, Suites: []string{"derived"}})
 	if err != nil {
 		return err
@@ -265,20 +275,10 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 			fmt.Printf("published prompt template: scoring prefix %q\n", prefix)
 		}
 	}
-	// Only the requested family is read and compiled: the catalog's
-	// other twenty thousand cases cost minutes per worker for a suite
-	// that scores in seconds.
-	suites, skipped, err := evaluation.DeriveStoreSuiteFamily(ctx, s.store, s.campaign.Authorities(), family)
+	suites, skipped, domains, declared, err := derivedSuites(ctx, s.store, s.campaign, s.model, family)
 	if err != nil {
 		return err
 	}
-	// A declared eval domain routes suites: a DNA model never meets
-	// English multiple choice. Undeclared models keep full coverage.
-	domains, declared, err := modelartifact.EvalDomains(ctx, s.store, s.model)
-	if err != nil {
-		return err
-	}
-	suites = evaluation.FilterSuitesForDomains(suites, domains, declared)
 	if len(suites) == 0 {
 		fmt.Printf("model domains %v admit no derived suite; nothing to evaluate\n", domains)
 		return nil
@@ -292,6 +292,79 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 	return familyFilterOutcome(selected, declared, domains, family)
 }
 
+// derivedSuites are the derived suites of a family the campaign would put to the model, with the cases each dropped,
+// and the model's declared eval domains. Only the requested family is read and compiled: the catalog's other twenty
+// thousand cases cost minutes per worker for a suite that scores in seconds. A declared eval domain routes suites: a
+// DNA model never meets English multiple choice; an undeclared model keeps full coverage.
+func derivedSuites(ctx context.Context, store *overgodb.Store, campaign *evaluation.Campaign, model artifact.ID, family string) (suites []evaluation.CompiledSuite, skipped map[string]int, domains []string, declared bool, err error) {
+	if suites, skipped, err = evaluation.DeriveStoreSuiteFamily(ctx, store, campaign.Authorities(), family); err != nil {
+		return nil, nil, nil, false, err
+	}
+	if domains, declared, err = modelartifact.EvalDomains(ctx, store, model); err != nil {
+		return nil, nil, nil, false, err
+	}
+	return evaluation.FilterSuitesForDomains(suites, domains, declared), skipped, domains, declared, nil
+}
+
+// inFamily reports whether a suite is of the family asked for: every suite when none is, and a family asked for whole
+// or as a count of its cases is the family, so its suite is named as the part's is.
+func inFamily(descriptor evaluation.SuiteDescriptor, family string) bool {
+	name, _, _ := strings.Cut(family, "/")
+	return family == "" || strings.HasSuffix(descriptor.Source, "/"+name)
+}
+
+// derivedReady does the setup a local model's derived evaluation does before its weights load, and refuses where the
+// evaluation would: the model's recipe resolved by the store's memo, the session's campaign and its authorities, and
+// the family's derived suites under the model's domains. A preflight runs it before clioptions.Ready, so a quality
+// cell whose suite the store does not hold, or whose recipe does not resolve, is refused before any cell is measured,
+// where the preflight had stopped at the verifying commit and found it hours into a run. A hosted model loads no
+// weights, so its session's open is its setup.
+func derivedReady(ctx context.Context, shared manifest, modelPath, family string) error {
+	if remoteprovider.IsRemoteLocation(modelPath) {
+		return nil
+	}
+	store, err := overgodb.OpenReadOnly(shared.Repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	_, description, err := modelcli.ResolveModel(ctx, store, modelPath)
+	if err != nil {
+		return err
+	}
+	campaign, err := nativeCampaign(store, description.Identity, shared, func(bool) evaluation.Runtime { return unloadedRuntime{} })
+	if err != nil {
+		return err
+	}
+	suites, _, domains, declared, err := derivedSuites(ctx, store, campaign, description.Identity.Model, family)
+	if err != nil || len(suites) == 0 {
+		return err
+	}
+	selected := 0
+	for _, suite := range suites {
+		if inFamily(suite.Descriptor(), family) {
+			selected++
+		}
+	}
+	return familyFilterOutcome(selected, declared, domains, family)
+}
+
+// unloadedRuntime stands in for a runner whose weights a preflight does not load: it answers nothing.
+type unloadedRuntime struct{}
+
+// errUnloaded is the refusal of a case put to a runtime whose weights were not loaded.
+var errUnloaded = errors.New("evaluate: the preflight loads no weights to answer with")
+
+// Generate refuses: no weights are loaded.
+func (unloadedRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	return nil, "", errUnloaded
+}
+
+// ScoreContinuations refuses: no weights are loaded.
+func (unloadedRuntime) ScoreContinuations(context.Context, string, []string) ([]sequencescore.Score, error) {
+	return nil, errUnloaded
+}
+
 // campaignDerivedSuites campaigns the derived suites of one family (every
 // family when blank); admit names why a suite is not taken (nil admits
 // all) and the count of campaigned suites is returned. A case the store
@@ -303,8 +376,7 @@ func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, s
 	selected := 0
 	for _, suite := range suites {
 		descriptor := suite.Descriptor()
-		// A family asked for whole or as a count of its cases = the family, so its suite is named as the part's is.
-		if name, _, _ := strings.Cut(family, "/"); family != "" && !strings.HasSuffix(descriptor.Source, "/"+name) {
+		if !inFamily(descriptor, family) {
 			continue
 		}
 		if admit != nil {

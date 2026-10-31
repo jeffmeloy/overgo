@@ -156,21 +156,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "preflight-quality",
-      "title": "A quality cell's preflight reaches the setup its session does before the model loads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A quality cell's preflight reaches the setup its session does before the model loads",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAQualityCellsPreflightReachesItsSetup$'",
-          "rationale": "Split from preflight-clean (review of 2026-10-30, F6) when its first part landed: a quality cell's producer (cmd/evaluate -all, runAllWorkerPass) stops for the preflight at clioptions.Ready right after reading the verifying commit, before openEvaluationSession resolves the model's recipe, the session's authorities and the derived suites, so a cell whose suite or authority is missing is found only when the cell runs, hours into a run. The change: the session's setup that reads no weights (the recipe, the authorities, the derived suites it would campaign) runs before Ready, and the weights load after it. The test: a quality cell's preflight refuses a model whose derived suite the store does not hold, and loads no weights."
-        }
-      ]
-    },
-    {
       "id": "lane-cost",
       "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
       "owner": "master-lead",

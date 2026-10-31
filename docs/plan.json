@@ -157,16 +157,16 @@
   "items": [
     {
       "id": "lane-cost",
-      "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
+      "title": "A lane test running past twice its median wall is reported stalled while it runs, each test's wall recorded",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "A lane package unchanged since its last pass is not run again, and one past twice its median wall is reported stalled",
+          "title": "A lane test running past twice its median wall is reported stalled while it runs, each test's wall recorded",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestALanePackageUnchangedSinceItsPassIsNotRunAgain$'",
-          "rationale": "Review of 2026-10-30 (F5): with the lanes before the cells (b0c74066b) every scorecard waits for them, 2h07m to 5h23m when they pass and 15h46m on 2026-10-28; internal/evaluation alone took 4h0m on 2026-10-29 and about 4h on 2026-10-30. The change: a lane's test package is not run again when its inputs (its compiled code and the model and store files it reads) are those of its last pass on this machine, recorded by digest; each package's wall is recorded, and one running past twice its median is reported as stalled while it runs; internal/evaluation's long model tests are split so the package is not one four-hour unit."
+          "verify": "go test ./cmd/validate -count=1 -run '^TestALaneTestPastTwiceItsMedianIsReportedStalled$'",
+          "rationale": "Review of 2026-10-30 (F5): with the lanes before the cells (b0c74066b) every scorecard waits for them, 2h07m to 5h23m when they pass and 15h46m on 2026-10-28; internal/evaluation alone took 4h0m on 2026-10-29 and about 4h on 2026-10-30. The change: a lane's test package is not run again when its inputs (its compiled code and the model and store files it reads) are those of its last pass on this machine, recorded by digest; each package's wall is recorded, and one running past twice its median is reported as stalled while it runs; internal/evaluation's long model tests are split so the package is not one four-hour unit.\n\nRe-scoped 2026-10-30 on the 2026-10-30 run's lane output: no lane package came from go test's cache, and none would by a digest of its inputs. The cycle measures a new commit, whose closure changed for nearly every package, and the packages that read the live store read a store every run writes; go test's own cache already skips a package whose compiled code, environment and opened files are unchanged. What cost the run is internal/evaluation's model-tagged held-out tests, 3h58m of the models lane's 5h23m (the Qwen3.5 family's cells, Qwen3.8-27B's K-quant products and gemma-4-12B's attention cells held out, BBH and IFEval), each a real model's run, and nothing said where those hours went or whether one had stalled. The change: each top-level test a lane runs has its wall recorded beside the cycle's state, its newest five; the lane's report names each test's wall; and a test running past twice the median of its recorded walls is reported as stalled while it runs. A test with no recorded wall is held to none."
         }
       ]
     },

@@ -148,6 +148,31 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-unscored-image-gen",
+      "title": "Define the held-out evaluation that measures image-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "judged-run",
+          "title": "Judge a picture whose run records no commit",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt$'",
+          "rationale": "verifyRendered requires the producing run's code commit to equal the render manifest's, and a capability run records none: workflowruntime publishes runrecord.NewRun, which carries no commit. So every picture rendered since the check arrived on 2026-10-15 is refused at judging, and the first new render, MOSS's TIFA set, found it.\nA run that records a commit must still match the manifest's; a run that records none is bound by its recipe, its request and its output, which the check already holds.\nServes: held-out-quality for any image or video model rendered from now on.\nDisappears: nothing.\nEvidence: the render test, over a run with no commit and a run with another.\nBatch: host lane."
+        },
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
+          "depends_on": [
+            "moss-closeout/close"
+          ]
+        }
+      ]
+    },
+    {
       "id": "store-history",
       "title": "Stop the store losing committed history",
       "owner": "master-lead",
@@ -949,24 +974,6 @@
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/throughput'",
           "rationale": "The resource comparison measured native MOSS at 94 s of denoising a 1024 square picture against upstream's 52 s on one card and one protocol, at 0.47 times its peak device memory.\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes.\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-image-gen",
-      "title": "Define the held-out evaluation that measures image-gen quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures image-gen quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
-          "rationale": "- MOSS-Image-SFT-797fa8e678b4f held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
-          "depends_on": [
-            "moss-closeout/close"
-          ]
         }
       ]
     }

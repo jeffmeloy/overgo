@@ -953,24 +953,6 @@
       ]
     },
     {
-      "id": "scorecard-unmeasured-image-gen",
-      "title": "Measure image-gen's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure image-gen's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
-          "rationale": "- MOSS-Image-SFT-797fa8e678b4f first-output: no benchmark time to first token and no serving prefill sample\n- MOSS-Image-SFT-797fa8e678b4f failure-rate: no completed serving attempts recorded\n- MOSS-Image-SFT-797fa8e678b4f load-time: no benchmark load time and no recorded load phase\n- MOSS-Image-SFT-797fa8e678b4f peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261024T194833Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
-          "depends_on": [
-            "moss-evaluation/resources"
-          ]
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-image-gen",
       "title": "Define the held-out evaluation that measures image-gen quality",
       "owner": "master-lead",

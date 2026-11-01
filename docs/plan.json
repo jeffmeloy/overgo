@@ -474,6 +474,13 @@
       },
       "steps": [
         {
+          "id": "expert-inputs",
+          "title": "A prompt's grouped expert products multiply one f16 part of each input, as finely as the reference engines' activations need, not a high and a low part",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^(TestPromptExpertsMultiplyEncodedWeights|TestPromptExpertCopiesOverlapCompute)$'",
+          "rationale": "Measured 2026-10-31 after draft-kv (a6e69e5fb): a warm 16K Flash-Next read gives its first token in 5.89 to 6.21 s, and its grouped expert products take 1,872 ms of the read's kernels against Strata's 1,345 (dequant, gate/up and down). The grouped kernels gather each input as a high and a low f16 part and multiply both (MOE_INPUT_PARTS, 3ed9fa379), so an input keeps about 2^-22 of its value: twice the tensor-core products of one part, where Strata multiplies a prompt's experts by 8-bit activations (its MMQ, Q8_1) and the round's decode multiplies them by q8_1 too. Built with one f16 part, the read gives its first token in 5.47 to 5.73 s (5.49 and 5.47 warm), Flash-Next answers 20 of its 24 reference answers token for token as with two parts, scored within 0.0729 a token of the reference (Strata on the same file) against 0.0987, its round and drafter checks pass with Overgo's decoding agreeing with the round's for 58 of 83 tokens against 48, and Unlimited-OCR's production parity keeps its exact 200-token prefix. The grouped kernels' products then part from the F32 host reference by 1.3e-3 at worst on the fixtures, within the f16-staged tolerance (5e-3) the half-precision products are held to."
+        },
+        {
           "id": "do",
           "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
           "status": "open",

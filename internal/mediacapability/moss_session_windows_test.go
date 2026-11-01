@@ -198,11 +198,6 @@ func (c *answeredContext) Err() error {
 func TestMOSSSourceInventoryCancels(t *testing.T) {
 	t.Parallel()
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
 	capability := Catalog[recipe.TaskImageGen]
 	stopped := &answeredContext{Context: t.Context(), limit: 3}
 	if _, err := capability.Resolve(stopped, root); !errors.Is(err, context.Canceled) {
@@ -210,9 +205,6 @@ func TestMOSSSourceInventoryCancels(t *testing.T) {
 	}
 	if stopped.asked != stopped.limit {
 		t.Fatal("hashing went on past its cancellation", stopped.asked)
-	}
-	if _, sequence := store.Head(); sequence != 0 {
-		t.Fatal("a cancelled source published", sequence)
 	}
 	if source, err := capability.Resolve(t.Context(), root); err != nil || len(source.Manifests) != 3 {
 		t.Fatal("the source did not resolve after a cancelled attempt", err)

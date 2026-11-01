@@ -1378,7 +1378,9 @@
         "uncertainty": "Unexecuted candidate parsed only, not package-typechecked. No runtime failure or elapsed/memory saving claimed."
       },
       "likely_effort": "One assertion replacement in the existing test.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-training/heldout"
+      ],
       "plan_coverage": "Advisory follow-up to completed measured-presence; no dedicated current row. SQA does not change plan.",
       "closure_criteria": [
         "Both cases require one correctly attributed observation before sample-count acceptance.",
@@ -1434,7 +1436,9 @@
         "uncertainty": "Static deletion candidate parsed only; no wall-time/memory effect measured. Whole-test deletion is not justified."
       },
       "likely_effort": "Four-statement deletion in existing test; no new behavior requiring another test.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-training/heldout"
+      ],
       "plan_coverage": "Advisory reduction; no new row or suite requested. Batch when this existing test is next changed.",
       "closure_criteria": [
         "Inventory test retains the actual catalog cancellation and retry requirements without unrelated store setup.",
@@ -1474,7 +1478,9 @@
         "uncertainty": "Source-only candidate parsed, not typechecked/executed. Counts describe the minimal existing-test extension, not a universal fixture discovery system; no elapsed or memory saving."
       },
       "likely_effort": "One predicate and one case in the existing rules fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-training/heldout"
+      ],
       "plan_coverage": "No new plan step requested; existing landing cost owner is the complete local fix.",
       "closure_criteria": [
         "An added root fixture contributes its file count and exact bytes through outsideGo.",
@@ -6206,6 +6212,39 @@
         "plan_steps": [
           "moss-findings/verifier"
         ]
+      },
+      {
+        "comment": "Landed with moss-training/heldout. The final loop and model filter became one storedServingObservations read that requires a single observation of modelID with the expected Hardware length, short-circuited before indexing.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestAbsentPeakPublishesNoSample"
+        ],
+        "finding_id": "SQA-279",
+        "plan_steps": [
+          "moss-training/heldout"
+        ]
+      },
+      {
+        "comment": "Landed with moss-training/heldout. The unrelated store and its head assertion are gone from TestMOSSSourceInventoryCancels; the test now states what it can show, that hashing stops at its cancellation and that a later attempt resolves.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestMOSSSourceInventoryCancels"
+        ],
+        "finding_id": "SQA-280",
+        "plan_steps": [
+          "moss-training/heldout"
+        ]
+      },
+      {
+        "comment": "Landed with moss-training/heldout. rootFixtures joins the path admission in outsideGo, and TestLandingSaysWhatAChangeAddsOfEachKind adds one two-byte root fixture, moving its expected total to +1 files and +8 bytes.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestLandingSaysWhatAChangeAddsOfEachKind"
+        ],
+        "finding_id": "SQA-281",
+        "plan_steps": [
+          "moss-training/heldout"
+        ]
       }
     ],
     "experiments": {
@@ -6250,7 +6289,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "fe2d0855456e5618f14d43c700b28af89d8fbed8",
+    "head": "998bc66b220f74a1437128d6526baea66d6d7e55",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6791,6 +6830,27 @@
       "SQA-120": {
         "action": "none",
         "note": "Deferred stands; its trigger has not occurred. Title-level triage, not re-verified at this head."
+      },
+      "SQA-279": {
+        "action": "implemented",
+        "rows": [
+          "moss-training/heldout"
+        ],
+        "note": "Landed. TestAbsentPeakPublishesNoSample requires exactly one observation of its model with the expected hardware samples, through the existing reader. Awaits the reviewer's closure."
+      },
+      "SQA-280": {
+        "action": "implemented",
+        "rows": [
+          "moss-training/heldout"
+        ],
+        "note": "Landed. TestMOSSSourceInventoryCancels no longer opens a store that nothing writes; publication after cancellation stays held by the Register tests the finding names. Awaits the reviewer's closure."
+      },
+      "SQA-281": {
+        "action": "implemented",
+        "rows": [
+          "moss-training/heldout"
+        ],
+        "note": "Landed. outsideGo counts the root fixtures directory with the same before and after bytes as nested testdata, and the existing rules test holds a two-byte root fixture. Awaits the reviewer's closure."
       }
     }
   },

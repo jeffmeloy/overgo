@@ -256,10 +256,9 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 			if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":1}`), &recordingReporter{}); err != nil {
 				t.Fatal(err)
 			}
-			for _, observation := range storedServingObservations(t, store) {
-				if observation.Model == modelID && len(observation.Hardware) != test.samples {
-					t.Fatalf("%d finish samples, want %d", len(observation.Hardware), test.samples)
-				}
+			observations := storedServingObservations(t, store)
+			if len(observations) != 1 || observations[0].Model != modelID || len(observations[0].Hardware) != test.samples {
+				t.Fatalf("observations %+v, want one of %s with %d finish samples", observations, modelID, test.samples)
 			}
 		})
 	}

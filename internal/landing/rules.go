@@ -124,6 +124,8 @@ const (
 	kernelSources   = "kernels/cuda/"
 	kernelEntry     = "__global__"
 	generatedKernel = "_generated"
+	// rootFixtures is the repository's own fixture directory, counted as a package's testdata is.
+	rootFixtures = "fixtures/"
 )
 
 // outsideGo says what a change adds outside Go source: lines of device kernel
@@ -134,7 +136,7 @@ func (l *landing) outsideGo(ctx context.Context) string {
 	var lines, entryPoints, fixtures, fixtureBytes int
 	for _, entry := range l.entries {
 		kernel := strings.HasPrefix(entry.Path, kernelSources) && !strings.Contains(entry.Path, generatedKernel)
-		if !kernel && !strings.Contains("/"+entry.Path, "/testdata/") {
+		if !kernel && !strings.HasPrefix(entry.Path, rootFixtures) && !strings.Contains("/"+entry.Path, "/testdata/") {
 			continue
 		}
 		before, absent := gitauthority.Query(ctx, l.Repo, "show", l.builtOn()+":"+cmp.Or(entry.OriginalPath, entry.Path))

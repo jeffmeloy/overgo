@@ -226,11 +226,12 @@ func TestLandingSaysWhatAChangeAddsOfEachKind(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{
 		"internal/p/p.go": "package p\n", "internal/p/testdata/old.json": "{}\n",
-		"kernels/cuda/ops.cu": "__global__ void one() {}\n",
+		"kernels/cuda/ops.cu": "__global__ void one() {}\n", "fixtures/held.bin": "a",
 	})
 	fixture.write("internal/p/p.go", "package p\n\nconst recordSchema = \"overgo.fixture-record.v1\"\n\nconst mediaType = \"application/vnd.overgo.fixture+json\"\n")
 	fixture.write("internal/p/p_test.go", "package p\n\nconst again = recordSchema\n")
 	fixture.write("internal/p/testdata/new.json", "{\"a\": 1}\n")
+	fixture.write("fixtures/root.bin", "ab")
 	if err := os.Remove(filepath.Join(fixture.repo, "internal", "p", "testdata", "old.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func TestLandingSaysWhatAChangeAddsOfEachKind(t *testing.T) {
 	if err := l.rules(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	want := fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas +1, CUDA source +2 lines and +2 entry points, fixtures +0 files and +6 bytes", production, production, tests)
+	want := fmt.Sprintf("production %+d nodes of the %d its row may add, test code %+d nodes, record schemas +1, CUDA source +2 lines and +2 entry points, fixtures +1 files and +8 bytes", production, production, tests)
 	if l.details["rules"] != want {
 		t.Fatalf("the rules stage says %q, want %q", l.details["rules"], want)
 	}

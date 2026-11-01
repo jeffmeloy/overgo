@@ -1,0 +1,22 @@
+{
+ "model": "model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6",
+ "name": "MOSS-Image-SFT",
+ "scope": "Low-rank adapters on the six projections of each joint block; the text encoder, the VAE and the timestep path stay frozen. Rank 16 over 400 steps on 288 captioned pictures at 256 square: about 1.8 s a step alone and 19.2 GiB peak device memory; the wall shown shared the device with another run and includes preparing the pictures and judging them. One rank-16 step on the real checkpoint took 3.9 s at 512 square and 14.7 s at 1024 square, at 26.1 GiB peak. Held-out flow-matching loss on 32 pictures from other videos fell from 0.7405 to 0.7326, about one percent, on every picture. Perceptual quality was not measured.",
+ "evidence_files": [
+  "docs/verification/moss-image-training-run.json"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "commit": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
+   "dataset": "dataset-shard:sha256:30d182419fdcbdc0f0fedfcf584ade6bd6c54e4f2f32d9c3b2daf70b5de4c363",
+   "evidence": [
+    "evidence:sha256:1000d4c68f2386b497040bc8226f15e84f9569db209239d6d7ddd9507541b1a6"
+   ],
+   "peak_device_bytes": 20571485292,
+   "span_steps": 400,
+   "tier": "capability-measured",
+   "wall_ns": 1485463132200
+  }
+ ]
+}

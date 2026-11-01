@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -30,6 +31,7 @@ const (
 type verificationSpecification struct {
 	Model         artifact.ID                 `json:"model"`
 	Name          string                      `json:"name"`
+	Scope         string                      `json:"scope,omitzero"`
 	Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
 	ModelFile     string                      `json:"model_file,omitzero"`
 	EvidenceFiles []string                    `json:"evidence_files,omitempty"`
@@ -38,7 +40,7 @@ type verificationSpecification struct {
 }
 
 func generateTraining(root string) ([]byte, error) {
-	records, err := loadTrainingVerifications(root)
+	records, scopes, err := loadTrainingVerifications(root)
 	if err != nil {
 		return nil, err
 	}
@@ -78,40 +80,51 @@ func generateTraining(root string) ([]byte, error) {
 				escapeCell(row.Name), claim.Capability, claim.Tier, span, wall, peak, claim.Commit)
 		}
 	}
+	if len(scopes) != 0 {
+		output.WriteString("\nMeasured scope, where a model's claim states one:\n\n")
+		for _, name := range slices.Sorted(maps.Keys(scopes)) {
+			fmt.Fprintf(&output, "- `%s`: %s\n", escapeCell(name), scopes[name])
+		}
+	}
 	output.WriteString("\nThe matrix reports evidence scope, not general model-family support. `real-artifact-smoke` establishes the named bounded run; it does not imply convergence, a complete training campaign, or production promotion.\n")
 	return output.Bytes(), nil
 }
 
 // loadTrainingVerifications reads every training specification and holds
 // each to its grounding: training claims with an observed span at a commit
-// the repository holds, each backed by a committed evidence file.
-func loadTrainingVerifications(root string) ([]runrecord.ModelVerification, error) {
+// the repository holds, each backed by a committed evidence file. It also
+// returns, by model name, the scope a specification states in words.
+func loadTrainingVerifications(root string) ([]runrecord.ModelVerification, map[string]string, error) {
 	paths, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(trainingSpecificationPattern)))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(paths) == 0 {
-		return nil, errors.New("training compatibility: no verification specifications")
+		return nil, nil, errors.New("training compatibility: no verification specifications")
 	}
 	slices.Sort(paths)
 	records := make([]runrecord.ModelVerification, len(paths))
+	scopes := map[string]string{}
 	for index, path := range paths {
 		var specification verificationSpecification
 		if err := jsonfile.Decode(path, &specification); err != nil {
-			return nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
+			return nil, nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
 		}
 		record, err := runrecord.NewModelVerificationCorrection(
 			specification.Model, specification.Name, specification.Claims, specification.Supersedes,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
+			return nil, nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
 		}
 		if err := validateTrainingSpecification(root, specification, record); err != nil {
-			return nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
+			return nil, nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
 		}
 		records[index] = record
+		if specification.Scope != "" {
+			scopes[specification.Name] = specification.Scope
+		}
 	}
-	return records, nil
+	return records, scopes, nil
 }
 
 func validateTrainingSpecification(root string, specification verificationSpecification, record runrecord.ModelVerification) error {

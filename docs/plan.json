@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-training",
-      "title": "Train MOSS-Image adapters natively and serve what they train",
-      "owner": "overgo_moss",
-      "status": "open",
-      "budget": {
-        "nodes": 740,
-        "reason": "The encoder, trainer and route land as one step because only the route reaches them. Measured at the first refusal: 13637 production nodes, about twice the estimate, mostly the hand-written forward and reverse of a joint block; it reuses the optimizer, session, checkpoint and PEFT owners and duplicates none of them."
-      },
-      "steps": [
-        {
-          "id": "heldout",
-          "title": "Judge a MOSS training run on held-out pictures",
-          "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/training'",
-          "rationale": "Train a real adapter on a captioned picture set held apart from its evaluation split, and record held-out flow-matching loss of base and trained at fixed noise and timesteps, with sample pictures from both, bound to the implementation, checkpoint, dataset and environment identities.\nA run that does not beat its base on held-out pictures is reported as that, not hidden; the capability claim states what was measured.\nDocument supported adapter ranks, picture sizes, step cost and peak device memory in docs/TRAINING_COMPATIBILITY.md through its existing generator.\nServes: training is claimed only on evidence.\nDisappears: the training limitation in the compatibility documents.\nEvidence: one retained record read by the capability claims and closeout.\nBatch: cycle-only model evaluation."
-        }
-      ]
-    },
-    {
       "id": "store-history",
       "title": "Stop the store losing committed history",
       "owner": "master-lead",

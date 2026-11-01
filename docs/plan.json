@@ -470,6 +470,13 @@
       "status": "open",
       "steps": [
         {
+          "id": "draft-kv",
+          "title": "A prompt read computes the drafter's prompt K/V in batches through its own products, as Strata's prompt path does (E-9), not six rows a launch",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestDrafterPromptKVBatchedAsItsRows$'",
+          "rationale": "Measured 2026-10-31 on HEAD 512685492 (tmp/flashnext-long-read/findings.md, the probe patches beside it): a warm 16K Flash-Next request reads its prompt in 5.86 to 6.0 s (chunks of 8,192 and 8,162 tokens 3.0 and 2.7 s, the 6-token header 85 ms), then refills 2,000 experts in 0.35 s before the first window; Strata on the same machine reads it in 4.53 to 4.57 s and refills 2,031 slots in 370 ms, so the refill is not the gap. After each chunk recordStrataDraftPromptLocked takes about 150 ms: PrefillStrataDrafter feeds every row (the drafter's window is 32,768 cells, as Strata's) in groups of six, 1,366 graphs of about twenty small kernels a chunk, launch-bound; not waiting for them saved only 0.07 s, so the work is the cost. Strata's prompt path computes the drafter's prompt K/V in batches of B rows instead (Prefill::draft_kv, E-9, src/prefill/prefill.cpp:1381: the fc projections, the attention hyper-connection and the K and V projections as batched products, then the K norm, the rope and the append), its six-row pass (our path, E-4) only the fallback, and its whole draft layer after the chunks takes 23 ms. Ported, the 16K read sheds about 0.25 s of its first output. The check: the batched pass writes the cells the six-row pass writes, within the products' rounding."
+        },
+        {
           "id": "do",
           "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
           "status": "open",

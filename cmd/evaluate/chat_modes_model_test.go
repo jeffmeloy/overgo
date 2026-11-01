@@ -35,11 +35,7 @@ var toolConversations = []string{
 var knownChatModeFaults = map[string]struct {
 	conversations []string
 	fault         string
-}{
-	"Qwen2.5-0.5B": {append([]string{"thinking-off", "thinking-on", "second-question-after-an-answer"}, toolConversations...),
-		"the scored file carries no chat template, so a conversation with no system turn is rendered without the one the model's own template " +
-			"opens with, and tools are refused (finding e683b1e7)"},
-}
+}{}
 
 // chatModeReference is one model's fixture: the scored file, and each
 // conversation as a chat request carries it, with the text the model's own

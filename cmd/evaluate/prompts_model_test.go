@@ -29,8 +29,6 @@ const promptIDsScript = "scripts/python_golden_references/chat_prompt_ids.py"
 // each way its questions are asked: Qwen2.5-0.5B's questions asked as plain
 // text, the way its reading is taken, reach it as its own tokens.
 var knownPromptFaults = map[string]string{
-	"Qwen2.5-0.5B": "asked as a conversation, the scored file carrying no chat template, the question is shaped by overgo's built-in ChatML with no " +
-		"system turn, where the model's own template opens with one (finding e683b1e7)",
 	"Unlimited-OCR-bf16": "the scored file names an earlier DeepSeek tokenizer's splitting rule, so a mark and the line break after it are " +
 		"two tokens where the model's own tokenizer joins them (finding 34979bff)",
 }

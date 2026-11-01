@@ -1,12 +1,12 @@
 {
  "schema": "answer_log_probabilities/v1",
  "model": "MiniCPM5-1B-native-chat",
- "file": "MiniCPM5-1B-native-chat.gguf",
+ "file": "MiniCPM5-1B",
  "protocol": "chat",
  "new_tokens": 8,
  "source": "transformers 5.14.1 LlamaForCausalLM, torch 2.12.0+cu126, float32 on the CPU, over MiniCPM5-1B; scripts/python_golden_references/answer_log_probabilities.py",
  "prompts": "fixtures/prompt_ids/MiniCPM5-1B-native-chat.json",
- "prompts_sha256": "0b8b37e9a375bf2db81960c8cb946c495f129524f29a2d87a79b93271b037989",
+ "prompts_sha256": "fd029deeb45b268ece0d6403dce82d6c9421cb964e20b57af2d554052c0bfc9f",
  "weights": [
   "model-00000-of-00001.safetensors"
  ],

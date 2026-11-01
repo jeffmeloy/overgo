@@ -1,7 +1,7 @@
 {
  "schema": "chat_modes/v1",
  "model": "MiniCPM5-1B-native-chat",
- "file": "MiniCPM5-1B-native-chat.gguf",
+ "file": "MiniCPM5-1B",
  "protocol": "chat",
  "source": "tokenizers 0.22.2 over tokenizer.json and transformers 5.14.1 apply_chat_template, of MiniCPM5-1B; scripts/python_golden_references/chat_mode_ids.py",
  "files": {

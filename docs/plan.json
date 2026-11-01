@@ -148,20 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "served-fixtures",
-      "title": "The prompt, answer and chat-mode fixtures of Qwen2.5-0.5B and MiniCPM5-1B hold the directories those models serve from",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The prompt, answer and chat-mode fixtures of Qwen2.5-0.5B and MiniCPM5-1B hold the directories those models serve from",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/evaluate -count=1 -run '^(TestPromptsReachEachModelAsItsOwnTokenizerGivesThem|TestChatModesReachAModelAsItsOwnTemplateGivesThem|TestModelsAnswerAsTransformersDoes)$'"
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

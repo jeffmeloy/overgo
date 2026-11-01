@@ -1,12 +1,12 @@
 {
  "schema": "answer_log_probabilities/v1",
  "model": "Qwen2.5-0.5B",
- "file": "overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
+ "file": "Qwen2.5-0.5B",
  "protocol": "chat",
  "new_tokens": 8,
  "source": "transformers 5.14.1 Qwen2ForCausalLM, torch 2.12.0+cu126, float32 on the CPU, over Qwen2.5-0.5B; scripts/python_golden_references/answer_log_probabilities.py",
  "prompts": "fixtures/prompt_ids/Qwen2.5-0.5B.json",
- "prompts_sha256": "a518a3dee1fc13d3f6b69b620c5eede9b1a1f3850eea14056b2abc9cfdfceee5",
+ "prompts_sha256": "41c4141f0d03a75be9cf198604665e452d277fd339a47a7ea61ba1dacf14015c",
  "weights": [
   "model.safetensors"
  ],

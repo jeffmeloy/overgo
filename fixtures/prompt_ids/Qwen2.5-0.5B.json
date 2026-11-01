@@ -1,7 +1,7 @@
 {
  "schema": "prompt_ids/v1",
  "model": "Qwen2.5-0.5B",
- "file": "overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
+ "file": "Qwen2.5-0.5B",
  "protocol": "chat",
  "opener": "The answer is",
  "source": "tokenizers 0.22.2 over tokenizer.json and transformers 5.14.1 apply_chat_template, of Qwen2.5-0.5B; scripts/python_golden_references/chat_prompt_ids.py",

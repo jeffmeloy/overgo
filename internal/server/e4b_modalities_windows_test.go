@@ -255,7 +255,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		writer, err := overgodb.Open(storeRoot)
+		writer, err := overgodb.Create(storeRoot)
 		if err != nil {
 			t.Fatal(err)
 		}

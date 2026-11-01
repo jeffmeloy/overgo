@@ -15,7 +15,7 @@ import (
 func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

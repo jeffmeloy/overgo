@@ -40,7 +40,7 @@ func verifyNativeRestartChild(t *testing.T, encoded string) {
 	if len(request.Chunks) == 0 || len(request.Chunks) != len(request.Expected) {
 		t.Fatal("restart child has no exact continuation denominator")
 	}
-	store, err := overgodb.Open(request.Store)
+	store, err := overgodb.Create(request.Store)
 	if err != nil {
 		t.Fatal(err)
 	}

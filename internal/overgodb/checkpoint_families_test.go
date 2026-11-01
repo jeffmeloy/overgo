@@ -41,7 +41,7 @@ func newCensusFixture(t *testing.T) censusFixture {
 	fixture.alpha, fixture.later = mint("test/alpha/v1", `{"alpha":1}`), mint("test/alpha/v1", `{"alpha":2,"later":true}`)
 	fixture.first, fixture.other = mint("test/beta/v1", `{"beta":1}`), mint("test/beta/v1", `{"beta":"the second of two"}`)
 	fixture.declared = artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "declared and not carried")}
-	store, err := Open(fixture.root)
+	store, err := Create(fixture.root)
 	if err != nil {
 		t.Fatal(err)
 	}

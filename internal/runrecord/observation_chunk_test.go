@@ -55,7 +55,7 @@ func resolveObservationChunkSummary(
 func TestObservationChunkPublication(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "source"))
+	store, err := overgodb.Create(filepath.Join(root, "source"))
 	if err != nil {
 		t.Fatal(err)
 	}

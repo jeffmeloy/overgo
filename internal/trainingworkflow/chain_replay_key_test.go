@@ -78,7 +78,7 @@ func runChainChild(t *testing.T, encoded string) {
 	if err := json.Unmarshal([]byte(encoded), &request); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(request.Store)
+	store, err := overgodb.Create(request.Store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func runChainChild(t *testing.T, encoded string) {
 //   - a stage answered from an earlier receipt publishes none
 func completedChainStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +11,7 @@ import (
 )
 
 func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
-	repository := filepath.Join(t.TempDir(), "store")
+	repository := t.TempDir()
 	base := []string{
 		"-repo", repository, "-title", "stale ranking document", "-severity", "high",
 		"-owner", "docs/report.md", "-evidence", "report ranks a completed gate defect",
@@ -28,7 +27,7 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 	if !strings.Contains(output.String(), "FINDING parked: evidence:sha256:") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

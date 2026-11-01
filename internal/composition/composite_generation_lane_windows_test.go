@@ -102,7 +102,7 @@ func runCompositeGeneration(root string) error {
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(roots.Store)
+	store, err := overgodb.Create(roots.Store)
 	if err != nil {
 		return err
 	}

@@ -91,7 +91,7 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	const commits = 24
 	ids := writeLegacyInlineStore(t, root, commits)
 
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

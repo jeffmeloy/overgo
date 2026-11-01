@@ -132,7 +132,7 @@ func TestAContendedCellIsMeasuredOnceMoreAfterTheOthers(t *testing.T) {
 	}
 	t.Run("publication survives cancellation", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := overgodb.Open(root)
+		store, err := overgodb.Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}

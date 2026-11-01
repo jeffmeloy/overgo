@@ -33,7 +33,7 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 	if !strings.Contains(output.String(), "rows=1 selections=1") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err = overgodb.Open(storePath)
+	store, err = overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

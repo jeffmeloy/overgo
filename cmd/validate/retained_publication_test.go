@@ -177,7 +177,7 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 
 	// Tiny fixture exercises the real publisher without copying model or response data.
 	fixtureRoot := t.TempDir()
-	fixtureStore, err := overgodb.Open(fixtureRoot)
+	fixtureStore, err := overgodb.Create(fixtureRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

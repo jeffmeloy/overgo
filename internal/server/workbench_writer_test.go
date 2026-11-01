@@ -26,7 +26,7 @@ func TestWorkbenchTransactionWriter(t *testing.T) {
 	t.Run("served external evidence publication", testWorkbenchEvidencePublication)
 	t.Run("catalog observes activation and retirement", testWorkbenchCatalogRefresh)
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestWorkbenchTransactionWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer handler.Close()
-	external, err := overgodb.Open(root)
+	external, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatalf("serving handle blocks external writer: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestWorkbenchEvidenceProcess(t *testing.T) {
 	if root == "" {
 		return
 	}
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestWorkbenchEvidenceProcess(t *testing.T) {
 
 func testWorkbenchEvidencePublication(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,12 +251,12 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 
 func testWorkbenchCatalogRefresh(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	external, err := overgodb.Open(root)
+	external, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

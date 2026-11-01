@@ -13,7 +13,7 @@ import (
 // instead of refusing on a no-op batch.
 func TestServingEnvironmentCommitIsIdempotent(t *testing.T) {
 	t.Parallel()
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

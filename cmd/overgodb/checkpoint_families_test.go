@@ -27,7 +27,7 @@ func TestCheckpointFamiliesPrintsTheCensusAndWritesNothing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "store")
 	commit := func(key, body string, snapshot bool) {
 		t.Helper()
-		store, err := overgodb.Open(root)
+		store, err := overgodb.Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}

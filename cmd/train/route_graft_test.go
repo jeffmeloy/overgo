@@ -35,7 +35,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tokens, storePath, out := filepath.Join(root, "tokens.json"), filepath.Join(root, "store"), filepath.Join(root, "bridges")
+	tokens, storePath, out := filepath.Join(root, "tokens.json"), t.TempDir(), filepath.Join(root, "bridges")
 	if err := os.WriteFile(tokens, []byte("[1, 2, 3, 4, 2, 3, 4, 1, 1, 3, 2, 4]"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 		"-record", storePath, "-out", out, "-steps", "1", "-window", "4"}); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

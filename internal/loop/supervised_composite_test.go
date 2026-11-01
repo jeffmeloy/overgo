@@ -165,7 +165,7 @@ func verifySupervisedCompositeFirstWin(
 // after a cold reopen.
 func TestSupervisedCompositeFirstWin(t *testing.T) {
 	path := t.TempDir()
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestSupervisedCompositeFirstWin(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(path)
+	reopened, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,7 @@ func TestPrecheckTakesItsOwnBackup(t *testing.T) {
 	t.Parallel()
 	repository, backups := filepath.Join(t.TempDir(), "store"), t.TempDir()
 	commit := func(text string) {
-		store, err := overgodb.Open(repository)
+		store, err := overgodb.Create(repository)
 		if err != nil {
 			t.Fatal(err)
 		}

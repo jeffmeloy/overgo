@@ -25,7 +25,7 @@ func TestTransactionWriter(t *testing.T) {
 	for _, cancelGap := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cutover owns the rename gap/cancel=%t", cancelGap), func(t *testing.T) {
 			live, candidate := filepath.Join(t.TempDir(), "live"), filepath.Join(t.TempDir(), "candidate")
-			store, err := Open(live)
+			store, err := Create(live)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,7 +37,7 @@ func TestTransactionWriter(t *testing.T) {
 			if _, err := CloneStore(live, candidate); err != nil {
 				t.Fatal(err)
 			}
-			store, err = Open(candidate)
+			store, err = Create(candidate)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,7 +54,7 @@ func TestTransactionWriter(t *testing.T) {
 				observed = true
 				// Startup must share exclusion even while live does not exist.
 				for _, root := range []string{live, candidate} {
-					if writer, err := Open(root); !errors.Is(err, processlock.ErrBusy) {
+					if writer, err := Create(root); !errors.Is(err, processlock.ErrBusy) {
 						if writer != nil {
 							writer.Close()
 						}
@@ -80,7 +80,7 @@ func TestTransactionWriter(t *testing.T) {
 			if !observed || cancelGap && (!errors.Is(err, context.Canceled) || path != "") || !cancelGap && (err != nil || path != superseded) {
 				t.Fatalf("cutover observed=%t path=%s error=%v", observed, path, err)
 			}
-			store, err = Open(live)
+			store, err = Create(live)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,7 +117,7 @@ func TestTransactionWriter(t *testing.T) {
 	}
 	t.Run("idle handle cannot publish into a displaced journal", func(t *testing.T) {
 		live, candidate := filepath.Join(t.TempDir(), "live"), filepath.Join(t.TempDir(), "candidate")
-		idle, err := Open(live)
+		idle, err := Create(live)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,12 +162,12 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("backup refreshes a stale source", func(t *testing.T) {
 		root := t.TempDir()
-		source, err := Open(root)
+		source, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer source.Close()
-		writer, err := Open(root)
+		writer, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("interrupted rotation refuses mismatched bytes", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -204,7 +204,7 @@ func TestTransactionWriter(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, storeFilename), active, storeFileMode); err != nil {
 			t.Fatal(err)
 		}
-		if recovered, err := Open(root); err == nil {
+		if recovered, err := Create(root); err == nil {
 			recovered.Close()
 			t.Fatal("mismatched active segment was accepted")
 		}
@@ -215,7 +215,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("recover rotation published before active reset", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("measure cold replay and resumed publication", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -272,7 +272,7 @@ func TestTransactionWriter(t *testing.T) {
 			}
 		}
 		started := time.Now()
-		cold, err := Open(root)
+		cold, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +309,7 @@ func TestTransactionWriter(t *testing.T) {
 	t.Run("independent processes preserve writes and reject competing aliases", testTransactionProcesses)
 	t.Run("rotation refreshes idle handles even when active size matches", func(t *testing.T) {
 		root := t.TempDir()
-		writer, err := Open(root)
+		writer, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -320,7 +320,7 @@ func TestTransactionWriter(t *testing.T) {
 		if _, err := writer.Snapshot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		idle, err := Open(root)
+		idle, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -354,7 +354,7 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("cancel queued transaction without releasing owner", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -390,12 +390,12 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("release refuses an interleaved write", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		other, err := Open(root)
+		other, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -422,12 +422,12 @@ func TestTransactionWriter(t *testing.T) {
 	})
 	t.Run("idle handles refresh before publication", func(t *testing.T) {
 		root := t.TempDir()
-		first, err := Open(root)
+		first, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer first.Close()
-		second, err := Open(root)
+		second, err := Create(root)
 		if err != nil {
 			t.Fatalf("idle handle reserves writer: %v", err)
 		}
@@ -486,7 +486,7 @@ func TestTransactionWriterProcess(t *testing.T) {
 	if root == "" {
 		return
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +550,7 @@ func TestTransactionWriterProcess(t *testing.T) {
 
 func testTransactionProcesses(t *testing.T) {
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

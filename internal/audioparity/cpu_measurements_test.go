@@ -35,7 +35,7 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 	l := &adapterLifecycle{fixture: loadCTCTrainingFixture(t)}
 	l.storePath = filepath.Join(t.TempDir(), "store")
 	var err error
-	l.store, err = overgodb.Open(l.storePath)
+	l.store, err = overgodb.Create(l.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	if measured.Wall <= 0 || measured.PeakWorkingSetByte == 0 {
 		t.Fatal("process measurements unavailable")
 	}
-	f.l.store, err = overgodb.Open(f.l.storePath)
+	f.l.store, err = overgodb.Create(f.l.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

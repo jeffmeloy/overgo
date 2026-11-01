@@ -22,7 +22,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 	written := 0
 	write := func(records int) {
 		t.Helper()
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestAnOpenReplaysNoMoreThanTheBound(t *testing.T) {
 
 	// A writer that wrote a checkpoint itself counts its tail from that one: with one record
 	// after it, it closes without writing another, however many it wrote before it.
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

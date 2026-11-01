@@ -39,7 +39,7 @@ func TestRewardTrainerIsFoundOrRefused(t *testing.T) {
 	if run == nil {
 		t.Fatal("a path that names a file gave no way to run a reward session")
 	}
-	store, err := overgodb.Open(filepath.Join(directory, "store"))
+	store, err := overgodb.Create(filepath.Join(directory, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ import (
 func strategyStore(t *testing.T) (string, loop.Strategy) {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

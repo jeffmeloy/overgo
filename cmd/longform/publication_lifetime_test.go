@@ -37,7 +37,7 @@ func TestPublicationStoreLifetime(t *testing.T) {
 		if err := lock.Close(); err != nil {
 			return err
 		}
-		other, err := overgodb.Open(repository)
+		other, err := overgodb.Create(repository)
 		if err != nil {
 			return err
 		}

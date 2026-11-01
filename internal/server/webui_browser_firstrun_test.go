@@ -897,7 +897,7 @@ func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
 	if first == "" || second != first {
 		t.Fatalf("fixture picker names: %q, %q", first, second)
 	}
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

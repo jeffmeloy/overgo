@@ -125,7 +125,7 @@ func TestEvaluationSuitesAreSizedForTheirDecisions(t *testing.T) {
 	// Through the store: twenty-five prompts of IFEval, of which a run scores a tenth, rounded up.
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -56,7 +56,7 @@ func TestOneModelsCellsAreMeasuredAlone(t *testing.T) {
 	// The command takes -model beside -run, or alone for the plan, and reaches the selection: a store that holds no
 	// cell of the model refuses it by name.
 	storePath := t.TempDir()
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

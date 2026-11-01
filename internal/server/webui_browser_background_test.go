@@ -71,7 +71,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	t.Parallel()
 	requireWebUILane(t, "background work runs through cmd/webui-lane")
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
   overgo.api.get=backgroundGet;location.hash='chat';return true;
 })()`)
 	settle(`!!document.querySelector('#panel-chat.active .composer')`)
-	external, err := overgodb.Open(root)
+	external, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

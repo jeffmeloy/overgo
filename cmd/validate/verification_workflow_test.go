@@ -142,7 +142,7 @@ func (r verificationContentFaultReader) OpenContent(ctx context.Context, id arti
 func TestMediaReceiptProvenance(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "producer")
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

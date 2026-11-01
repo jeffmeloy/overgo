@@ -101,7 +101,7 @@ func TestRetiredFamiliesAreFamiliesTheCensusCounts(t *testing.T) {
 	written := func(families []retiredFamily) string {
 		t.Helper()
 		root := filepath.Join(t.TempDir(), "store")
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func newRetiredFixture(t *testing.T) retiredFixture {
 	t.Helper()
 	ctx := t.Context()
 	fixture := retiredFixture{root: filepath.Join(t.TempDir(), "store"), keptAlias: "kept/aliased", want: make([]retiredCount, len(retiredFamilies))}
-	store, err := Open(fixture.root)
+	store, err := Create(fixture.root)
 	if err != nil {
 		t.Fatal(err)
 	}

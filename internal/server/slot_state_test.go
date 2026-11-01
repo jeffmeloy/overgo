@@ -32,7 +32,7 @@ import (
 func TestSlotSaveRestoresPromptCache(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

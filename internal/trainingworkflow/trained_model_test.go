@@ -62,7 +62,7 @@ func TestTrainedModelKeepsUnchangedTensorsAsStored(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	base := writeTrainedFixtureBase(t, root)
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestTrainedLlamaModelKeepsItsAttentionRowsInTheBaseOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	root := t.TempDir()
 	base := writeTrainedFixtureBase(t, root)
 	ctx := t.Context()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestTrainedModelSharesTheFrozenShard(t *testing.T) {
 	// A store whose only copy of the frozen shard is a file holding other
 	// bytes records no copy.
 	frozen := inventory.Components[1]
-	stale, err := overgodb.Open(filepath.Join(root, "stale"))
+	stale, err := overgodb.Create(filepath.Join(root, "stale"))
 	if err != nil {
 		t.Fatal(err)
 	}

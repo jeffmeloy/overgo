@@ -52,7 +52,7 @@ func run() error {
 	if err := clioptions.RequireLoopbackWithoutCredential(*listen, ""); err != nil {
 		return err
 	}
-	repository, err := overgodb.Open(*store)
+	repository, err := overgodb.Create(*store)
 	if err != nil {
 		return err
 	}

@@ -26,7 +26,7 @@ func TestInventoryRecordsReadTheirFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

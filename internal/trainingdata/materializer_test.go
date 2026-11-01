@@ -57,7 +57,7 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 	if !membership.ID.Valid() {
 		t.Fatal("nonempty membership absent")
 	}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

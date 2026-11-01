@@ -12,7 +12,7 @@ const benchmarkReplayCommits = 256
 
 func BenchmarkSnapshotReplay(b *testing.B) {
 	root := b.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 
 func BenchmarkCompaction(b *testing.B) {
 	ctx := b.Context()
-	source, err := Open(b.TempDir())
+	source, err := Create(b.TempDir())
 	if err != nil {
 		b.Fatal(err)
 	}

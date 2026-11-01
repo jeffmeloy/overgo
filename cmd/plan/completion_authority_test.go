@@ -42,7 +42,7 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 			t.Fatal(err)
 		}
 	}
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

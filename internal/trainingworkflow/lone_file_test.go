@@ -32,7 +32,7 @@ func TestARunOverAFileOfALargerModelRetiresTheFilesOwnActivation(t *testing.T) {
 	// Serial: it replaces how a run names its code revision.
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

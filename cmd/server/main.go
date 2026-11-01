@@ -329,7 +329,7 @@ func run() error {
 	}
 	var workspaceStore *overgodb.Store
 	if repoPath != "" {
-		workspaceStore, err = overgodb.Open(repoPath)
+		workspaceStore, err = overgodb.Create(repoPath)
 		if err != nil {
 			return fmt.Errorf("open workspace repository: %w", err)
 		}

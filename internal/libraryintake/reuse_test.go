@@ -36,7 +36,7 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 				t.Fatal(err)
 			}
 			storeRoot := t.TempDir()
-			store, err := overgodb.Open(storeRoot)
+			store, err := overgodb.Create(storeRoot)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -114,7 +114,7 @@ func TestDeterministicImportAcrossFamilies(t *testing.T) {
 				t.Fatal(err)
 			}
 			store = nil
-			store, err = overgodb.Open(storeRoot)
+			store, err = overgodb.Create(storeRoot)
 			if err != nil {
 				t.Fatal(err)
 			}

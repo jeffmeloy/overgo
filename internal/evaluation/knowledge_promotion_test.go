@@ -53,7 +53,7 @@ func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 	if err := fixture.store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(fixture.path)
+	reopened, err := overgodb.Create(fixture.path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func newKnowledgePromotionFixture(t *testing.T) knowledgePromotionFixture {
 func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool) knowledgePromotionFixture {
 	t.Helper()
 	path := t.TempDir()
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

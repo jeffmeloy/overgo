@@ -92,7 +92,7 @@ func TestPromptReadsWithoutWriting(t *testing.T) {
 	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
 	root := initializePlanTestRepository(t, mutationPlan(t, "Prompt task"))
 	t.Chdir(root)
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

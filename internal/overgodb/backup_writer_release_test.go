@@ -72,7 +72,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 				t.Fatal(err)
 			}
 			head, sequence := store.Head()
-			writer, err := Open(store.root)
+			writer, err := Create(store.root)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -18,7 +18,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
 	ctx := t.Context()
-	store, err := Open(sourceRoot)
+	store, err := Create(sourceRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

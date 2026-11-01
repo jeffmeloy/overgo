@@ -39,7 +39,7 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 		t.Fatalf("clone carried the lock: %v", err)
 	}
 
-	candidate, err := Open(destination)
+	candidate, err := Create(destination)
 	if err != nil {
 		t.Fatal(err)
 	}

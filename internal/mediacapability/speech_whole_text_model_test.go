@@ -47,7 +47,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 		t.Fatal(err)
 	}
 	stored := t.TempDir()
-	store, err := overgodb.Open(stored)
+	store, err := overgodb.Create(stored)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestSpeechReadsWholeText(t *testing.T) {
 		t.Fatal(err)
 	}
 	store = nil
-	store, err = overgodb.Open(stored)
+	store, err = overgodb.Create(stored)
 	if err != nil {
 		t.Fatal(err)
 	}

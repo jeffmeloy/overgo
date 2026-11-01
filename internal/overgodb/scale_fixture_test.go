@@ -66,7 +66,7 @@ func TestSharedScaleCorpusIsolation(t *testing.T) {
 	if err := os.WriteFile(checkpoint, data, storeFileMode); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := Open(first)
+	writer, err := Create(first)
 	if err != nil {
 		t.Fatal(err)
 	}

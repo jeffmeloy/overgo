@@ -15,7 +15,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 	for _, cancelWait := range []bool{false, true} {
 		t.Run(map[bool]string{false: "release resumes opening", true: "cancel leaves owner intact"}[cancelWait], func(t *testing.T) {
 			root := t.TempDir()
-			owner, err := Open(root)
+			owner, err := Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -70,7 +70,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 				if _, found, err := got.store.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !found {
 					t.Fatalf("admitted store lost committed data: %v, %v", found, err)
 				}
-				if next, err := Open(root); err != nil {
+				if next, err := Create(root); err != nil {
 					t.Fatalf("idle admitted handle retained lock: %v", err)
 				} else {
 					next.Close()
@@ -91,7 +91,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 			}
 			t.Fatalf("cancelled replay = %v, %v; want no store and caller cause", store, err)
 		}
-		store, err = Open(root)
+		store, err = Create(root)
 		if err != nil {
 			t.Fatalf("cancelled replay retained writer admission: %v", err)
 		}
@@ -117,7 +117,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 func TestStoreCloseReleasesWithoutWriterAdmission(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

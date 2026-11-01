@@ -56,7 +56,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if storePath == "" {
 		testskip.NotApplicable(t, "child process probe requires OVERGO_CARBON_REPODB")
 	}
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

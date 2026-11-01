@@ -31,7 +31,7 @@ func newReleaseFixture(t *testing.T) *releaseFixture {
 	t.Helper()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestReleaseKeepsChainAuthority(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = Open(fixture.root)
+	store, err = Create(fixture.root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
 		t.Fatal(err)
 	}
-	writer, err := Open(fixture.root)
+	writer, err := Create(fixture.root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := Open(filepath.Join(t.TempDir(), "store"))
+	store, err := Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
+	source, err := Create(filepath.Join(root, "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 	if _, err := Rebuild(ctx, source, destination, nil, func(string, artifact.ID) error { return nil }, false); err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := Open(destination)
+	rebuilt, err := Create(destination)
 	if err != nil {
 		t.Fatal(err)
 	}

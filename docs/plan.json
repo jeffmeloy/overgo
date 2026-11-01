@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "store-history",
-      "title": "Stop the store losing committed history",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 9,
-        "reason": "Measured at the first refusal: 471 production nodes. The estimate counted one resolution; each of the 29 store flags needs its own after parsing, and the second step now holds the journal's open."
-      },
-      "steps": [
-        {
-          "id": "explicit-create",
-          "title": "Refuse a writable open of an absent store",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAWritableOpenOfAnAbsentStoreRefuses$'",
-          "rationale": "internal/overgodb/log.go creates a store wherever a writable open points, so a mistyped path writes a run into an empty store that nothing reads.\nA writable open of a directory that does not exist is refused, and overgodb.Create is the one explicit way to make a store, used by first-run setup and by a candidate rebuild. An existing empty directory stays an open.\nSplit from store-root, which removed the relative defaults that made this common; the tests that open a new path move to Create, which is the larger part of the change.\nServes: setup-steps, and no result written where nothing reads it.\nDisappears: the implicit create in the journal's open.\nEvidence: the store's own test over an absent path.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "sqa-served",
       "title": "Repair the register's served-path defects",
       "owner": "master-lead",

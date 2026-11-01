@@ -103,7 +103,7 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 func TestIdleShellWriterLifetime(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := overgodb.Open(root)
+	writer, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 		Intake: LibraryIntake{
 			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
 			Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
-				other, err := overgodb.Open(root)
+				other, err := overgodb.Create(root)
 				if err != nil {
 					t.Fatalf("idle intake handle reserves writer: %v", err)
 				}
@@ -154,7 +154,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 		t.Fatalf("retry after writer closes = %d %s", refused.Code, refused.Body)
 	}
 	// Even a refused intake releases the writer before the next operation.
-	writer, err = overgodb.Open(root)
+	writer, err = overgodb.Create(root)
 	if err != nil {
 		t.Fatalf("idle workbench retained writer after request: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	repository, err := overgodb.Open(root)
+	repository, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

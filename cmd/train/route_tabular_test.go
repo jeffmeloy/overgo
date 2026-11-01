@@ -80,7 +80,7 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

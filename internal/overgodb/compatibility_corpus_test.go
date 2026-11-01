@@ -26,7 +26,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	// append a post-seal tail so torn-tail and corruption behavior stay
 	// exercised against real active frames.
 	const corpusTail = 3
-	tailWriter, err := Open(source)
+	tailWriter, err := Create(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		if err := os.Truncate(path, info.Size()-tornTailBytes); err != nil {
 			t.Fatal(err)
 		}
-		store, err := Open(root)
+		store, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,7 +163,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		}
 		defer reader.Close()
 		requireHead(t, reader)
-		writer, err := Open(root)
+		writer, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +192,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	})
 
 	t.Run("backup round-trips the head", func(t *testing.T) {
-		store, err := Open(copyCorpus(t, true))
+		store, err := Create(copyCorpus(t, true))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,7 +215,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	})
 
 	t.Run("retention release preserves the reachable catalog", func(t *testing.T) {
-		store, err := Open(copyCorpus(t, false))
+		store, err := Create(copyCorpus(t, false))
 		if err != nil {
 			t.Fatal(err)
 		}

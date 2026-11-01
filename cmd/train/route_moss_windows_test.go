@@ -102,7 +102,7 @@ func TestMOSSRoute(t *testing.T) {
 	cudatest.Require(t)
 	root, manifest := mossRouteFixture(t)
 	scratch := t.TempDir()
-	store, out, adapterOut, served := filepath.Join(scratch, "store"), filepath.Join(scratch, "checkpoint"), filepath.Join(scratch, "adapter"), filepath.Join(scratch, "served")
+	store, out, adapterOut, served := t.TempDir(), filepath.Join(scratch, "checkpoint"), filepath.Join(scratch, "adapter"), filepath.Join(scratch, "served")
 	arguments := []string{"moss", "-model", root, "-pictures", manifest, "-size", fmt.Sprint(mossRouteSize), "-rank", "2", "-alpha", "2", "-steps", "6", "-store", store, "-out", out, "-adapter", adapterOut, "-served", served}
 	heldout, report := filepath.Join(filepath.Dir(manifest), "heldout.tsv"), filepath.Join(scratch, "heldout.json")
 	if err := os.WriteFile(heldout, []byte("held-0.png\ta red square\n"), 0o600); err != nil {
@@ -186,7 +186,7 @@ func TestMOSSRoute(t *testing.T) {
 		cancel()
 		out := filepath.Join(t.TempDir(), "checkpoint")
 		cancelled := append([]string{}, arguments[:len(arguments)-10]...)
-		cancelled = append(cancelled, "-store", filepath.Join(t.TempDir(), "store"), "-out", out)
+		cancelled = append(cancelled, "-store", t.TempDir(), "-out", out)
 		if err := runRoute(ctx, cancelled); !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation lost", err)
 		}

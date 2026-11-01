@@ -64,7 +64,7 @@ func TestProtectionEvidence(t *testing.T) {
 func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	ctx := t.Context()
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = overgodb.Open(repository)
+	store, err = overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

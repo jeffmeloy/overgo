@@ -166,7 +166,7 @@ func newRewardCommandFixture(t *testing.T) rewardCommandFixture {
 			t.Fatal(err)
 		}
 	}
-	store, err := overgodb.Open(fixture.storePath)
+	store, err := overgodb.Create(fixture.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -162,7 +162,7 @@ func TestStopStateContract(t *testing.T) {
 func TestStopStateLivesOutsideTheStore(t *testing.T) {
 	t.Parallel()
 	root, event := stopFixture(t)
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

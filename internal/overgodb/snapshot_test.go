@@ -12,7 +12,7 @@ import (
 func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	t.Parallel()
 	sourceRoot := t.TempDir()
-	source, err := Open(sourceRoot)
+	source, err := Create(sourceRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetRoot := t.TempDir()
-	target, err := Open(targetRoot)
+	target, err := Create(targetRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 func TestSnapshotRejectsInvalidStoreModeAndState(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

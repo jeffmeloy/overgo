@@ -78,7 +78,7 @@ func (run wholeTextRun) execute(ctx context.Context, t *testing.T, request Synth
 // refused when it is made.
 func TestWholeTextBinding(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestWholeTextBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	store = nil
-	store, err = overgodb.Open(directory)
+	store, err = overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

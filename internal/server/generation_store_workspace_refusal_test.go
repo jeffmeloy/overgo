@@ -41,12 +41,12 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	publisher, err := overgodb.Open(root)
+	publisher, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

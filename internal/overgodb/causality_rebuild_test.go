@@ -31,7 +31,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	}
 
 	storeRoot := t.TempDir()
-	store, err := Open(storeRoot)
+	store, err := Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	}
 	// The live set follows causal roots, subjects and motivations from the
 	// aliased evaluation: every execution but the unreferenced replay.
-	writable, err := Open(storeRoot)
+	writable, err := Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

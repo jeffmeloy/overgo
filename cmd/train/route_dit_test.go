@@ -40,12 +40,12 @@ func TestDiTRouteRecordsItsProgram(t *testing.T) {
 	}
 	run := func(ctx context.Context) (store, out string, err error) {
 		scratch := t.TempDir()
-		store, out = filepath.Join(scratch, "store"), filepath.Join(scratch, "checkpoint")
+		store, out = t.TempDir(), filepath.Join(scratch, "checkpoint")
 		return store, out, runRoute(ctx, []string{"dit", "-model-dir", stack, "-fixtures", fixtures, "-stimulus", stimulus,
 			"-schedule-index", "0", "-steps", "1", "-store", store, "-out", out})
 	}
 	t.Run("flow matching, text to video", func(t *testing.T) {
-		identities, err := overgodb.Open(filepath.Join(t.TempDir(), "identities"))
+		identities, err := overgodb.Create(filepath.Join(t.TempDir(), "identities"))
 		if err != nil {
 			t.Fatal(err)
 		}

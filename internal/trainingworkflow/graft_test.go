@@ -41,7 +41,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Create(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

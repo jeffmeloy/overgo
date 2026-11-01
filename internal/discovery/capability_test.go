@@ -113,7 +113,7 @@ func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
 func TestRememberedCapabilityCatalogAnswersAStoreItCannotWrite(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

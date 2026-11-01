@@ -25,7 +25,7 @@ func TestIFEvalProfileIsPublishedFromItsFile(t *testing.T) {
 	ctx := t.Context()
 	open := func() *overgodb.Store {
 		t.Helper()
-		store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = overgodb.Open(storePath)
+	store, err = overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

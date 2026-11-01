@@ -54,7 +54,7 @@ func writeRequest(t *testing.T, tensorName string) (path, store string, base, tu
 		t.Fatal(err)
 	}
 	store = t.TempDir()
-	opened, err := overgodb.Open(store)
+	opened, err := overgodb.Create(store)
 	if err != nil {
 		t.Fatal(err)
 	}

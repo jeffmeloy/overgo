@@ -211,7 +211,7 @@ const clipCorpusFiles = 12
 func registerClipCorpus(t *testing.T) string {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

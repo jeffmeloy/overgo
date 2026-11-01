@@ -261,7 +261,7 @@ func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) d
 	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +411,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := t.Context()
 			root := t.TempDir()
-			store, err := overgodb.Open(filepath.Join(root, "store"))
+			store, err := overgodb.Create(filepath.Join(root, "store"))
 			if err != nil {
 				t.Fatal(err)
 			}

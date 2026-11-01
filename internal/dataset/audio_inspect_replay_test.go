@@ -47,7 +47,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 			for _, shape := range []string{"fresh", "historical-without-source", "historical-with-source"} {
 				t.Run(shape, func(t *testing.T) {
 					path := t.TempDir()
-					store, err := overgodb.Open(path)
+					store, err := overgodb.Create(path)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -91,7 +91,7 @@ func TestAudioInspectionCanonicalReplayAcceptance(t *testing.T) {
 						if err := store.Close(); err != nil {
 							t.Fatal(err)
 						}
-						reopened, err := overgodb.Open(path)
+						reopened, err := overgodb.Create(path)
 						if err != nil {
 							t.Fatal(err)
 						}

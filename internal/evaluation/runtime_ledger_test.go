@@ -68,7 +68,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
-	database, err := overgodb.Open(root)
+	database, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication 
 		if err := store.Close(); err != nil {
 			t.Fatal(err)
 		}
-		database, err = overgodb.Open(root)
+		database, err = overgodb.Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -37,7 +37,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	declarationPath := filepath.Join(root, "internal", "audioparity", "testdata", "registered_models.json")
 	baselineCommand(t, root, "go", "run", "./cmd/recipe", "register", "-repo", storeRoot,
 		"-root", filepath.Join(dataRoot, "models"), "-spec", declarationPath)
-	store, err := overgodb.Open(storeRoot)
+	store, err := overgodb.Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

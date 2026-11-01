@@ -47,7 +47,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 			if err := os.WriteFile(policyPath, data, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"-repo", filepath.Join(root, "store"), "-input", input, "-policy", policyPath}
+			args := []string{"-repo", t.TempDir(), "-input", input, "-policy", policyPath}
 			var output bytes.Buffer
 			err = runAudio(t, args, &output)
 			if (err == nil) != test.accepted {

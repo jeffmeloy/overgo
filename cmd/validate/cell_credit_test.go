@@ -289,7 +289,7 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 	}
 	kept, weights := filepath.Join(t.TempDir(), "cycle_credit.json"), filepath.Join(t.TempDir(), "model.gguf")
 	t.Setenv(clioptions.CycleCreditEnvironment, kept)
-	store, err := overgodb.Open(storeRoot)
+	store, err := overgodb.Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

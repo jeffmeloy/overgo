@@ -61,7 +61,7 @@ func measure(repository string) error {
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		return err
 	}

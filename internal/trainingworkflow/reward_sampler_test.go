@@ -221,7 +221,7 @@ func bootstrappedRewardSession(t *testing.T, model string) Request {
 	if err := os.WriteFile(prompts, []byte(rewardPrompts), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

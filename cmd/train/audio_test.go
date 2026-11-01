@@ -37,7 +37,7 @@ func TestAudioTrainingContract(t *testing.T) {
 			flag.CommandLine = flag.NewFlagSet("train", flag.ContinueOnError)
 			flag.CommandLine.SetOutput(io.Discard)
 			output := filepath.Join(root, "checkpoint")
-			os.Args = append([]string{"train", "-store", filepath.Join(root, "store"), "-recipe", id.String(), "-audio-manifest", manifest, "-out", output}, tc.arguments...)
+			os.Args = append([]string{"train", "-store", t.TempDir(), "-recipe", id.String(), "-audio-manifest", manifest, "-out", output}, tc.arguments...)
 			if err := run(); err == nil || !strings.Contains(err.Error(), tc.refusal) {
 				t.Fatalf("refusal=%v; want %q", err, tc.refusal)
 			}

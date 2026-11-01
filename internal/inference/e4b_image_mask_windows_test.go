@@ -244,7 +244,7 @@ func TestE4BImageMaskCausality(t *testing.T) {
 			t.Fatal(err)
 		}
 		batch.Contents = append(batch.Contents, content)
-		writer, err := overgodb.Open(roots.Store)
+		writer, err := overgodb.Create(roots.Store)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -179,7 +179,7 @@ func TestSmokePublishesCompleteBoundRecord(t *testing.T) {
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
 	path := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

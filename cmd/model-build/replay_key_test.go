@@ -41,7 +41,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 			t.Fatal(err)
 		}
 		repository := filepath.Join(directory, "store")
-		store, err := overgodb.Open(repository)
+		store, err := overgodb.Create(repository)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 //   - a stage answered from an earlier receipt publishes none
 func completedStages(t *testing.T, repository string) (completed int) {
 	t.Helper()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

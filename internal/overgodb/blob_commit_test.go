@@ -21,7 +21,7 @@ func TestExternalBlobCommitAtomicity(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestExternalBlobCommitAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reopened, err := Open(root)
+	reopened, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

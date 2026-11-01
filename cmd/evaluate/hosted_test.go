@@ -22,7 +22,7 @@ const hostedTestCommit = "0123456789abcdef0123456789abcdef01234567"
 func declareHostedFixture(t *testing.T, keyEnvironment string, answers []string) (string, remoteprovider.Declaration) {
 	t.Helper()
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

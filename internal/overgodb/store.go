@@ -31,6 +31,8 @@ var (
 	ErrReadOnly = errors.New("overgodb: store is read-only")
 	// ErrBatchKeyConflict reports a batch key that already names different content.
 	ErrBatchKeyConflict = errors.New("overgodb: batch key already names different content")
+	// errStoreAbsent reports a writable open of a path that holds no store.
+	errStoreAbsent = errors.New("overgodb: no store here; Create starts one")
 	// ErrArtifactConflict reports an artifact identity carrying conflicting facts.
 	ErrArtifactConflict = errors.New("overgodb: artifact identity has conflicting facts")
 	// ErrAliasConflict reports an alias compare-and-set whose expected target no longer holds.
@@ -227,7 +229,20 @@ const checkpointTail = 4096
 
 // Open replays the store and returns a writable handle without waiting for a writer.
 func Open(root string) (*Store, error) {
-	return open(nil, root, false)
+	return open(nil, root, openExisting)
+}
+
+// Create opens the store under root, starting it when none is there. It is the
+// one way to start a store: Open refuses a path that holds nothing, so a mistyped
+// path fails rather than writing a run where nothing reads it.
+func Create(root string) (*Store, error) {
+	if root == "" {
+		return nil, errors.New("overgodb: empty root")
+	}
+	if err := os.MkdirAll(filepath.Dir(root), storeDirectoryMode); err != nil {
+		return nil, err
+	}
+	return open(nil, root, openOrStart)
 }
 
 // OpenContext waits for startup write access until release or caller cancellation.
@@ -235,25 +250,37 @@ func OpenContext(ctx context.Context, root string) (*Store, error) {
 	if ctx == nil {
 		return nil, errors.New("overgodb: opening with cancellation requires a context")
 	}
-	return open(ctx, root, false)
+	return open(ctx, root, openExisting)
 }
 
 // OpenReadOnly replays the store under root without taking the write lock.
 func OpenReadOnly(root string) (*Store, error) {
-	return open(nil, root, true)
+	return open(nil, root, openReadOnly)
 }
 
-func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
+// openMode is what an open of a store may do.
+type openMode int
+
+const (
+	// openExisting writes to a store that is there.
+	openExisting openMode = iota
+	// openOrStart also starts one.
+	openOrStart
+	// openReadOnly replays without the write lock.
+	openReadOnly
+)
+
+func open(ctx context.Context, root string, mode openMode) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("overgodb: empty root")
 	}
-	if !readOnly {
-		if err := os.MkdirAll(filepath.Dir(root), storeDirectoryMode); err != nil {
-			return nil, err
-		}
-	}
+	readOnly := mode == openReadOnly
+	named := root
 	var err error
 	root, err = resolvedRoot(root)
+	if errors.Is(err, os.ErrNotExist) && mode == openExisting {
+		return nil, fmt.Errorf("%w: %s", errStoreAbsent, named)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +296,11 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 			return nil, err
 		}
 		defer lock.Close()
+		// Asked under the lock: a cutover moves the store away while it holds it,
+		// and a writer that arrives then waits rather than finding nothing.
+		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) && mode == openExisting {
+			return nil, fmt.Errorf("%w: %s", errStoreAbsent, named)
+		}
 	}
 	store := &Store{readOnly: readOnly, root: root, blobs: newBlobStore(root), tail: checkpointTail}
 	if err := store.replayLocked(); err != nil {

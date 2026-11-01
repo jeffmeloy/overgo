@@ -32,7 +32,7 @@ func TestACensusIsTakenAgainOnARebuiltStore(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	sourcePath := t.TempDir()
-	source, err := overgodb.Open(sourcePath)
+	source, err := overgodb.Create(sourcePath)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -72,7 +72,7 @@ func TestCrossDomainTrialMaterializesThroughOnePublicationOwner(t *testing.T) {
 	if err := fixture.store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(fixture.storeRoot)
+	reopened, err := overgodb.Create(fixture.storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +365,7 @@ type candidateMaterializationFixture struct {
 func newCandidateMaterializationFixture(t *testing.T) candidateMaterializationFixture {
 	t.Helper()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

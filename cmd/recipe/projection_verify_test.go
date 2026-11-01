@@ -46,7 +46,7 @@ func TestDeferredExactRuntime(t *testing.T) {
 	for _, outcome := range []string{"pass", "mismatch", "partial"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()
-			store, err := overgodb.Open(root)
+			store, err := overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -104,7 +104,7 @@ func TestDeferredExactRuntime(t *testing.T) {
 			if err := store.Close(); err != nil {
 				t.Fatal(err)
 			}
-			store, err = overgodb.Open(root)
+			store, err = overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -178,7 +178,7 @@ func testExactTerminalReplay(t *testing.T) {
 	for _, outcome := range []string{"pass", "mismatch", "cleanup failure", "unpublished", "missing ledger"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()
-			store, err := overgodb.Open(root)
+			store, err := overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -277,7 +277,7 @@ func testExactTerminalReplay(t *testing.T) {
 			if err := store.Close(); err != nil {
 				t.Fatal(err)
 			}
-			store, err = overgodb.Open(root)
+			store, err = overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}

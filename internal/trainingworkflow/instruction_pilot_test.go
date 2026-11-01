@@ -28,7 +28,7 @@ import (
 // single kinds a second time, so six groups have two prompts to stand for them.
 func pilotFixture(t *testing.T) (*overgodb.Store, string) {
 	t.Helper()
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

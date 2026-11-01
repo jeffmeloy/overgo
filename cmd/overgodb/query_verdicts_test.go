@@ -18,7 +18,7 @@ import (
 // journal head.
 func TestPastHeldoutVerdictsQuery(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

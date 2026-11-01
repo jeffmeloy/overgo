@@ -30,7 +30,7 @@ func speechDatasetFixture(t *testing.T) (*overgodb.Store, Request, string) {
 	t.Helper()
 	root := t.TempDir()
 	directory := writeTinySpeech(t, filepath.Join(root, "model"))
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

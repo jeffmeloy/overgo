@@ -343,7 +343,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 		if err != nil || current != revision {
 			t.Fatalf("resource producer source changed: %v", err)
 		}
-		writer, err := overgodb.Open(roots.Store)
+		writer, err := overgodb.Create(roots.Store)
 		if err != nil {
 			t.Fatal(err)
 		}

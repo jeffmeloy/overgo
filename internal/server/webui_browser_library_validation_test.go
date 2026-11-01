@@ -103,7 +103,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	if err := prepareBrowserJourneyStore(ctx, roots.Store, storeDir); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(storeDir)
+	store, err := overgodb.Create(storeDir)
 	if err != nil {
 		t.Fatal(err)
 	}

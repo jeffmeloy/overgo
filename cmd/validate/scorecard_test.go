@@ -173,7 +173,7 @@ func scorecardFixture(t *testing.T) string {
 	t.Helper()
 	ctx := t.Context()
 	directory := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

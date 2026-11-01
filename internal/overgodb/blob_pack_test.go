@@ -55,7 +55,7 @@ func TestPackIndexRejectsImpossibleCounts(t *testing.T) {
 func TestSmallBlobsArePacked(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestBlobVerificationStopsWhenCancelled(t *testing.T) {
 	t.Parallel()
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	empty, err := Open(filepath.Join(t.TempDir(), "empty"))
+	empty, err := Create(filepath.Join(t.TempDir(), "empty"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestBlobVerificationStopsWhenCancelled(t *testing.T) {
 		t.Fatalf("an empty store's cancelled verification answered %v", err)
 	}
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestBlobVerificationStopsWhenCancelled(t *testing.T) {
 // serves every member byte for byte.
 func TestPackStreamsItsMembers(t *testing.T) {
 	// Serial: it measures the process's allocations, so no other test may allocate beside it.
-	store, err := Open(filepath.Join(t.TempDir(), "store"))
+	store, err := Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

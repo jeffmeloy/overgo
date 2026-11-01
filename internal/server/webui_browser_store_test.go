@@ -135,7 +135,7 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	source := t.TempDir()
-	store, err := overgodb.Open(source)
+	store, err := overgodb.Create(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,11 +194,11 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("source identity memo: %v", err)
 	}
-	destination := filepath.Join(t.TempDir(), "store")
+	destination := t.TempDir()
 	if err := prepareBrowserJourneyStore(ctx, source, destination); err != nil {
 		t.Fatal(err)
 	}
-	private, err := overgodb.Open(destination)
+	private, err := overgodb.Create(destination)
 	if err != nil {
 		t.Fatal(err)
 	}

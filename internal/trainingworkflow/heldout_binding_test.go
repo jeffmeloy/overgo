@@ -45,7 +45,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

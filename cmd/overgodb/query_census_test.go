@@ -22,7 +22,7 @@ func TestRecordCensus(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

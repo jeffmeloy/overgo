@@ -44,7 +44,7 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(t.TempDir(), "repodb")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -135,7 +135,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 		t.Fatalf("mutated file = %q, %v, want after", data, err)
 	}
 
-	store, err = overgodb.Open(repository)
+	store, err = overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestDelegatedStepAdmitsByContractAndRestores(t *testing.T) {
 
 func TestAgentLoopProposesGatedStep(t *testing.T) {
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

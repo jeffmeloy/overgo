@@ -20,7 +20,7 @@ func TestBrowserJourneyPreparation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestBrowserJourneyPreparation(t *testing.T) {
 	if servable, multimodal, err := smallestServables(ctx, root); err != nil || len(servable) != 0 || len(multimodal) != 0 {
 		t.Fatalf("non-inference selection = %v, %v, %v", servable, multimodal, err)
 	}
-	store, err = overgodb.Open(root)
+	store, err = overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

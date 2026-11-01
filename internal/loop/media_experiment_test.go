@@ -54,7 +54,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	}
 
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(directory)
+	reopened, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestMediaExperimentResume(t *testing.T) {
 	// An interrupted acquisition checkpoints its completed cells; recovery
 	// re-acquires only the missing cell.
 	partialDirectory := t.TempDir()
-	partialStore, err := overgodb.Open(partialDirectory)
+	partialStore, err := overgodb.Create(partialDirectory)
 	if err != nil {
 		t.Fatal(err)
 	}

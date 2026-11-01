@@ -35,7 +35,7 @@ func TestNativeASRSessionAcceptance(t *testing.T) {
 	testskip.Short(t, "native recurrent sessions require registered model and corpus captures")
 	directory := t.TempDir()
 	storePath := filepath.Join(directory, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

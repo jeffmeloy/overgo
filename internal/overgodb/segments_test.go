@@ -25,12 +25,12 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	ctx := t.Context()
 	segmented := t.TempDir()
 	plain := t.TempDir()
-	segmentedStore, err := Open(segmented)
+	segmentedStore, err := Create(segmented)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer segmentedStore.Close()
-	plainStore, err := Open(plain)
+	plainStore, err := Create(plain)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 
 	// Reader tailing across rotation: reader opens, writer seals and
 	// commits more, reader refresh lands on the new head.
-	writer, err := Open(segmented)
+	writer, err := Create(segmented)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestSealWithInlineContent(t *testing.T) {
 		}
 		return bodies
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

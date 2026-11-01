@@ -68,7 +68,7 @@ func TestRecordExactSuiteReplays(t *testing.T) {
 func TestMeasuredVerificationRequestBinding(t *testing.T) {
 	ctx := t.Context()
 	path := t.TempDir()
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

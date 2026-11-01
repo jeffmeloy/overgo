@@ -326,7 +326,7 @@ func newRecipeLifecycle(t *testing.T) *recipeLifecycle {
 
 func (f *recipeLifecycle) open() {
 	f.t.Helper()
-	store, err := overgodb.Open(f.directory)
+	store, err := overgodb.Create(f.directory)
 	if err != nil {
 		f.t.Fatal(err)
 	}

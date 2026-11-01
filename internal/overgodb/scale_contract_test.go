@@ -42,7 +42,7 @@ type scaleCorpus struct {
 // buildScaleCorpus retains actual commit timing; copied fixtures never claim it.
 func buildScaleCorpus(ctx context.Context, root string) (scaleCorpus, error) {
 	scaleCorpusBuilds.Add(1)
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		return scaleCorpus{}, err
 	}

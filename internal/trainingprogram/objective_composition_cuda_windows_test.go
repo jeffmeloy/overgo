@@ -32,7 +32,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	aggregate := objectiveCorpus(t, append(slices.Clone(baseRecords), addedRecords...), holdout)
 
 	ctx := t.Context()
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -78,7 +78,7 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 		t.Fatalf("output = %q", output.String())
 	}
 
-	store, err = overgodb.Open(storePath)
+	store, err = overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

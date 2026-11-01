@@ -44,7 +44,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	if !errors.Is(runErr, context.Canceled) || len(interrupted.prompts) != 1 {
 		t.Fatalf("first attempt: err=%v prompts=%v", runErr, interrupted.prompts)
 	}
-	store, err = overgodb.Open(root)
+	store, err = overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

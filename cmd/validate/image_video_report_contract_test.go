@@ -37,7 +37,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

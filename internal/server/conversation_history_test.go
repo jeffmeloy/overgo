@@ -151,14 +151,14 @@ func TestConversationHistoryPaging(t *testing.T) {
 func TestConversationHistoryRefresh(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := overgodb.Open(root)
+	writer, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer writer.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"External answer"}})
 	producer := newTestHandlerForRepository(t, writer, generator)
-	reader, err := overgodb.Open(root)
+	reader, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

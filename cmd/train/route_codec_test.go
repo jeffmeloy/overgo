@@ -92,7 +92,7 @@ func recordedBridgeCheckpoint(t *testing.T, storePath, out string) trainingprogr
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		}
 	}
 	storePath, out := filepath.Join(work, "store"), filepath.Join(work, "out")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestCodecRouteJudgesATrainedBridgeOnHeldOutFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkpoint := recordedBridgeCheckpoint(t, storePath, out)
-	if store, err = overgodb.Open(storePath); err != nil {
+	if store, err = overgodb.Create(storePath); err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()

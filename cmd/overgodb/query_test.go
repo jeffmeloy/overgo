@@ -17,7 +17,7 @@ import (
 
 func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 	if empty.Complete || empty.Published != 0 || empty.Registered != len(model.SupportedArchitectures()) {
 		t.Fatalf("empty coverage = %+v", empty)
 	}
-	store, err = overgodb.Open(repository)
+	store, err = overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestDatasetCatalogQueryReportsExactCoverage(t *testing.T) {
 	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestDatasetCatalogQueryReportsExactCoverage(t *testing.T) {
 
 func TestRunQueriesSeededStore(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

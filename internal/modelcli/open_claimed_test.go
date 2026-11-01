@@ -101,7 +101,7 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 	writeServingFixture(t, unknown, 200)
 
 	ctx := t.Context()
-	store, err := overgodb.Open(storeRoot)
+	store, err := overgodb.Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

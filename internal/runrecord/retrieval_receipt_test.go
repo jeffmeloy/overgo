@@ -36,7 +36,7 @@ func (provider receiptRerankProvider) Score(_ context.Context, query, text strin
 
 func TestRetrievalReceiptReplay(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestRetrievalReceiptReplay(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(directory)
+	reopened, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

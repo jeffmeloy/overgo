@@ -27,7 +27,7 @@ func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestManifestAndLocationReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

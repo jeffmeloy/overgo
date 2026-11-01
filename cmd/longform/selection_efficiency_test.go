@@ -18,7 +18,7 @@ import (
 
 func TestSelectedGuardAdmissionScope(t *testing.T) {
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

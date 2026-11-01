@@ -45,7 +45,7 @@ func runAudioProfile(t *testing.T, path string) {
 	if request.Profile == "" || request.Predictions == "" || len(request.Inputs) == 0 {
 		t.Fatal("incomplete profile request")
 	}
-	store, err := overgodb.Open(request.Store)
+	store, err := overgodb.Create(request.Store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 	if err != nil {
 		t.Fatalf("profile child: %v\n%s", err, output)
 	}
-	f.l.store, err = overgodb.Open(f.l.storePath)
+	f.l.store, err = overgodb.Create(f.l.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

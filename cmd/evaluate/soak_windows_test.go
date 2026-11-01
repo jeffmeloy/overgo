@@ -52,7 +52,7 @@ func TestGenerationSoakSurvivesLengthSweep(t *testing.T) {
 		t.Skip("data root is not resolvable: " + err.Error())
 	}
 	ctx := t.Context()
-	store, err := overgodb.Open(roots.Store)
+	store, err := overgodb.Create(roots.Store)
 	if err != nil {
 		t.Fatal(err)
 	}

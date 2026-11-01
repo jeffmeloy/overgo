@@ -33,7 +33,7 @@ func TestRepairRefusesACorruptJournal(t *testing.T) {
 		framePayloadLen = 80
 	)
 	root := filepath.Join(t.TempDir(), "store")
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

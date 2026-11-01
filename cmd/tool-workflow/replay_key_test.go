@@ -62,7 +62,7 @@ func TestAReplayKeyNamesTheCodeThatComputesIt(t *testing.T) {
 		model := testutil.ArtifactID(t, artifact.KindModel, "replay-key-tool-workflow-model")
 		directory := t.TempDir()
 		repository := filepath.Join(directory, "store")
-		store, err := overgodb.Open(repository)
+		store, err := overgodb.Create(repository)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -74,7 +74,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 		t.Fatal("empty directory identified")
 	}
 	t.Run("registered-gguf", func(t *testing.T) {
-		store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +127,7 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	})
 	t.Run("split-gguf", func(t *testing.T) {
 		root := t.TempDir()
-		store, err := overgodb.Open(filepath.Join(root, "store"))
+		store, err := overgodb.Create(filepath.Join(root, "store"))
 		if err != nil {
 			t.Fatal(err)
 		}

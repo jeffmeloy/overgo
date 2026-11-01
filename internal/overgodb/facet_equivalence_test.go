@@ -65,7 +65,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	root := t.TempDir()
 	head, _, _ := copyScaleCorpus(t, root)
 
-	live, err := Open(root)
+	live, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

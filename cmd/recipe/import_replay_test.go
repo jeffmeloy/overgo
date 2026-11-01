@@ -25,7 +25,7 @@ func TestFrozenComponentImportRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repository := filepath.Join(t.TempDir(), "store")
+	repository := t.TempDir()
 	args := []string{"-repo", repository, "-inspection", frozen, path}
 	if err := registerModels(args); err != nil {
 		t.Fatal(err)

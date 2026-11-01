@@ -86,7 +86,7 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 			return runCell(ctx, output, root, name, args)
 		},
 		validate: func(ctx context.Context, model, projector string) (completion operation.Completion, err error) {
-			repository, err := overgodb.Open(store)
+			repository, err := overgodb.Create(store)
 			if err != nil {
 				return completion, err
 			}
@@ -98,7 +98,7 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 			return execute(ctx, stageReporter{output})
 		},
 		retire: func(ctx context.Context, directory string, conversion artifact.ID) (err error) {
-			repository, err := overgodb.Open(store)
+			repository, err := overgodb.Create(store)
 			if err != nil {
 				return err
 			}

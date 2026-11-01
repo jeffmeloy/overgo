@@ -32,7 +32,7 @@ func TestRunPublishesMechanismCensus(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestRunPublishesExternalMechanismProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestRunPublishesCompleteTypedMechanismEvidenceBundle(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(root, "store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

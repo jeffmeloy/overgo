@@ -18,12 +18,12 @@ import (
 
 func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	root := t.TempDir()
-	writer, err := overgodb.Open(root)
+	writer, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer writer.Close()
-	reader, err := overgodb.Open(root)
+	reader, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestMatchServableRoutesRemoteLocations(t *testing.T) {
 
 func TestCatalogProgressNamesStagesAndKeepsSlowest(t *testing.T) {
 	root := t.TempDir()
-	writer, err := overgodb.Open(root)
+	writer, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

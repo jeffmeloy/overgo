@@ -34,7 +34,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 			}
 		}
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestAnOpenNeverStopsShortOfASealedSegment(t *testing.T) {
 	if err := os.Remove(blocked); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := Open(root)
+	reopened, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

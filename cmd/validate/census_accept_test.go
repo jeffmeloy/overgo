@@ -32,7 +32,7 @@ func TestCensusAcceptanceIsOneCommand(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	storePath := t.TempDir()
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

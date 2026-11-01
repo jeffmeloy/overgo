@@ -29,7 +29,7 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 		t.Fatalf("unverified candidate served: workspace=%v err=%v", workspace, err)
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
-	writer, err := overgodb.Open(fixture.storePath)
+	writer, err := overgodb.Create(fixture.storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

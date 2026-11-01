@@ -78,7 +78,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		return RebuildReport{}, err
 	}
 	source.mu.RUnlock()
-	target, err := Open(destination)
+	target, err := Create(destination)
 	if err != nil {
 		return RebuildReport{}, err
 	}

@@ -24,7 +24,7 @@ func importStream(flags *flag.FlagSet, args []string, input io.Reader, output io
 	if flags.NArg() != 0 || *repositoryPath == "" || *artifactRoot == "" {
 		return fmt.Errorf("usage: %s -repo <path> -root <path> < export.jsonl", flags.Name())
 	}
-	store, err := overgodb.Open(*repositoryPath)
+	store, err := overgodb.Create(*repositoryPath)
 	if err != nil {
 		return err
 	}

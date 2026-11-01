@@ -118,7 +118,7 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 				if err := store.Close(); err != nil {
 					t.Fatal(err)
 				}
-				store, err = overgodb.Open(directory)
+				store, err = overgodb.Create(directory)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -344,7 +344,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 				},
 			}
 			err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability)
-			reopened, openErr := overgodb.Open(directory)
+			reopened, openErr := overgodb.Create(directory)
 			if openErr != nil {
 				t.Fatal(openErr)
 			}
@@ -515,7 +515,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	if len(attempts) != 7 {
 		t.Fatalf("serving attempts = %d; want each of the seven executions recorded", len(attempts))
 	}
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +546,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	if len(attempts) != 9 || runs.Load() != 6 {
 		t.Fatalf("terminal attempts=%d, executed nodes=%d; want nine attempts and six executions", len(attempts), runs.Load())
 	}
-	store, err = overgodb.Open(directory)
+	store, err = overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -691,7 +691,7 @@ func measuredModel(t *testing.T) modelartifact.Inventory {
 func activateMeasured(t *testing.T, directory string, task recipe.Task, inventory modelartifact.Inventory, runs ...artifact.Content) (artifact.CommitID, uint64) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

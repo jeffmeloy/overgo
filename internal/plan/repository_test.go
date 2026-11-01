@@ -26,7 +26,7 @@ func planRepository(t *testing.T, document Plan) string {
 	git(t, root, "config", "user.name", "Overgo Test")
 	git(t, root, "add", Path)
 	git(t, root, "commit", "-q", "-m", "seed plan")
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.Create(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

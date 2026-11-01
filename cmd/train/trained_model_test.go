@@ -83,7 +83,7 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 		t.Fatal(err)
 	}
 	storeRoot := filepath.Join(root, "store")
-	store, err := overgodb.Open(storeRoot)
+	store, err := overgodb.Create(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

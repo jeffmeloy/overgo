@@ -11,7 +11,7 @@ import (
 
 func TestEvaluationSessionWriterCancellation(t *testing.T) {
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

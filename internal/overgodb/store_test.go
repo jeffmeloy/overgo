@@ -44,7 +44,7 @@ func TestOvergoDBRuntimeAuthority(t *testing.T) {
 	if err := os.WriteFile(legacy, []byte("external legacy input"), storeFileMode); err != nil {
 		t.Fatal(err)
 	}
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 func TestMetadataSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func fixtureBatch(t *testing.T) artifact.Batch {
 func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := Open(root)
+	writer, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := Open(root)
+	writer, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -571,7 +571,7 @@ func TestLineageCycleWithinBatchRejected(t *testing.T) {
 func TestSecondWriterFailsClosed(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	first, err := Open(root)
+	first, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,14 +581,14 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
-	if second, err := Open(root); err == nil {
+	if second, err := Create(root); err == nil {
 		_ = second.Close()
 		t.Fatal("second writer acquired lock")
 	}
 	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
-	second, err := Open(root)
+	second, err := Create(root)
 	if err != nil {
 		t.Fatalf("writer after release: %v", err)
 	}
@@ -598,7 +598,7 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writer, err := Open(root)
+	writer, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -620,7 +620,7 @@ func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 func TestTornTailRecovered(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -644,7 +644,7 @@ func TestTornTailRecovered(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = file.Close()
-	store, err = Open(root)
+	store, err = Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +663,7 @@ func TestTornTailRecovered(t *testing.T) {
 func TestCompleteCorruptFrameRejected(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -692,7 +692,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = file.Close()
-	if reopened, err := Open(root); err == nil {
+	if reopened, err := Create(root); err == nil {
 		_ = reopened.Close()
 		t.Fatal("corrupt complete frame accepted")
 	}

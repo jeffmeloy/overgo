@@ -24,7 +24,7 @@ import (
 func TestUnpairedPreferenceObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -66,7 +66,7 @@ func TestCheckpointGenerationsSurviveATornWrite(t *testing.T) {
 		t.Fatal("the flat set of a store written before generations answered differently")
 	}
 
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

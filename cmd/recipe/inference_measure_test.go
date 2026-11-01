@@ -137,7 +137,7 @@ func measuredFixture(t *testing.T) (directory, path string, model *servedFixture
 	ctx := t.Context()
 	path = testutil.HermeticLlamaGGUF(t, servedContext)
 	directory = t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

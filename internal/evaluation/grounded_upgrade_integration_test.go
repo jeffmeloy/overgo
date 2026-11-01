@@ -97,7 +97,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(knowledge.path)
+	reopened, err := overgodb.Create(knowledge.path)
 	if err != nil {
 		t.Fatal(err)
 	}

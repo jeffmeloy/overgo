@@ -48,7 +48,7 @@ func TestCheckpointsAreTheOnlyAcceleration(t *testing.T) {
 		t.Fatal("a full replay answered differently from the anchored open")
 	}
 
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,7 +44,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		testskip.NotApplicable(t, "set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
 	}
 	snapshot := textStructuredSnapshot(t)
-	store, err := overgodb.Open(filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
+	store, err := overgodb.Create(filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

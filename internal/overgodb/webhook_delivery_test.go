@@ -15,7 +15,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = overgodb.Open(root)
+	store, err = overgodb.Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

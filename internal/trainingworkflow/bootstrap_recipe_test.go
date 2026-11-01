@@ -72,7 +72,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Create(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	if err := os.WriteFile(datasetPath, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	source, err := overgodb.Open(filepath.Join(root, "source"))
+	source, err := overgodb.Create(filepath.Join(root, "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rebuilt, err := overgodb.Open(filepath.Join(root, "rebuilt"))
+	rebuilt, err := overgodb.Create(filepath.Join(root, "rebuilt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Create(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -59,7 +59,7 @@ func TestTrainingProofChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	if mode == "fresh" || mode == "missing-with-concurrent-proof" {
-		store, err := overgodb.Open(os.Getenv("OVERGO_TEST_PROOF_STORE"))
+		store, err := overgodb.Create(os.Getenv("OVERGO_TEST_PROOF_STORE"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 	for _, mode := range []string{"missing", "stale", "wrong", "malformed", "missing-with-concurrent-proof", "fresh"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
-			writer, err := overgodb.Open(filepath.Join(root, "store"))
+			writer, err := overgodb.Create(filepath.Join(root, "store"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,7 +157,7 @@ func TestTrainingAcquisitionRequiresItsFreshProof(t *testing.T) {
 func TestTrainingAcquisitionRetainsPrivateScratchUntilCompletion(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

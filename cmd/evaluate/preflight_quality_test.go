@@ -26,7 +26,7 @@ import (
 func TestAQualityCellsPreflightReachesItsSetup(t *testing.T) {
 	root := testutil.RepoRoot(t)
 	repository := t.TempDir()
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

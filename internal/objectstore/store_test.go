@@ -50,7 +50,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("large stream is installed before catalog publication", func(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
-		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
+		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("small streams preserve idempotence and refuse failed publication", func(t *testing.T) {
 		ctx := t.Context()
 		root := t.TempDir()
-		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
+		repository, err := overgodb.Create(filepath.Join(root, "repodb"))
 		if err != nil {
 			t.Fatal(err)
 		}

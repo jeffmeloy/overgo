@@ -55,7 +55,7 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath, out := filepath.Join(root, "store"), filepath.Join(root, "trained")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestE4BRoutePublishesAServableModel(t *testing.T) {
 	checkpoint.Optimizer.MomentumF32 = nil
 	debug.FreeOSMemory()
 
-	store, err = overgodb.Open(storePath)
+	store, err = overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

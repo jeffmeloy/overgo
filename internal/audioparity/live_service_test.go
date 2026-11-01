@@ -158,7 +158,7 @@ func newLiveASRFixture(t *testing.T) *liveASRFixture {
 	t.Setenv("OVERGO_API_KEY", audioHTTPFixtureKey)
 	f := &liveASRFixture{path: filepath.Join(t.TempDir(), "store"), sourceCommit: commit, seenRuns: make(map[artifact.ID]bool)}
 	var err error
-	f.store, err = overgodb.Open(f.path)
+	f.store, err = overgodb.Create(f.path)
 	if err != nil {
 		t.Fatal(err)
 	}

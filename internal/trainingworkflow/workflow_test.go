@@ -36,7 +36,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	if err := os.WriteFile(dataset, []byte("ab"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Create(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestDenseProofVerifiesOnItsCheckpointsIdentityAndKeepsNoFile(t *testing.T) 
 }
 
 func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -703,7 +703,7 @@ func writeModelDocument(t *testing.T, directory string, weights map[string][]flo
 func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datasetPath string, objectiveKind trainingprogram.ObjectiveKind) (*overgodb.Store, artifact.ID) {
 	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

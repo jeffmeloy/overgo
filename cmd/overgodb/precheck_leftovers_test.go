@@ -21,7 +21,7 @@ func TestRetirementReportNamesWhatIsSafe(t *testing.T) {
 	root := t.TempDir()
 	repository, backups := filepath.Join(root, "store"), filepath.Join(root, "backups")
 	commit := func(text string) {
-		store, err := overgodb.Open(repository)
+		store, err := overgodb.Create(repository)
 		if err != nil {
 			t.Fatal(err)
 		}

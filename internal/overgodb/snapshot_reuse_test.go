@@ -212,7 +212,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	})
 	t.Run("source cannot be staging", func(t *testing.T) {
 		root := filepath.Join(t.TempDir(), "backup.partial")
-		source, err := Open(root)
+		source, err := Create(root)
 		if err != nil {
 			t.Fatal(err)
 		}

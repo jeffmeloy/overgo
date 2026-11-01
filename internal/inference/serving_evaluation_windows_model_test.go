@@ -112,7 +112,7 @@ func evaluateExactGGUF(ctx context.Context, path string, suite []byte) (evaluati
 		return evaluation.CampaignResult{}, err
 	}
 	defer os.RemoveAll(root)
-	store, err := overgodb.Open(root)
+	store, err := overgodb.Create(root)
 	if err != nil {
 		return evaluation.CampaignResult{}, err
 	}

@@ -159,7 +159,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	source, err := overgodb.Open(filepath.Join(t.TempDir(), "source"))
+	source, err := overgodb.Create(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		}
 	})
 	t.Run("local-append", func(t *testing.T) {
-		local, err := overgodb.Open(roots.Store)
+		local, err := overgodb.Create(roots.Store)
 		if err != nil {
 			t.Fatal(err)
 		}

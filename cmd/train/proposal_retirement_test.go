@@ -109,7 +109,7 @@ func TestProposalRetirementPreservesTrainingAndEvidence(t *testing.T) {
 		if err := os.WriteFile(dataset, bytes.Repeat([]byte("a b c d "), 64), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		store, err := overgodb.Open(storePath)
+		store, err := overgodb.Create(storePath)
 		if err != nil {
 			t.Fatal(err)
 		}

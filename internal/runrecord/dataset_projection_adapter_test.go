@@ -27,7 +27,7 @@ type projectionAuthorityFixture struct {
 
 func TestCapabilityEpisodeProjection(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(directory)
+	reopened, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 
 func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	directory := t.TempDir()
-	store, err := overgodb.Open(directory)
+	store, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +415,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := overgodb.Open(directory)
+	reopened, err := overgodb.Create(directory)
 	if err != nil {
 		t.Fatal(err)
 	}

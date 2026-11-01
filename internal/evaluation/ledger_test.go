@@ -50,7 +50,7 @@ func TestExactFailureRetention(t *testing.T) {
 				t.Fatal(err)
 			}
 			root := t.TempDir()
-			store, err := overgodb.Open(root)
+			store, err := overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +105,7 @@ func TestExactFailureRetention(t *testing.T) {
 			if err := store.Close(); err != nil {
 				t.Fatal(err)
 			}
-			store, err = overgodb.Open(root)
+			store, err = overgodb.Create(root)
 			if err != nil {
 				t.Fatal(err)
 			}

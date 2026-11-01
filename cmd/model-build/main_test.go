@@ -17,12 +17,12 @@ func TestCommandRunsSharedModelBuilder(t *testing.T) {
 	if err := os.WriteFile(dataset, []byte(`["abcd","bcda","cdab","dabc"]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	repository := filepath.Join(directory, "repo")
+	repository := t.TempDir()
 	arguments := []string{"-repo", repository, "-dataset", dataset, "-steps", "1"}
 	if err := run(arguments, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "active derivation profile absent") {
 		t.Fatalf("unseeded model build error = %v", err)
 	}
-	store, err := overgodb.Open(repository)
+	store, err := overgodb.Create(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

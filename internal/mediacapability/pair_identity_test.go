@@ -239,7 +239,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// model runs from. That holds whether or not serving recorded the pair
 	// first under a key of its own.
 	for _, registered := range []bool{false, true} {
-		store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+		store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 		if err != nil {
 			t.Fatal(err)
 		}

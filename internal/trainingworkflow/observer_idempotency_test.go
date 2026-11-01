@@ -13,7 +13,7 @@ import (
 // and the second session's observation must publish against the stored
 // environment instead of refusing on a no-op batch.
 func TestObserverRepeatsEnvironmentCommit(t *testing.T) {
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -51,7 +51,7 @@ func TestMediaValidationRetainsFailures(t *testing.T) {
 func TestMediaValidationProjection(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := overgodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Create(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

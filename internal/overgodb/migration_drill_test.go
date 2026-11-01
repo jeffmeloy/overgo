@@ -152,7 +152,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// live surface, and the source is still never written.
 	releaseRoot := filepath.Join(base, "released")
 	drillCopyStore(t, rebuiltRoot, releaseRoot)
-	released, err := Open(releaseRoot)
+	released, err := Create(releaseRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		if err := os.Truncate(filepath.Join(drillRoot, storeFilename), cut); err != nil {
 			t.Fatal(err)
 		}
-		recovered, err := Open(drillRoot)
+		recovered, err := Create(drillRoot)
 		if err != nil {
 			t.Fatalf("interrupted store at %d bytes did not recover: %v", cut, err)
 		}
@@ -206,7 +206,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	prefix, err := Open(prefixRoot)
+	prefix, err := Create(prefixRoot)
 	if err != nil {
 		t.Fatalf("truncated source copy did not recover: %v", err)
 	}

@@ -88,7 +88,7 @@ func (w *faultWriter) Sync() error {
 func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err = Open(root)
+	store, err = Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = Open(root)
+	store, err = Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 func TestStreamingSnapshotFaultPreservesStore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	store, err := Open(root)
+	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
 	}

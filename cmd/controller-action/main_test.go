@@ -31,7 +31,7 @@ func TestPersistedDecisionMaterializationCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputRoot := filepath.Join(t.TempDir(), "outputs")
-	recordRoot := filepath.Join(t.TempDir(), "overgodb")
+	recordRoot := t.TempDir()
 	original := materializeCandidateTrial
 	t.Cleanup(func() { materializeCandidateTrial = original })
 	calls := 0

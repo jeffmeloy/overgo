@@ -37,7 +37,7 @@ func releaseEverything(artifact.Descriptor) bool { return true }
 func TestRetentionTypedLineage(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	source, err := Open(filepath.Join(t.TempDir(), "source"))
+	source, err := Create(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 func TestRetentionPinnedRootsSurvive(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	source, err := Open(filepath.Join(t.TempDir(), "source"))
+	source, err := Create(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestRetentionPinnedRootsSurvive(t *testing.T) {
 func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	source, err := Open(filepath.Join(t.TempDir(), "source"))
+	source, err := Create(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}

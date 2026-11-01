@@ -236,7 +236,7 @@ func TestLeftoversListsEveryDeclaredPlaceWithItsRule(t *testing.T) {
 
 	// The data root: a real store that registers two locations, and what runs left beside it.
 	storePath := folder("data/overgodb-store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1227,7 +1227,7 @@ func TestLeftoversDeletesOnlyWhatItsTableMarksFinished(t *testing.T) {
 
 	// The data root: a real store that registers a prototype's file inside one experiment's output.
 	storePath := s.folder("data/overgodb-store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2543,7 +2543,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 		pilotShard                      = "the shard the pilot's model shares with a served one"
 	)
 	storePath := s.folder("data/overgodb-store")
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.Create(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2810,7 +2810,7 @@ func TestWithdrawalTakesOnlyARunsCheckpointRegistrations(t *testing.T) {
 				return len(line), nil
 			}
 			raced = true
-			other, err := overgodb.Open(storePath)
+			other, err := overgodb.Create(storePath)
 			if err != nil {
 				return 0, err
 			}

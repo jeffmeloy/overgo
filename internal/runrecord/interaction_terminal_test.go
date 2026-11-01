@@ -11,7 +11,7 @@ import (
 
 func TestInteractionTerminalReason(t *testing.T) {
 	path := t.TempDir()
-	store, err := overgodb.Open(path)
+	store, err := overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestInteractionTerminalReason(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = overgodb.Open(path)
+	store, err = overgodb.Create(path)
 	if err != nil {
 		t.Fatal(err)
 	}

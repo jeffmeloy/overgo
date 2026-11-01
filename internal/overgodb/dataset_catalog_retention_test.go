@@ -38,7 +38,7 @@ func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := overgodb.Open(filepath.Join(root, "source"))
+	source, err := overgodb.Create(filepath.Join(root, "source"))
 	if err != nil {
 		t.Fatal(err)
 	}

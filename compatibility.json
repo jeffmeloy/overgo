@@ -576,7 +576,7 @@
      "contains": "func TestTrainingObjectiveMatrix(",
      "path": "internal/adaptiveparity/training_objective_matrix_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a8164ff61bced3478a664af107525262a16c6cc6a3bbdf348726d3dadd0c4d16"
+     "identity": "evidence:sha256:756ac80bc10103a64f87f3f6e32901ee8f7c74fc69693e95396f92429ca61b7d"
     }
    ],
    "id": "adaptive-training-objective-program-matrix",
@@ -1478,7 +1478,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:ef19bcc155df227cbcf40c9e932b62f0b1f3d17b171ead54b62fbb551a21f9c3"
+     "identity": "evidence:sha256:179d876c7c3cb727a98299242a45eb06206c4d51c7a553fa4774303c5aa27147"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1536,7 +1536,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:ef19bcc155df227cbcf40c9e932b62f0b1f3d17b171ead54b62fbb551a21f9c3"
+     "identity": "evidence:sha256:179d876c7c3cb727a98299242a45eb06206c4d51c7a553fa4774303c5aa27147"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1564,7 +1564,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:9883f712ff67856621a223aac71e45959aa764e0e9fe3f8d293ba0cbd6e28c9e"
+     "identity": "evidence:sha256:ee28d27a0ae2ff6af373d30dceef1c6548732bc51d6f5ace012ef776084f0f6c"
     }
    ]
   },
@@ -1586,7 +1586,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:9883f712ff67856621a223aac71e45959aa764e0e9fe3f8d293ba0cbd6e28c9e"
+     "identity": "evidence:sha256:ee28d27a0ae2ff6af373d30dceef1c6548732bc51d6f5ace012ef776084f0f6c"
     }
    ]
   }

@@ -48,7 +48,7 @@ func TestFailedCheckNeverSwaps(t *testing.T) {
 // capability and refused to the plain door, so a mismatch between the two
 // names cannot wait for a real candidate to surface.
 func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
-	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		textContent(t, "held inline in the journal"),
 		textContent(t, strings.Repeat("held in a blob ", 1<<10)),
 	}
-	store, err := overgodb.Open(live)
+	store, err := overgodb.Create(live)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		writer, err := overgodb.Open(changing)
+		writer, err := overgodb.Create(changing)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +183,7 @@ func textContent(t *testing.T, text string) artifact.Content {
 func TestRebuiltStoreRefusesMissingAcceptedCensus(t *testing.T) {
 	ctx := t.Context()
 	sourcePath := filepath.Join(t.TempDir(), "source")
-	source, err := overgodb.Open(sourcePath)
+	source, err := overgodb.Create(sourcePath)
 	if err != nil {
 		t.Fatal(err)
 	}

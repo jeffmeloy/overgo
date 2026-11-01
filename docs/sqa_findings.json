@@ -1721,7 +1721,9 @@
         "uncertainty": "237.32min is retained sum, not guaranteed removable wall time. Input-key redesign has unpriced correctness/maintenance cost and is not recommended."
       },
       "likely_effort": "Small launch/owner reuse first; broader credit redesign is unpriced.",
-      "plan_references": [],
+      "plan_references": [
+        "time-and-memory/run-wall"
+      ],
       "plan_coverage": "Paired-comparisons/do landed1d4284de6.3cad19fdd removed cell-credit after an implementation comparison; no new cache/selector recommended. Existing source-specific credit limitation263 is distinct.",
       "closure_criteria": [
         "Name retained owner for each paired requirement before removing a standing invocation; preserve numerical differences and original assertions.",
@@ -2099,7 +2101,9 @@
         "uncertainty": "Parsed complete replacement estimate, not typechecked/compiled candidate or measured wall/RSS saving. No assumption that metadata work is the dominant gate cost."
       },
       "likely_effort": "Small two-file test merge.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Five-model activation landed; this consolidates its new260-node test with the existing211-node Flash owner.",
       "closure_criteria": [
         "All six exact served paths retain stored PromptTensorCores admission and successful Close checks.",
@@ -2493,7 +2497,9 @@
         "uncertainty": "Complete hypothetical merged file was parsed from committed source,not package-compiled or run. Runner reuse must preserve the existing per-request cleanup and assertion behavior; no measured timing/memory claim. Generation/fixture counts are static path counts,not successful run observations. Do not remove accepted-trigger search or repetitions on the strength of similar ASTs."
       },
       "likely_effort": "Small move into an existing test owner; no production development.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory reduction after sample-tools; not adopted by the completed plan step.",
       "closure_criteria": [
         "The second standalone false-draft test/setup is gone; every distinct token-trigger,transfer,prefix,forced-token and geometry assertion remains in the first owner.",
@@ -2564,7 +2570,9 @@
         "uncertainty": "AST transformations only, no tests/models executed. Original paired_binary.go typechecked using standard math without stubs (125resolved uses). Lgamma versus recurrence changes floating evaluation order; retain rational boundary comparisons. Any added assertion must be charged against25nodes. Cleanup273 adds104test nodes, so implementing both recommendations totals4212->4291(+79), not a net reduction."
       },
       "likely_effort": "Small existing-call migration; batch with ordinary affected work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "New advisory test consolidation, not adopted. The completed reductions row did not include this pending finding; no new step or framework requested.",
       "closure_criteria": [
         "All four callers use the existing paired-binary owner with two-sided orientation, clamp, p=1 for no discordance, strict0.05 and correct losses/wins direction.",
@@ -2620,7 +2628,9 @@
         "uncertainty": "Source-only whole-file candidate parsed at cd7285195. Exact readRecorder declaration/method from the independent load sample typechecked against standard library(9defs/32uses/46expressions/8selections); the proposed inference merge is syntax-counted, not package-typechecked or executed. AST and setup counts are maintenance proxies. The additional31-node saving supersedes235's prior93-node candidate, not a measured performance gain."
       },
       "likely_effort": "Small test-only migration; batch with adopted inference work under normal affected verification.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory unadopted consolidation. New scorecard/cold-request plan rows do not implement or retire this requirement.",
       "closure_criteria": [
         "Standalone file removed; existing page-class owner keeps own-class/source checks and both unique target/block negatives; existing capacity table retains all seven rows and exact256/300/257 cases with4096 limit.",
@@ -2659,7 +2669,9 @@
         "uncertainty": "Exact hypothetical whole-file parse counts include comments and migration, not full-package type checking or test execution. Table candidate uses the existing five-field QueryPlanReport without a new comparison helper. Any added labels/formatting/helper cost must be recounted. AST measures maintenance surface, not elapsed time/memory; all eight queries and store setup remain."
       },
       "likely_effort": "Small local consolidation; batch with ordinary query work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory; no plan adoption or extra workstream inferred.",
       "closure_criteria": [
         "One queryIndexPlan owner supplies selection count; descriptorCandidateCount is removed.",
@@ -2703,7 +2715,9 @@
         "uncertainty": "Fresh in-memory whole-file candidate parsed at378a2459c; file unchanged through31c4d1678. Not compiled/executed. No elapsed/allocation saving measured."
       },
       "likely_effort": "Small test-only move during normal onboarding work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory consolidation after retire-gather. Native profile code landed e63fd568a; native-text-weights/move is pending and is not this test reduction.",
       "closure_criteria": [
         "Both training-only and training+inference cases live in existing native/resume test with exact no-retirement/single-conversion expectations.",
@@ -2751,7 +2765,9 @@
         "uncertainty": "External whole-file candidate parsed only, not package-typechecked or executed. No measured elapsed/allocation/memory improvement; empty-store predicate reads and updated citation are included in maintenance accounting."
       },
       "likely_effort": "Small existing-file merge during normal validation work; no extra suite.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "model-cell-kind/do landed b07bfcecb; this is advisory test consolidation, not a new feature or reopened functional defect.",
       "closure_criteria": [
         "All existing two-model,mmlu,bbh,serving-only,no-lane,unknown-name,plan-preservation and orphan-flag cases remain in the retained test.",
@@ -2791,7 +2807,9 @@
         "uncertainty": "Production 0. Test declaration 475 / file 544 -> 438 / 507 (-37) if only moving/renaming statements. CountedReader remains 35 AST; imports/helper/migration cost unchanged. GGUF writes and parses 2 -> 1; one temporary directory/file and openGGUF cleanup disappear. Test invocations remain one. No new gate, dependency or stored fixture; elapsed/allocation savings unmeasured. Native cache already skips unchanged executions."
       },
       "likely_effort": "Small local test rearrangement/deletion.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "Same sampling/spectral/deferred/document/rejection assertions remain and rejection resets/observes 0 tensor reads.",
@@ -2970,7 +2988,9 @@
         "uncertainty": "Measured declarations total 1168 AST; estimate 750..900 after all new case fields and unique slot assertions, net -268..-418 test AST. Whole file 1567 -> about 1149..1299; production 0, helper/wrapper additions 0, fixture bytes/files 0. Six case setups, twelve visible executor constructions and twelve offloaded retained executions remain unchanged. Native gate/cache/resume ownership is unchanged; no recurring elapsed or peak reduction claimed. Final count is required before calling the migration a saving."
       },
       "likely_effort": "Small table migration, best batched with the already planned decode work so this maintenance change does not incur an isolated device gate.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "One retained test body executes all six explicit cases. Normalized/scaled generated routes, unnormalized/unscaled selected top-10 routes, fused storage, 1/3/8 token geometry, every hosted rank and original cleanup/readback behavior remain independently asserted.",
@@ -3022,7 +3042,9 @@
         "uncertainty": "Measured declaration total1317 AST (872+445), file1337. Estimate1040..1180 declarations /1060..1200 file after case fields, t.Run, cache conditions and unique assertions: net -137..-277 test AST. Production0; new helpers/wrappers0; fixture files/bytes0. Four runner/fixture setups and sixteen Generate calls remain, as do the uncached manual passes. Cleanup boundaries and gate execution count remain; only shared source/maintenance falls. Count the complete migration before claiming a saving; no candidate implementation or elapsed/peak measurement."
       },
       "likely_effort": "Small local table migration alongside the existing window work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "One retained frame-replay test executes cache-off/on with F32/native. Preserve all cached address reuse, warmed no-capture, uncached capacity, page/parity, accepted/rejected and exact hidden/selection requirements.",
@@ -3070,7 +3092,9 @@
         "uncertainty": "Measured replay declarations587nodes (319+268) remain unchanged; current full file1016 includes the353-node arena owner. Retained migration estimate136net nodes added to the reference body yields full file about833 (-183, allow -170..-195). The newly re-parsed220 extension adds78, combined about911 (-105 versus1016). Production0; helpers/wrappers/fixtures/gate0delta. Executor setups2->1 and retained executions12->6, keeping6 independent reference readbacks. These are source estimates, not executed or measured savings."
       },
       "likely_effort": "Small local test merge.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "Delete the metric-only declaration only after every unique metric assertion is present in the existing reference replay test. Keep its six exact-value checks, per-run release, Windows opt-in and executor cleanup.",
@@ -3113,7 +3137,9 @@
         "uncertainty": "Full hypothetical file parsed against this pin, not compiled or executed. Original arenaGranule and arenaBytes were typechecked with math importer, no stubs. Runtime failure signal and no-allocation expectation follow from source; elapsed/memory effects unmeasured."
       },
       "likely_effort": "One extension of the existing metrics owner, preserving the new prepared-versus-run distinction.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "The existing small preparation, larger exact preparation and huge rounded run remain; a final small preparation proves current<peak and unchanged committed bytes/growth count.",
@@ -3140,7 +3166,9 @@
       "impact": "Two Windows tests maintain the same mixed graph and device binding/copy/release operations. Sharing this fixture reduces maintenance surface while retaining every distinct replay, offload and rejected-span assertion. No runtime speed or memory saving established.",
       "likely_effort": "Small-to-medium private test-fixture migration; no production or model change.",
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "recommended_change": "Extend existing decodeStepGraph/buildDecodeStepGraph to take rows []uint32 and derive span/positions; single-token caller passes one row. Remove verifySpanGraph/buildVerifySpanGraph. Share only the private bind/stats/readCaches/logits operations with explicit arguments in that existing Windows test owner. Retain newFixtureExecutor, moePinnedValues/moePinnedQuantize and copyFixtureDeviceBytes. Other cached dense-block builders do not represent this mixed sparse/MoE graph; no new package, options framework or universal fixture.",
       "severity": "P3",
       "sources": [
@@ -3211,7 +3239,9 @@
         "uncertainty": "Current four-body AST 2606 -> estimated 1926..2136 (-470..680), allowing the extra per-row TensorCores field plus all prior migration/diagnostic costs. Including the unchanged 158-node admission declaration, five scoped declarations 2764 ->2084..2294. Production 0; new helpers, stored fixtures, schemas and gates 0. Admission's new 167-node file is necessary precision coverage, not duplication. No measured elapsed/allocation saving."
       },
       "likely_effort": "Small-to-medium test-only table migration; no production/kernel change.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Former strata-port/recipe-widen completed in a81aa2034. Consolidation sources are unchanged by that test-only landing; this advisory opportunity remains open, with no implementation adoption or closure inferred.",
       "closure_criteria": [
         "All26 cases preserve exact inputs,tolerances,mask29,capacity,past/positions,sequences,causal key-bias,flash replay and F32 needBlas. Noncausal encoder staging guard remains. Two displaced declarations are deleted without forwarding tests.",
@@ -3239,7 +3269,9 @@
       "impact": "Three tests maintain their own serialized driver-query scaffolding; two also duplicate retained execution/copy/release. Sharing existing ownership reduces test Go while preserving the new read-back and separate MoE regression contracts. No device-execution,production speed or peak-memory saving is established.",
       "likely_effort": "Small local test refactor; optional adjacent expert-residency maintenance.",
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "recommended_change": "Use Worker.ExecutionStats in both MoE stats paths and the read-back copies closure. Share only the two MoE retained execute/copy/release/stat-delta bodies through one private helper in their existing file. Read-back keeps its small scalar/error helper and different graph fixture; remove its displaced callback and device/driver imports. Preserve newFixtureExecutor/moePinnedCase.prepare and the early cudatest.Require before graph setup. Do not widen unrelated helpers or add a package.",
       "severity": "P3",
       "sources": [
@@ -3298,7 +3330,9 @@
         "uncertainty": "AST-only textual comparison, not executed or landed. One fewer Gaps invocation saves only small synthetic work; parallelism changes2 overlapping test functions->1 and elapsed/RSS effect is unknown. No numeric comparison or timing acceptance changes."
       },
       "likely_effort": "Small same-file test-body merge.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "Both image-proposed and video-editor rows remain work to define; both directly declared and derived class-conditioned rows remain absent from quality gaps.",
@@ -3499,7 +3533,9 @@
         "uncertainty": "Syntax-level hypothetical,not executed. This does not justify deleting either replay run or replacing exact output/cancellation coverage with the aggregate quality score."
       },
       "likely_effort": "Trivial local deletion; no new test required.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "priorFrameHash declaration,comparison and assignment are gone; exact per-run latent/frame checks remain.",
@@ -3566,7 +3602,9 @@
         "uncertainty": "Existing imports and dependency closure suffice; no new helper/wrapper/fixture file/schema/test/gate. Five host GGUF constructions and one device fixture/load/readback stay. Host replacement adds a payload buffer of at most2400 logical bytes for current callers; device replacement adds16 bytes, plus existing writer preparation/padding costs. Buffer capacities, allocation count and elapsed/peak effects are unmeasured and may increase. Host replacement is syntax-counted only; type resolution in the originating rotation covers reasoning-stream code, not the hypothetical GGUF caller packages. External oracle remains opt-in; no oracle execution claimed."
       },
       "likely_effort": "Small changes in two existing test files, with no test retirement or caller migration.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only; no active plan row adopts this expanded cleanup. Committed campaign-closeout scope and implementation-owned responses are unchanged.",
       "closure_criteria": [
         "Both manual GGUF serializers are gone. Existing host payload helper and device integration test call gguf.Write with complete setup cost counted; total test AST falls202 without new scaffolding.",
@@ -3618,7 +3656,9 @@
         "uncertainty": "One httptest server, listener, client response/body and scanner disappear; one handler and one stream goroutine remain, and the existing probe adds its recorder/channel handshake at this caller. One progress fixture and one state-transition scenario remain; no model, durable-store or browser setup added. Probe stop runs before handler.Close and existing cleanup is idempotent. Controlled frame order is valid for this fixture's four snapshots and download-only publications; unrelated operations are not added. Allocation/elapsed effects unmeasured. Hypothetical test parsed/counts only, not package-typechecked/executed; existing browser lane is not rerun merely for review."
       },
       "likely_effort": "One existing test file; no production change or new self-check needed for unchanged download behavior.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only; no current plan row adopts this consolidation.",
       "closure_criteria": [
         "TestOneWorkbenchEventStream uses unchanged openRuntimeServingProbe and no longer owns an HTTP client/scanner/event parser.",
@@ -3690,7 +3730,9 @@
         "uncertainty": "The old test closes an HTTP response body; the retained probe uses context cancellation and waits for the stream goroutine. Read headers only while Flush is parked after the initial snapshot. requestMonitor.begin only records /v1/models; that route has no inventory publication and does not alter the serving event queue. Preserve error/cleanup assertions and native untagged ownership. Prototype was parsed, not application-typechecked or executed; only the exact recorder type/Flush received go/types resolution. No elapsed/allocation/peak-memory saving measured; do not equate fewer setups with a measured speedup."
       },
       "likely_effort": "Small two-file test merge; no production work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory; no committed plan row adopts this consolidation. SQA does not change plan or selectors.",
       "closure_criteria": [
         "Both header requirements execute in the retained runtime-serving test through Handler.ServeHTTP, with actual flushed response headers read while the probe is parked.",
@@ -6152,7 +6194,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "38472a8c798fc6d80463774ee2726f4eb3be5bf4",
+    "head": "57973aff2c52e3ca34b2b85343ff463ca09d118c",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6333,7 +6375,7 @@
         "rows": [
           "sqa-served/sampler-chain"
         ],
-        "note": "Accepted: a declared sampler chain the native round cannot honor must fall back to ordinary sampling. Small predicate fix with a host table."
+        "note": "Accepted: a declared sampler chain the native round cannot honor must fall back to ordinary sampling. device-numerics/round-sampling extends it to the parameters the kernel ignores, and depends on it."
       },
       "SQA-218": {
         "action": "filed",
@@ -6375,14 +6417,14 @@
         "rows": [
           "sqa-cycle/run-continuation"
         ],
-        "note": "One step with 271: both are who owns the end of a long measurement run."
+        "note": "One step with 271. The answer to decision driver-future changes where this lands: a repaired driver owns continuation, so this step waits for that answer before it builds."
       },
       "SQA-271": {
         "action": "filed",
         "rows": [
           "sqa-cycle/run-continuation"
         ],
-        "note": "One step with 258."
+        "note": "One step with 258; see decision driver-future."
       },
       "SQA-268": {
         "action": "filed",
@@ -6392,8 +6434,11 @@
         "note": "Partly closed by 8e911e1eb: Flash-Next now climbs to 8192 and passes. What remains is exposing readiness before a run starts."
       },
       "SQA-266": {
-        "action": "none",
-        "note": "Advisory, not a defect. Removing standing paired tests needs a stated replacement requirement for each; revisited when a cycle's wall time is the next bottleneck. No row."
+        "action": "existing-row",
+        "rows": [
+          "time-and-memory/run-wall"
+        ],
+        "note": "Was advisory with no row. The static review's run-wall step asks the same and measures first, so it owns this now, including the finding's caution that a removed paired test needs its requirement named."
       },
       "SQA-232": {
         "action": "filed",
@@ -6435,8 +6480,11 @@
         "note": "P3 taken when that row reads the scorecard's MOSS samples, since it is the wording of the same cells."
       },
       "SQA-276": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelcli/dense_tensor_cores_model_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-238": {
         "action": "none",
@@ -6455,32 +6503,53 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/blob_pack_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-237": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/sampled_top_k_windows_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-236": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/evaluation/attention_cells_heldout_windows_model_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-235": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/decode_session_identity_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-253": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/query.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-269": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens cmd/validate/onboard_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-270": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens cmd/validate/only_model_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-216": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelartifact/tensor_budget_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-217": {
         "action": "none",
@@ -6491,36 +6560,60 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_converted_weights.go. Title-level triage, not re-verified at this head."
       },
       "SQA-204": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_moe_doorbell_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-207": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/speculating_frames_windows_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-209": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_evidence_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-220": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_evidence_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-166": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_decode_graph_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-188": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_flash_attention_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-174": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_moe_pinned_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-222": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/scorecard/captioned_generation_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-224": {
         "action": "none",
@@ -6531,20 +6624,32 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/discovery/servable.go. Title-level triage, not re-verified at this head."
       },
       "SQA-225": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/latentvideo/reference_edit_runtime_cuda_windows_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-226": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_weights_windows_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-252": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/one_event_stream_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-255": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/held_open_header_test.go. Title-level triage, not re-verified at this head."
+        "action": "existing-row",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Adopted by the static review's reduction row."
       },
       "SQA-259": {
         "action": "none",

@@ -113,18 +113,24 @@ func (r *Runner) DeviceMemory(ctx context.Context) (DeviceMemory, error) {
 // management library answers. The reads run off the device worker, because
 // one samples the card's link for milliseconds.
 func (r *Runner) CardReadings(ctx context.Context) ([]driver.CardReading, error) {
+	uuid, err := r.DeviceUUID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return driver.CardReadings(uuid), nil
+}
+
+// DeviceUUID is the identity of the card the runner serves on, as its driver names it.
+func (r *Runner) DeviceUUID(ctx context.Context) (string, error) {
 	if r == nil || r.worker == nil {
-		return nil, errRunnerNil
+		return "", errRunnerNil
 	}
 	var uuid string
 	err := r.worker.Do(ctx, func(state *device.State) (uuidErr error) {
 		uuid, uuidErr = state.Driver.DeviceUUID(state.Device)
 		return uuidErr
 	})
-	if err != nil {
-		return nil, err
-	}
-	return driver.CardReadings(uuid), nil
+	return uuid, err
 }
 
 // ResetDeviceMemoryPeak starts an allocation high-water window at the current

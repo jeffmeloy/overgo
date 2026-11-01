@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "draft-verdict-record",
-      "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A served model's draft judgement is recorded once per model, device and build, and reused at load",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestARecordedDraftVerdictRunsNoProbe$'",
-          "rationale": "Review of 2026-10-30 23:50 (F14, P2), taken by the lead for what it buys: 8ce06a06d times plain and drafted decoding at every served open, 0.64 s of the 4B's load and 1.0 s of the 27B's, and the 4B's probe raises its peak by 0.79 GB; three trades are declared for it (two load-time, one peak-device-memory). The verdict is the same for the same weights, device and build. The change: the verdict is recorded in the store under the model identity, the device and the runtime build, reused at load, and probed again only when one of them changes; the three trades are withdrawn when the cells come back. The check: a second open of the same model with a recorded verdict runs no probe."
-        }
-      ]
-    },
-    {
       "id": "flashnext-long-read",
       "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
       "owner": "master-lead",

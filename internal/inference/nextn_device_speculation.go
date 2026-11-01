@@ -129,18 +129,39 @@ const (
 // plainly. Each decoding's first use of the card is the open's, not a request's: 0.64 s of the 4B's load and 1.0 s of
 // the 27B's, its first request's first output 133 ms sooner on the 4B and 99 ms on the 27B.
 func (r *Runner) judgeOwnDrafts(ctx context.Context) error {
+	_, _, err := r.JudgeOwnDrafts(ctx, nil)
+	return err
+}
+
+// JudgeOwnDrafts judges the model's own next-token layer as judgeOwnDrafts does, unless recorded holds the verdict
+// a judgement on this model, build and card reached (true where drafting was refused): then it decodes the probe once in
+// the mode the verdict serves, which keeps the first use of the card the open's, and probes nothing. It reports
+// whether drafting is refused and whether this call judged it; a model without its own layer is neither.
+func (r *Runner) JudgeOwnDrafts(ctx context.Context, recorded *bool) (refused, judged bool, err error) {
 	if !r.ownDraftLayer() {
-		return nil
+		return false, false, nil
 	}
-	plain, _, err := r.probeDecodeRate(ctx, true)
-	if err != nil {
-		return err
-	}
-	drafted, windowed, err := r.probeDecodeRate(ctx, false)
-	if err == nil && windowed && drafted < plain {
+	refused, judged, err = judgeDrafts(recorded, func(plain bool) (float64, bool, error) { return r.probeDecodeRate(ctx, plain) })
+	if refused {
 		r.ownDraftsRefused.Store(true)
 	}
-	return err
+	return refused, judged, err
+}
+
+// judgeDrafts reaches the verdict on a model's own drafting from probe, a decode of the probe text plainly or drafted
+// returning its rate and whether a window drafted: a recorded verdict decodes once in the mode it serves; none, both
+// modes, drafting refused where its tokens came slower.
+func judgeDrafts(recorded *bool, probe func(plain bool) (float64, bool, error)) (refused, judged bool, err error) {
+	if recorded != nil {
+		_, _, err = probe(*recorded)
+		return *recorded, false, err
+	}
+	plain, _, err := probe(true)
+	if err != nil {
+		return false, false, err
+	}
+	drafted, windowed, err := probe(false)
+	return err == nil && windowed && drafted < plain, err == nil, err
 }
 
 // probeDecodeRate decodes ownDraftProbe greedily on the card, plainly or drafted, and returns its tokens a second past

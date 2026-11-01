@@ -175,15 +175,22 @@ func openRunner(
 		claimer = memo.Claim
 	}
 	loaded, resolveErr := modelrecipe.ResolveClaimedGGUF(ctx, store, path, claimer)
-	if resolveErr == nil && served && options.Draft == "" {
-		var identity modelrecipe.ProgramIdentity
-		if identity, resolveErr = loaded.Identity(); resolveErr == nil {
-			options.Draft, _, resolveErr = discovery.ActiveDraft(ctx, store, identity.Model, memo)
-		}
-	}
 	// A served model decodes through Strata's round where its facts are the round's (inference.OpenOptions.StrataRound),
-	// and drafts through its own next-token layer by default only where drafting is faster (JudgeOwnDrafts).
-	options.StrataRound, options.JudgeOwnDrafts = options.StrataRound || served, options.JudgeOwnDrafts || served
+	// and drafts through its own next-token layer by default only where drafting is faster, by the verdict the store
+	// records for its model, build and card where one is (judgeServedDrafts), never at the runner's own open.
+	judge := options.JudgeOwnDrafts || served
+	options.StrataRound, options.JudgeOwnDrafts = options.StrataRound || served, false
+	var identity modelrecipe.ProgramIdentity
+	var verdicts draftVerdicts
+	if resolveErr == nil && (judge || served && options.Draft == "") {
+		identity, resolveErr = loaded.Identity()
+	}
+	if resolveErr == nil && served && options.Draft == "" {
+		options.Draft, _, resolveErr = discovery.ActiveDraft(ctx, store, identity.Model, memo)
+	}
+	if judge {
+		verdicts = readDraftVerdicts(ctx, store)
+	}
 	closeErr := store.Close()
 	resolved()
 	if resolveErr != nil || closeErr != nil {
@@ -195,7 +202,14 @@ func openRunner(
 			options.ExpertProfile = profile
 		}
 	}
-	return inference.OpenWithProgram(ctx, &loaded, options)
+	runner, err := inference.OpenWithProgram(ctx, &loaded, options)
+	if err != nil || !judge {
+		return runner, err
+	}
+	if err := judgeServedDrafts(ctx, repository, runner, identity.Model, verdicts); err != nil {
+		return nil, errors.Join(err, runner.Close())
+	}
+	return runner, nil
 }
 
 // ExpertProfilePath is where the expert profile of the model at path lies, beside it: a load of the model that finds

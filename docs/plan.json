@@ -464,36 +464,6 @@
       ]
     },
     {
-      "id": "executor-setup",
-      "title": "Load and resolve only the kernels a model's graphs launch, so a first request pays for its own",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Load each kernel module, and resolve each function, when a graph first launches from it",
-          "status": "open",
-          "verify": "false",
-          "rationale": "Every model's first request runs the executor's setup (ensureResources): loading the three kernel modules from PTX (ops_f32 6.1 MB, strata_qsa 4.4 MB, strata_native 2.5 MB; about 6, 8 and 5 ms each with the driver's compiled cache warm) and resolving all 446 functions, then setting the large-shared kernels' limits, about 30 ms of a first request in a CPU profile. The Strata decode port added strata_native and with it 13 ms to Qwen3.5-9B's first request on a fresh load (44 to 57 ms at 8cc359407, each read twice); Qwen2.5-0.5B's measured attempts stepped 115 to 131 ms across the same window. After cells-first-request (the cell layers' needless cuBLAS, about 70 ms) and first-request-setup (the bundle's hash, about 5 ms), the first-output rows still stand above their targets on fresh measurements from a clean tree: Bonsai-27B 120 ms (target 102.7), Qwen3.5-9B 54 ms (39.1), Qwen2.5-0.5B 129 to 132 ms (125); gemma-4-E4B-it read 200 and 311 ms, its first request reading its weights back after the other models' loads. The change loads a module, and resolves a function, only when a graph first launches from it, before the graph runs or is captured, so a model pays for the kernels it uses: most models never launch the native module's 70 functions or the QSA module's 123. The launches index the function table directly in many hand-written files and setup configures some functions up front, so the change is mechanical but wide. The check is set before the code lands, with the test that holds it."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unmeasured-inference",
-      "title": "Measure inference's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure inference's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
-          "rationale": "- Qwen3.5-4B held-out-quality: no held-out evaluation of this recipe\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-training",
       "title": "Measure training's unmeasured cells",
       "owner": "master-lead",

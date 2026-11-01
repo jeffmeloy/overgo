@@ -71,7 +71,14 @@ func (c *modelConditioner) input(prompt string) (textInput, []float32, error) {
 	return text, nil, fmt.Errorf("model conditioning has no source token embedding binding")
 }
 
-func (c *modelConditioner) encode(ctx context.Context, session *graphruntime.ResidentSession, text textInput, embedding []float32, observe func(string, []float32) error) (_ []float32, err error) {
+func (c *modelConditioner) encode(ctx context.Context, session *graphruntime.ResidentSession, text textInput, embedding []float32, observe func(string, []float32) error) ([]float32, error) {
+	return c.encodeHolding(ctx, session, nil, text, embedding, observe)
+}
+
+// encodeHolding is encode for a caller with more prompts to encode: held takes
+// the program, whose bound weights the next prompt's program shares, and the
+// caller releases it. A nil held releases it here, and the weights with it.
+func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphruntime.ResidentSession, held *[]*graphruntime.ResidentProgram, text textInput, embedding []float32, observe func(string, []float32) error) (_ []float32, err error) {
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -99,7 +106,11 @@ func (c *modelConditioner) encode(ctx context.Context, session *graphruntime.Res
 	if err != nil {
 		return nil, err
 	}
-	defer func() { err = errors.Join(err, session.Release(context.WithoutCancel(ctx), program)) }()
+	if held != nil {
+		*held = append(*held, program)
+	} else {
+		defer func() { err = errors.Join(err, session.Release(context.WithoutCancel(ctx), program)) }()
+	}
 	p.feeds[p.input] = reference.Value{Shape: p.input.Shape, Data: embedding}
 	result, err := session.Execute(ctx, program, p.feeds)
 	if err != nil {

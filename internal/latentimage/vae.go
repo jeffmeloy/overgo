@@ -19,8 +19,6 @@ package latentimage
 
 import (
 	"fmt"
-	"io"
-	"math"
 	"path/filepath"
 	"strings"
 
@@ -106,19 +104,9 @@ func loadVAEWeights(vaeDir string) (map[string][]float32, error) {
 		if !strings.HasPrefix(name, "decoder.") && !strings.HasPrefix(name, "post_quant_conv.") && name != "bn.running_mean" && name != "bn.running_var" {
 			continue
 		}
-		reader, err := safetensors.F32Reader(tensor)
+		values, err := safetensors.ReadF32(tensor)
 		if err != nil {
 			return nil, fmt.Errorf("latentimage vae: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("latentimage vae: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
 		}
 		out[name] = values
 	}

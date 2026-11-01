@@ -80,7 +80,9 @@
         "uncertainty": "The4-node source reduction covers only the direct owner substitution. Complete retry handling may erase it or require net growth; its additional production/test AST is unpriced until the existing-owner retry path is chosen. No complete net reduction is established. No new helper/wrapper/config/fixture/gate is required merely to route fresh publication through Replace. Retain current fixtures and count any necessary retry assertion/setup growth. No power-loss or filesystem fault run performed."
       },
       "likely_effort": "Small shared-owner correction plus bounded retry-path review; retain required recovery growth honestly.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/durable-blobs"
+      ],
       "plan_coverage": "New advisory recovery finding; no current committed plan adoption. Do not modify plan or run gates to publish this review.",
       "closure_criteria": [
         "Fresh external blob publication completes the existing platform durability owner before the journal append; no plain-rename/no-op-sync bypass remains.",
@@ -140,7 +142,9 @@
         "uncertainty": "High confidence in the source ordering and admitted lineage change; concurrent production occurrence is unobserved and isolated precheck limits reach. No elapsed/memory improvement measured. liveSet would retain one32-byte commit identity and one uint64 (40 bytes of fields before layout effects); that is added state, not a memory reduction. Full test/maintenance growth must be priced in implementation."
       },
       "likely_effort": "Small local snapshot-identity correction and extension of one existing native refusal test.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/retention-head"
+      ],
       "plan_coverage": "No committed plan row adopts this finding. Report-only recommendation; retain the current isolated precheck flow.",
       "closure_criteria": [
         "Head/sequence used by the first release batch come from exactly the catalog snapshot used by collectLiveSet; no later Head read can authorize that snapshot.",
@@ -170,7 +174,9 @@
       "impact": "An admitted but unrepresentable image extent can end the serving process and interrupt unrelated requests. After repair the same input fails the current operation with a geometry explanation, and subsequent ordinary requests can still run. Supported extents, seeds, native numerical behavior and fixture tolerances remain unchanged.",
       "likely_effort": "Small shared Go error-propagation change and additional rows in the existing host compiler test; no full-model run is needed to decide the overflow behavior.",
       "plan_coverage": "The paused MOSS plan retains resource-boundedness work, but its remaining steps do not name this host shape-overflow boundary. The finding is advisory; no plan adoption or implementation is performed.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/request-bounds"
+      ],
       "recommended_change": "When implementation resumes, replace both request-derived MustShape calls in the existing CompileVAEProgram owner with tensor.NewShape and propagate a contextual error through its existing return path. Keep the existing checked plane and unpacking arithmetic. Let the current tensor builder and storage-byte validation reject later unrepresentable shapes through errors; retain valid graph construction and dtype behavior. Both packed MOSS and ordinary Krea callers must receive a refusal rather than a panic. Do not add an arbitrary canvas ceiling, a MOSS-only validator, a new resource manager or a broad recover that hides the arithmetic defect.",
       "severity": "P2",
       "sources": [
@@ -269,7 +275,9 @@
         "uncertainty": "Source/caller proof and parsed guard cost only. Test growth is an estimate; no reproduction, elapsed or memory measurement performed."
       },
       "likely_effort": "Small shared-owner guard and existing native host-fixture extension.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/draft-host"
+      ],
       "plan_coverage": "Regression introduced by completed draft-verdict-record/do; no explicit committed repair row. Existing257 covers cache/policy efficiency, this finding covers distinct supported-open correctness.",
       "closure_criteria": [
         "Both actual modelcli entry paths accept the existing host-reference model with no GPU identity access.",
@@ -365,7 +373,9 @@
         "uncertainty": "Hypothetical bad-output regression signal established from source, not a runtime reproduction. Existing2%,3% and5e-3 fixture contracts are preserved within their original numerical scope; no general workload or distribution guarantee is implied."
       },
       "likely_effort": "Small correction to the existing numerical test owner.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-tests/ordered-distances"
+      ],
       "plan_coverage": "Retired strata-port/parity is no longer a valid row reference. Existing served-output numerical acceptance remains an advisory correctness obligation independent of the retired speed objective.",
       "closure_criteria": [
         "All thirteen identified predicates reject unordered distances while preserving their inclusive finite contracts and existing exact-identity checks.",
@@ -449,7 +459,9 @@
         "uncertainty": "Source proves admitted mismatch. Exact replacement count, finite arithmetic/RNG equivalence and runtime effect are unmeasured; do not claim seed-by-seed equivalence between implementations or native performance for rejected chains. Charge complete final predicate/table cost and maintenance. No SQA test execution authorized."
       },
       "likely_effort": "Small shared eligibility correction and one host-only table in existing inference tests.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/sampler-chain"
+      ],
       "plan_coverage": "New advisory correctness issue in the landed decode round. recipe-widen preserves sampled-distribution contracts but this finding is not yet adopted; the retired Strata speed objective is unrelated.",
       "closure_criteria": [
         "Explicit empty/temperature-only lists cannot become top-k native sampling; omitted active cuts and semantically repeated/reordered stages fall back through the existing sampler owner.",
@@ -478,7 +490,9 @@
       "impact": "Aborted generation imports can retain disk reads, CPU hashing and the requesting goroutine until inventory finishes. The supported HF path affects MOSS and Krea. No database corruption, unintended activation, device-memory leak or numerical difference is established. The material behavior change is prompt cancellation of source inventory instead of delayed cancellation after hashing.",
       "likely_effort": "Small shared API propagation with coordinated CLI, platform callback and existing test updates. No new runtime component or model fixture is needed.",
       "plan_coverage": "New branch-local advisory finding. The MOSS implementation campaign remains paused; no plan step was added, adopted or advanced.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/cancellation"
+      ],
       "recommended_change": "Carry context through the existing Capability.Resolve contract and its real production/test consumers. Use FromHFPathContext(ctx, path) for the shared HF image source. Migrate the existing CLI callers and platform-specific capability callbacks together. Reuse the existing inventoryReader and source integrity checks. Do not add a parallel resolver field, MOSS-specific importer, hash cache, worker goroutine or cancellation poller. Keep manifest/recipe identities, full content verification, source-change refusals, supported-platform errors and database publication/activation boundaries intact.",
       "severity": "P2",
       "sources": [
@@ -554,7 +568,9 @@
       "impact": "A cancelled large-step request continues CPU scheduling work and can keep the single image session and operation occupied until the loop finishes. A following generation can remain queued or encounter the existing queue refusal. This is a responsiveness/resource-release defect, not evidence of incorrect generated pixels, an out-of-memory failure or a measured normal-request performance regression. Schedule storage is bounded by the training grid; requested-step CPU work is not bounded by that storage.",
       "likely_effort": "Small coordinated internal signature change and focused host-side coverage, with existing director/lifecycle tests reused for release behavior.",
       "plan_coverage": "The open moss-efficiency/bounded row already asks for cancellation coverage generally, but does not identify this context-free schedule loop. This is advisory detail for the paused campaign, not adoption, implementation or a plan edit.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/request-bounds"
+      ],
       "recommended_change": "Thread the existing request context through configureRotary and compileNearestGridFlowSchedule, migrating initial load, resident reset, verifyMOSSTrajectory and the existing schedule/sampling test callers together. Check cancellation before allocation and during the training-grid and requested-step loops, returning the cancellation error without a partial schedule or generator-state mutation. Reuse the director's existing cancelled-load/reset retirement and operation completion paths. Keep nearestGridSigma arithmetic, tie selection, duplicate collapse and default-step normalization unchanged. Do not silently cap steps to the training-grid size: the native 1001-step fixture is valid and has 616 actual steps. No new scheduler, timer, goroutine, cache, configuration knob or MOSS-specific cancellation manager is needed.",
       "severity": "P2",
       "sources": [
@@ -695,7 +711,7 @@
       "likely_effort": "Small shared server error-path consolidation with a deterministic case in the existing hermetic generation tests; no model execution or new infrastructure is needed to decide it. Include the existing library validation owner and its reporter-controlled final boundaries in the same repair.",
       "plan_coverage": "The MOSS closeout contract includes cancellation and the request-to-image journey, but does not name the final publication interval. This advisory is distinct from SQA-MOSS-001 inventory cancellation, SQA-MOSS-004 schedule cancellation, SQA-MOSS-009 stream recovery and accepted merge-baseline plan/catalog mismatches. No implementation adoption or plan change occurs. Library import verification and activation are another actual caller of the same defect. This extends SQA-MOSS-011 rather than adding a duplicate finding; no plan adoption or status change is made.",
       "plan_references": [
-        "moss-closeout/close"
+        "moss-findings/cancellation"
       ],
       "recommended_change": "When implementation resumes, consolidate final-publication errors in ExecuteWorkflow with the existing failure-recording path. For cancellation, use the existing non-cancellable cleanup publication to retain a durable cancelled run and return its completion with the original cancellation error. Preserve the recipe and durable request/source provenance; do not claim or link a success run merely because its ID was constructed. If recording the failure itself cannot commit, preserve the underlying cause and expose that persistence failure rather than inventing a durable completion. Keep Manager's durable-completion validation and the normal atomic success publication. Do not add a MOSS-only operation manager, retry queue or automatic regeneration. Apply the same completion discipline to libraryintake.validateGeneration's verification-publication and activation error returns. Reuse its existing non-cancellable failure publication when no durable completion exists, preserving original causes and the existing failed-validation evidence convention. Once verification is committed, retain its run link on activation refusal rather than discarding it; a cancelled operation must not claim activation success. Preserve the lifecycle's candidate/validated/active transitions and compare-and-swap behavior. Do not automatically retry inference or activation after Stop, and do not remove cancellation from the activation context to force activation after Stop.",
       "severity": "P2",
@@ -801,7 +817,7 @@
       "likely_effort": "Small shared measurement-envelope and server propagation change with focused cases in existing test owners; no model execution is required to decide absent versus measured-zero behavior.",
       "plan_coverage": "moss-evaluation/resources already owns future comparable memory and timing measurements. The finding is the current server's false evidence-presence inference, not the absence of that planned resource campaign. Advisory only; no adoption, plan edit or implementation is performed.",
       "plan_references": [
-        "moss-evaluation/resources"
+        "moss-findings/measured-presence"
       ],
       "recommended_change": "When implementation resumes, carry explicit peak-measurement presence in the existing capabilityruntime.Measured envelope, set only after a successful deviceMeter read (including a legitimate zero), and propagate it to WholeOutput.PeakMeasured in the server. Missing meters, meter errors and stored-answer replay stay absent regardless of load duration. A deliberate host-zero report needs explicit evidence from its owner. Keep nonzero readings and error handling intact. Do not add a MOSS-only recorder, infer device use from model names, or use process-wide peak memory to attribute a shared server's model. The CLI's actual process-ledger path has different evidence and should retain its documented one-process semantics; audit that caller when changing the envelope. Adding full MOSS peak collection belongs to the existing resource work, not to this minimal truthfulness repair.",
       "severity": "P2",
@@ -893,7 +909,9 @@
         "uncertainty": "Source-established ordering gap; no reproduced frequency or timing/memory effect. Exact patch/test size remains unmeasured. Existing tokens must also cover concurrent model remounts; no new token system is justified."
       },
       "likely_effort": "Small shared JavaScript lifetime check and one controlled-response case in an existing browser test.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-efficiency/bounded"
+      ],
       "plan_coverage": "No current plan row specifically owns the merge's shell refresh race. Reconcile through the existing implementation owner; SQA does not change plan, dispatch work or create another browser campaign.",
       "closure_criteria": [
         "After Chat requests a manifest, later navigation remains active with its hash and draft after the earlier response resolves, for both unchanged and changed manifests.",
@@ -922,7 +940,9 @@
       "impact": "A slow reader plus normal operation retention can leave an image submission waiting indefinitely while the connection stays open, even after the backend has finished. New generation through that composer can remain busy and its image is not delivered through the pending request. Reconnect or navigation can release/recover the UI through other paths; the ordinary Stop action is not asserted to recover an already-evicted operation. No image corruption, output deletion, repeated GPU execution or measured frequency is established. The repair changes this specific stale wait into the existing explicit recovery outcome and leaves normal progress and native image output unchanged.",
       "likely_effort": "Small shared JavaScript state/cleanup change and added cases within existing browser and stream fixtures. No native MOSS execution or new infrastructure is needed to decide the behavior.",
       "plan_coverage": "The MOSS plan owns user-visible progress and cancellation, but does not name same-connection resynchronization after operation retention. This advisory finding is distinct from accepted merge-baseline plan/catalog mismatches and from SQA-218's stale inventory reads. No implementation or plan adoption is performed.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/browser"
+      ],
       "recommended_change": "When implementation resumes, extend the existing waitOperation snapshot state to handle an operation that was already observed and then disappears from a later authoritative live snapshot on the same connection. Reuse the current not-found/recovery rejection and cleanup path used after reconnect, so the caller regains control and can inspect retained activity; do not report successful completion or resubmit inference from absence. Distinguish the subscription's cached initial replay from fresh snapshots, preserving the existing race where submission is newer than that cached snapshot. Keep blocked operations waiting while present and preserve abort/listener cleanup. Coordinate with SQA-218 if a shared resync marker is adopted, but do not create a separate MOSS stream, poller, timeout, queue or retention bypass.",
       "severity": "P2",
       "sources": [
@@ -1033,7 +1053,9 @@
         "uncertainty": "Measured runtime_activity.go1259 production AST, event_hub.go735 unchanged. Estimated runtime_activity.go1269..1294 (+10..35); the two existing JS owners need a small marker/predicate change estimated +150..450 source bytes, not a measured JS AST reduction. Existing runtime_serving_test.go1762 and browser lifecycle file808 total2570 test AST; estimate2660..2810 (+90..240), including snapshot-helper consumption and distinct overflow/reconnect/browser assertions. Embedded browser JS must also be counted by bytes, estimated +200..650; Go treats each script string as one literal. No new helper declarations, fixture files, schemas, model loads or test functions. Existing probe/store and browser/server setups remain; additional marker/read assertions add frames and rare resync-triggered inventory requests. Ordinary selective events and native Go caching remain. Final deltas and elapsed effects are unmeasured."
       },
       "likely_effort": "Small coordinated change to the server snapshot owner and two existing client owners, plus extensions of existing host/browser cases.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/inventory-resync"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "With the existing flush-controlled probe parked, a discarded workspace.changed is followed by a wire resync marker and authoritative snapshots; subsequent live delivery and cancellation still work.",
@@ -1062,7 +1084,9 @@
       "impact": "The UI can execute a different deterministic request from the one displayed or pasted from a native run. This also affects other shared integer controls, but the confirmed meaningful consumer is the MOSS seed. The smallest fix intentionally refuses integers beyond plus/minus Number.MAX_SAFE_INTEGER in this Number-based form; API/CLI callers retain the full int64 range. No current frozen model result is shown wrong and no image quality or performance change was measured.",
       "likely_effort": "Small shared reader validation with coordinated error handling and existing browser-case extensions; no native inference change.",
       "plan_coverage": "New branch-local advisory finding only. The implementation campaign remains paused and the MOSS plan is unchanged.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/browser"
+      ],
       "recommended_change": "Validate integer controls in the existing controlValues owner with Number.isSafeInteger after conversion and refuse values outside the exact browser integer range with a field-specific explanation. Carry that validation through all actual callers before submitting a run, preview or generated command. Reuse current field focus and error/status displays. In workflow.js, submission() is called before the command/run handlers' try blocks, so throwing from the reader alone is incomplete; handle the refusal there as well. Keep the API/CLI int64 contract and native seed behavior unchanged. Avoid a MOSS-only seed reader, a second form validator, BigInt JSON workaround or silent clamping.",
       "severity": "P2",
       "sources": [
@@ -1130,7 +1154,9 @@
       "impact": "A MOSS request submitted through chat silently differs from the entered prompt and from the same prompt submitted through the generation form or API. Its request identity changes and native conditioning may differ. Leading/trailing whitespace in serialized layout prompts is also lost even though the inner JSON is not rewritten. This does not establish a particular pixel difference or a failure of the retained native numerical comparisons, which used their recorded requests.",
       "likely_effort": "Small shared JavaScript edit and an extension of the existing hermetic browser journey; no model execution is needed to decide request transport.",
       "plan_coverage": "The paused MOSS plan retains the completed interface contract for exact prompt transport, but its remaining resource/evaluation/closeout steps do not name this composer boundary. This is an advisory finding only; no plan adoption, reopening or implementation is performed.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/browser"
+      ],
       "recommended_change": "When implementation resumes, keep input.value unchanged in the shared composer submission and use text.trim() only for the existing blank-input admission check. Pass the original text through onSubmit, generation, displayed request and failure restoration. Reuse the shared composer; do not add a MOSS-specific input reader, prompt serializer, normalization flag or backend trimming. Review the two actual shared callers, chat and agent, and retain the existing attachment-only, busy/read-only and required-input guards.",
       "severity": "P2",
       "sources": [
@@ -1273,7 +1299,9 @@
         "uncertainty": "Source-confirmed predicate/outcome mismatch using the committed registered-nowhere fixture; no new live model failure or full clean-cycle success claimed. Hosted derivedReady returns early and is outside the local setup repair. Retained gate success does not prove every runtime has a lane."
       },
       "likely_effort": "Bounded outcome/selection correction and existing-fixture adaptation; retain shared quality setup.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/absent-profiles"
+      ],
       "plan_coverage": "preflight-clean/do and preflight-quality/do landed and were removed. Original work credited; the blanket missing-profile-to-lane classification remains advisory. MOSS rows do not establish ownership of arbitrary unknown profiles.",
       "closure_criteria": [
         "Keep local quality setup before Ready and shared authorities/selection, repaired lookup and failed-lane barrier.",
@@ -1329,7 +1357,9 @@
         "uncertainty": "Source-confirmed mismatch, no runtime reproduction. Historical native registrations that also have a valid exact physical component location may differ; the admitted directory-only registration is sufficient. Source metadata/transform closure must be complete before credit is granted."
       },
       "likely_effort": "Bounded integration in existing source/inventory and credit owners; count source authority plus the in-place test extension.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/resume-credit"
+      ],
       "plan_coverage": "No committed row explicitly covers native-view cell credit. a212f5aa now records source weight digests, but consumedFiles still requires a LocationFile for the virtual component before directory inspection. Reuse that improved source owner where its closure is complete; native-text-weights/do remains related. No credit repair inferred.",
       "closure_criteria": [
         "An unchanged fromView registration receives stable consumed identity and its recorded successful cell is skipped on normal resume.",
@@ -1377,7 +1407,9 @@
         "uncertainty": "Primary fix is supported by source and retained native gate. Remaining I/O case is source-derived, not an observed incident. Full repair/test cost is not yet known; no runtime speed or memory saving claimed from70 fewer nodes."
       },
       "likely_effort": "Small existing-hook error propagation and one existing-fixture case; obsolete argument/assertion deletion is mechanical and needs no separate test run.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/stop-record"
+      ],
       "plan_coverage": "stop-valve/do landed19fb6f9b3 and is removed. Credit its primary fix; residual write-failure handling/obsolete pure contract remain advisory, not an unimplemented original row.",
       "closure_criteria": [
         "Keep the landed unchanged-versus-changed last-refusal behavior and distinct session/turn baselines.",
@@ -1454,7 +1486,9 @@
         "uncertainty": "Queue contention established; safe replacement ordering and revalidation cost are not. Existing checkout test does not prove independent commit completion."
       },
       "likely_effort": "Moderate existing-owner ordering repair; one extended native fixture, not another orchestration layer.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/commit-queue"
+      ],
       "plan_coverage": "landing-beside-run/do fixed checkout editing and left the plan. Committed admission and paired-tag changes address different costs. No committed row addresses remaining global commit-turn wait.",
       "closure_criteria": [
         "Device-waiting candidate does not reserve the commit turn against a host-only successor.",
@@ -1526,7 +1560,9 @@
         "uncertainty": "The code boundary is established; current launcher ownership and external wakeup delivery are not. No new measured delay, saved-hours claim or proof of a current failed wakeup."
       },
       "likely_effort": "First resolve the existing launch/completion evidence; zero production code if the existing driver is suitable. Any demonstrated boundary repair remains unpriced.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/run-continuation"
+      ],
       "plan_coverage": "No committed plan row explicitly establishes completion-to-next-dispatch ownership for the detached workflow. Existing loop/trigger/report owners should be reused; SQA does not change launch configuration or run workers.",
       "closure_criteria": [
         "Identify the actual run launcher and continuation owner from retained evidence; distinguish completed record, completion delivery and next dispatch.",
@@ -1571,7 +1607,9 @@
         "uncertainty": "Retained implementation result, no SQA reproduction. A passing8192 ladder is not a universal geometry/capacity bound; near-limit9/10 rounding and reclaimable versus borrowed bytes retain their actual contracts."
       },
       "likely_effort": "Bounded existing-producer comparison first; runtime redesign cost unpriced.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/guard-readiness"
+      ],
       "plan_coverage": "flashnext-guard/do landed8e911e1eb and is removed. The original fourth criterion is met. No current committed row explicitly owns the remaining producer-readiness criteria; do not file a duplicate of the repaired guard.",
       "closure_criteria": [
         "Identify the exact guard setup operation refusing capacity and retain its error before unrelated long work without implying catalog preflight exercised it.",
@@ -1625,7 +1663,9 @@
         "uncertainty": "No failure injection or runtime memory measurement performed. The exact retained-resource amount depends on the failing model. Parsed+104test nodes includes error reporting. Combined with236's25-node deletion, total compared surface grows79; no net-reduction claim."
       },
       "likely_effort": "Small wiring correction at four existing test owners, reusing an established cleanup pattern.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-tests/runner-cleanup"
+      ],
       "plan_coverage": "The prompt-kernel implementation landed at6ca699967; this is an advisory correction to its failure cleanup and the three older callers. No plan/skill change requested from SQA.",
       "closure_criteria": [
         "Every successfully opened runner in all four paired tests is registered for native test cleanup before answerCells can fail.",
@@ -1750,7 +1790,9 @@
         "uncertainty": "Phase expected end is display-only. Lane timer labels >2x prior median 'stalled' but uses1-5 censored passing samples, no revision/fixture key and ignores paused/contended wall: duration heuristic, not proof of hang or acceptance bound. No new completion failure or measured wait reduction alleged. Local lane_walls.json was {} at inspection. Numerical acceptance and cancellation remain separate."
       },
       "likely_effort": "Adopted bounded run-end record and existing hook/launch integration; no parallel monitoring subsystem.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-cycle/run-continuation"
+      ],
       "plan_coverage": "run-record, lane-cost and hold-implementers landed state/display/role fixes. run-lane-verdict/do now landed70f31e6f and left the plan: failed tests' names/output are reported during the phase and retained by the run recorder. Credit that concrete repair and its +1056production/+628test gate cost. Actual-process-exit ownership/first lead reaction remains unverified; early failure visibility is not a completion-triggered continuation.",
       "closure_criteria": [
         "Preserve the landed run/phase/end record, failure verdicts and existing interrupted-run credit.",
@@ -1890,7 +1932,9 @@
         "uncertainty": "Retained Bonsai cache-commit slice is not a post-cache4B/27B comparison. Flash16K5.46s now meets the historical target, with a declared36MB draft-buffer cost and lower grouped-input precision. Fixed-prompt cache generalization and4B/27B load/peak benefit remain unproved."
       },
       "likely_effort": "Bounded eligibility correction; remaining policy/test consolidation requires retained evidence and complete replacement accounting.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-served/draft-host"
+      ],
       "plan_coverage": "executor-setup/do is now retired by4dbf0a8ce with retained first-output targets met after shared kernel preload. Draft verdict caching and Flash long-read changes remain credited. Residual competing draft policies/cache representativeness and repeated setup remain distinct; host eligibility is275 and six historical E4B quality cells277.",
       "closure_criteria": [
         "Credit the landed throughput repair. Retained normal evidence separates signature deletion, recurring draft/plain decision and load warmup; account load plus first request and preserve explicit trade history without claiming all latency/memory obligations restored.",
@@ -1963,7 +2007,9 @@
         "uncertainty": "A normal run selecting both Windows tests changes two GGUF writes/runner loads/sampler setups/closes to one and four Generate calls to three. The narrow device lane currently selects only the old name: its one setup remains and Generate calls increase2->3 to cover explicit/default/plain distinctly. No extra lane or recurring confidence run; existing native caching/resume remains. No elapsed/peak-memory savings measured. One runner lives through three arms; existing CachePrompt=false options and explicit plain flag remain. Hypothetical replacement parsed/counts only, not package-typechecked or run; no CGo/GPU validation claimed."
       },
       "likely_effort": "Small local test merge across three files; existing fixture and selected acceptance retain ownership.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-tests/nextn-oracle"
+      ],
       "plan_coverage": "Advisory; no active plan row adopts this merge. Keep the existing device-lane selector instead of creating or changing a selector.",
       "closure_criteria": [
         "Only selected TestNextNMTPDeviceSpeculationLossless owns this shared fixture; default and explicit generations compare with actual PlainDecode=true output including text.",
@@ -2011,7 +2057,9 @@
         "uncertainty": "No fixture, CUDA run or seeded failure was executed by SQA. If the simplest controlled fixture cannot preserve required cases within that cost, report necessary growth honestly. Same one worker/executor, one3000-token prompt and six decode steps; existing top-k/attention cases remain. Zero new stored fixture files, selectors, frameworks, gates or model loads."
       },
       "likely_effort": "Bounded change to the existing composed-layer test; the fixture's selection separation must be established, not presumed.",
-      "plan_references": [],
+      "plan_references": [
+        "sqa-tests/qsa-bound"
+      ],
       "plan_coverage": "strata-port/parity was retired with the owner's speed chase in8cc359. This unchanged source acceptance gap remains advisory numerical correctness, not a request to restore the speed goal or run new SQA workloads.",
       "closure_criteria": [
         "A large finite attention-only perturbation cannot pass merely because a top-k boundary is close.",
@@ -2146,7 +2194,9 @@
       "impact": "The executable verifier can certify numerical equality where the pinned contract requires bit equality. This is an acceptance gap, not an observed image-quality, inference, training or resource regression. Retained released-model evidence is unaffected by this specific gap: the matching JSONL has 1,254 records, including 1,248 boundary records and 6 images; all 42 zero-tolerance generation boundary records have unequal=0, and no failed comparison or repeat check is recorded.",
       "likely_effort": "Small coordinated verifier-guard change and an extension of existing lightweight comparison coverage. No GPU workload is required to decide the signed-zero case.",
       "plan_coverage": "Advisory finding only. MOSS implementation remains paused and docs/plan.json is unchanged; no plan adoption or completed-step claim.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-findings/verifier"
+      ],
       "recommended_change": "Enforce the existing unequal result in the generation and sampling acceptance guards when the boundary requires exact comparison, following the existing conditioning guards. Share each boundary's exact-policy decision with its tolerance selection rather than duplicating name predicates. Keep approximate F32/BF16 boundaries on their frozen dtype tolerances, and keep nonfinite, length, provenance and repeatability refusals. Reuse compareMOSSValues; no new comparator, model fixture, numerical tolerance or runtime mechanism is needed.",
       "severity": "P3",
       "sources": [
@@ -3304,7 +3354,9 @@
         "uncertainty": "Admitted two/three-attempt counterexamples follow the retained arithmetic contract. Actual published sample/observation equality remains unverified. A source may also be a benchmark fallback; no current media-row failure from that path was established, so this finding does not prescribe a speculative guard."
       },
       "likely_effort": "Small evidence/comment correction using existing retained observation identities.",
-      "plan_references": [],
+      "plan_references": [
+        "scorecard-unmeasured-image-gen/do"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "Sample documentation distinguishes the representative run from aggregate timing/newest-attempt memory, or cites that run's own retained elapsed/peak values.",
@@ -6021,6 +6073,43 @@
           "internal/overgodb/facets.go contentFacet.applyCommit271-278 preserves release sequence but set244-246 replaces introduction on republish"
         ],
         "finding_id": "SQA-120"
+      },
+      {
+        "comment": "Landed with moss-efficiency/bounded. ResidentSession.Release drops trailing released records, keeping every live index, so a session that binds and releases each request stays bounded; a sealed session reclaims the same way, since the test is on the record and not on the lookup map.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestResidentSessionReclaimsReleasedRecords",
+          "internal/graphruntime/resident.go Release"
+        ],
+        "finding_id": "SQA-MOSS-005",
+        "plan_steps": [
+          "moss-efficiency/bounded"
+        ]
+      },
+      {
+        "comment": "Landed with moss-efficiency/bounded. loadVAEWeights delegates to safetensors.ReadF32 and keeps its filter, source lifetime and tensor-named errors; the io and math imports go with the loop.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestMOSSGeneratorComposition",
+          "TestMOSSDecoderRejectsInvalidWeights",
+          "internal/latentimage/vae.go loadVAEWeights"
+        ],
+        "finding_id": "SQA-MOSS-010",
+        "plan_steps": [
+          "moss-efficiency/bounded"
+        ]
+      },
+      {
+        "comment": "Landed with moss-efficiency/bounded. A return to Chat captures the tab mount attempt and the hash before reading the manifest, and does nothing when either has moved. The attempt alone was not enough: a trace of the failing gate showed the response landing between a hash change and its hashchange event, when only the hash shows the navigation, and Chat then overwrote it. This is on every first page load, not only a slow response, and refused this landing three times. The test holds the manifest for both branches, with the navigation settled and with its event still queued; it fails on the old code and on the attempt-only fix, and passes now.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserNavAvailability",
+          "internal/server/webui/boot.js activate"
+        ],
+        "finding_id": "SQA-278",
+        "plan_steps": [
+          "moss-efficiency/bounded"
+        ]
       }
     ],
     "experiments": {
@@ -6062,8 +6151,8 @@
       "Every implementation-owned/unknown field and both owner objects remain raw-exact. Findings outside this rotated sample retain their stated historical evidence and limits; unchanged source is not a new runtime validation."
     ],
   "master_lead_triage": {
-    "at": "2026-09-24",
-    "head": "4d53c93bfe843da9ab13440513a9088d814ae1a5",
+    "at": "2026-11-01",
+    "head": "38472a8c798fc6d80463774ee2726f4eb3be5bf4",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6126,6 +6215,420 @@
           "seq2seq-trainer-to-tests"
         ],
         "note": "Confirmed: no production caller of the seq2seq Trainer; the row also extends the unconsumed-surface finder to private islands."
+      },
+      "SQA-MOSS-007": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/request-bounds"
+        ],
+        "note": "Confirmed by reading CompileVAEProgram: two request-derived MustShape calls panic on a shape that overflows, on the serving goroutine. The most serious of the MOSS set, since one absurd request can end the server. First fix."
+      },
+      "SQA-MOSS-004": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/request-bounds"
+        ],
+        "note": "Confirmed: compileNearestGridFlowSchedule takes no context and loops over the requested steps. Fixed with 007 since both bound what an admitted request can cost before any device work."
+      },
+      "SQA-MOSS-005": {
+        "action": "implemented",
+        "rows": [
+          "moss-efficiency/bounded"
+        ],
+        "note": "Confirmed by reading Release, and landed in the row that names it: trailing released records leave the list. Awaits the reviewer's closure."
+      },
+      "SQA-MOSS-010": {
+        "action": "implemented",
+        "rows": [
+          "moss-efficiency/bounded"
+        ],
+        "note": "Accepted as written and landed in the row that names it. The training encoder reads the same file through the same call. Awaits the reviewer's closure."
+      },
+      "SQA-MOSS-008": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/measured-presence"
+        ],
+        "note": "Must land before scorecard-unmeasured-image-gen: the MOSS peak-memory cell would otherwise record a false 0 bytes and the row would close on it. Reference moves here from moss-evaluation/resources because the fix precedes that measurement."
+      },
+      "SQA-MOSS-001": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/cancellation"
+        ],
+        "note": "Accepted: the Resolve contract carries no context. Fixed with 011 in one cancellation step."
+      },
+      "SQA-MOSS-011": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/cancellation"
+        ],
+        "note": "Accepted on the traced sequence; not reproduced yet, and the step starts from a failing test. Reference moves here from moss-closeout/close because closeout should verify it, not implement it."
+      },
+      "SQA-MOSS-009": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/browser"
+        ],
+        "note": "Accepted: a generation wait that never ends is a served hang. One browser step with 003, 006 and 278."
+      },
+      "SQA-MOSS-003": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/browser"
+        ],
+        "note": "Accepted: a seed above 2^53 silently changes, which breaks the reproducibility the parity evidence relies on."
+      },
+      "SQA-MOSS-006": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/browser"
+        ],
+        "note": "Accepted: composer.trim changes the conditioning a chat submission gets, so chat and API differ on one prompt."
+      },
+      "SQA-278": {
+        "action": "implemented",
+        "rows": [
+          "moss-efficiency/bounded"
+        ],
+        "note": "Mine, from the boot.js change in moss-merge/do, and worse than the review read it: every first page load goes through this path, and a trace of the failing gate showed a second interleaving the finding does not name. The hash is set, its hashchange is still queued, the response arrives in that gap, the mount attempt is unchanged, and Chat overwrites the hash, so the queued event reads #chat and the navigation is lost. Fixed with the mount attempt and the hash together; each of the four interleavings is held by the browser test, which fails on both earlier versions. Awaits the reviewer's closure."
+      },
+      "SQA-MOSS-002": {
+        "action": "filed",
+        "rows": [
+          "moss-findings/verifier"
+        ],
+        "note": "P3 but filed: model parity is decided by this verifier, so its exact-boundary behavior is fixed before moss-evaluation/model-parity reads it."
+      },
+      "SQA-254": {
+        "action": "filed",
+        "rows": [
+          "sqa-served/durable-blobs"
+        ],
+        "note": "Highest-consequence item outside MOSS: possible committed content loss on power interruption. Small. After the MOSS rows only because no incident is recorded and it is not P1."
+      },
+      "SQA-272": {
+        "action": "filed",
+        "rows": [
+          "sqa-served/retention-head"
+        ],
+        "note": "Real but production exposure is limited: the one production caller releases an isolated clone. Small fix, batched."
+      },
+      "SQA-275": {
+        "action": "filed",
+        "rows": [
+          "sqa-served/draft-host"
+        ],
+        "note": "Mine: draft-verdict-record/do requests a device identity before checking eligibility, so a host-reference model with JudgeOwnDrafts is refused. A regression, so it comes first in that row."
+      },
+      "SQA-257": {
+        "action": "existing-row",
+        "rows": [
+          "sqa-served/draft-host"
+        ],
+        "note": "Only its eligibility part is taken with 275. The wider policy and test consolidation waits for the retained second-open measurements the finding asks for."
+      },
+      "SQA-245": {
+        "action": "filed",
+        "rows": [
+          "sqa-served/sampler-chain"
+        ],
+        "note": "Accepted: a declared sampler chain the native round cannot honor must fall back to ordinary sampling. Small predicate fix with a host table."
+      },
+      "SQA-218": {
+        "action": "filed",
+        "rows": [
+          "sqa-served/inventory-resync"
+        ],
+        "note": "Accepted: shares the hubResync path with SQA-MOSS-009 but is a separate client contract, so it stays its own step."
+      },
+      "SQA-260": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/absent-profiles"
+        ],
+        "note": "Accepted: a missing profile must not read as another lane's work; it hides coverage gaps in the cycle verdict."
+      },
+      "SQA-263": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/resume-credit"
+        ],
+        "note": "Accepted: fails closed, so it costs repeated hours and risks no false evidence."
+      },
+      "SQA-264": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/stop-record"
+        ],
+        "note": "Accepted for the remaining I/O path only; the original incident path is already fixed."
+      },
+      "SQA-261": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/commit-queue"
+        ],
+        "note": "Accepted and observed: a landing waiting for the device held the queue for hours. Moderate; needs care not to ship an unchecked parent."
+      },
+      "SQA-258": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/run-continuation"
+        ],
+        "note": "One step with 271: both are who owns the end of a long measurement run."
+      },
+      "SQA-271": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/run-continuation"
+        ],
+        "note": "One step with 258."
+      },
+      "SQA-268": {
+        "action": "filed",
+        "rows": [
+          "sqa-cycle/guard-readiness"
+        ],
+        "note": "Partly closed by 8e911e1eb: Flash-Next now climbs to 8192 and passes. What remains is exposing readiness before a run starts."
+      },
+      "SQA-266": {
+        "action": "none",
+        "note": "Advisory, not a defect. Removing standing paired tests needs a stated replacement requirement for each; revisited when a cycle's wall time is the next bottleneck. No row."
+      },
+      "SQA-232": {
+        "action": "filed",
+        "rows": [
+          "sqa-tests/ordered-distances"
+        ],
+        "note": "Accepted: test-only but it can credit a NaN distance, and the resident pipeline sample has no later validator."
+      },
+      "SQA-229": {
+        "action": "filed",
+        "rows": [
+          "sqa-tests/qsa-bound"
+        ],
+        "note": "Accepted: a test branch excuses a finite attention regression on near ties."
+      },
+      "SQA-251": {
+        "action": "filed",
+        "rows": [
+          "sqa-tests/nextn-oracle"
+        ],
+        "note": "Accepted: the selected acceptance's plain arm is not plain."
+      },
+      "SQA-273": {
+        "action": "filed",
+        "rows": [
+          "sqa-tests/runner-cleanup"
+        ],
+        "note": "Accepted: a failed collection leaves a model loaded and spoils the tests after it. Four t.Cleanup lines."
+      },
+      "SQA-277": {
+        "action": "none",
+        "note": "Stands, and stays open. Parked with finding 773e7e0f: the adapter that bound those six suites is not in this repository, so rerunning them means finding or rebuilding it. No row until that harness exists; the coverage record already discloses the old definition per cell."
+      },
+      "SQA-221": {
+        "action": "existing-row",
+        "rows": [
+          "scorecard-unmeasured-image-gen/do"
+        ],
+        "note": "P3 taken when that row reads the scorecard's MOSS samples, since it is the wording of the same cells."
+      },
+      "SQA-276": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelcli/dense_tensor_cores_model_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-238": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelrecipe/model_config_sampling.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-215": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/evaluation/flashnext_long_context_model_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-246": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/launch_strata_native_mmvq.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-223": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/blob_pack_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-237": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/sampled_top_k_windows_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-236": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/evaluation/attention_cells_heldout_windows_model_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-235": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/decode_session_identity_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-253": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/query.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-269": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens cmd/validate/onboard_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-270": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens cmd/validate/only_model_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-216": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelartifact/tensor_budget_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-217": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/graph_exec_cache.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-219": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_converted_weights.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-204": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_moe_doorbell_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-207": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/speculating_frames_windows_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-209": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_evidence_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-220": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_evidence_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-166": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_decode_graph_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-188": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_flash_attention_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-174": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_moe_pinned_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-222": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/scorecard/captioned_generation_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-224": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/protocol_io.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-274": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/discovery/servable.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-225": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/latentvideo/reference_edit_runtime_cuda_windows_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-226": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_weights_windows_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-252": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/one_event_stream_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-255": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/held_open_header_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-259": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/safetensors/source_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-227": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/cache_state.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-265": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/cache_state.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-228": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_strata_qsa_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-230": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_qsa_layer_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-234": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/tensor/builder_cell.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-233": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_strata_gdn_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-249": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/catalog_evidence_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-240": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_load_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-243": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/checkpoint_fallback_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-239": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/chat_stream_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-244": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/document_page_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-241": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/backup_writer_release_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-242": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/batch_reader_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-247": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/quiet_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-248": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/scorecard_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-250": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/pins.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-262": {
+        "action": "none",
+        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/hfconvert/view_test.go. Title-level triage, not re-verified at this head."
+      },
+      "SQA-110": {
+        "action": "none",
+        "note": "Deferred stands; its trigger has not occurred. Title-level triage, not re-verified at this head."
+      },
+      "SQA-124": {
+        "action": "none",
+        "note": "Deferred stands; its trigger has not occurred. Title-level triage, not re-verified at this head."
+      },
+      "SQA-120": {
+        "action": "none",
+        "note": "Deferred stands; its trigger has not occurred. Title-level triage, not re-verified at this head."
       }
     }
   },

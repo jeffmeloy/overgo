@@ -261,8 +261,24 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 			program.dynamic = nil
 			program.weights = nil
 		}
+		// A released record is empty and no program names it. Trailing ones leave the
+		// list, so a session that binds and releases each request does not grow with
+		// them, and a live record keeps its index.
+		for count := len(s.allocations); count > 0 && s.allocations[count-1] == (residentAllocation{}); count-- {
+			s.allocations = s.allocations[:count-1]
+		}
 		return errors.Join(errs...)
 	})
+}
+
+// ReleaseStageMemory frees the execution memory a finished stage leaves for its
+// next run, for a session whose next stage places other weights. Bound inputs,
+// compiled programs and retained outputs stay.
+func (s *ResidentSession) ReleaseStageMemory(ctx context.Context) error {
+	if s == nil || s.executor == nil {
+		return errors.New("resident session is unavailable")
+	}
+	return s.executor.ReleaseStageMemory(ctx)
 }
 
 // Seal drops deduplication metadata after all programs bind.

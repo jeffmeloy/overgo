@@ -40,5 +40,44 @@ func TestWebUIBrowserNavAvailability(t *testing.T) {
 			t.Fatalf("%s: %v %v", viewport.Name, findings, err)
 		}
 	}
+	// A return to Chat whose manifest is still being read loses to the navigation
+	// made after it, whether that manifest changed or not: the response arrives
+	// after the page has moved on and neither takes the tab back nor remounts Chat.
+	// queued delivers it between the hash's change and its hashchange event, the
+	// gap the first page load fell into, where only the hash shows the navigation.
+	for _, changed := range []string{"false", "true"} {
+		for _, queued := range []string{"false", "true"} {
+			check(`(() => {
+  const original = overgo.api.get;
+  let deliver;
+  const held = new Promise(resolve => { deliver = resolve; });
+  overgo.api.get = function (path, options) {
+    if (path !== '/workspace/manifest') return original.call(this, path, options);
+    window.manifestRead = true;
+    return held;
+  };
+  window.deliverManifest = async () => {
+    overgo.api.get = original;
+    const next = await original.call(overgo.api, '/workspace/manifest');
+    if (` + queued + `) location.hash = 'library';
+    deliver(` + changed + ` ? {...next, superseded: true} : next);
+    await held;
+    window.manifestDelivered = true;
+  };
+  location.hash = 'chat';
+  return true;
+})()`)
+			settle(`window.manifestRead === true`)
+			if queued == "false" {
+				check(`(() => { location.hash = 'library'; return true; })()`)
+				settle(`!!document.querySelector('#panel-library.active')`)
+			}
+			check(`(() => { deliverManifest(); return true; })()`)
+			settle(`window.manifestDelivered === true`)
+			settle(`!!document.querySelector('#panel-library.active')`)
+			check(`location.hash === '#library' && !document.querySelector('#panel-chat.active')`)
+			check(`(() => { delete window.manifestRead; delete window.manifestDelivered; return true; })()`)
+		}
+	}
 	webuilane.Leg(t, "nav availability leg", "every refused workspace was marked off in the navigation and no open one was, and a refused workspace said what is missing and how to turn it on in plain words under its own heading")
 }

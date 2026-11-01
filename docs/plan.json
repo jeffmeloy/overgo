@@ -148,24 +148,237 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-efficiency",
-      "title": "Reduce repeated work and peak memory without changing the default model",
+      "id": "moss-findings",
+      "title": "Close the review findings on merged MOSS before building on it",
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 900,
-        "reason": "Use existing cache, graph and resource owners; add only identity and residency support demonstrated by measured repeated work."
+        "nodes": 700,
+        "reason": "Repairs in existing owners; each finding names the owner to extend and refuses a new mechanism."
       },
       "steps": [
         {
-          "id": "bounded",
-          "title": "Measure and improve whole-request resource use",
+          "id": "request-bounds",
+          "title": "Refuse an unrepresentable picture and cancel a long schedule",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSBoundedResidency$'",
-          "rationale": "Establish cold/warm time and peak host/device memory before optimization with matching inputs and output contracts.\nPrefer stage residency: encode once, release the conditioner, retain transformer weights through denoising, then decode; use bounded block streaming only where admission requires it.\nCache prompt conditioning and deterministic text refinement only with complete model/tokenizer/template/input/dtype/policy identities and bounded eviction; reuse across models or revisions requires identical component identities.\nReuse scratch buffers and graph programs, avoid materializing dense attention matrices, and key graph reuse by shape, prompt length, branch policy and resource lifetime.\nVAE tiling must prove correct boundary behavior and no seams; quantization, reduced steps or resolution are explicit quality-changing modes, not an invisible way to claim parity or speed.\nMeasure actual GPU allocation lifetimes, transfer bytes, host RSS and time per stage; admission includes workspace and graph allocations.\nVerify cache invalidation, budget adherence and cancellation with small fixtures; the model cycle measures performance and quality against the frozen baseline.\nServes: lower latency and memory under the same default generation contract.\nDisappears: repeated component loading, recomputation and allocation through existing graph/residency/cache owners.\nEvidence: comparable baseline/candidate records with required quality cells, consumed by final evaluation and resource guidance.\nBatch: runtime/media/kernel lanes; batch execution-surface changes before refreshing guards and reusing model evidence.",
-          "depends_on": [
-            "moss-runtime/session"
-          ]
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^(TestCompileVAEProgramRefusesUnrepresentableExtents|TestNearestGridScheduleHonorsCancellation|TestMOSSGeneratorLifecycle)$'",
+          "rationale": "SQA-MOSS-007: CompileVAEProgram takes checked shapes, and an overflowing extent fails its one operation instead of ending the server.\nSQA-MOSS-004: the request context reaches compileNearestGridFlowSchedule through configureRotary, checked inside its loops, with no partial schedule installed.\nNo canvas ceiling, MOSS-only validator or panic recovery.\nServes: an admitted request cannot take the server down or hold the image session past its cancellation.\nDisappears: two panicking MustShape calls on request-derived extents.\nEvidence: host tests that allocate nothing at those extents.\nBatch: media lane."
+        },
+        {
+          "id": "measured-presence",
+          "title": "Keep an absent device measurement distinct from measured zero",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/scorecard ./internal/server -count=1 -run 'Peak'",
+          "rationale": "SQA-MOSS-008: capabilityruntime.Measured carries whether a peak was read, set only by a successful meter, and the server publishes a peak sample only when it was.\nThe image session reports its peak through the same meter, so the scorecard's MOSS cell reads a real number.\nThis lands before scorecard-unmeasured-image-gen, which would otherwise close on a false zero.\nServes: peak-device-memory is true for image models.\nDisappears: load duration standing in for a measurement.\nEvidence: the capability and scorecard tests.\nBatch: serving lane."
+        },
+        {
+          "id": "cancellation",
+          "title": "Honor cancellation through inventory and final publication",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability ./internal/libraryintake ./internal/modelrecipe ./internal/server -count=1 -run 'Cancel'",
+          "rationale": "SQA-MOSS-001: Capability.Resolve takes the request context and the shared image source hashes under it.\nSQA-MOSS-011: a cancellation in the final publication window records a durable cancelled run instead of a generic failure with no run; start from a failing test, since the sequence was traced and not observed.\nServes: Stop means stop, and says so, from import to the last write.\nDisappears: a context.Background in the source path.\nEvidence: deterministic cancellation tests with no timers.\nBatch: serving and intake lanes."
+        },
+        {
+          "id": "browser",
+          "title": "Keep the browser's image requests exact and its waits finite",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowser(AudioStartup|Generation)'",
+          "rationale": "SQA-MOSS-009: a waited operation that disappears from a later authoritative snapshot ends the wait through the existing not-found path.\nSQA-MOSS-003: an integer control beyond the exact browser range is refused with a field-specific explanation.\nSQA-MOSS-006: the shared composer passes the prompt as typed and trims only to detect a blank one.\nServes: what the person typed is what ran, and a finished job never looks unfinished.\nDisappears: the composer's silent trim.\nEvidence: the existing browser fixtures, extended.\nBatch: web interface lane."
+        },
+        {
+          "id": "verifier",
+          "title": "Fail bit mismatches at exact boundaries in the generation verifier",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^(TestMOSSGeneratorComposition|TestMOSSVerifierFailsExactBoundaries)$'",
+          "rationale": "SQA-MOSS-002: the verifier that decides model parity fails at the first exact boundary that differs in bits, and says which.\nThis is a P3 filed as a row because moss-evaluation/model-parity is decided by it.\nServes: parity evidence that cannot pass a differing exact boundary.\nDisappears: nothing.\nEvidence: the composition test and one planted difference.\nBatch: media lane."
+        }
+      ]
+    },
+    {
+      "id": "moss-training",
+      "title": "Train MOSS-Image adapters natively and serve what they train",
+      "owner": "overgo_moss",
+      "status": "open",
+      "budget": {
+        "nodes": 6000,
+        "reason": "A new device trainer for one transformer family, an image encoder, a route and held-out judging; the existing optimizer, session, checkpoint and evaluation owners are reused and nothing of them is duplicated."
+      },
+      "steps": [
+        {
+          "id": "encoder",
+          "title": "Encode training pictures to MOSS latents on the device",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSEncoder'",
+          "rationale": "Add the AutoencoderKLFlux2 encoder beside its decoder from the checkpoint's own encoder tensors: DownEncoderBlock2D stages, the middle attention, quant_conv, the 2x2 patch and the batch-norm latent statistics.\nBuild it from the operations the decoder already compiles, sharing the decoder's builder rather than copying it.\nA golden from the pinned diffusers source fixes the moments and the normalized packed latent on the compact fixture and on the real checkpoint.\nServes: real pictures reach the trainer as latents without a host Python step.\nDisappears: nothing; training had no encoder.\nEvidence: encoder goldens under the moss fixtures, pinned to their producer.\nBatch: media lane."
+        },
+        {
+          "id": "gradients",
+          "title": "Compute MOSS adapter gradients on the device",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mosstrain -count=1 -run '^TestMOSSAdapterGradients'",
+          "rationale": "A device-resident trainer for the transformer's joint blocks: frozen F32 base weights resident, low-rank adapters on the q, k, v, o, ffn_up_gate and ffn_down projections, one checkpointed block run again at a time, attention over materialized probabilities one head at a time.\nThe text encoder and text refinement stay frozen and are computed once per example, as the upstream guide says; timestep modulation is frozen.\nThe flow-matching loss is the source's: x_t=(1-s)x_0+s*n on the training grid, target n-x_0.\nThe prediction, loss and every adapter factor's gradient are checked against a pinned PyTorch autograd golden of a small multi-head model.\nDevice memory and step time are measured on the real checkpoint at 1024 square.\nServes: the gradient a real training step needs, at a cost one card can carry.\nDisappears: nothing; the rectangular-layer trainers are for text stacks and stay.\nEvidence: the autograd golden with its producer under scripts/python_golden_references.\nBatch: kernel and trainer lanes; lands before model parity so its kernels do not expire inference evidence."
+        },
+        {
+          "id": "route",
+          "title": "Train adapters from captioned pictures with cmd/train",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -count=1 -run '^TestMOSSRoute'",
+          "rationale": "cmd/train -route moss under a supervised session: a manifest of pictures and captions is prepared once into latents and conditioning, trained under the shared optimizer plan, refused when loss on its fixed path does not descend, and published as a checkpoint.\nThe adapter is written in PEFT form through internal/peft and the merged transformer as a servable model directory, registered as a candidate as other trained models are.\nStep checkpoints resume bit-exactly; cancellation releases device state.\nThe route is listed in trainingRoutes so the proof run covers it.\nServes: a person can fine-tune MOSS on their own pictures.\nDisappears: nothing.\nEvidence: the route's session observation and checkpoint record.\nBatch: training lane."
+        },
+        {
+          "id": "serve",
+          "title": "Serve what a MOSS training run published",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestMOSSTrainedModel'",
+          "rationale": "The trained directory resolves through the same image capability as the base model, under its own recipe and identity, and its pictures differ from the base's on the same request where its weights differ and equal them where its adapter is zero.\nThe workbench shows it as a candidate as other trained models are shown; nothing about it is special-cased in the interface.\nServes: training reaches a person's pictures.\nDisappears: nothing.\nEvidence: the capability test over a compact trained fixture.\nBatch: media and interface lanes."
+        },
+        {
+          "id": "heldout",
+          "title": "Judge a MOSS training run on held-out pictures",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/training'",
+          "rationale": "Train a real adapter on a captioned picture set held apart from its evaluation split, and record held-out flow-matching loss of base and trained at fixed noise and timesteps, with sample pictures from both, bound to the implementation, checkpoint, dataset and environment identities.\nA run that does not beat its base on held-out pictures is reported as that, not hidden; the capability claim states what was measured.\nDocument supported adapter ranks, picture sizes, step cost and peak device memory in docs/TRAINING_COMPATIBILITY.md through its existing generator.\nServes: training is claimed only on evidence.\nDisappears: the training limitation in the compatibility documents.\nEvidence: one retained record read by the capability claims and closeout.\nBatch: cycle-only model evaluation."
+        }
+      ]
+    },
+    {
+      "id": "sqa-served",
+      "title": "Repair the register's served-path defects",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Small corrections inside existing owners, each named by its finding."
+      },
+      "steps": [
+        {
+          "id": "draft-host",
+          "title": "Check drafting eligibility before asking for a device identity",
+          "status": "open",
+          "verify": "go test ./internal/modelcli -count=1 -run 'Draft'",
+          "rationale": "SQA-275, a regression of draft-verdict-record/do: a host-reference model with JudgeOwnDrafts is refused for want of a device it never needs. The eligibility part of SQA-257 lands with it.\nServes: host serving works again.\nDisappears: the unconditional device identity request.\nEvidence: the native host fixture.\nBatch: serving lane."
+        },
+        {
+          "id": "durable-blobs",
+          "title": "Publish loose blobs through the durable namespace owner",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/fsatomic -count=1 -run 'Blob|Replace'",
+          "rationale": "SQA-254: blobStore.prepare publishes through fsatomic.Replace; the separate rename and no-op directory sync go.\nServes: committed content survives a power loss.\nDisappears: a second publication path.\nEvidence: the existing blob commit tests with the retry path reconciled.\nBatch: store lane."
+        },
+        {
+          "id": "retention-head",
+          "title": "Bind retention releases to the head of their snapshot",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run 'Release'",
+          "rationale": "SQA-272: Release authorizes its batch from the head its reachability snapshot was taken at.\nServes: a concurrent commit can no longer lose reachable content to a stale decision.\nDisappears: the later store.Head read.\nEvidence: the existing release tests with the interleaving added.\nBatch: store lane."
+        },
+        {
+          "id": "sampler-chain",
+          "title": "Keep declared sampler chains the native round cannot implement on the ordinary path",
+          "status": "open",
+          "verify": "go test ./internal/sampling ./internal/modelcli -count=1 -run 'Sampl'",
+          "rationale": "SQA-245: strataSamplingOf tells an explicit empty chain from the default and refuses a chain whose effective order differs from the native one.\nServes: a request gets the distribution it declared.\nDisappears: nothing.\nEvidence: a host table.\nBatch: serving lane."
+        },
+        {
+          "id": "inventory-resync",
+          "title": "Refresh tracked reads when the event stream resynchronizes",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowser'",
+          "rationale": "SQA-218: a completed resynchronization reaches the client and workspace.read refreshes what it fetched.\nServes: an open inventory cannot silently stay stale.\nDisappears: nothing.\nEvidence: the existing runtime-stream fixture.\nBatch: web interface lane."
+        }
+      ]
+    },
+    {
+      "id": "sqa-cycle",
+      "title": "Repair the register's measurement-run and landing defects",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "Corrections to the existing loop, landing and hook owners; no new scheduler."
+      },
+      "steps": [
+        {
+          "id": "absent-profiles",
+          "title": "Report a missing profile as missing, not as another lane's work",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./internal/modelrecipe -count=1 -run 'Lane|Profile'",
+          "rationale": "SQA-260: absence stays a gap in the cycle verdict unless an authority names the lane that owns it.\nServes: coverage gaps stay visible.\nDisappears: lane ownership inferred from an error.\nEvidence: the existing preflight fixtures.\nBatch: validate lane."
+        },
+        {
+          "id": "resume-credit",
+          "title": "Keep resume credit for models registered from directory views",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact ./cmd/validate -count=1 -run 'Consumed|Credit'",
+          "rationale": "SQA-263: consumedFiles reads the native view's declared physical inputs, so an interrupted run does not repeat finished cells.\nServes: hours of repeated cells after an interruption.\nDisappears: the random token standing in for an unreadable input.\nEvidence: the existing credit fixtures.\nBatch: validate lane."
+        },
+        {
+          "id": "stop-record",
+          "title": "Honor the stop escape when its refusal record cannot be kept",
+          "status": "open",
+          "verify": "go test ./cmd/hooks ./internal/loop -count=1 -run 'Stop'",
+          "rationale": "SQA-264: runStop checks the write of its refusal record and honors the escape when the baseline cannot be kept.\nServes: a session cannot wedge on a full or denied state directory.\nDisappears: nothing.\nEvidence: one existing fixture extended.\nBatch: hook lane."
+        },
+        {
+          "id": "commit-queue",
+          "title": "Free the commit queue from a landing waiting for the device",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run 'Turn|Queue'",
+          "rationale": "SQA-261: device waiting separates from the commit turn; reacquiring revalidates against the current head and plan before publication.\nServes: independent commits stop waiting hours behind a run.\nDisappears: nothing.\nEvidence: one native landing fixture.\nBatch: landing lane."
+        },
+        {
+          "id": "run-continuation",
+          "title": "Give the end of a measurement run a responsible owner",
+          "status": "open",
+          "verify": "go test ./internal/loop ./cmd/loop -count=1 -run 'Run'",
+          "rationale": "SQA-258 and SQA-271: the supervising process awaits the run and continues authorized work through the existing cmd/loop owner, rather than a later conversational check noticing it ended.\nServes: a finished or failed run is acted on without a nudge.\nDisappears: detached launcher success read as run success.\nEvidence: the existing run record tests.\nBatch: loop lane."
+        },
+        {
+          "id": "guard-readiness",
+          "title": "Expose guard readiness before a run begins",
+          "status": "open",
+          "verify": "go test ./cmd/longform ./cmd/validate -count=1 -run 'Ready|Fit'",
+          "rationale": "SQA-268: the rung fit itself was repaired in 8e911e1eb; what remains is the producer's own load and fit boundary reported before hours are spent, with no second all-model workload.\nServes: a broken guard is found at the start of a run.\nDisappears: nothing.\nEvidence: the producer's own fixture.\nBatch: validate lane."
+        }
+      ]
+    },
+    {
+      "id": "sqa-tests",
+      "title": "Repair the register's false test acceptances",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Test-only: production nodes do not grow."
+      },
+      "steps": [
+        {
+          "id": "ordered-distances",
+          "title": "Reject unordered distances in the numerical parity tests",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/latentimage -count=1 -run 'TestResidentImagePipelineRetainsTextAndLatentOnDevice'",
+          "rationale": "SQA-232: the seven named comparisons accept only ordered distances within their bounds.\nServes: a NaN distance can no longer pass.\nDisappears: nothing.\nEvidence: the retained tests.\nBatch: device lanes."
+        },
+        {
+          "id": "qsa-bound",
+          "title": "Keep an attention bound when the QSA boundary is close",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestQSALayerMatchesStrata$'",
+          "rationale": "SQA-229: controlled indexer inputs give a separated boundary, and every attention output meets the finite bound; the excusing branch goes.\nServes: a finite attention regression cannot pass on a near tie.\nDisappears: the excusing branch.\nEvidence: the retained test.\nBatch: device lane."
+        },
+        {
+          "id": "nextn-oracle",
+          "title": "Give the NextN acceptance a real plain oracle",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modelcli -count=1 -run '^TestNextNMTPDeviceSpeculationLossless$'",
+          "rationale": "SQA-251: the newer test's body folds into the selected acceptance, whose plain arm uses PlainDecode.\nServes: losslessness is compared against plain decoding.\nDisappears: one duplicate test file.\nEvidence: the retained test.\nBatch: device lane."
+        },
+        {
+          "id": "runner-cleanup",
+          "title": "Close paired-test runners when answer collection fails",
+          "status": "open",
+          "verify": "go vet ./cmd/evaluate ./internal/evaluation",
+          "rationale": "SQA-273: each of the four paired tests registers t.Cleanup after OpenRunner.\nServes: a failed collection does not spoil the tests after it.\nDisappears: nothing.\nEvidence: compile and vet; the paths are failure paths of model tests.\nBatch: model-test lane."
         }
       ]
     },
@@ -184,7 +397,7 @@
           "title": "Compare native SFT inference with the pinned SFT oracle",
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/parity'",
-          "rationale": "Add full-model cycle coverage for the ModelScope SFT checkpoint over the frozen prompt, layout, language, size, negative-prompt and seed matrix.\nRequire stage tolerances and end-to-end output acceptance independently; pleasing pictures or finite tensors alone are insufficient.\nEvaluate rendered text and layout adherence on a frozen held-out set, preserving independent human or established metric judgments where needed.\nBind every result to exact implementation, source, checkpoint, recipe, suite and environment identities; unavailable devices or missing artifacts remain missing evidence.\nPublish image-generation capability verification only after required cells complete; do not advertise training capability.\nServes: trustworthy native model support.\nDisappears: unverified support labels through existing evaluation and activation evidence.\nEvidence: retained native-versus-upstream stage and quality records read by activation, compatibility and closeout.\nBatch: evaluation/claim lanes; full-model work runs in the cycle, after all execution-surface changes and guard renewal.",
+          "rationale": "Add full-model cycle coverage for the ModelScope SFT checkpoint over the frozen prompt, layout, language, size, negative-prompt and seed matrix.\nRequire stage tolerances and end-to-end output acceptance independently; pleasing pictures or finite tensors alone are insufficient.\nEvaluate rendered text and layout adherence on a frozen held-out set, preserving independent human or established metric judgments where needed.\nBind every result to exact implementation, source, checkpoint, recipe, suite and environment identities; unavailable devices or missing artifacts remain missing evidence.\nPublish image-generation capability verification only after required cells complete; do not advertise training capability.\nServes: trustworthy native model support.\nDisappears: unverified support labels through existing evaluation and activation evidence.\nEvidence: retained native-versus-upstream stage and quality records read by activation, compatibility and closeout.\nBatch: evaluation/claim lanes; full-model work runs in the cycle, after all execution-surface changes and guard renewal.\n\nOwner, 2026-11-01: \"do not advertise training capability\" no longer holds; moss-training/heldout owns the training claim on its own evidence. This step runs after moss-findings and moss-training, whose kernels change the execution surface it binds to, and it reads the verifier moss-findings/verifier hardens.",
           "depends_on": [
             "moss-interface/journey",
             "moss-efficiency/bounded",
@@ -218,7 +431,7 @@
           "title": "Publish verified support and retire campaign-only doctrine",
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/complete' \u0026\u0026 go run ./cmd/validate -claims",
-          "rationale": "Check the full request-to-image journey, the ModelScope SFT checkpoint receipt, independent parity, deterministic cross-family import, resource measurements, cancellation and rollback against the earlier acceptance contracts.\nRegenerate compatibility/API/media documentation through existing generators and retain all source, license and environment identities.\nDocument supported controls, measured hardware limits and intentionally unsupported training/editing/SLG features.\nAudit added versus removed production mechanisms and keep the shared importer only where both real consumers demonstrate its value.\nRemove obsolete temporary artifacts and campaign-only doctrine when its work ends; retain evidence under the existing data lifecycle.\nImplementation lands through the repository gate.\nPush requires a separate owner request.\nServes: a complete, maintainable image capability and repeatable onboarding path.\nDisappears: stale campaign rules and displaced import mechanisms; preserve durable reference/evaluation evidence.\nEvidence: complete campaign record consumed by capability claims and documentation; incomplete required cells prevent closure.\nBatch: claims/documentation and any generated-contract lanes; no new execution-surface change is expected at closeout.",
+          "rationale": "Check the full request-to-image journey, the ModelScope SFT checkpoint receipt, independent parity, deterministic cross-family import, resource measurements, cancellation and rollback against the earlier acceptance contracts.\nRegenerate compatibility/API/media documentation through existing generators and retain all source, license and environment identities.\nDocument supported controls, measured hardware limits and intentionally unsupported training/editing/SLG features.\nAudit added versus removed production mechanisms and keep the shared importer only where both real consumers demonstrate its value.\nRemove obsolete temporary artifacts and campaign-only doctrine when its work ends; retain evidence under the existing data lifecycle.\nImplementation lands through the repository gate.\nPush requires a separate owner request.\nServes: a complete, maintainable image capability and repeatable onboarding path.\nDisappears: stale campaign rules and displaced import mechanisms; preserve durable reference/evaluation evidence.\nEvidence: complete campaign record consumed by capability claims and documentation; incomplete required cells prevent closure.\nBatch: claims/documentation and any generated-contract lanes; no new execution-surface change is expected at closeout.\n\nOwner, 2026-11-01: all of the work for MOSS to fully implement image inference and training. Training is no longer an intentionally unsupported feature here: closeout documents the supported training the moss-training row establishes, and runs after it. Editing and SLG stay as written. The findings the moss-findings row owns are verified here, not implemented here.",
           "depends_on": [
             "moss-evaluation/resources"
           ]

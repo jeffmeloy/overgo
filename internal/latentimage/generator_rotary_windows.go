@@ -21,6 +21,7 @@ import (
 type rotaryGeneration struct {
 	runtime            *graphruntime.ResidentSession
 	conditioner        *modelConditioner
+	conditioned        conditioningCache
 	transformer        TransformerSpec
 	decoder            *VAEProgram
 	latent             *residentLatent
@@ -73,7 +74,12 @@ func loadRotaryGenerator(ctx context.Context, root string, profile Profile, requ
 	if err != nil {
 		return nil, err
 	}
-	g := &Generator{profile: profile, modelDir: root, shape: LatentShape{ZDim: channels, Height: height, Width: width}, rotary: &rotaryGeneration{runtime: runtime, conditioner: conditioner, transformer: spec, decoder: vae}}
+	// The cache holds what two branches of the source's longest prompt hold.
+	limit, ok := checked.ProductInt(tensor.PairedExtent, profile.Prompt.MaxTokens, spec.TextHidden)
+	if !ok {
+		return nil, errors.Join(errors.New("rotary image: conditioning cache limit overflows"), runtime.Close(context.WithoutCancel(ctx)))
+	}
+	g := &Generator{profile: profile, modelDir: root, shape: LatentShape{ZDim: channels, Height: height, Width: width}, rotary: &rotaryGeneration{runtime: runtime, conditioner: conditioner, conditioned: conditioningCache{limit: limit}, transformer: spec, decoder: vae}}
 	if err = g.configureRotary(request); err != nil {
 		err = errors.Join(err, runtime.Close(context.WithoutCancel(ctx)))
 		return nil, err
@@ -123,7 +129,7 @@ func (g *Generator) resetRotary(ctx context.Context, request Request) error {
 	return nil
 }
 
-func (g *Generator) prepareRotary(ctx context.Context, request Request) (*Generator, error) {
+func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Generator, err error) {
 	if g.prepared || g.rotary.runtime == nil {
 		return nil, errors.New("rotary image: preparation session is unavailable")
 	}
@@ -154,15 +160,31 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (*Genera
 			}
 		}
 	}
+	// The programs of this request's prompts hold the text encoder's weights
+	// until both are encoded, so two prompts place it on the device once. An
+	// observed request reports every boundary, so it runs what a cached prompt skips.
+	var held []*graphruntime.ResidentProgram
+	defer func() {
+		err = errors.Join(err, g.rotary.runtime.Release(context.WithoutCancel(ctx), held...))
+		if len(held) != 0 {
+			err = errors.Join(err, g.rotary.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
+		}
+	}()
 	encode := func(prompt string, index int) ([]float32, error) {
+		if g.observe == nil {
+			if hidden, ok := g.rotary.conditioned.lookup(prompt); ok {
+				return hidden, nil
+			}
+		}
 		text, embedding, err := g.rotary.conditioner.input(prompt)
 		if err != nil {
 			return nil, err
 		}
-		hidden, err := g.rotary.conditioner.encode(ctx, g.rotary.runtime, text, embedding, nil)
+		hidden, err := g.rotary.conditioner.encodeHolding(ctx, g.rotary.runtime, &held, text, embedding, nil)
 		if err != nil {
 			return nil, err
 		}
+		g.rotary.conditioned.store(prompt, hidden)
 		if g.observe != nil {
 			ids := make([]float32, len(text.IDs))
 			for i, v := range text.IDs {
@@ -210,7 +232,7 @@ func (g *Generator) integrateRotary(ctx context.Context) (*Generator, error) {
 	g.rotary.latent = result
 	g.rotary.positive, g.rotary.negative = nil, nil
 	g.integrated = true
-	return g, nil
+	return g, g.rotary.runtime.ReleaseStageMemory(ctx)
 }
 
 func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err error) {
@@ -231,7 +253,9 @@ func (g *Generator) decodeRotary(ctx context.Context) (result EncodedImage, err 
 	if err != nil {
 		return result, err
 	}
-	defer func() { err = errors.Join(err, state.runtime.Release(context.WithoutCancel(ctx), program)) }()
+	defer func() {
+		err = errors.Join(err, state.runtime.Release(context.WithoutCancel(ctx), program), state.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
+	}()
 	output, err := state.runtime.ExecuteDevice(ctx, program, nil, []driver.DevicePtr{state.latent.value.Pointer})
 	if err != nil {
 		return result, err

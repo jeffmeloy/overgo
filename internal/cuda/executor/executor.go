@@ -1735,6 +1735,51 @@ func (e *Executor) ReleaseWeightStaging(ctx context.Context) error {
 	})
 }
 
+// ReleaseStageMemory frees what the runs of a finished stage leave for their next: the arena, the one-shot arena, the matmul
+// staging, the attention scores and the buffer pool's free buffers. A session that moves one request through stages of many
+// gigabytes each calls it between them, so a stage's memory is not held beside the next stage's weights: MOSS's text encoder
+// was placed beside the 4.5 GiB its first request's denoiser had left, raising every later request's peak from 13.0 to 17.5
+// GiB. Bound inputs, compiled programs and retained outputs stay, and the next run allocates its own again.
+func (e *Executor) ReleaseStageMemory(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return nil
+	}
+	return e.worker.Do(ctx, func(state *device.State) error {
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		resources := &e.resources
+		if err := resources.graphExecs.drop(state); err != nil {
+			return err
+		}
+		if err := errors.Join(resources.releaseArena(state), resources.releasePromptArena(state),
+			resources.releaseWeightStaging(state), resources.releaseScores(state)); err != nil {
+			return err
+		}
+		return resources.buffers.trim(state, math.MaxUint64)
+	})
+}
+
+// releaseScores frees the attention scores' staging, which a run allocates again by its need.
+func (r *executorResources) releaseScores(state *device.State) error {
+	if r.blas == nil || r.blas.scores == 0 {
+		return nil
+	}
+	if err := r.reclaim(state, r.blas.scores, r.blas.scoreBytes, r.blas.scoreBytes, &r.scoresLent); err != nil {
+		return err
+	}
+	if err := state.Driver.MemFree(r.blas.scores); err != nil {
+		return err
+	}
+	r.blas.scores, r.blas.scoreBytes = 0, 0
+	return nil
+}
+
 func (r *executorResources) releaseWeightStaging(state *device.State) error {
 	if r.blas == nil || r.blas.staging == 0 {
 		return nil
@@ -3263,12 +3308,7 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.stagingBytes = 0
 			e.resources.blas.stagedNode = nil
 		}
-		if e.resources.blas.scores != 0 {
-			errs = append(errs, e.resources.reclaim(state, e.resources.blas.scores, e.resources.blas.scoreBytes, e.resources.blas.scoreBytes, &e.resources.scoresLent))
-			errs = append(errs, state.Driver.MemFree(e.resources.blas.scores))
-			e.resources.blas.scores = 0
-			e.resources.blas.scoreBytes = 0
-		}
+		errs = append(errs, e.resources.releaseScores(state))
 		errs = append(errs, e.resources.blas.dropMatmulPlans(), e.resources.blas.closeConvolutions())
 		if library := e.resources.blas.library; library != nil {
 			errs = append(errs, library.DestroyLt(e.resources.blas.lt), library.Destroy(e.resources.blas.handle), library.Close())

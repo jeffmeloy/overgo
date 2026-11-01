@@ -896,8 +896,13 @@
     // Returning to the composer reads capabilities activated while another tab was open, and remounts it only where they
     // changed: otherwise its controls, focus and draft stay as the user left them.
     if (id === 'chat' && !refreshed && !tab.panel.classList.contains('active')) {
-      return api.get("/workspace/manifest").then((next) => JSON.stringify(next) === JSON.stringify(workspaceManifest)
-        ? activate(id, true) : remountActive(next, id));
+      // A navigation made while the document is read keeps its tab: activating another tab replaces the attempt, and a
+      // hash set whose hashchange is still queued has only moved the hash, which activating Chat would overwrite.
+      const attempt = tab.mountAttempt, hash = location.hash;
+      return api.get("/workspace/manifest").then((next) => {
+        if (tab.mountAttempt !== attempt || location.hash !== hash) return false;
+        return JSON.stringify(next) === JSON.stringify(workspaceManifest) ? activate(id, true) : remountActive(next, id);
+      });
     }
     window.dispatchEvent(new Event("overgo-panel-change"));
     closeNavigation();

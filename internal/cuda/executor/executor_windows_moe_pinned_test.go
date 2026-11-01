@@ -738,23 +738,23 @@ func moeTokensAlone(t *testing.T, c moePinnedCase, span map[string][]float32) []
 }
 
 // groupedProductBits: SHA-256 of each fixture's grouped output by its tokens, on the card and from host memory alike,
-// as the grouped kernels of 96c26fe39 produced them.
+// as the grouped kernels of one f16 input part produce them.
 var groupedProductBits = map[string]map[uint64]string{
 	"iq3_s-iq4_nl": {
-		64:   "23d007dba6496d751f07f78f3a73c13b038e4622c6a6f6cf999b00531156301d",
-		1561: "b1b58415fdcc92ae933b7f5521ed366fe5c808896bcae561d8050e43b3db865e",
+		64:   "b7a6279bf2ffcf2295fb2128ec41c8a9a2670cd733755b7bdb9494e51430ee6e",
+		1561: "5a7252670e469fe9a4cf11ece3bae19b343e7f6e0062832253b54b5434ca6b63",
 	},
 	"iq4_xs-q8_0": {
-		64:   "96039559c245146fe93871befd04376253bbeead4f01198e66aeeda2e6715ef9",
-		1561: "9c4996472e1feed6bc0f3812f9d4ab5129feb8fcf83e4322202eb3aa323bebee",
+		64:   "a5af9a217dbc900313695da4d82fd8315a4ab9763bb6ebe3ba9f0b01f2b75f33",
+		1561: "4068990a4fcbd33981af1287d5e232f82bbbb9c7b1a8eaeeb08f300816cd0dd3",
 	},
 	"fused-iq4_xs-iq4_nl": {
-		64:   "220fd780786fd9b88c9ac3a3b5b11486862e64e5280972c21e12db0980ff0ef3",
-		1561: "6dac3cb05cf1d5308fc7a80fc9066aae3d38bdf2d0f34b739d34fb98cdb0a8f5",
+		64:   "581f6c57108b2c1a08ca044c97fd0abf317630dfc935f77c6845a80f1bd80520",
+		1561: "38336575d563129ab7e306e4f751750b4b9135abdfa64631a0dfdd3a775abf9c",
 	},
 	"bf16": {
-		64:   "c711491e313fb45fe4ba5bcbe82db392c24bc29b4ebc2136f7f9d0a916ca35d7",
-		1561: "1628bed78504dcf1dee872e6fae4751b305eaa7ed645dc9b3fd1f8c58723898c",
+		64:   "a94625561cdd5775e0b6615770eb8d9d3cd8d9a546da23a7dd051ef407707333",
+		1561: "98c30f97a7fc186bb18abd27972fea745a319054c04de4a8dfd56a22e09e98c2",
 	},
 }
 
@@ -763,9 +763,9 @@ var groupedProductBits = map[string]map[uint64]string{
 //   - Flash-Next's routed layer takes the staging's tokens a group, so the 1,561-token document and the 4,019-token prompt are one group each and a 20,605-token prompt two of one size
 //   - fixtures of Flash-Next's IQ3_S and IQ4_NL layer and its IQ4_XS and Q8_0 layer, fused IQ4_XS gate and up, and BF16 banks
 //     of 96 weights a row, which decode a weight at a time; 16 tokens, under a tile, take the q8 products, and BF16 banks the row dots
-//   - 64 tokens launch the grouped kernels with the banks' storages and stay within the model tolerance of the host reference,
-//     with the experts on the card and in host memory alike: block formats' whole numbers and BF16 weights hold exactly in f16,
-//     and each input splits into two f16 parts; three experts take 128 routed rows, so one of them takes two tiles;
+//   - 64 tokens launch the grouped kernels with the banks' storages and stay within the f16-staged tolerance of the host
+//     reference, with the experts on the card and in host memory alike: block formats' whole numbers and BF16 weights hold
+//     exactly in f16, and the inputs round to it (1.3e-3 at worst here); three experts take 128 routed rows, so one of them takes two tiles;
 //     experts in host memory are copied to the card and multiply in a batch after the card's
 //   - the document's 1,561 tokens on experts in host memory keep the direct banks' bits
 //   - every grouped run keeps the bits groupedProductBits pins
@@ -901,7 +901,8 @@ func TestPromptExpertsMultiplyEncodedWeights(t *testing.T) {
 						}
 						return
 					}
-					compare(t, got, want, accuracyModel)
+					// the grouped products round their inputs to f16, as the f16-staged prefill rounds its operands
+					compare(t, got, want, accuracyHalfStaged)
 				})
 			}
 		})
@@ -1084,11 +1085,13 @@ func TestPromptExpertsOnTensorCoresMatchTheGroupedKernels(t *testing.T) {
 //     no batch's copies hold the host until the kernels before them end
 //   - every expert in host memory is copied, once
 //   - the output keeps the card run's bits and the serial copy's, pinned from 7a396356b with the
-//     router's logits as one F32 product since long-prompt/prefill-rate
+//     router's logits as one F32 product since long-prompt/prefill-rate and the grouped products' one f16 input part
+//     since flashnext-long-read
 func TestPromptExpertCopiesOverlapCompute(t *testing.T) {
 	// serialCopyBits: SHA-256 of the output as the serial copy at 7a396356b produced it, with the router's
-	// logits as one F32 product (long-prompt/prefill-rate), which sums them in another order.
-	const serialCopyBits = "4c15ae63debccec8af99062e4163b780ef53dd3357eae3585dae8af4135567f0"
+	// logits as one F32 product (long-prompt/prefill-rate), which sums them in another order, and the grouped products
+	// multiplying one f16 part of each input (flashnext-long-read).
+	const serialCopyBits = "e0e0867f91c0d1151926a46dfd801a2578148308dfe9e197de9d85855ff6653f"
 	banks := [3]dtype.Type{dtype.BF16, dtype.BF16, dtype.BF16}
 	c := moePinnedCase{
 		name: "copy-overlap", compute: tensor.MulMatComputeNativeTensorCore,

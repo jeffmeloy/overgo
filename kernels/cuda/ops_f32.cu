@@ -10606,9 +10606,12 @@ extern "C" __global__ void __launch_bounds__(MOE_DOWN_THREADS, MOE_DOWN_RESIDENT
 //   - positions[p] = the routed slot, token * top_k + slot, of the p-th routed row in expert order
 //   - a block computes MOE_TILE_ROWS weight rows of one tile, and a warp MOE_MMA_ROWS of them
 //   - a step decodes MOE_TILE_DEPTH weights of each row into shared memory: a block format's whole numbers, which f16 holds
-//     exactly, and their scale a BLOCK_SCALE_WEIGHTS-weight span; and it gathers the tile's inputs as a high and a low f16 part
-//   - mma.m16n8k16 multiplies a span's whole numbers by both input parts into F32, and the span's scale weighs that sum,
-//     so a product keeps an input to about 2^-22 of its value
+//     exactly, and their scale a BLOCK_SCALE_WEIGHTS-weight span; and it gathers the tile's inputs as f16
+//   - mma.m16n8k16 multiplies a span's whole numbers by the inputs into F32, and the span's scale weighs that sum: an
+//     input keeps about 2^-12 of its value, finer than the 8-bit activations the reference engines multiply a prompt's
+//     experts by (Strata's MMQ) and the round's decode multiplies them by (q8_1); a low f16 part of what an input rounds
+//     away, multiplied too, had doubled the products (a 16K Flash-Next read 0.45 s slower) for answers no closer to the
+//     reference's (Flash-Next's 24: 20 token for token either way, scored within 0.0987 a token with it, 0.0729 without)
 //   - a tile reads each weight of its expert once for all its rows
 constexpr unsigned int MOE_TILE_WORDS = 3;
 constexpr unsigned int MOE_TILE_TOKENS = 32;
@@ -10625,8 +10628,6 @@ constexpr unsigned int MOE_TILE_COLUMNS = MOE_TILE_TOKENS / MOE_MMA_TOKENS;
 constexpr unsigned int MOE_TILE_STRIDE = MOE_TILE_DEPTH + 8;
 // MOE_MMA_ELEMENTS: the accumulators a lane holds of one mma tile, rows g and g + 8 by columns 2t and 2t + 1.
 constexpr unsigned int MOE_MMA_ELEMENTS = 4;
-// MOE_INPUT_PARTS: an input's high f16 part and the low f16 part of what the high part rounds away.
-constexpr unsigned int MOE_INPUT_PARTS = 2;
 
 // half_mma accumulates the product of a 16x16 f16 A fragment and a 16x8 f16 B fragment into a 16x8 F32 tile.
 __device__ __forceinline__ void half_mma(float * c, const unsigned int * a, unsigned int b0, unsigned int b1) {
@@ -10706,9 +10707,9 @@ __device__ __forceinline__ void moe_tile_weights(__half * tile, float * scales, 
     }
 }
 
-// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as their high and low f16 parts.
+// moe_tile_inputs gathers columns k0 to k0 + MOE_TILE_DEPTH of a tile's input rows as f16.
 //   - THREADS threads share the gather, thread being this one's place among them
-//   - a thread reads four columns at once where they lie 16-byte aligned, and splits them once all its reads are in flight
+//   - a thread reads four columns at once where they lie 16-byte aligned, and stores them once all its reads are in flight
 //   - row_input(row) = the input row of tile row row; rows from count and columns from depth take zeros
 template <unsigned int THREADS, typename RowInput>
 __device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int count, unsigned int k0, unsigned int depth, RowInput row_input, unsigned int thread) {
@@ -10738,20 +10739,12 @@ __device__ __forceinline__ void moe_tile_inputs(__half * tile, unsigned int coun
         const unsigned int row = item / (MOE_TILE_DEPTH / quad);
         const unsigned int column = item % (MOE_TILE_DEPTH / quad) * quad;
         const float w[quad] = {values[pass].x, values[pass].y, values[pass].z, values[pass].w};
-        float high[quad], low[quad];
-        #pragma unroll
-        for (unsigned int i = 0; i < quad; ++i) {
-            const __half h = __float2half_rn(w[i]);
-            high[i] = __half2float(h);
-            low[i] = w[i] - high[i];
-        }
-        moe_tile_store(tile + row * MOE_TILE_STRIDE + column, high);
-        moe_tile_store(tile + (MOE_TILE_TOKENS + row) * MOE_TILE_STRIDE + column, low);
+        moe_tile_store(tile + row * MOE_TILE_STRIDE + column, w);
     }
 }
 
 // moe_tile_product adds a step's products of a warp's MOE_MMA_ROWS decoded rows with the tile's inputs to sums.
-//   - each span's whole numbers multiply both input parts, and the span's scale of each row weighs the span's sums
+//   - each span's whole numbers multiply the inputs, and the span's scale of each row weighs the span's sums
 //   - the lane addresses of ldmatrix are attention_tiled_bf16_f32's: A takes row halves first, B column halves first
 __device__ __forceinline__ void moe_tile_product(const __half * weights, const float * scales, const __half * inputs,
         float (&sums)[MOE_TILE_COLUMNS][MOE_MMA_ELEMENTS]) {
@@ -10768,16 +10761,13 @@ __device__ __forceinline__ void moe_tile_product(const __half * weights, const f
             unsigned int a[4];
             attention_ldx4(attention_shared_address(weights + a_row * MOE_TILE_STRIDE + k + a_column), a[0], a[1], a[2], a[3]);
             #pragma unroll
-            for (unsigned int part = 0; part < MOE_INPUT_PARTS; ++part) {
-                #pragma unroll
-                for (unsigned int column = 0; column < MOE_TILE_COLUMNS; column += 2) {
-                    unsigned int b0, b1, b2, b3;
-                    attention_ldx4(attention_shared_address(inputs +
-                            ((part * MOE_TILE_TOKENS + column * MOE_MMA_TOKENS) + b_row) * MOE_TILE_STRIDE + k + b_column),
-                        b0, b1, b2, b3);
-                    half_mma(parts[column], a, b0, b1);
-                    half_mma(parts[column + 1], a, b2, b3);
-                }
+            for (unsigned int column = 0; column < MOE_TILE_COLUMNS; column += 2) {
+                unsigned int b0, b1, b2, b3;
+                attention_ldx4(attention_shared_address(inputs +
+                        (column * MOE_MMA_TOKENS + b_row) * MOE_TILE_STRIDE + k + b_column),
+                    b0, b1, b2, b3);
+                half_mma(parts[column], a, b0, b1);
+                half_mma(parts[column + 1], a, b2, b3);
             }
         }
         // A lane's elements 0 and 1 lie in row g and 2 and 3 in row g + 8.
@@ -10831,7 +10821,7 @@ extern "C" __global__ void __launch_bounds__(MOE_HIDDEN_THREADS) moe_grouped_hid
     __shared__ block_dot_codebooks codebooks;
     __shared__ __align__(16) __half weights[2 * MOE_TILE_ROWS * MOE_TILE_STRIDE];
     __shared__ float scales[2 * MOE_TILE_ROWS * MOE_TILE_SPANS];
-    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    __shared__ __align__(16) __half inputs[MOE_TILE_TOKENS * MOE_TILE_STRIDE];
     __shared__ const float * input_rows[MOE_TILE_TOKENS];
     block_dot_codebooks_load(codebooks, gate_storage, up_storage);
     const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
@@ -10915,7 +10905,7 @@ extern "C" __global__ void __launch_bounds__(MOE_TILE_THREADS) moe_grouped_down_
     __shared__ block_dot_codebooks codebooks;
     __shared__ __align__(16) __half weights[MOE_TILE_ROWS * MOE_TILE_STRIDE];
     __shared__ float scales[MOE_TILE_ROWS * MOE_TILE_SPANS];
-    __shared__ __align__(16) __half inputs[MOE_INPUT_PARTS * MOE_TILE_TOKENS * MOE_TILE_STRIDE];
+    __shared__ __align__(16) __half inputs[MOE_TILE_TOKENS * MOE_TILE_STRIDE];
     block_dot_codebooks_load(codebooks, storage, storage);
     const unsigned int * tile = tiles + (size_t) MOE_TILE_WORDS * blockIdx.x;
     const unsigned int expert = tile[0], first = tile[1], count = tile[2];

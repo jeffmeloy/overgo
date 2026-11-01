@@ -49,6 +49,11 @@ const (
 	// the route trains on the golden RxBrain prefill among the reference
 	// fixtures.
 	motGrounding = "docs/verification/rxbrain-mot-training-stimulus.txt"
+	// mossGrounding is the captioned pictures the moss route's proof trains an
+	// adapter on, and mossSize their side, small enough that a step of the real
+	// transformer takes a moment.
+	mossGrounding = "fixtures/moss/training-pictures/pictures.tsv"
+	mossSize      = "64"
 )
 
 // trainingRoute is one route a training proof runs: the committed data its
@@ -65,6 +70,7 @@ var trainingRoutes = []trainingRoute{
 	{grounding: motGrounding, arguments: []string{"-route", "mot", "-proof", "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m"}},
 	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-proof", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"},
 		environment: []string{"GOGC=50", "GOMEMLIMIT=68GiB"}},
+	{grounding: mossGrounding, arguments: []string{"-route", "moss", "-proof", "-pictures", mossGrounding, "-size", mossSize, "-steps", routeSteps, "-max-wall", "30m"}},
 	{grounding: denseGrounding, arguments: []string{
 		"-proof", "-dataset", denseGrounding, "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical",
 	}},
@@ -223,6 +229,10 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		inputs = append(inputs, "-fixtures", referenceFixtures(roots))
 	case cell.Grounding == hybridGrounding:
 		inputs = []string{"-model", cell.Location}
+	case cell.Grounding == mossGrounding:
+		// A pipeline's weights are in its components, so the catalog's file
+		// says less than the directory recorded for it.
+		inputs = []string{"-model", cell.Directory}
 	case cell.Grounding == denseGrounding:
 		inputs = append(inputs, "-recipe", cell.Recipe.String())
 	case cell.Grounding == ditGrounding && filepath.Base(cell.Location) == ditWeights:

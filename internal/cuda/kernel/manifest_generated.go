@@ -3,15 +3,15 @@
 package kernel
 
 const (
-	BundleABIVersion     = 64
+	BundleABIVersion     = 65
 	BundleTarget         = "compute_89"
 	BundleDefaultThreads = 256
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "8327c21997daef35170a2f16074270a48d30e7112e27a994be1ef675a5a3f33a"
+	OpsF32SHA256         = "154a41e65bc8dde30d54aaa32912b6d483e9861de204ab92fb9693acc652e26a"
 	OpsNativeSHA256      = "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883"
-	StrataQsaSHA256      = "b81bc4375d27a2d57ef213e65e1f0cc0b59a0562d801d3bbaa39ea56ccf91f6d"
+	StrataQsaSHA256      = "66bb1776f039decde3038c64e864eb7d39b96f56875e8c8d6cab418544229bb5"
 	StrataNativeSHA256   = "340c2ba09deddf93cc556578a364ee0e7ad0816136a569f96fc3c506c3ead954"
 )
 

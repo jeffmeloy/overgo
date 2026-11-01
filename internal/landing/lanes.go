@@ -199,7 +199,7 @@ var cudaPackages = []string{
 	"./internal/latentimage", "./internal/libraryintake", "./internal/scratchmodel", "./internal/scratchtrain", "./internal/modeldevice", "./internal/hybridtrain",
 	"./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/inference", "./cmd/train", "./internal/graphruntime",
-	"./internal/trainingworkflow",
+	"./internal/trainingworkflow", "./internal/mosstrain",
 }
 
 // modelPackages are the packages whose real-model tests the cycle's models
@@ -209,7 +209,7 @@ var modelPackages = []string{
 	"./internal/mediacapability", "./internal/sensenovarecipe", "./internal/routedlm", "./internal/inference", "./internal/adaptiveparity",
 	"./internal/composition", "./internal/speechsynth", "./internal/tabularicl", "./internal/modelintake", "./internal/server",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train", "./cmd/validate", "./cmd/benchmark-report",
-	"./internal/evaluation", "./internal/dataset", "./internal/rae", "./internal/vitencoder", "./internal/seriesforecast",
+	"./internal/evaluation", "./internal/dataset", "./internal/rae", "./internal/vitencoder", "./internal/seriesforecast", "./internal/mosstrain",
 }
 
 // CycleLane is one lane of the improvement cycle: the go command's arguments

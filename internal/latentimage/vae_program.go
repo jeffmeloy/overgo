@@ -221,6 +221,10 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[]float32], x *tensor.
 		attn := b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, MemoryEfficientF32: op.Spatial && c > tensor.AttentionF32PanelWidth}), cu, pu)
 		out := b.Add(b.MulMat(g.weight(projW, cu, cu), attn), g.weight(projB, cu))
 		return b.Add(out, x), c, ch, cw, nil
+	case media.CodecDownsampleSpatial:
+		out := g.downsample(x, op.Bindings.WeightSpatial, op.Bindings.BiasSpatial, c, op.OutputChannels, ch, cw, op.Convolution)
+		scale := op.Operator.SpatialScale()
+		return out, op.OutputChannels, ch / scale, cw / scale, nil
 	case media.CodecUpsampleSpatial:
 		out := g.upsample(x, op.Bindings.WeightSpatial, op.Bindings.BiasSpatial, c, op.OutputChannels, ch, cw, op.Convolution)
 		scale := op.Operator.SpatialScale()
@@ -321,6 +325,23 @@ func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []floa
 		conv = b.Conv2D(up, wNode, bNode, stride, stride, padW, padW, padH, padH, false)
 	}
 	return b.Reshape(conv, uint64(cOut), uint64(scaledHeight*scaledWidth))
+}
+
+// A convolution's extents run time, height, width.
+const heightAxis, widthAxis = 1, 2
+
+// downsample is the stride-two convolution of diffusers' Downsample2D, which
+// pads the right and bottom edges by one and the others not at all.
+func (g *vaeGraphBuilder) downsample(x *tensor.Tensor, weight, bias []float32, cIn, cOut, ch, cw int, extents media.CodecConvolutionExtents) *tensor.Tensor {
+	b := g.b
+	kernel := extents.Kernel
+	img := b.Reshape(x, uint64(cIn), uint64(cw), uint64(ch))
+	wNode := g.weight(weight, uint64(kernel[widthAxis]), uint64(kernel[heightAxis]), uint64(cIn), uint64(cOut))
+	bNode := g.weight(bias, uint64(cOut))
+	const unpadded, padded = 0, tensor.SingletonExtent
+	conv := b.Conv2D(img, wNode, bNode, uint32(extents.Stride[widthAxis]), uint32(extents.Stride[heightAxis]), unpadded, padded, unpadded, padded, false)
+	scale := media.CodecDownsampleSpatial.SpatialScale()
+	return b.Reshape(conv, uint64(cOut), uint64((ch/scale)*(cw/scale)))
 }
 
 // sliceLastTemporalTap extracts w[:, :, 2, :, :] from a [cOut,cIn,3,3,3] torch

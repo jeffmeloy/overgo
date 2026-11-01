@@ -153,31 +153,10 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 6000,
-        "reason": "A new device trainer for one transformer family, an image encoder, a route and held-out judging; the existing optimizer, session, checkpoint and evaluation owners are reused and nothing of them is duplicated."
+        "nodes": 773,
+        "reason": "The encoder, trainer and route land as one step because only the route reaches them. Measured at the first refusal: 13637 production nodes, about twice the estimate, mostly the hand-written forward and reverse of a joint block; it reuses the optimizer, session, checkpoint and PEFT owners and duplicates none of them."
       },
       "steps": [
-        {
-          "id": "encoder",
-          "title": "Encode training pictures to MOSS latents on the device",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestMOSSEncoder'",
-          "rationale": "Add the AutoencoderKLFlux2 encoder beside its decoder from the checkpoint's own encoder tensors: DownEncoderBlock2D stages, the middle attention, quant_conv, the 2x2 patch and the batch-norm latent statistics.\nBuild it from the operations the decoder already compiles, sharing the decoder's builder rather than copying it.\nA golden from the pinned diffusers source fixes the moments and the normalized packed latent on the compact fixture and on the real checkpoint.\nServes: real pictures reach the trainer as latents without a host Python step.\nDisappears: nothing; training had no encoder.\nEvidence: encoder goldens under the moss fixtures, pinned to their producer.\nBatch: media lane."
-        },
-        {
-          "id": "gradients",
-          "title": "Compute MOSS adapter gradients on the device",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mosstrain -count=1 -run '^TestMOSSAdapterGradients'",
-          "rationale": "A device-resident trainer for the transformer's joint blocks: frozen F32 base weights resident, low-rank adapters on the q, k, v, o, ffn_up_gate and ffn_down projections, one checkpointed block run again at a time, attention over materialized probabilities one head at a time.\nThe text encoder and text refinement stay frozen and are computed once per example, as the upstream guide says; timestep modulation is frozen.\nThe flow-matching loss is the source's: x_t=(1-s)x_0+s*n on the training grid, target n-x_0.\nThe prediction, loss and every adapter factor's gradient are checked against a pinned PyTorch autograd golden of a small multi-head model.\nDevice memory and step time are measured on the real checkpoint at 1024 square.\nServes: the gradient a real training step needs, at a cost one card can carry.\nDisappears: nothing; the rectangular-layer trainers are for text stacks and stay.\nEvidence: the autograd golden with its producer under scripts/python_golden_references.\nBatch: kernel and trainer lanes; lands before model parity so its kernels do not expire inference evidence."
-        },
-        {
-          "id": "route",
-          "title": "Train adapters from captioned pictures with cmd/train",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -count=1 -run '^TestMOSSRoute'",
-          "rationale": "cmd/train -route moss under a supervised session: a manifest of pictures and captions is prepared once into latents and conditioning, trained under the shared optimizer plan, refused when loss on its fixed path does not descend, and published as a checkpoint.\nThe adapter is written in PEFT form through internal/peft and the merged transformer as a servable model directory, registered as a candidate as other trained models are.\nStep checkpoints resume bit-exactly; cancellation releases device state.\nThe route is listed in trainingRoutes so the proof run covers it.\nServes: a person can fine-tune MOSS on their own pictures.\nDisappears: nothing.\nEvidence: the route's session observation and checkpoint record.\nBatch: training lane."
-        },
         {
           "id": "serve",
           "title": "Serve what a MOSS training run published",

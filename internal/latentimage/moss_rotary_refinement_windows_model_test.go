@@ -31,6 +31,13 @@ func TestMOSSDecoderCheckpoint(t *testing.T) {
 	verifyMOSSModelStage(t, "decoder")
 }
 
+// TestMOSSEncoderCheckpoint holds the native encoder to the pinned diffusers source
+// on the real checkpoint.
+func TestMOSSEncoderCheckpoint(t *testing.T) {
+	cudatest.Require(t)
+	encoderGoldenCheck(t, testutil.ModelArtifactDir(t, "MOSS-Image-SFT-797fa8e678b4f"), "encoder-model.safetensors", "2b1ef4be74a3a16ca30e95d9fff674301f8a1273ec2ce38a9b34f90553cf4f63", 64, 96, 32)
+}
+
 func verifyMOSSModelStage(t *testing.T, stage string) {
 	t.Helper()
 	cudatest.Require(t)

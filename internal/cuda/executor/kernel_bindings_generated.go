@@ -19,6 +19,7 @@ const (
 	kernelAttentionFlash128F32
 	kernelAttentionFlash256F32
 	kernelAttentionFlash64F32
+	kernelAttentionNativeBf16F32
 	kernelAttentionOnlineF32
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
@@ -60,6 +61,7 @@ const (
 	kernelFp8ToF16
 	kernelFp8ToF32
 	kernelFwhtF32
+	kernelGatedDeltaChunkF32
 	kernelGatedDeltaConvF32
 	kernelGatedDeltaConvPromptF32
 	kernelGatedDeltaGatesF32
@@ -108,6 +110,7 @@ const (
 	kernelGroupNormF32
 	kernelGroupNormGroupedF32
 	kernelGroupNormInputBackwardF32
+	kernelGroupNormNativeF32
 	kernelGroupNormParameterBackwardF32
 	kernelGroupSliceF32
 	kernelHeadMajorF32
@@ -139,6 +142,10 @@ const (
 	kernelMoeRouterDotF32
 	kernelMoeRouterLogitsF32
 	kernelMoeScatterRowsF32
+	kernelMossRotateF32
+	kernelMossRowAffineF32
+	kernelMossSituBackwardF32
+	kernelMossSituF32
 	kernelMulMatBf16AddF32
 	kernelMulMatBf16AppendF32
 	kernelMulMatBf16ArgmaxPartialsF32
@@ -192,6 +199,7 @@ const (
 	kernelRepeatHeadsF32
 	kernelRmsNormBackwardF32
 	kernelRmsNormF32
+	kernelRmsNormMeanF32
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
 	kernelRopeHalfBackwardF32
@@ -212,6 +220,7 @@ const (
 	kernelSignedSqrtF32
 	kernelSiluBackwardF32
 	kernelSiluF32
+	kernelSiluNativeF32
 	kernelSoftmaxBackwardF32
 	kernelSoftmaxCeGradRowsF32
 	kernelSoftmaxCeGradScaledRowsF32
@@ -226,8 +235,8 @@ const (
 	kernelStrataNativeIndexerAppend
 	kernelStrataNativeIndexerAppendBlocks
 	kernelStrataNativeIndexerAppendFirst
-	kernelStrataNativeIndexerAppendTail
 	kernelStrataNativeIndexerAppendLayers
+	kernelStrataNativeIndexerAppendTail
 	kernelStreamCombineF32
 	kernelStreamSumF32
 	kernelStreamSumQ80F32
@@ -260,11 +269,6 @@ const (
 	kernelWindowPartition2dF32
 	kernelWindowUnpartition2dF32
 	kernelXieluF32
-	kernelAttentionNativeBf16F32
-	kernelGatedDeltaChunkF32
-	kernelGroupNormNativeF32
-	kernelRmsNormMeanF32
-	kernelSiluNativeF32
 	kernelAttentionNativePackF32
 	kernelAttentionNativeSoftmaxF32
 	kernelExpNativeF32
@@ -483,6 +487,7 @@ var kernelFunctionNames = [...]string{
 	"attention_flash_128_f32",
 	"attention_flash_256_f32",
 	"attention_flash_64_f32",
+	"attention_native_bf16_f32",
 	"attention_online_f32",
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
@@ -524,6 +529,7 @@ var kernelFunctionNames = [...]string{
 	"fp8_to_f16",
 	"fp8_to_f32",
 	"fwht_f32",
+	"gated_delta_chunk_f32",
 	"gated_delta_conv_f32",
 	"gated_delta_conv_prompt_f32",
 	"gated_delta_gates_f32",
@@ -572,6 +578,7 @@ var kernelFunctionNames = [...]string{
 	"group_norm_f32",
 	"group_norm_grouped_f32",
 	"group_norm_input_backward_f32",
+	"group_norm_native_f32",
 	"group_norm_parameter_backward_f32",
 	"group_slice_f32",
 	"head_major_f32",
@@ -603,6 +610,10 @@ var kernelFunctionNames = [...]string{
 	"moe_router_dot_f32",
 	"moe_router_logits_f32",
 	"moe_scatter_rows_f32",
+	"moss_rotate_f32",
+	"moss_row_affine_f32",
+	"moss_situ_backward_f32",
+	"moss_situ_f32",
 	"mul_mat_bf16_add_f32",
 	"mul_mat_bf16_append_f32",
 	"mul_mat_bf16_argmax_partials_f32",
@@ -656,6 +667,7 @@ var kernelFunctionNames = [...]string{
 	"repeat_heads_f32",
 	"rms_norm_backward_f32",
 	"rms_norm_f32",
+	"rms_norm_mean_f32",
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
 	"rope_half_backward_f32",
@@ -676,6 +688,7 @@ var kernelFunctionNames = [...]string{
 	"signed_sqrt_f32",
 	"silu_backward_f32",
 	"silu_f32",
+	"silu_native_f32",
 	"softmax_backward_f32",
 	"softmax_ce_grad_rows_f32",
 	"softmax_ce_grad_scaled_rows_f32",
@@ -690,8 +703,8 @@ var kernelFunctionNames = [...]string{
 	"strata_native_indexer_append",
 	"strata_native_indexer_append_blocks",
 	"strata_native_indexer_append_first",
-	"strata_native_indexer_append_tail",
 	"strata_native_indexer_append_layers",
+	"strata_native_indexer_append_tail",
 	"stream_combine_f32",
 	"stream_sum_f32",
 	"stream_sum_q8_0_f32",
@@ -724,11 +737,6 @@ var kernelFunctionNames = [...]string{
 	"window_partition_2d_f32",
 	"window_unpartition_2d_f32",
 	"xielu_f32",
-	"attention_native_bf16_f32",
-	"gated_delta_chunk_f32",
-	"group_norm_native_f32",
-	"rms_norm_mean_f32",
-	"silu_native_f32",
 	"attention_native_pack_f32",
 	"attention_native_softmax_f32",
 	"exp_native_f32",
@@ -946,6 +954,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	15,
 	15,
+	12,
 	24,
 	6,
 	5,
@@ -987,6 +996,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	5,
 	4,
+	19,
 	11,
 	11,
 	9,
@@ -1035,6 +1045,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	9,
 	8,
 	10,
+	9,
 	10,
 	8,
 	5,
@@ -1066,6 +1077,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	7,
 	5,
+	7,
+	6,
+	5,
+	4,
 	6,
 	7,
 	5,
@@ -1119,6 +1134,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	8,
 	5,
+	5,
 	18,
 	18,
 	5,
@@ -1138,6 +1154,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	4,
 	4,
+	3,
 	3,
 	5,
 	6,
@@ -1153,8 +1170,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	19,
 	19,
 	12,
-	4,
 	16,
+	4,
 	10,
 	8,
 	9,
@@ -1187,11 +1204,6 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	7,
 	7,
-	12,
-	19,
-	9,
-	5,
-	3,
 	18,
 	5,
 	3,
@@ -1401,6 +1413,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

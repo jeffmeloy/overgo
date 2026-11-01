@@ -133,6 +133,9 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	const pictured = "objective.registered.image-image"
 	bridge := trained("Bridge", "encoder_bridge.safetensors", "", pictured,
 		trainingprogram.ObjectiveImageLatent, trainingprogram.MetricImagePSNRUnit, recipecontract.ModalityImage)
+	moss := trained("MOSS", filepath.Join("transformer", "model.safetensors"), mossGrounding, "",
+		trainingprogram.ObjectiveFlowMatching, trainingprogram.MetricImagePSNRUnit, recipecontract.ModalityImage)
+	moss.Directory = filepath.Join(models, "MOSS")
 	reward := trained("Pilot", "pilot.gguf", "", "",
 		trainingprogram.ObjectiveGRPO, trainingprogram.MetricTokenAccuracy, recipecontract.ModalityText)
 
@@ -239,7 +242,7 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	suite.Cases[0].Text += " but another answer"
 	otherSuite := projection("OtherSuite", exactRan(suite))
 
-	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, table, forecast, bridge, reward, exact, protocol, otherSuite}
+	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, table, forecast, bridge, moss, reward, exact, protocol, otherSuite}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
 		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction,
@@ -334,6 +337,7 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 			"-route": tabularRoute, "-recipe": table.Recipe.String(), "-objective": tabled, "-model": filepath.Dir(filepath.Dir(table.Location)),
 			"-steps": routeSteps, "-seq": "", "-dataset": "",
 		},
+		moss.ModelName: {"-route": "moss", "-model": moss.Directory, "-pictures": mossGrounding, "-steps": routeSteps},
 		bridge.ModelName: {
 			"-route": "codec", "-recipe": bridge.Recipe.String(), "-objective": pictured, "-pair": filepath.Dir(bridge.Location),
 			"-steps": routeSteps, "-model": "", "-cache": "", "-seq": "", "-dataset": "",

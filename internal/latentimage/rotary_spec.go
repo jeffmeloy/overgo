@@ -13,7 +13,8 @@ const (
 	mossRefinementEpsilon = 1e-6
 )
 
-func readRotaryTransformer(root string) (TransformerSpec, error) {
+// ReadRotaryTransformer reads a rotary transformer's geometry from its checkpoint.
+func ReadRotaryTransformer(root string) (TransformerSpec, error) {
 	var config struct {
 		Class     string  `json:"_class_name"`
 		Layers    int     `json:"num_layers"`

@@ -135,6 +135,24 @@ func (o *ResidentOps) function(name string) (driver.Function, error) {
 	return function, err
 }
 
+// GEMM writes output = left*right over rows, inner and columns, each operand
+// transposed as asked.
+func (o *ResidentOps) GEMM(transposeLeft, transposeRight bool, rows, inner, columns int, left, right, output driver.DevicePtr) error {
+	return o.session.gemm(transposeLeft, transposeRight, rows, inner, columns, left, right, output)
+}
+
+// Launch runs the operation module's named kernel over count work items.
+func (o *ResidentOps) Launch(name string, count uint32, arguments ...unsafe.Pointer) error {
+	function, err := o.function(name)
+	if err != nil {
+		return err
+	}
+	return o.session.launch1D(function, count, arguments...)
+}
+
+// Flush waits for the work queued so far.
+func (o *ResidentOps) Flush() error { return o.session.finish() }
+
 func (o *ResidentOps) AllocF32(count int) (driver.DevicePtr, error) {
 	if o == nil || o.session == nil || count <= 0 {
 		return 0, errors.New("resident ops: invalid scratch allocation")

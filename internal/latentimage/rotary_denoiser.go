@@ -106,7 +106,7 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 	if err != nil {
 		return nil, err
 	}
-	rope, err := coordinateRotary(p.spec.HeadDim, p.height, p.width, p.text, p.spec.RopeTheta)
+	rope, err := CoordinateRotary(p.spec.HeadDim, p.height, p.width, p.text, p.spec.RopeTheta)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,9 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 	}, nil
 }
 
-func coordinateRotary(head, height, width, text int, base float64) ([]float32, error) {
+// CoordinateRotary is the pinned rotary table of a picture and its text: for each
+// token, the sines then the cosines of its four coordinates over the bands.
+func CoordinateRotary(head, height, width, text int, base float64) ([]float32, error) {
 	if !checked.PositiveInts(head, height, width, text) || head%(rotaryCoordinateAxes*tensor.PairedExtent) != 0 || !checked.PositiveFinite64(base) {
 		return nil, errors.New("coordinate rotary: invalid geometry or frequency base")
 	}

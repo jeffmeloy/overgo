@@ -100,7 +100,7 @@ func VerifyMOSSTransformer(ctx context.Context, modelRoot, referenceRoot, contra
 			}
 		}
 	}
-	spec, err := readRotaryTransformer(modelRoot)
+	spec, err := ReadRotaryTransformer(modelRoot)
 	if err != nil {
 		return err
 	}

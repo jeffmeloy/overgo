@@ -115,7 +115,7 @@ func TestMOSSRotaryDenoiserRefusesInvalidInput(t *testing.T) {
 			t.Fatal("invalid feeds accepted")
 		}
 	}
-	if _, err := coordinateRotary(8, math.MaxInt, 2, 1, 10000); err == nil {
+	if _, err := CoordinateRotary(8, math.MaxInt, 2, 1, 10000); err == nil {
 		t.Fatal("overflow accepted")
 	}
 }

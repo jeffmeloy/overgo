@@ -491,7 +491,8 @@
       "likely_effort": "Small shared API propagation with coordinated CLI, platform callback and existing test updates. No new runtime component or model fixture is needed.",
       "plan_coverage": "New branch-local advisory finding. The MOSS implementation campaign remains paused; no plan step was added, adopted or advanced.",
       "plan_references": [
-        "moss-findings/cancellation"
+        "moss-findings/cancellation",
+        "moss-training/route"
       ],
       "recommended_change": "Carry context through the existing Capability.Resolve contract and its real production/test consumers. Use FromHFPathContext(ctx, path) for the shared HF image source. Migrate the existing CLI callers and platform-specific capability callbacks together. Reuse the existing inventoryReader and source integrity checks. Do not add a parallel resolver field, MOSS-specific importer, hash cache, worker goroutine or cancellation poller. Keep manifest/recipe identities, full content verification, source-change refusals, supported-platform errors and database publication/activation boundaries intact.",
       "severity": "P2",
@@ -6306,7 +6307,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "bd7e3103e76c77c97554311777671575dca221c7",
+    "head": "fe2d0855456e5618f14d43c700b28af89d8fbed8",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6408,9 +6409,10 @@
       "SQA-MOSS-001": {
         "action": "implemented",
         "rows": [
-          "moss-findings/cancellation"
+          "moss-findings/cancellation",
+          "moss-training/route"
         ],
-        "note": "Landed: Capability.Resolve takes the request context, and the HF image, transcription and VQA sources hash under it. Other capabilities take the same contract with sources that do not hash through this path. Awaits the reviewer's closure."
+        "note": "Landed: Capability.Resolve takes the request context, and the HF image, transcription and VQA sources hash under it. Other capabilities take the same contract with sources that do not hash through this path. moss-training/route extends this to training: identifying a pipeline's components hashes under the run's context. Awaits the reviewer's closure."
       },
       "SQA-MOSS-011": {
         "action": "implemented",
@@ -6522,7 +6524,7 @@
         "rows": [
           "sqa-cycle/commit-queue"
         ],
-        "note": "Accepted and observed: a landing waiting for the device held the queue for hours. Moderate; needs care not to ship an unchecked parent."
+        "note": "Accepted and observed: a landing waiting for the device held the queue for hours. Moderate; needs care not to ship an unchecked parent. Read again at moss-training/route: lanes.go only gains ./internal/mosstrain, so the finding stands."
       },
       "SQA-258": {
         "action": "filed",

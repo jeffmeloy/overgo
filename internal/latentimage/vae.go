@@ -92,6 +92,15 @@ func loadVAEDecoder(modelDir, class string) (*VAEDecoder, error) {
 }
 
 func loadVAEWeights(vaeDir string) (map[string][]float32, error) {
+	// Only the decode path needs decoder.* and post_quant_conv.*; skip the
+	// encoder and quant_conv (encode side) to keep host residency small.
+	return loadVAETensors(vaeDir, func(name string) bool {
+		return strings.HasPrefix(name, "decoder.") || strings.HasPrefix(name, "post_quant_conv.") || name == "bn.running_mean" || name == "bn.running_var"
+	})
+}
+
+// loadVAETensors reads the tensors of a VAE checkpoint keep selects.
+func loadVAETensors(vaeDir string, keep func(string) bool) (map[string][]float32, error) {
 	src, err := safetensors.OpenSource(vaeDir)
 	if err != nil {
 		return nil, fmt.Errorf("latentimage vae: open weights: %w", err)
@@ -99,9 +108,7 @@ func loadVAEWeights(vaeDir string) (map[string][]float32, error) {
 	defer src.Close()
 	out := make(map[string][]float32, len(src.Tensors))
 	for name, tensor := range src.Tensors {
-		// Only the decode path needs decoder.* and post_quant_conv.*; skip the
-		// encoder and quant_conv (encode side) to keep host residency small.
-		if !strings.HasPrefix(name, "decoder.") && !strings.HasPrefix(name, "post_quant_conv.") && name != "bn.running_mean" && name != "bn.running_var" {
+		if !keep(name) {
 			continue
 		}
 		values, err := safetensors.ReadF32(tensor)

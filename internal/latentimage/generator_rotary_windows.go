@@ -37,7 +37,7 @@ func loadRotaryGenerator(ctx context.Context, root string, profile Profile, requ
 	if actual.ID != profile.ID {
 		return nil, errors.New("latent image: recipe profile differs from artifact")
 	}
-	spec, err := readRotaryTransformer(root)
+	spec, err := ReadRotaryTransformer(root)
 	if err != nil {
 		return nil, err
 	}

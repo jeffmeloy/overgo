@@ -591,7 +591,7 @@ func identifyModel(directory string) (artifact.ID, error) {
 // path binds: the one its bootstrap records its recipe under and its
 // checkpoints resume under.
 func WeightsIdentity(path string) (artifact.ID, error) {
-	id, _, err := identifyWeights(path)
+	id, _, err := identifyWeights(context.Background(), path)
 	return id, err
 }
 
@@ -614,6 +614,11 @@ func IdentifyModelWeights(directory string) (string, error) {
 	}
 	switch len(candidates) {
 	case 0:
+		if pipeline, err := isPipelineInput(directory); err != nil {
+			return "", err
+		} else if pipeline {
+			return directory, nil
+		}
 		return "", fmt.Errorf("training workflow: %s holds no safetensors weights", directory)
 	case 1:
 		return candidates[0], nil
@@ -621,12 +626,23 @@ func IdentifyModelWeights(directory string) (string, error) {
 	return directory, nil
 }
 
+// isPipelineInput says directory is a Diffusers pipeline: model_index.json names
+// the components that hold its weights.
+func isPipelineInput(directory string) (bool, error) {
+	_, err := os.Stat(filepath.Join(directory, "model_index.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // identifyWeights retains the raw identity of legacy single Safetensors
 // inputs and binds every component of GGUF and multi-file Safetensors inputs
 // through their existing inventory owners. A bridged pair's bridge is a single
 // Safetensors file, but a run over it trains and judges through the encoder
 // and the decoder beside it, so the pair is the model serving names it as.
-func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
+// A pipeline with no weights of its own is every component it names.
+func identifyWeights(ctx context.Context, input string) (artifact.ID, artifact.Batch, error) {
 	var inventory modelartifact.Inventory
 	var err error
 	if isGGUFModelInput(input) {
@@ -648,10 +664,16 @@ func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
 		if globErr != nil {
 			return artifact.ID{}, artifact.Batch{}, globErr
 		}
+		pipeline, pipelineErr := isPipelineInput(directory)
+		if pipelineErr != nil {
+			return artifact.ID{}, artifact.Batch{}, pipelineErr
+		}
 		if _, bridged, pairErr := rae.ResolveBridgedPair(directory); pairErr != nil {
 			return artifact.ID{}, artifact.Batch{}, pairErr
 		} else if bridged {
 			inventory, _, err = rae.PairInventory(directory)
+		} else if pipeline && len(candidates) == 0 {
+			inventory, err = modelartifact.FromHFPathContext(ctx, directory)
 		} else if info.IsDir() || len(candidates) > 1 || len(indexes) > 0 {
 			inventory, err = modelartifact.FromSafetensorsPath(directory)
 		}

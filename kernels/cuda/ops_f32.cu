@@ -811,6 +811,95 @@ extern "C" __global__ void softmax_backward_f32(
     }
 }
 
+// moss_situ_f32: the MOSS feed-forward activation of [rows, 2*width] rows, each
+// its width hidden values then its width gate values:
+// (4 tanh(gate/4) sigmoid(gate)) * (25 tanh(hidden/25)). One thread per value.
+extern "C" __global__ void moss_situ_f32(
+        const float * fused,
+        float * output,
+        unsigned int width,
+        unsigned int rows) {
+    const size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= (size_t)rows * width) {
+        return;
+    }
+    const size_t row = index / width;
+    const size_t column = index % width;
+    const float hidden = fused[row * 2 * width + column];
+    const float gate = fused[row * 2 * width + width + column];
+    const float sigmoid = 1.0f / (1.0f + expf(-gate));
+    output[index] = (4.0f * tanhf(gate / 4.0f) * sigmoid) * (25.0f * tanhf(hidden / 25.0f));
+}
+
+// moss_situ_backward_f32: VJP of moss_situ_f32 into its fused input.
+extern "C" __global__ void moss_situ_backward_f32(
+        const float * fused,
+        const float * d_output,
+        float * d_fused,
+        unsigned int width,
+        unsigned int rows) {
+    const size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= (size_t)rows * width) {
+        return;
+    }
+    const size_t row = index / width;
+    const size_t column = index % width;
+    const size_t hidden_at = row * 2 * width + column;
+    const size_t gate_at = hidden_at + width;
+    const float hidden_tanh = tanhf(fused[hidden_at] / 25.0f);
+    const float gate_tanh = tanhf(fused[gate_at] / 4.0f);
+    const float sigmoid = 1.0f / (1.0f + expf(-fused[gate_at]));
+    const float gate_value = 4.0f * gate_tanh * sigmoid;
+    const float d_gate_value = (1.0f - gate_tanh * gate_tanh) * sigmoid + 4.0f * gate_tanh * sigmoid * (1.0f - sigmoid);
+    d_fused[hidden_at] = d_output[index] * gate_value * (1.0f - hidden_tanh * hidden_tanh);
+    d_fused[gate_at] = d_output[index] * 25.0f * hidden_tanh * d_gate_value;
+}
+
+// moss_rotate_f32: the MOSS rotary rotation of [tokens, heads, head_width] rows
+// by a [tokens, head_width] table of sines then cosines, shared by the heads.
+// sign 1 is the rotation and -1 its transpose. One thread per pair.
+extern "C" __global__ void moss_rotate_f32(
+        const float * x,
+        const float * rope,
+        float * output,
+        unsigned int heads,
+        unsigned int head_width,
+        unsigned int tokens,
+        float sign) {
+    const unsigned int half = head_width / 2;
+    const size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= (size_t)tokens * heads * half) {
+        return;
+    }
+    const size_t pair = index % half;
+    const size_t head = (index / half) % heads;
+    const size_t token = (index / half) / heads;
+    const float sine = rope[token * head_width + pair];
+    const float cosine = rope[token * head_width + half + pair];
+    const size_t base = (token * heads + head) * head_width + pair;
+    const float first = x[base];
+    const float second = x[base + half];
+    output[base] = first * cosine - sign * second * sine;
+    output[base + half] = second * cosine + sign * first * sine;
+}
+
+// moss_row_affine_f32: output = x * scale + shift for rows of width values, with
+// one scale and one shift vector for every row. One thread per value.
+extern "C" __global__ void moss_row_affine_f32(
+        const float * x,
+        const float * scale,
+        const float * shift,
+        float * output,
+        unsigned int width,
+        unsigned int rows) {
+    const size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= (size_t)rows * width) {
+        return;
+    }
+    const size_t column = index % width;
+    output[index] = x[index] * scale[column] + shift[column];
+}
+
 // rope_half_backward_f32: VJP of split-half (HF-layout) rotary embedding. dx is
 // [seq, n_heads*hd]; inv_freq is [hd/2]. Rotates each gradient pair (i, i+hd/2)
 // by the negated angle pos*inv_freq[i]. One thread per (position, head, pair).

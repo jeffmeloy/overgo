@@ -196,7 +196,7 @@ func BootstrapObjectiveForModel(ctx context.Context, store *overgodb.Store, mode
 // training activation standing under that one file's own identity
 // (retireLoneFile).
 func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelPath string) (artifact.ID, error) {
-	modelID, batch, err := identifyWeights(modelPath)
+	modelID, batch, err := identifyWeights(ctx, modelPath)
 	if err != nil {
 		return artifact.ID{}, err
 	}

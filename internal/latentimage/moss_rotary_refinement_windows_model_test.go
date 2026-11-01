@@ -31,6 +31,11 @@ func TestMOSSDecoderCheckpoint(t *testing.T) {
 	verifyMOSSModelStage(t, "decoder")
 }
 
+// TestMOSSGenerationCheckpoint holds whole generations to the pinned upstream source.
+func TestMOSSGenerationCheckpoint(t *testing.T) {
+	verifyMOSSModelStage(t, "generation")
+}
+
 // TestMOSSEncoderCheckpoint holds the native encoder to the pinned diffusers source
 // on the real checkpoint.
 func TestMOSSEncoderCheckpoint(t *testing.T) {

@@ -6,12 +6,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -30,6 +32,13 @@ const (
 	mossTrainingClaim  = "docs/verification/moss-image-training.json"
 	// mossHeldoutRounding is how closely a recorded mean restates its own values.
 	mossHeldoutRounding = 1e-9
+	// mossParityRecordPath and mossResourceRecordPath hold the retained comparisons
+	// with the pinned upstream source.
+	mossParityRecordPath   = "docs/verification/moss-image-parity.json"
+	mossResourceRecordPath = "docs/verification/moss-image-resources.json"
+	// mossParityPasses is the generations each case compares, the second holding
+	// the first to repeatability.
+	mossParityPasses = 2
 )
 
 // mossManifest pins one picture manifest under the data root's datasets.
@@ -97,6 +106,14 @@ func TestMOSSRetainedEvidence(t *testing.T) {
 	t.Run("training", func(t *testing.T) {
 		t.Parallel()
 		checkMOSSTraining(t, root, roots, store)
+	})
+	t.Run("parity", func(t *testing.T) {
+		t.Parallel()
+		checkMOSSParity(t, t.Context(), root, roots)
+	})
+	t.Run("resources", func(t *testing.T) {
+		t.Parallel()
+		checkMOSSResources(t, t.Context(), root)
 	})
 }
 
@@ -221,4 +238,183 @@ func mossManifestSources(t *testing.T, roots dataroot.Roots, manifest mossManife
 		sources[name] = true
 	}
 	return sources
+}
+
+// mossParityCase pins one oracle and the native run compared with it.
+type mossParityCase struct {
+	Name       string      `json:"name"`
+	Report     string      `json:"report"`
+	Prompt     string      `json:"prompt"`
+	Negative   string      `json:"negative_prompt"`
+	Width      int         `json:"width"`
+	Height     int         `json:"height"`
+	Seed       int64       `json:"seed"`
+	Oracle     artifact.ID `json:"oracle"`
+	Boundaries int         `json:"boundaries"`
+	WorstAbs   float64     `json:"worst_abs"`
+	Image      artifact.ID `json:"image"`
+}
+
+// mossParityRecord is every full generation compared with the pinned upstream source.
+type mossParityRecord struct {
+	Model      artifact.ID      `json:"model"`
+	Commit     string           `json:"commit"`
+	Contract   string           `json:"oracle_contract_sha256"`
+	ReportRoot string           `json:"report_root"`
+	Oracles    string           `json:"oracle_root"`
+	Cases      []mossParityCase `json:"cases"`
+	Scope      string           `json:"scope"`
+}
+
+// checkMOSSParity recomputes each case from the retained report, line by line:
+// every boundary on both passes within its frozen tolerance, each pass equal to
+// the other, and one picture from both. The cases must cover the matrix the
+// parity step names: two languages, a layout, two shapes, a negative prompt and
+// a second seed.
+func checkMOSSParity(t *testing.T, ctx context.Context, root string, roots dataroot.Roots) {
+	t.Helper()
+	var record mossParityRecord
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mossParityRecordPath), &record); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitauthority.Query(ctx, root, "cat-file", "-e", record.Commit+"^{commit}"); err != nil {
+		t.Fatalf("commit %s: %v", record.Commit, err)
+	}
+	contract, err := os.ReadFile(filepath.Join(root, "fixtures", "moss", "oracle-contract.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digest := sha256.Sum256(contract); hex.EncodeToString(digest[:]) != record.Contract {
+		t.Fatal("the oracle contract moved since these cases were compared")
+	}
+	data := filepath.Dir(roots.Datasets)
+	shapes, seeds, languages, negatives, layouts := map[[2]int]bool{}, map[int64]bool{}, map[bool]bool{}, 0, 0
+	for _, want := range record.Cases {
+		oracle, err := artifact.IdentifyFile(artifact.KindTensorSet, filepath.Join(data, filepath.FromSlash(record.Oracles), want.Name, "full_reference.safetensors"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if oracle != want.Oracle {
+			t.Fatalf("%s: the oracle is %s, the record says %s", want.Name, oracle, want.Oracle)
+		}
+		raw, err := os.ReadFile(filepath.Join(data, filepath.FromSlash(record.ReportRoot), want.Report))
+		if err != nil {
+			t.Fatal(err)
+		}
+		boundaries, worst, images := 0, 0.0, map[artifact.ID]int{}
+		for line := range strings.SplitSeq(strings.TrimSpace(string(raw)), "\n") {
+			var entry struct {
+				Stage       string      `json:"stage"`
+				Case        string      `json:"case"`
+				Failed      int         `json:"failed"`
+				MaxAbs      float64     `json:"max_abs"`
+				RepeatEqual bool        `json:"repeat_equal"`
+				Image       artifact.ID `json:"image"`
+			}
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				t.Fatal(err)
+			}
+			if entry.Case != want.Name {
+				continue
+			}
+			switch entry.Stage {
+			case "generation":
+				if entry.Failed != 0 || !entry.RepeatEqual {
+					t.Fatalf("%s: a boundary failed: %s", want.Name, line)
+				}
+				boundaries++
+				worst = max(worst, entry.MaxAbs)
+			case "generation-image":
+				images[entry.Image]++
+			}
+		}
+		if boundaries != want.Boundaries || worst != want.WorstAbs || images[want.Image] != mossParityPasses || len(images) != 1 {
+			t.Fatalf("%s: the report says %d boundaries, worst %g, images %v; the record says %d, %g, %s", want.Name, boundaries, worst, images, want.Boundaries, want.WorstAbs, want.Image)
+		}
+		shapes[[2]int{want.Width, want.Height}] = true
+		seeds[want.Seed] = true
+		languages[strings.IndexFunc(want.Prompt, func(r rune) bool { return r > unicode.MaxASCII }) >= 0] = true
+		if want.Negative != "" {
+			negatives++
+		}
+		if strings.HasPrefix(want.Prompt, "{") {
+			layouts++
+		}
+	}
+	if len(shapes) < 2 || len(seeds) < 2 || len(languages) < 2 || negatives == 0 || layouts == 0 {
+		t.Fatalf("the cases leave part of the matrix uncovered: %v %v %v, %d negative, %d layout", shapes, seeds, languages, negatives, layouts)
+	}
+	if strings.TrimSpace(record.Scope) == "" {
+		t.Fatal("the record does not say what it establishes")
+	}
+}
+
+// mossResourceRun is one request measured natively and upstream.
+type mossResourceRun struct {
+	Label           string             `json:"label"`
+	Prompt          string             `json:"prompt"`
+	Height          int                `json:"height"`
+	Width           int                `json:"width"`
+	Seed            int64              `json:"seed"`
+	WallSeconds     float64            `json:"wall_seconds"`
+	Phases          map[string]float64 `json:"phases_seconds"`
+	PeakDeviceBytes uint64             `json:"peak_device_bytes"`
+	PeakHostBytes   uint64             `json:"peak_host_bytes"`
+}
+
+// mossResourceRecord compares native and upstream on one protocol and one device.
+type mossResourceRecord struct {
+	Commit   string `json:"commit"`
+	Device   string `json:"device"`
+	Protocol string `json:"protocol"`
+	Upstream struct {
+		Settings    string            `json:"settings"`
+		Packages    map[string]string `json:"packages"`
+		LoadSeconds float64           `json:"load_seconds"`
+		Requests    []mossResourceRun `json:"requests"`
+	} `json:"upstream"`
+	Native struct {
+		LoadSeconds float64           `json:"load_seconds"`
+		Requests    []mossResourceRun `json:"requests"`
+		Largest     mossResourceRun   `json:"largest"`
+	} `json:"native"`
+	Scope string `json:"scope"`
+}
+
+// checkMOSSResources holds the comparison to equal requests: the two sides of a
+// row must be the same picture request, and each must have measured what it
+// reports, so a missing reading fails rather than reads as zero.
+func checkMOSSResources(t *testing.T, ctx context.Context, root string) {
+	t.Helper()
+	var record mossResourceRecord
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mossResourceRecordPath), &record); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gitauthority.Query(ctx, root, "cat-file", "-e", record.Commit+"^{commit}"); err != nil {
+		t.Fatalf("commit %s: %v", record.Commit, err)
+	}
+	if record.Device == "" || record.Protocol == "" || record.Upstream.Settings == "" || len(record.Upstream.Packages) == 0 || strings.TrimSpace(record.Scope) == "" {
+		t.Fatalf("the record does not state its hardware, protocol and scope: %+v", record)
+	}
+	if len(record.Native.Requests) == 0 || len(record.Native.Requests) != len(record.Upstream.Requests) {
+		t.Fatalf("%d native rows against %d upstream", len(record.Native.Requests), len(record.Upstream.Requests))
+	}
+	measured := func(run mossResourceRun) {
+		t.Helper()
+		if run.WallSeconds <= 0 || run.PeakDeviceBytes == 0 || run.PeakHostBytes == 0 || len(run.Phases) == 0 {
+			t.Fatalf("%s measured nothing: %+v", run.Label, run)
+		}
+	}
+	for index, native := range record.Native.Requests {
+		upstream := record.Upstream.Requests[index]
+		if native.Label != upstream.Label || native.Prompt != upstream.Prompt || native.Height != upstream.Height || native.Width != upstream.Width || native.Seed != upstream.Seed {
+			t.Fatalf("row %d compares different requests: %+v against %+v", index, native, upstream)
+		}
+		measured(native)
+		measured(upstream)
+	}
+	measured(record.Native.Largest)
+	if largest := record.Native.Largest; largest.Height*largest.Width <= record.Native.Requests[0].Height*record.Native.Requests[0].Width {
+		t.Fatalf("the largest picture measured is %dx%d", largest.Width, largest.Height)
+	}
 }

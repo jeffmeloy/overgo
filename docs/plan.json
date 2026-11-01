@@ -956,18 +956,6 @@
       },
       "steps": [
         {
-          "id": "model-parity",
-          "title": "Compare native SFT inference with the pinned SFT oracle",
-          "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/parity'",
-          "rationale": "Add full-model cycle coverage for the ModelScope SFT checkpoint over the frozen prompt, layout, language, size, negative-prompt and seed matrix.\nRequire stage tolerances and end-to-end output acceptance independently; pleasing pictures or finite tensors alone are insufficient.\nEvaluate rendered text and layout adherence on a frozen held-out set, preserving independent human or established metric judgments where needed.\nBind every result to exact implementation, source, checkpoint, recipe, suite and environment identities; unavailable devices or missing artifacts remain missing evidence.\nPublish image-generation capability verification only after required cells complete; do not advertise training capability.\nServes: trustworthy native model support.\nDisappears: unverified support labels through existing evaluation and activation evidence.\nEvidence: retained native-versus-upstream stage and quality records read by activation, compatibility and closeout.\nBatch: evaluation/claim lanes; full-model work runs in the cycle, after all execution-surface changes and guard renewal.\n\nOwner, 2026-11-01: \"do not advertise training capability\" no longer holds; moss-training/heldout owns the training claim on its own evidence. This step runs after moss-findings and moss-training, whose kernels change the execution surface it binds to, and it reads the verifier moss-findings/verifier hardens.",
-          "depends_on": [
-            "moss-interface/journey",
-            "moss-efficiency/bounded",
-            "moss-import-reuse/second-consumer"
-          ]
-        },
-        {
           "id": "resources",
           "title": "Measure latency and memory on supported hardware",
           "status": "open",

@@ -1,0 +1,62 @@
+{
+ "model": "model:sha256:fc5fd3cedb681bc901c4b03b9826339375bb94f7d960886833473213358f64c6",
+ "commit": "629aa7c0d622ab265d370a0aeefc0301561fac19",
+ "oracle_contract_sha256": "0c2767456a75075671de88538d8c1ce0f673ef41c2bae897c4e59449fad0ca86",
+ "report_root": "references/moss-image/parity-629aa7c0d",
+ "oracle_root": "references/moss-image/goldens-797fa8e678b4f",
+ "cases": [
+  {
+   "name": "full-english",
+   "report": "generation.jsonl",
+   "prompt": "A small red sailboat on a quiet lake at sunrise.",
+   "negative_prompt": "",
+   "width": 1024,
+   "height": 1024,
+   "seed": 42,
+   "oracle": "tensor-set:sha256:88de812dba7af834b44863064343fd89337c8df6d41368fcafaa861c84cfc97d",
+   "boundaries": 416,
+   "worst_abs": 8.940696716308594e-8,
+   "image": "output:sha256:cfab6e10e0551187ce87aec12beab4f438ad063b2b202def0d6e8bf5856903d8"
+  },
+  {
+   "name": "full-chinese-rectangle",
+   "report": "generation.jsonl",
+   "prompt": "一只白猫坐在窗边，窗外是秋天的花园。",
+   "negative_prompt": "",
+   "width": 1024,
+   "height": 768,
+   "seed": 42,
+   "oracle": "tensor-set:sha256:972464914a558ad9eeeb2c377faff7fbf069ad51f09ef0f8b7bfeb67ac35bb3f",
+   "boundaries": 416,
+   "worst_abs": 8.344650268554688e-7,
+   "image": "output:sha256:610136bdeedc87e8c91db8915f621385e6b23b5e892be7459d806527c53e2a4c"
+  },
+  {
+   "name": "full-layout",
+   "report": "generation.jsonl",
+   "prompt": "{\"summary\": {\"meta\": [\"studio photograph\"], \"canvas\": \"single\", \"caption\": \"A blue cube on the left beside a red sphere on the right on a white tabletop.\"}, \"items\": [{\"label\": \"object\", \"caption\": \"A blue cube on the left.\", \"bbox\": [-256, -448, 256, -64]}, {\"label\": \"object\", \"caption\": \"A red sphere on the right.\", \"bbox\": [-256, 64, 256, 448]}], \"bbox_coord_space\": \"abs_centralized\", \"bbox_format\": \"yxyx\"}",
+   "negative_prompt": "",
+   "width": 1024,
+   "height": 1024,
+   "seed": 42,
+   "oracle": "tensor-set:sha256:37d02b7270d3f9cc77c0b3ac12e4b505a59b23b22aed392b64afe189ee11fb80",
+   "boundaries": 416,
+   "worst_abs": 2.384185791015625e-7,
+   "image": "output:sha256:26c788421ebfde50ab33803d8ecb4c8833d58492594f810e0c919127325f74b3"
+  },
+  {
+   "name": "full-english-negative",
+   "report": "negative.jsonl",
+   "prompt": "A small red sailboat on a quiet lake at sunrise.",
+   "negative_prompt": "blurry, low quality, watermark",
+   "width": 768,
+   "height": 1024,
+   "seed": 7,
+   "oracle": "tensor-set:sha256:0b9dcf96be61fede33bad0b8951673ae0cdd5bbb4f3f585cb61e9e39f390a290",
+   "boundaries": 416,
+   "worst_abs": 0.000003904104232788086,
+   "image": "output:sha256:b8d56a183a5fa8f8044cabe40f3dd47c5eca0efbd95b4a8a51f265fcd7021ab4"
+  }
+ ],
+ "scope": "Whole 50-step generations at guidance 3 against the pinned upstream source on the same device, compared at the initial latents, the schedule, the conditioning, every step's prediction, velocity and latents, and the final pixels, on two passes each. The initial latents, schedule and conditioning must equal the oracle's bits; the rest stay inside the frozen tolerances, and the worst difference in any compared value is 3.9e-6. Each case's two passes gave one PNG. The negative-prompt case sits outside the frozen contract and uses its tolerances. Pictures this close carry the upstream model's rendered text and layout adherence with them, which is measured for image-gen by the TIFA row, not here."
+}

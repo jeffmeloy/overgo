@@ -464,25 +464,6 @@
       ]
     },
     {
-      "id": "flashnext-long-read",
-      "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Strata's batched draft-layer prompt pass (Prefill::draft_kv) ported whole: its buffers, records and twelve batched launches beside the six-row pass, the hyper-connection's three prompt kernels and their bindings"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Flash-Next's 16,384-token prompt read comes back to its 2026-10-25 first output, toward Strata's",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-b0f22870d3200ec6 -target 5563.9",
-          "rationale": "Split from flashnext-first-request on 2026-10-30, whose first output and throughput are met and whose load is declared a trade. The 16,384-token first output reads 6.2 s against 5563.9 ms on 2026-10-25, and Strata reads the same prompt in 4.94 to 5.04 s (the reviewer's bench, scratchpad round/alt62): the read takes 5.85 s and the round's setup after it 0.34 s. Measured on the served model: the n-gram embedding's rows for the read are fetched from the model file in two loads of 131,072 rows, 0.26 s on the read's path before its chunks run (inference feedNGramInputs, model.HostRows); the rest is the chunks' MoE products on the card and the host experts' on the CPU (hostexpert, about 2.5 s of CPU over the read). First suspects, each measured before it is changed: the n-gram rows fetched for the next chunk while the current one runs; the host experts' share of a long read, against where Strata's read computes them; and the chunk size a long read takes."
-        }
-      ]
-    },
-    {
       "id": "e4b-tensor-cores",
       "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
       "owner": "master-lead",

@@ -21,6 +21,20 @@ type Limits struct {
 	Bytes int
 }
 
+// ChatLimits returns the shared work and memory allowance for model chat templates.
+// The bounds cover the measured served-template corpus through four thousand messages.
+// Reconsider them when a supported template or conversation exceeds that corpus.
+func ChatLimits() Limits {
+	return Limits{Steps: chatTemplateSteps, Bytes: chatTemplateBytes}
+}
+
+// Chat template bounds are the next powers of two above 49 million operations and 138 MiB.
+// The served-template corpus supplies those maxima and changes require remeasurement.
+const (
+	chatTemplateSteps = 1 << 26
+	chatTemplateBytes = 1 << 28
+)
+
 // errLimit is the error of a render that went past its limits, or of a
 // template that nests deeper than maxNesting.
 var errLimit = errors.New("jinja: the template went past its limits")

@@ -14,6 +14,11 @@ const (
 	NegativeUnitScale = -UnitScale
 )
 
+// AttentionF32PanelWidth is the native memory-efficient attention register limit.
+// Wider heads use 128-key panels and global output accumulation.
+// Reconsider this boundary when admitting another source attention policy.
+const AttentionF32PanelWidth = 128
+
 // Reshape: changes only logical dimensions and preserves contiguous order
 func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	if b.err != nil {
@@ -291,12 +296,16 @@ type attentionOptions struct {
 	relativeBidirectional bool
 	chunkedWindow         bool
 	naiveF32              bool
+	memoryEfficientF32    bool
+	nativeMath            bool
 	tensorCores           bool
 	queryStart, window    uint32
 }
 
 // AttentionOptions: attention graph controls.
 type AttentionOptions struct {
+	// NativeMath selects source F32 matrix and softmax arithmetic.
+	NativeMath            bool
 	Bias                  *Tensor
 	Sinks                 *Tensor
 	BlockIDs              *Tensor
@@ -313,9 +322,15 @@ type AttentionOptions struct {
 	// NaiveF32: route dense F32 attention through the per-query online kernel
 	// (skip the blas-chunked scores path) for reference-parity reductions.
 	NaiveF32 bool
+	// MemoryEfficientF32 selects the native wide-head F32 panel arithmetic.
+	MemoryEfficientF32 bool
 	// TensorCores admits a prompt's causal attention to the half-precision tensor-core kernel (AttentionAttributes.TensorCores).
 	TensorCores bool
 }
+
+// NativeAttentionSoftmaxWidth bounds the native F32 reductions validated through the source prompt limit.
+// Reconsider the bound with native fixtures beyond the MOSS pipeline's 4096-token contract.
+const NativeAttentionSoftmaxWidth = 4096
 
 // AttentionWithOptions: typed attention construction.
 func (b *Builder) AttentionWithOptions(
@@ -334,7 +349,9 @@ func (b *Builder) AttentionWithOptions(
 		causal: options.Causal, symmetricWindow: options.SymmetricWindow,
 		relativeBidirectional: options.RelativeBidirectional,
 		chunkedWindow:         options.ChunkedWindow, queryStart: options.QueryStart,
-		window: options.Window, naiveF32: options.NaiveF32, tensorCores: options.TensorCores,
+		window: options.Window, naiveF32: options.NaiveF32, memoryEfficientF32: options.MemoryEfficientF32,
+		nativeMath:  options.NativeMath,
+		tensorCores: options.TensorCores,
 	})
 }
 
@@ -354,6 +371,13 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention input types differ"))
 		return nil
 	}
+	if options.memoryEfficientF32 && (query.Type != dtype.F32 || options.naiveF32 ||
+		options.causal || options.symmetricWindow || options.relativeBidirectional || options.chunkedWindow ||
+		options.queryStart != 0 || options.window != 0 || options.softcap != 0 || options.maxALiBiBias != 0 ||
+		options.bias != nil || options.sinks != nil || options.blockIDs != nil || query.Shape.Dims[0] <= AttentionF32PanelWidth) {
+		b.setError(errors.New("memory-efficient F32 attention requires unmasked F32 heads wider than 128 channels"))
+		return nil
+	}
 	if (query.Shape.Rank != 3 && query.Shape.Rank != 4) ||
 		query.Shape.Rank != key.Shape.Rank || query.Shape.Rank != value.Shape.Rank {
 		b.setError(errors.New("attention inputs must have matching rank 3 or 4"))
@@ -361,6 +385,14 @@ func (b *Builder) buildAttention(
 	}
 	if query.Shape.Dims[0] != key.Shape.Dims[0] {
 		b.setError(errors.New("attention query/key widths differ"))
+		return nil
+	}
+	if options.nativeMath && (query.Type != dtype.F32 || options.naiveF32 || options.memoryEfficientF32 ||
+		options.symmetricWindow || options.relativeBidirectional || options.chunkedWindow ||
+		options.queryStart != 0 || options.window != 0 || options.softcap != 0 || options.maxALiBiBias != 0 ||
+		options.bias != nil || options.sinks != nil || options.blockIDs != nil || options.keyBias != nil ||
+		key.Shape.Dims[PairedExtent] > NativeAttentionSoftmaxWidth || math.IsInf(float64(options.scale), 0) || math.IsNaN(float64(options.scale))) {
+		b.setError(fmt.Errorf("native math attention requires F32 inputs, at most %d keys, finite scale and only an optional causal mask", NativeAttentionSoftmaxWidth))
 		return nil
 	}
 	if key.Shape.Dims[1] != value.Shape.Dims[1] {
@@ -502,7 +534,8 @@ func (b *Builder) buildAttention(
 		OpAttention,
 		inputs,
 		AttentionAttributes{
-			Scale: options.scale, Softcap: options.softcap, MaxALiBiBias: options.maxALiBiBias,
+			NativeMath: options.nativeMath,
+			Scale:      options.scale, Softcap: options.softcap, MaxALiBiBias: options.maxALiBiBias,
 			Causal:                options.causal,
 			HasSinks:              options.sinks != nil,
 			HasBlockMask:          options.blockIDs != nil,
@@ -515,6 +548,7 @@ func (b *Builder) buildAttention(
 			RelativeBidirectional: options.relativeBidirectional,
 			HasKeyBias:            options.keyBias != nil,
 			NaiveF32:              options.naiveF32,
+			MemoryEfficientF32:    options.memoryEfficientF32,
 			TensorCores:           options.tensorCores,
 		},
 	)

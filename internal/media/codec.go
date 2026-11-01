@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"overgo/internal/checked"
@@ -210,6 +211,8 @@ const (
 	CodecKernelAdd
 	// CodecKernelClamp clamps normalized output.
 	CodecKernelClamp
+	// CodecKernelGroupNorm runs affine spatial group normalization.
+	CodecKernelGroupNorm
 	// CodecKernelABICount is the dense ABI extent.
 	CodecKernelABICount
 )
@@ -236,6 +239,7 @@ func (k CodecKernelABI) EntryPoint() string {
 		"vae_temporal_cache_update_f32",
 		"add_f32",
 		"clamp_f32",
+		"group_norm_f32",
 	}[k]
 }
 
@@ -293,6 +297,7 @@ func OperationCodecWorkspace(role CodecWorkspaceRole, operation, slot int) Codec
 type CodecBindings[Binding any] struct {
 	NormInput, WeightInput, BiasInput    Binding
 	NormOutput, WeightOutput, BiasOutput Binding
+	NormInputBias, NormOutputBias        Binding
 	WeightProjection, BiasProjection     Binding
 	WeightTemporal, BiasTemporal         Binding
 	WeightSpatial, BiasSpatial           Binding
@@ -399,6 +404,27 @@ type CodecOperation[Bindings any] struct {
 	Convolution                   CodecConvolutionExtents
 	Cache                         CodecCacheBehavior
 	Kernels                       CodecKernelSet
+	Spatial                       bool
+	NormGroups                    uint32
+	NormEpsilon                   float32
+}
+
+// NewSpatialCodecOperation compiles a stateless spatial codec stage.
+// Group normalization replaces channel RMS only in stages that normalize.
+func NewSpatialCodecOperation[Binding any](operator CodecOperator, name string, inputChannels, outputChannels int, groups uint32, epsilon float32) CodecOperation[Binding] {
+	op := NewCodecOperation[Binding](operator, name, inputChannels, outputChannels)
+	op.Spatial = true
+	op.Cache = 0
+	op.Kernels &^= 1 << CodecKernelCacheUpdate
+	if op.Convolution.Kernel[0] != 0 {
+		op.Convolution.Kernel[0] = tensor.SingletonExtent
+	}
+	if op.Kernels.Has(CodecKernelRMSNorm) {
+		op.Kernels &^= 1 << CodecKernelRMSNorm
+		op.Kernels |= 1 << CodecKernelGroupNorm
+		op.NormGroups, op.NormEpsilon = groups, epsilon
+	}
+	return op
 }
 
 // NewCodecOperation compiles invariant execution facts.
@@ -456,7 +482,14 @@ func (o CodecOperation[Bindings]) RequiresProjection() bool {
 
 // BindingValues returns artifact order.
 func (o CodecOperation[Bindings]) BindingValues() []Bindings {
-	return CodecBindingValues(o.Operator, o.RequiresProjection(), o.Bindings)
+	values := CodecBindingValues(o.Operator, o.RequiresProjection(), o.Bindings)
+	if o.NormGroups != 0 {
+		values = append(values, o.Bindings.NormInputBias)
+		if o.Operator == CodecResidual {
+			values = append(values, o.Bindings.NormOutputBias)
+		}
+	}
+	return values
 }
 
 // CodecBindingValues returns artifact order for mapped storage.
@@ -539,6 +572,15 @@ func (p CodecProgram[Bindings]) Validate(scope string) error {
 	}
 	for index, operation := range p.Operations {
 		expected := NewCodecOperation[Bindings](operation.Operator, operation.Name, operation.InputChannels, operation.OutputChannels)
+		if operation.Spatial {
+			expected = NewSpatialCodecOperation[Bindings](operation.Operator, operation.Name, operation.InputChannels, operation.OutputChannels, operation.NormGroups, operation.NormEpsilon)
+			if expected.Kernels.Has(CodecKernelGroupNorm) && (operation.NormGroups == 0 || operation.InputChannels%int(operation.NormGroups) != 0 || operation.NormEpsilon <= 0 || math.IsNaN(float64(operation.NormEpsilon)) || math.IsInf(float64(operation.NormEpsilon), 0) || operation.Operator == CodecResidual && operation.OutputChannels%int(operation.NormGroups) != 0) {
+				return fmt.Errorf("%s: operation %d (%s) has invalid group normalization", scope, index, operation.Name)
+			}
+		}
+		if operation.NormGroups != expected.NormGroups || operation.NormEpsilon != expected.NormEpsilon {
+			return fmt.Errorf("%s: operation %d (%s) has unsupported normalization", scope, index, operation.Name)
+		}
 		if operation.Operator == CodecOperatorNone || operation.Operator > CodecHead || operation.InputChannels <= 0 || operation.OutputChannels <= 0 || !operation.Bindings.bound || operation.Convolution != expected.Convolution || operation.Cache != expected.Cache || operation.Kernels != expected.Kernels {
 			return fmt.Errorf("%s: operation %d (%s) is invalid", scope, index, operation.Name)
 		}

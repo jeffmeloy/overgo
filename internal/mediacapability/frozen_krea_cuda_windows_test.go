@@ -74,7 +74,7 @@ func TestFrozenKreaGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	modelID := source.Inventory.Manifest.ID
-	if modelID.String() != "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5" {
+	if modelID.String() != "model:sha256:4ad720595938a39340a70f4298398a8201b5ea6e214883c9e166b4a0d3af8401" {
 		t.Fatal("frozen model changed", modelID)
 	}
 	definition, contents, err := source.Define(modelID)
@@ -85,7 +85,7 @@ func TestFrozenKreaGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if definition.ID.String() != "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9" {
+	if definition.ID.String() != "recipe:sha256:b935833ba39704b1086369c69bc453b453a0183411d36dcd144a08dd1b6969ee" {
 		t.Fatal("frozen component recipe or profile changed", definition.ID)
 	}
 	program, err := modelrecipe.CompileCapability(definition)

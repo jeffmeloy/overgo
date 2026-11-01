@@ -183,7 +183,7 @@ func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contents, lineage, err := profilePublicationFacts(document)
+	contents, lineage, err := ProfilePublicationFacts(document)
 	if err != nil {
 		t.Fatal(err)
 	}

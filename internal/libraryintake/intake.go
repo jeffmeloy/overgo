@@ -20,7 +20,9 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/gguf"
+	"overgo/internal/hfrepo"
 	"overgo/internal/inference"
+	"overgo/internal/mediacapability"
 	"overgo/internal/model"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
@@ -45,6 +47,9 @@ const draftAcceptanceFloor = 0.3
 // alone, and the embedded cause speaks for itself.
 type refusal struct{ error }
 
+// Unwrap preserves cancellation and source errors through the library refusal.
+func (r refusal) Unwrap() error { return r.error }
+
 // LibraryRefused reports the refusal; one without a cause is no refusal.
 func (r refusal) LibraryRefused() bool { return r.error != nil }
 
@@ -61,6 +66,16 @@ func ModelFiles(path, explicitProjector string) (model, projectorPath string, er
 	}
 	candidates := []string{path}
 	if info.IsDir() {
+		for _, name := range []string{"model_index.json", "config.json"} {
+			if _, err := os.Stat(filepath.Join(path, name)); err == nil {
+				if strings.TrimSpace(explicitProjector) != "" {
+					return "", "", errors.New("library: HF directory import does not accept a separate projector")
+				}
+				return path, "", nil
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return "", "", err
+			}
+		}
 		if candidates, err = filepath.Glob(filepath.Join(path, "*.gguf")); err != nil {
 			return "", "", err
 		}
@@ -136,6 +151,38 @@ func draftBeside(modelPath string) (string, error) {
 // store, not yet servable) and a projector with it as the model's
 // projection candidate; the receipt names what the store now holds.
 func Register(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, refusal{err}
+	}
+	if info.IsDir() {
+		if strings.TrimSpace(projectorPath) != "" {
+			return nil, refusal{errors.New("library: HF directory import does not accept a separate projector")}
+		}
+		identity, err := hfrepo.InspectIdentity(path)
+		if err != nil {
+			return nil, refusal{err}
+		}
+		source, err := modelrecipe.ResolveGenerationSource("", identity)
+		if err != nil && !errors.Is(err, modelrecipe.ErrGenerationSourceAbsent) {
+			return nil, refusal{err}
+		}
+		if err == nil {
+			modelID, definition, err := prepareGenerationCandidate(ctx, repository, path, source.Task, mediacapability.Catalog[source.Task])
+			if err != nil {
+				return nil, refusal{err}
+			}
+			return map[string]any{"path": path, "model": modelID, "recipe": definition.ID, "qualification": "candidate"}, nil
+		}
+		inspection, err := modelintake.InspectImport(ctx, path, "")
+		if err != nil {
+			return nil, refusal{err}
+		}
+		if err := modelintake.RegisterImport(ctx, repository, inspection); err != nil {
+			return nil, err
+		}
+		return map[string]any{"path": path, "model": inspection.Inventory.Manifest.ID, "inspection": inspection.Content.Descriptor.ID, "qualification": "structural-only"}, nil
+	}
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
 		return nil, refusal{err}
@@ -185,45 +232,62 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 var validationDocument []byte
 
 type validationPolicy struct {
-	Schema    int      `json:"schema"`
-	Doc       string   `json:"doc,omitzero"`
-	Prompts   []string `json:"prompts"`
-	MaxTokens int      `json:"max_tokens"`
+	Schema      int      `json:"schema"`
+	Doc         string   `json:"doc,omitzero"`
+	Prompts     []string `json:"prompts"`
+	MaxTokens   int      `json:"max_tokens"`
+	ImagePrompt string   `json:"image_prompt"`
 }
 
-// Validate prepares text validation of a model under
-// the clean source revision and returns the candidate recipe it runs under
-// with the operation body that registers, records, replays, publishes and
-// activates, under the embedded prompts and token bound. A
-// projector beside the model registers as its projection candidate; the
-// text validation runs on the model alone, and the projection activates
-// once a media suite executes.
-func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (artifact.ID, operation.Executor, error) {
+// Validate prepares functional validation under the clean source revision.
+//   - The returned request binds the candidate task and recipe to its operation.
+//   - Generation validation requires fresh repeatable images before activation.
+//   - Text validation uses the embedded prompts and token bound.
+//   - A separate projector registers as a candidate and requires its own media evidence.
+func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (operation.Request, operation.Executor, error) {
 	var policy validationPolicy
 	if err := strictjson.DecodeBytes(validationDocument, &policy); err != nil {
-		return artifact.ID{}, nil, err
+		return operation.Request{}, nil, err
 	}
 	if len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
-		return artifact.ID{}, nil, errors.New("library: the validation policy is incomplete")
+		return operation.Request{}, nil, errors.New("library: the validation policy is incomplete")
 	}
 	projectorPath = strings.TrimSpace(projectorPath)
 	if projectorPath != "" {
 		if describes, err := projector.DescribesProjection(projectorPath); err != nil || !describes {
-			return artifact.ID{}, nil, refusal{fmt.Errorf("library: %s does not declare a projector", projectorPath)}
+			return operation.Request{}, nil, refusal{fmt.Errorf("library: %s does not declare a projector", projectorPath)}
 		}
 	}
 	revision, err := modelintake.CleanRevision(ctx)
 	if err != nil {
-		return artifact.ID{}, nil, refusal{err}
+		return operation.Request{}, nil, refusal{err}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return operation.Request{}, nil, refusal{err}
+	}
+	if info.IsDir() {
+		if projectorPath != "" {
+			return operation.Request{}, nil, refusal{errors.New("library: generation directories do not accept a separate projector")}
+		}
+		identity, err := hfrepo.InspectIdentity(path)
+		if err != nil {
+			return operation.Request{}, nil, refusal{err}
+		}
+		source, err := modelrecipe.ResolveGenerationSource("", identity)
+		if err != nil {
+			return operation.Request{}, nil, refusal{err}
+		}
+		return prepareGenerationValidation(ctx, repository, path, source.Task, mediacapability.Catalog[source.Task], revision, policy.ImagePrompt)
 	}
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
-		return artifact.ID{}, nil, refusal{err}
+		return operation.Request{}, nil, refusal{err}
 	}
 	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return validate(ctx, repository, reporter, path, projectorPath, candidate, revision, policy.Prompts, policy.MaxTokens)
 	}
-	return candidate.Definition.ID, execute, nil
+	return operation.Request{Task: candidate.Definition.Task, Recipe: candidate.Definition.ID}, execute, nil
 }
 
 // ValidateDraft validates the draft beside a model the library has activated, as its validation validates a newly

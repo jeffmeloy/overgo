@@ -429,13 +429,13 @@
      "contains": "func ValidateDenseRepository(",
      "path": "internal/hfgguf/catalog.go",
      "role": "source",
-     "identity": "file:sha256:7a68a93f706d3674c572eeaebbc78f636de906d550c7d5a0aa24504abec53005"
+     "identity": "file:sha256:12caef06e98e5b7b3f4ebcb572311d9f450ea0189b192bd9fe495e628fa43b1f"
     },
     {
      "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
      "path": "internal/hfgguf/catalog_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d839cc150dd055108935cced7716410c2afd58a74024bfbc3c1d80e2e3c9cb2f"
+     "identity": "evidence:sha256:2f5d91111b13f5f25d372b691d8ea45e83312eaf07a67f40651b53e9e57f1e9a"
     }
    ],
    "id": "safetensors-gguf-dense-bridge",
@@ -450,13 +450,13 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:15179cb08bd8b8eb94bc6b8b780bac0fb56d1ede7fac78fef9a12af134f61aef"
+     "identity": "file:sha256:3f095725de8d1966cfa70432b11f142a5b2de3748d7a3a10bb51d3bee967fabf"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",
      "path": "internal/hfgguf/catalog_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d839cc150dd055108935cced7716410c2afd58a74024bfbc3c1d80e2e3c9cb2f"
+     "identity": "evidence:sha256:2f5d91111b13f5f25d372b691d8ea45e83312eaf07a67f40651b53e9e57f1e9a"
     }
    ],
    "id": "safetensors-gguf-qwen35-bridge",
@@ -823,7 +823,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:fd3e7682661ee486683d7d76c00cf98764e17948413019c31b404e3cff452534"
+     "identity": "file:sha256:fee57cd4161a0bc94a8c8b43961086153870598be208ca62adf8fb6119718769"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:f88d73a740e527117ad2efdce7f756e6e8285aba9f9f7912b80f9fe0a96e9340"
+     "identity": "file:sha256:1db5319d96270b8236a2c136f39b3e7b9196c3a0c694e87d1b8457222058f5f7"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -1250,7 +1250,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:9eddd57e50620221c8eeb1347ec5601fd80a055f8aff5a5be8d734305c260108"
+     "identity": "file:sha256:efbc3c722b4fbabbf3fc5fb6c79b390ed1d7201dd0861b163abd3f3edfec1804"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -1271,7 +1271,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:9d8859d14f9421c1761ac76696d1324bee72f6382d71ee251f97d51287fbd3c2"
+     "identity": "file:sha256:47e7eacebcd86c2d681f7af808f5dcc2b2404d734168295723d306aa960c2b2d"
     },
     {
      "contains": "func ReadWeights(",
@@ -1443,7 +1443,7 @@
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
      "path": "internal/mediacapability/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:628eb533346b41fe3f4893f67f1a1ee0cd773009c6047addc5621fca3bde83e3"
+     "identity": "file:sha256:2a0ef867583dc125d95aef922773767c2094fa7b81c788f5e555dde0aa6dd168"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

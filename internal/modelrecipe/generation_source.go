@@ -24,8 +24,6 @@ type SourceInventory string
 const (
 	// SourceInventoryHF is a HuggingFace repository layout.
 	SourceInventoryHF SourceInventory = "hf"
-	// SourceInventoryLatentImage is a latent-image generation layout.
-	SourceInventoryLatentImage SourceInventory = "latent-image"
 	// SourceInventoryRootSafetensors is a root-level safetensors layout.
 	SourceInventoryRootSafetensors SourceInventory = "root-safetensors"
 )
@@ -51,22 +49,24 @@ type generationSourceCatalog struct {
 	Profiles []GenerationSourceProfile `json:"profiles"`
 }
 
-// errNoGenerationSource is the refusal of an artifact this checkout registers no generation source profile for: its
-// runtime is another lane's, not on this checkout. A command reports it in its error text, which validate reads to
-// count the cell as waiting on that lane and not as failed (OtherLane).
-var errNoGenerationSource = errors.New("this checkout registers no generation source profile for it")
+// ErrGenerationSourceAbsent is the refusal of an artifact this checkout registers no generation source profile for: no
+// catalog profile matches its source identity, so its runtime is another lane's. A command reports it in its error
+// text, which validate reads to count the cell as waiting on that lane and not as failed (OtherLane).
+var ErrGenerationSourceAbsent = errors.New("model recipe: no registered generation source profile")
 
-// OtherLane reports whether a command's error, read as its text across the process that ran it, is errNoGenerationSource.
+// OtherLane reports whether a command's error, read as its text across the process that ran it, is
+// ErrGenerationSourceAbsent.
 func OtherLane(err error) bool {
-	return err != nil && (errors.Is(err, errNoGenerationSource) || strings.Contains(err.Error(), errNoGenerationSource.Error()))
+	return err != nil && (errors.Is(err, ErrGenerationSourceAbsent) || strings.Contains(err.Error(), ErrGenerationSourceAbsent.Error()))
 }
 
 // ResolveGenerationSource selects one declared task profile.
+// An empty task selects across tasks and refuses ambiguous source identities.
 func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (GenerationSourceProfile, error) {
 	var found *GenerationSourceProfile
 	for index := range generationSources {
 		profile := &generationSources[index]
-		if profile.Task != task || !profile.Selector.matches(identity) {
+		if task != "" && profile.Task != task || !profile.Selector.matches(identity) {
 			continue
 		}
 		if found != nil {
@@ -75,7 +75,7 @@ func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (Genera
 		found = profile
 	}
 	if found == nil {
-		return GenerationSourceProfile{}, fmt.Errorf("model recipe: artifact has no registered %s source profile: %w", task, errNoGenerationSource)
+		return GenerationSourceProfile{}, fmt.Errorf("%w for task %q", ErrGenerationSourceAbsent, task)
 	}
 	return *found, nil
 }
@@ -147,7 +147,7 @@ func mustGenerationSources() []GenerationSourceProfile {
 	for _, profile := range catalog.Profiles {
 		binding, ok := generationCapabilities[profile.Prepare]
 		if !ok || binding.task != profile.Task || profile.Selector == (SourceSelector{}) || !slices.Contains(
-			[]SourceInventory{SourceInventoryHF, SourceInventoryLatentImage, SourceInventoryRootSafetensors}, profile.Inventory,
+			[]SourceInventory{SourceInventoryHF, SourceInventoryRootSafetensors}, profile.Inventory,
 		) || profile.Profile != binding.profile {
 			panic("model recipe: invalid generation source profile")
 		}

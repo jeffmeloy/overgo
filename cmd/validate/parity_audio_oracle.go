@@ -116,7 +116,7 @@ func audioOracleParity(flags *flag.FlagSet, args []string) error {
 	if err := qualification.AugmentBatch(&batch, inventory, previousQualification); err != nil {
 		return err
 	}
-	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+	if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
 		return err
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {

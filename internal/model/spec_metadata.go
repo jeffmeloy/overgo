@@ -93,6 +93,16 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
+	if _, exists := values["general.source_arithmetic"]; exists {
+		value, err := required[string](values, "general.source_arithmetic", gguf.ValueTypeString)
+		if err != nil {
+			return specReadState{}, err
+		}
+		spec.Arithmetic = ArithmeticPolicy(value)
+		if err = spec.validateArithmetic(m.profile); err != nil {
+			return specReadState{}, err
+		}
+	}
 	if m.profile.Validation.Attention == attentionValidationQKNormEpsilon {
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}

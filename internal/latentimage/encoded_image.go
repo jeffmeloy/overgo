@@ -31,16 +31,27 @@ func PNGContent(image EncodedImage) (artifact.Content, error) {
 }
 
 func encodePNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, false)
+	return encodeRGB(pixels, height, width, false, false)
+}
+
+func encodeUnitPNG(pixels []float32, height, width int) (EncodedImage, error) {
+	return encodeRGB(pixels, height, width, false, true)
 }
 
 // EncodePlanarPNG publishes normalized CHW RGB without an HWC copy.
 func EncodePlanarPNG(pixels []float32, height, width int) (EncodedImage, error) {
-	return encodeRGB(pixels, height, width, true)
+	return encodeRGB(pixels, height, width, true, false)
 }
 
-func encodeRGB(pixels []float32, height, width int, planar bool) (EncodedImage, error) {
-	data, minimum, maximum, err := media.EncodeNormalizedRGBPNG(pixels, height, width, planar)
+func encodeRGB(pixels []float32, height, width int, planar, unit bool) (EncodedImage, error) {
+	var data []byte
+	var minimum, maximum float32
+	var err error
+	if unit {
+		data, minimum, maximum, err = media.EncodeUnitRGBPNG(pixels, height, width)
+	} else {
+		data, minimum, maximum, err = media.EncodeNormalizedRGBPNG(pixels, height, width, planar)
+	}
 	if err != nil {
 		return EncodedImage{}, err
 	}

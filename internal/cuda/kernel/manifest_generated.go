@@ -3,13 +3,14 @@
 package kernel
 
 const (
-	BundleABIVersion     = 55
+	BundleABIVersion     = 64
 	BundleTarget         = "compute_89"
 	BundleDefaultThreads = 256
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "040bd6a59dadaaf97c32e47dddd50b127dff17816095882d80fbb40572dc6cdf"
+	OpsF32SHA256         = "8327c21997daef35170a2f16074270a48d30e7112e27a994be1ef675a5a3f33a"
+	OpsNativeSHA256      = "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883"
 	StrataQsaSHA256      = "b81bc4375d27a2d57ef213e65e1f0cc0b59a0562d801d3bbaa39ea56ccf91f6d"
 	StrataNativeSHA256   = "340c2ba09deddf93cc556578a364ee0e7ad0816136a569f96fc3c506c3ead954"
 )
@@ -18,6 +19,7 @@ var bundleAssets = [...]bundleAsset{
 	{name: "vector_add.ptx", data: VectorAddPTX, sha256: VectorAddSHA256},
 	{name: "torch_cuda_randn.ptx", data: TorchCUDARandnPTX, sha256: TorchCUDARandnSHA256},
 	{name: "ops_f32.ptx", data: OpsF32PTX, sha256: OpsF32SHA256},
+	{name: "ops_native.ptx", data: OpsNativePTX, sha256: OpsNativeSHA256},
 	{name: "strata_qsa.ptx", data: StrataQsaPTX, sha256: StrataQsaSHA256},
 	{name: "strata_native.ptx", data: StrataNativePTX, sha256: StrataNativeSHA256},
 }

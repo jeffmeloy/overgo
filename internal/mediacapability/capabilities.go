@@ -34,6 +34,9 @@ import (
 type Capability struct {
 	Resolve func(string) (Source, error)
 	Execute capabilityruntime.Executor
+	// ValidationInput derives a bounded functional request from source geometry.
+	// It establishes executable output and repeatability rather than model quality.
+	ValidationInput func(directory, prompt string) (string, error)
 }
 
 // Executor reports the capability's executor, so a consumer binding a

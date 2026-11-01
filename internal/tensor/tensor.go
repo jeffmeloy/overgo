@@ -138,7 +138,17 @@ type ClampAttributes struct {
 
 type RMSNormAttributes struct {
 	Epsilon float32
+	Native  bool
+	// NativeMean preserves the vectorized source reduction and rounded count ratio.
+	NativeMean bool
 }
+
+// NativeMathAttributes selects native F32 scalar arithmetic instead of fast approximations.
+type NativeMathAttributes struct{}
+
+// NativeBF16Attributes preserves native BF16 linear output and 128-key attention panels.
+// Unmarked BF16 rounding retains the existing F32 producer arithmetic.
+type NativeBF16Attributes struct{}
 
 type MADNormAttributes struct {
 	Epsilon float32
@@ -149,7 +159,8 @@ type LayerNormAttributes struct {
 }
 
 type L2NormAttributes struct {
-	Epsilon float32
+	Epsilon    float32
+	NativeBF16 bool
 }
 
 type XIELUAttributes struct {
@@ -195,6 +206,8 @@ type GetRowsAttributes struct {
 }
 
 type RoPEAttributes struct {
+	// NativeBF16 preserves native BF16 coefficients, products and sums.
+	NativeBF16       bool
 	Positions        []uint32
 	RotaryDimensions uint32
 	FrequencyBase    float32
@@ -207,6 +220,8 @@ type RoPEAttributes struct {
 }
 
 type RoPEMultiAttributes struct {
+	// NativeBF16 preserves native BF16 coefficients, products and sums.
+	NativeBF16          bool
 	Layout              RoPELayout
 	InterleavedSections bool
 	Positions           [4][]uint32
@@ -217,6 +232,8 @@ type RoPEMultiAttributes struct {
 }
 
 type AttentionAttributes struct {
+	// NativeMath preserves source F32 matrix and softmax arithmetic.
+	NativeMath            bool
 	Scale                 float32
 	Softcap               float32
 	MaxALiBiBias          float32
@@ -240,6 +257,8 @@ type AttentionAttributes struct {
 	// (skip the blas-chunked scores path) so the reduction matches a reference
 	// per-query two-pass attn_fwd; opt-in for F32 parity-critical towers.
 	NaiveF32 bool
+	// MemoryEfficientF32 uses native TF32x3 products and 128-key panel accumulation.
+	MemoryEfficientF32 bool
 	// TensorCores admits a prompt's causal attention to the executor's half-precision tensor-core kernel. Off, the
 	// attention keeps its f32 paths: the kernel's products moved dense models' held-out quality (gemma-4-12B-it-fp8's
 	// BBH 0.657 to 0.643, restored to 0.657 by the f32 path at the same commit, 2026-10-24), which a speed path may not.
@@ -254,6 +273,8 @@ type Conv2DAttributes struct {
 	StrideX, StrideY                     uint32
 	PadLeft, PadRight, PadTop, PadBottom uint32
 	Depthwise, HasBias                   bool
+	// WinogradF32 requires deterministic cuDNN Winograd with full F32 arithmetic.
+	WinogradF32 bool
 }
 
 type Window2DAttributes struct {
@@ -272,6 +293,8 @@ type SAMAttentionAttributes struct {
 type GroupNormAttributes struct {
 	Groups  uint32
 	Epsilon float32
+	// Native selects the source Welford reduction over planar channel groups.
+	Native bool
 }
 
 type MoEAttributes struct {
@@ -355,6 +378,7 @@ type CompressedAttentionAttributes struct {
 
 type GatedDeltaNetAttributes struct {
 	RepeatInterleave bool
+	Chunked          bool
 }
 
 type GatedLinearAttentionAttributes struct {

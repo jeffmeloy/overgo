@@ -1,12 +1,12 @@
 package modelartifact
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -30,6 +30,10 @@ type FileSpec struct {
 // heads with identical tensor names stay distinct. PyTorch ZIP weights
 // (.pth/.pt, including .tar-suffixed checkpoint names) use the same namespaces.
 func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err error) {
+	return fromFilesContext(context.Background(), directory, specs)
+}
+
+func fromFilesContext(ctx context.Context, directory string, specs []FileSpec) (inventory Inventory, err error) {
 	if directory == "" || len(specs) == 0 {
 		return Inventory{}, errors.New("model artifact: file inventory requires a directory and components")
 	}
@@ -51,7 +55,7 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 	hasSafetensors, hasPyTorch := false, false
 	for _, spec := range specs {
 		kind, mediaType := fileContract(spec.Role, spec.Path)
-		descriptor, absolute, err := identifyFile(spec.Path, kind, mediaType)
+		descriptor, absolute, err := identifyFileContext(ctx, spec.Path, kind, mediaType)
 		if err != nil {
 			return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
 		}
@@ -100,7 +104,7 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 		return Inventory{}, err
 	}
 	locations = append(locations, manifestLocation)
-	sort.Slice(facts, func(left, right int) bool { return facts[left].Name < facts[right].Name })
+	slices.SortFunc(facts, func(left, right TensorFact) int { return strings.Compare(left.Name, right.Name) })
 	format := TensorFormatSafetensors
 	if hasPyTorch {
 		format = TensorFormatPyTorch

@@ -114,13 +114,14 @@ type bf16AppendFusion struct {
 }
 
 // bf16AttentionFusion: Attention(BF16Round(q), BF16Round(k), BF16Round(v))
-// collapsed into the width-128 tensor-core flash kernel. The kernel rounds
+// collapsed into the tensor-core attention kernel. The kernel rounds
 // the pre-round F32 inputs on stage-in (round-to-nearest-even, identical to
 // the elided bf16_round launches), accumulates products in F32, and keeps
 // the online softmax exact F32; probabilities round to BF16 for the value
 // product (declared kernel semantics, measured by the differential fixture).
 type bf16AttentionFusion struct {
 	query, key, value, keyBias *tensor.Tensor
+	native                     bool
 }
 
 type rewriteContext struct {
@@ -153,6 +154,7 @@ func (c *CompiledGraph) hasFusion(node *tensor.Tensor, kinds ...compiledFusionKi
 }
 
 var graphRewriteCatalog = [...]graphRewrite{
+	{name: "bf16-linear", apply: applyBF16LinearRewrite},
 	{name: "weighted-rms", apply: applyWeightedRMSRewrite},
 	{name: "activated-gate", apply: applyActivatedGateRewrite},
 	{name: "stream-sum", apply: applyStreamSumRewrite},
@@ -170,6 +172,54 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-append", apply: applyBF16AppendRewrite},
 	{name: "bf16-attention", apply: applyBF16AttentionRewrite},
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
+}
+
+// applyBF16LinearRewrite preserves explicitly rounded BF16 product storage and optional bias epilogues.
+func applyBF16LinearRewrite(context *rewriteContext) {
+	for _, node := range context.order {
+		if _, native := node.Attrs.(tensor.NativeBF16Attributes); node.Op != tensor.OpBF16Round || !native {
+			continue
+		}
+		product := node.Inputs[0]
+		parts := []*tensor.Tensor{product}
+		var bias *tensor.Tensor
+		if product.Op == tensor.OpAdd {
+			product, bias = product.Inputs[0], product.Inputs[1]
+			if product.Op != tensor.OpMulMat {
+				product, bias = bias, product
+			}
+			parts = append(parts, product)
+		}
+		if !tensorCoreMulMat(product) || product.Op != tensor.OpMulMat || product.Inputs[0].Type != dtype.BF16 {
+			continue
+		}
+		if bias != nil && (bias.Op != tensor.OpBF16Round || bias.Shape.Rank != 1 || bias.Shape.Dims[0] != product.Shape.Dims[0]) {
+			continue
+		}
+		eligible := true
+		for _, part := range parts {
+			_, retained := context.outputSet[part]
+			_, skipped := context.compiled.skipped[part]
+			if retained || skipped || context.uses[part] != 1 {
+				eligible = false
+			}
+		}
+		if !eligible {
+			continue
+		}
+		compiled := context.compiled
+		operands := slices.Clone(product.Inputs)
+		if bias != nil {
+			operands = append(operands, bias)
+		}
+		compiled.setFusion(node, &compiledFusion{kind: compiledFusionBF16Linear, operands: operands, bf16ProjAdd: bf16ProjAddFusion{projection: product, addend: bias}})
+		if compiled.skipped == nil {
+			compiled.skipped = make(map[*tensor.Tensor]struct{})
+		}
+		for _, part := range parts {
+			compiled.skipped[part] = struct{}{}
+		}
+	}
 }
 
 func compileGraphRewrites(
@@ -204,6 +254,9 @@ func applyWeightedRMSRewrite(context *rewriteContext) {
 			normalization, weight = weight, normalization
 		}
 		if normalization.Op != tensor.OpRMSNorm || context.uses[normalization] != 1 {
+			continue
+		}
+		if attributes := normalization.Attrs.(tensor.RMSNormAttributes); attributes.Native || attributes.NativeMean {
 			continue
 		}
 		weightRows, compatible := rmsWeightRows(normalization, weight)
@@ -976,7 +1029,7 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 		}
 		rope := node.Inputs[1]
 		if (rope.Op != tensor.OpRoPENormal && rope.Op != tensor.OpRoPENeoX) ||
-			context.uses[rope] != 1 {
+			context.uses[rope] != 1 || rope.Attrs.(tensor.RoPEAttributes).NativeBF16 {
 			continue
 		}
 		if _, skipped := compiled.skipped[rope]; skipped {
@@ -999,7 +1052,7 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 	}
 }
 
-// applyBF16AttentionRewrite: featureless non-causal width-128 attention whose
+// applyBF16AttentionRewrite: aligned non-causal attention up to width 128 whose
 // three inputs are single-use BF16Round nodes fuses into the tensor-core
 // flash kernel; the rounds elide entirely (the kernel rounds on stage-in).
 func applyBF16AttentionRewrite(context *rewriteContext) {
@@ -1009,7 +1062,7 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 			continue
 		}
 		attributes, ok := node.Attrs.(tensor.AttentionAttributes)
-		if !ok || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
+		if !ok || attributes.NativeMath || attributes.Causal || attributes.HasSinks || attributes.HasBlockMask ||
 			attributes.SymmetricWindow || attributes.ChunkedWindow ||
 			attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 ||
 			attributes.QueryStart != 0 || attributes.KeyValueTokens != 0 ||
@@ -1023,10 +1076,14 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		if query == key || query == value || key == value {
 			continue
 		}
-		fusable := true
+		_, native := query.Attrs.(tensor.NativeBF16Attributes)
+		fusable := native || query.Shape.Dims[0] == uint64(attentionBF16Width)
 		for _, round := range [...]*tensor.Tensor{query, key, value} {
+			_, nativeRound := round.Attrs.(tensor.NativeBF16Attributes)
 			if round.Op != tensor.OpBF16Round || context.uses[round] != 1 ||
-				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != uint64(attentionBF16Width) {
+				nativeRound != native ||
+				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != query.Shape.Dims[0] ||
+				round.Shape.Dims[0] > uint64(attentionBF16Width) || round.Shape.Dims[0]%attentionBF16CopyChannels != 0 {
 				fusable = false
 				break
 			}
@@ -1047,10 +1104,12 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		}
 		fusion := bf16AttentionFusion{
 			query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0],
+			native: native,
 		}
 		if attributes.HasKeyBias {
 			fusion = bf16AttentionFusion{
 				query: query.Inputs[0], key: key.Inputs[0], value: value.Inputs[0], keyBias: node.Inputs[3],
+				native: native,
 			}
 		}
 		operands := []*tensor.Tensor{fusion.query, fusion.key, fusion.value}
@@ -1080,6 +1139,9 @@ func (context *rewriteContext) compileDependencies() {
 
 func activatedGateKindFor(node *tensor.Tensor) (activatedGateKind, bool) {
 	if node == nil || len(node.Inputs) != 1 {
+		return 0, false
+	}
+	if _, native := node.Attrs.(tensor.NativeMathAttributes); native {
 		return 0, false
 	}
 	switch node.Op {

@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "abiVersion": 55,
+  "abiVersion": 64,
   "cudaToolkit": "12.9",
   "nvcc": "12.9.86",
   "target": "compute_89",
@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "b38d9074b84878bf982d77100bce92ddccfcc70c79c42b662712cbf3cba9f536",
+      "sourceSha256": "623100842c2864fe7f1675714743383903ffd727460894eed92c7510f5e7c7be",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -76,7 +76,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "040bd6a59dadaaf97c32e47dddd50b127dff17816095882d80fbb40572dc6cdf",
+      "assetSha256": "8327c21997daef35170a2f16074270a48d30e7112e27a994be1ef675a5a3f33a",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -330,7 +330,12 @@
         "weighted_rms_norm_q8_0_f32",
         "window_partition_2d_f32",
         "window_unpartition_2d_f32",
-        "xielu_f32"
+        "xielu_f32",
+        "attention_native_bf16_f32",
+        "gated_delta_chunk_f32",
+        "group_norm_native_f32",
+        "rms_norm_mean_f32",
+        "silu_native_f32"
       ],
       "argumentLayouts": [
         {
@@ -459,7 +464,8 @@
             "sigmoid_f32",
             "silu_f32",
             "softplus_f32",
-            "tanh_f32"
+            "tanh_f32",
+            "silu_native_f32"
           ]
         },
         {
@@ -668,10 +674,12 @@
             ".u32",
             ".u32",
             ".u32",
+            ".u32",
             ".f32"
           ],
           "functions": [
-            "attention_tiled_bf16_f32"
+            "attention_tiled_bf16_f32",
+            "attention_native_bf16_f32"
           ]
         },
         {
@@ -1014,7 +1022,8 @@
           ],
           "functions": [
             "group_norm_f32",
-            "stream_sum_q8_0_f32"
+            "stream_sum_q8_0_f32",
+            "group_norm_native_f32"
           ]
         },
         {
@@ -1112,7 +1121,8 @@
             "l2_norm_f32",
             "layer_norm_f32",
             "mad_norm_f32",
-            "rms_norm_f32"
+            "rms_norm_f32",
+            "rms_norm_mean_f32"
           ]
         },
         {
@@ -2114,6 +2124,136 @@
           ],
           "functions": [
             "xielu_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32"
+          ],
+          "functions": [
+            "gated_delta_chunk_f32"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "kernels/cuda/ops_native.cu",
+      "sourceSha256": "5e66a7adeb1eee0362300503663867a90515935bc31815321a111d9863652e4e",
+      "asset": "internal/cuda/kernel/ops_native.ptx",
+      "assetSha256": "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883",
+      "compilerFlags": [
+        "-ptx",
+        "-arch=compute_89",
+        "--std=c++17"
+      ],
+      "functions": [
+        "attention_native_pack_f32",
+        "attention_native_softmax_f32",
+        "exp_native_f32",
+        "rms_norm_native_f32",
+        "rope_native_bf16_f32",
+        "softplus_native_f32"
+      ],
+      "argumentLayouts": [
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_native_pack_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "attention_native_softmax_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32"
+          ],
+          "functions": [
+            "exp_native_f32",
+            "softplus_native_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "rms_norm_native_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32"
+          ],
+          "functions": [
+            "rope_native_bf16_f32"
           ]
         }
       ]

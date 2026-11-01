@@ -1,6 +1,7 @@
 package modelartifact
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,26 +19,32 @@ import (
 // Reconsider it if the upstream component declaration format changes.
 const pipelineComponentFields = 2
 
-// fromHFPipeline inventories declared components without importing their source.
-// A config.json component requires safetensors and every shard index is checked by FromFiles.
-func fromHFPipeline(directory string) (Inventory, error) {
+// PipelineComponent names an upstream library and class without executing source.
+type PipelineComponent struct {
+	Name    string `json:"name"`
+	Library string `json:"library"`
+	Class   string `json:"class"`
+}
+
+// ReadPipelineComponents validates and sorts the present component declarations.
+// Optional null pairs are absent and component paths must remain inside the root.
+func ReadPipelineComponents(directory string) ([]PipelineComponent, error) {
 	index, err := pipelineConfig(filepath.Join(directory, "model_index.json"))
 	if err != nil {
-		return Inventory{}, err
+		return nil, err
 	}
 	var class string
 	if err := strictjson.DecodeBytes(index["_class_name"], &class); err != nil || class == "" {
-		return Inventory{}, errors.New("model artifact: pipeline requires a nonempty _class_name")
+		return nil, errors.New("model artifact: pipeline requires a nonempty _class_name")
 	}
-	files := map[string]artifact.ComponentRole{"model_index.json": artifact.ComponentConfig}
-	components := 0
+	var components []PipelineComponent
 	for name, encoded := range index {
 		if strings.HasPrefix(name, "_") {
 			continue
 		}
 		var value any
 		if err := strictjson.DecodeBytes(encoded, &value); err != nil {
-			return Inventory{}, err
+			return nil, err
 		}
 		parameters, isArray := value.([]any)
 		if !isArray {
@@ -56,23 +63,46 @@ func fromHFPipeline(directory string) (Inventory, error) {
 			continue
 		}
 		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, "/\\") || !filepath.IsLocal(name) {
-			return Inventory{}, fmt.Errorf("model artifact: invalid pipeline component %q", name)
+			return nil, fmt.Errorf("model artifact: invalid pipeline component %q", name)
 		}
 		var pair []*string
 		if err := strictjson.DecodeBytes(encoded, &pair); err != nil || len(pair) != pipelineComponentFields {
-			return Inventory{}, fmt.Errorf("model artifact: pipeline component %q requires a library/class pair", name)
+			return nil, fmt.Errorf("model artifact: pipeline component %q requires a library/class pair", name)
 		}
 		if pair[0] == nil && pair[1] == nil {
 			continue
 		}
 		if pair[0] == nil || pair[1] == nil || *pair[0] == "" || *pair[1] == "" {
-			return Inventory{}, fmt.Errorf("model artifact: incomplete pipeline component %q", name)
+			return nil, fmt.Errorf("model artifact: incomplete pipeline component %q", name)
 		}
 		componentDir := filepath.Join(directory, name)
 		contained, err := pathidentity.Contains(directory, componentDir)
 		if err != nil || !contained {
-			return Inventory{}, fmt.Errorf("model artifact: pipeline component %q escapes its root", name)
+			return nil, fmt.Errorf("model artifact: pipeline component %q escapes its root", name)
 		}
+		if strings.ContainsAny(*pair[0], "/\\") || strings.HasPrefix(*pair[0], ".") {
+			return nil, fmt.Errorf("model artifact: invalid component module %q", *pair[0])
+		}
+		components = append(components, PipelineComponent{Name: name, Library: *pair[0], Class: *pair[1]})
+	}
+	if len(components) == 0 {
+		return nil, errors.New("model artifact: pipeline declares no present components")
+	}
+	slices.SortFunc(components, func(a, b PipelineComponent) int { return strings.Compare(a.Name, b.Name) })
+	return components, nil
+}
+
+// fromHFPipeline inventories declared components without importing their source.
+// A config.json component requires safetensors and every shard index is checked by FromFiles.
+func fromHFPipeline(ctx context.Context, directory string) (Inventory, error) {
+	components, err := ReadPipelineComponents(directory)
+	if err != nil {
+		return Inventory{}, err
+	}
+	files := map[string]artifact.ComponentRole{"model_index.json": artifact.ComponentConfig}
+	for _, component := range components {
+		name := component.Name
+		componentDir := filepath.Join(directory, name)
 		entries, err := os.ReadDir(componentDir)
 		if err != nil {
 			return Inventory{}, err
@@ -113,20 +143,12 @@ func fromHFPipeline(directory string) (Inventory, error) {
 			}
 			files[weight] = role
 		}
-		module := *pair[0]
-		if strings.ContainsAny(module, "/\\") || strings.HasPrefix(module, ".") {
-			return Inventory{}, fmt.Errorf("model artifact: invalid component module %q", module)
-		}
-		source := module + ".py"
+		source := component.Library + ".py"
 		if info, err := os.Stat(filepath.Join(directory, source)); err == nil && !info.IsDir() {
 			files[source] = artifact.ComponentCompanion
 		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return Inventory{}, err
 		}
-		components++
-	}
-	if components == 0 {
-		return Inventory{}, errors.New("model artifact: pipeline declares no present components")
 	}
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -137,7 +159,7 @@ func fromHFPipeline(directory string) (Inventory, error) {
 	for _, name := range names {
 		specs = append(specs, FileSpec{Path: filepath.Join(directory, filepath.FromSlash(name)), Name: name, Role: files[name]})
 	}
-	return FromFiles(directory, specs)
+	return fromFilesContext(ctx, directory, specs)
 }
 
 func pipelineConfig(path string) (map[string]json.RawMessage, error) {

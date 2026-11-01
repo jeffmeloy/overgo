@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/cuda/cublas"
+	"overgo/internal/cuda/cudnn"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
@@ -683,6 +684,7 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
 		initial, next := node.Attrs.(tensor.RoPEAttributes), attributes.(tensor.RoPEAttributes)
 		if !sameLength(node.Attrs.(tensor.RoPEAttributes).Positions, attributes.(tensor.RoPEAttributes).Positions) ||
+			initial.NativeBF16 != next.NativeBF16 ||
 			initial.RotaryDimensions != next.RotaryDimensions ||
 			initial.FrequencyBase != next.FrequencyBase ||
 			initial.FrequencyScale != next.FrequencyScale ||
@@ -699,13 +701,21 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 				return errors.New("CUDA runtime multi-RoPE position count changes compiled shape")
 			}
 		}
-		if initial.Layout != next.Layout || initial.InterleavedSections != next.InterleavedSections ||
+		if initial.NativeBF16 != next.NativeBF16 || initial.Layout != next.Layout || initial.InterleavedSections != next.InterleavedSections ||
 			initial.Sections != next.Sections || initial.RotaryDimensions != next.RotaryDimensions ||
 			initial.FrequencyBase != next.FrequencyBase || initial.FrequencyScale != next.FrequencyScale {
 			return errors.New("CUDA runtime multi-RoPE override changes compiled policy")
 		}
+	case tensor.OpL2Norm:
+		initial, next := node.Attrs.(tensor.L2NormAttributes), attributes.(tensor.L2NormAttributes)
+		if initial.NativeBF16 != next.NativeBF16 || initial.NativeBF16 && initial != next {
+			return errors.New("CUDA runtime L2Norm override changes compiled source policy")
+		}
 	case tensor.OpAttention:
 		initial, next := node.Attrs.(tensor.AttentionAttributes), attributes.(tensor.AttentionAttributes)
+		if initial.NativeMath && initial != next {
+			return errors.New("CUDA native math attention requires its compiled static policy")
+		}
 		queryStart, logicalTokens := uint64(next.QueryStart), uint64(next.KeyValueTokens)
 		initial.QueryStart, next.QueryStart = 0, 0
 		initial.KeyValueTokens, next.KeyValueTokens = 0, 0
@@ -855,6 +865,7 @@ type CompiledGraph struct {
 	q81Offset, q81Bytes uint64
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
+	convolutions       []cudnn.Shape
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
 	// and the routed-expert scratch, each live only inside its own node.
 	attentionScoreBytes uint64
@@ -905,6 +916,7 @@ const (
 	compiledFusionBF16Gate
 	compiledFusionBF16ProjAdd
 	compiledFusionBF16Attention
+	compiledFusionBF16Linear
 	compiledFusionQ8ArgmaxPartials
 	compiledFusionQ8ArgmaxReduction
 	compiledFusionStreamSum
@@ -1303,6 +1315,32 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		if node.Op == tensor.OpCellAttention {
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, cellScratchBytes(node))
 		}
+		if node.Op == tensor.OpGatedDeltaNet && node.Attrs.(tensor.GatedDeltaNetAttributes).Chunked {
+			bytes, err := deltaChunkStagingBytes(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
+		if node.Op == tensor.OpAttention && node.Attrs.(tensor.AttentionAttributes).NativeMath {
+			geometry, err := nativeAttentionGeometry(node)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.bytes)
+		}
+		if node.Op == tensor.OpRMSNorm && node.Attrs.(tensor.RMSNormAttributes).Native {
+			if _, _, err := tensor.NativeReductionGeometry(node.Shape, false); err != nil {
+				return nil, err
+			}
+		}
+		if node.Op == tensor.OpL2Norm && node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			if _, _, err := tensor.NativeReductionGeometry(node.Shape, true); err != nil {
+				return nil, err
+			}
+		}
 		if (node.Op == tensor.OpMulMat || node.Op == tensor.OpGroupedMulMat) &&
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true
@@ -1371,10 +1409,18 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 		if node.Op == tensor.OpConv2D {
 			attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
+			if ok && attributes.WinogradF32 {
+				shape := spatialConvolutionShape(node)
+				if !slices.Contains(compiled.convolutions, shape) {
+					compiled.convolutions = append(compiled.convolutions, shape)
+				}
+			}
 			if ok && !attributes.Depthwise && node.Inputs[0].Type == dtype.F32 &&
 				node.Inputs[1].Type == dtype.F32 {
 				compiled.needBlas = true
-				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
+				if !attributes.WinogradF32 {
+					compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
+				}
 			}
 		}
 		if node.Op == tensor.OpMoE {
@@ -1424,6 +1470,14 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	}
 	dependencies := compileGraphRewrites(compiled, order, uses, consumers, outputSet)
 	for _, node := range order {
+		if descriptor := compiled.fusions[node]; descriptor != nil && descriptor.kind == compiledFusionBF16Linear {
+			bytes, err := bf16LinearStagingBytes(descriptor.operands)
+			if err != nil {
+				return nil, err
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, bytes)
+		}
 		if node.Op != tensor.OpAttention {
 			continue
 		}
@@ -1835,7 +1889,10 @@ func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph)
 		return errors.New("CUDA executor is closed")
 	}
 	return e.worker.Do(ctx, func(state *device.State) error {
-		resources, err := e.ensureResources(state, compiled.needBlas, compiled.q8InputBytes, compiled.attentionScoreBytes, 0)
+		resources, err := e.ensureResources(
+			state, compiled.needBlas, compiled.q8InputBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes, compiled.convolutions...,
+		)
 		if err != nil {
 			return err
 		}
@@ -1950,7 +2007,7 @@ func (e *Executor) runCompiled(
 	err = e.worker.Do(ctx, func(state *device.State) error {
 		resources, resourceErr := e.ensureResources(
 			state, compiled.needBlas, compiled.q8InputBytes,
-			compiled.attentionScoreBytes, compiled.matmulStagingBytes,
+			compiled.attentionScoreBytes, compiled.matmulStagingBytes, compiled.convolutions...,
 		)
 		if resourceErr != nil {
 			return resourceErr
@@ -2087,6 +2144,8 @@ func launchCompiledFusion(
 		return "bf16_projection_add", launchBF16ProjAdd(state, functions, node, fusion.bf16ProjAdd, pointers)
 	case compiledFusionBF16Attention:
 		return "bf16_attention", launchBF16Attention(state, functions, blas, node, fusion.bf16Attention, pointers)
+	case compiledFusionBF16Linear:
+		return "bf16_linear", launchBF16Linear(state, functions, blas, fusion.bf16ProjAdd.projection.Inputs, pointers, fusion.bf16ProjAdd.addend != nil)
 	case compiledFusionQ8ArgmaxPartials:
 		return "q8_argmax", launchQ8ArgmaxPartials(state, functions, q8Input, node, pointers)
 	case compiledFusionQ8ArgmaxReduction:
@@ -2791,12 +2850,12 @@ type blasState struct {
 	// scores: attention score staging for the strided-batched SGEMM path
 	scores     driver.DevicePtr
 	scoreBytes uint64
-	// lt is the cuBLASLt context of the FP8 tensor-core prefill; fp8Plans
-	// holds its products per weight shape, all planned for fp8PlanColumns
-	// activation columns and rebuilt when a forward brings another count.
-	lt             cublas.LtHandle
-	fp8Plans       map[fp8WeightShape]*cublas.FP8Plan
-	fp8PlanColumns uint32
+	// lt owns native tensor-core products with one bounded shape cache per token count.
+	lt                 cublas.LtHandle
+	matmulPlans        map[matmulWeightShape]*cublas.MatmulPlan
+	matmulPlanColumns  uint32
+	convolutionLibrary *cudnn.Library
+	convolutionPlans   map[cudnn.Shape]cudnn.Convolution
 }
 
 var (
@@ -2839,13 +2898,15 @@ func (e *Executor) ensureResources(
 	q8InputBytes uint64,
 	attentionScoreBytes uint64,
 	matmulStagingBytes uint64,
+	convolutions ...cudnn.Shape,
 ) (*executorResources, error) {
 	if e.resources.modules[0] == 0 {
 		// The bundle the binary embeds is held to its manifest by kernel's TestValidateAssets at every commit that changes
 		// it; hashing its 14 MB here took 11 ms of every model's first request.
-		// The modules in kernelModuleCount's order: the operation module, Strata's QSA kernels, then its round's native kernels.
+		// The modules in kernelModuleCount's order: the operation module, MOSS's source-pinned native kernels, Strata's QSA
+		// kernels, then its round's native kernels.
 		var modules [kernelModuleCount]driver.Module
-		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.StrataQsaPTX, kernel.StrataNativePTX} {
+		for index, ptx := range [kernelModuleCount][]byte{kernel.OpsF32PTX, kernel.OpsNativePTX, kernel.StrataQsaPTX, kernel.StrataNativePTX} {
 			module, err := state.Driver.ModuleLoadData(ptx)
 			if err != nil {
 				return nil, errors.Join(err, unloadModules(state.Driver, modules[:index]))
@@ -2889,6 +2950,16 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		e.resources.blas.library, e.resources.blas.handle, e.resources.blas.lt = library, handle, lt
+	}
+	if len(convolutions) > 0 {
+		if e.resources.blas == nil {
+			return nil, errors.New("winograd convolution requires prepared BLAS resources")
+		}
+		bytes, err := e.resources.blas.convolutionStaging(state, convolutions)
+		if err != nil {
+			return nil, err
+		}
+		matmulStagingBytes = max(matmulStagingBytes, bytes)
 	}
 	// A run takes back the whole staging: its launches size their rows to all of it and place their activations at its
 	// end, where the experts' slots are carved first (launch_linear_layout.go).
@@ -3198,7 +3269,7 @@ func (e *Executor) closeResources(state *device.State) error {
 			e.resources.blas.scores = 0
 			e.resources.blas.scoreBytes = 0
 		}
-		errs = append(errs, e.resources.blas.dropFP8Plans())
+		errs = append(errs, e.resources.blas.dropMatmulPlans(), e.resources.blas.closeConvolutions())
 		if library := e.resources.blas.library; library != nil {
 			errs = append(errs, library.DestroyLt(e.resources.blas.lt), library.Destroy(e.resources.blas.handle), library.Close())
 		}

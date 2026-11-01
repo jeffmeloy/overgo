@@ -203,7 +203,7 @@ func profileCatalogBatch(
 	batch := artifact.Batch{}
 	digest := sha256.New()
 	for _, document := range documents {
-		contents, lineage, err := profilePublicationFacts(document)
+		contents, lineage, err := ProfilePublicationFacts(document)
 		if err != nil {
 			return artifact.Batch{}, err
 		}

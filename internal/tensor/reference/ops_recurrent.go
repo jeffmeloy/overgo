@@ -102,6 +102,9 @@ func gatedDeltaNet(
 		(gateWidth != 1 && gateWidth != size) {
 		return Value{}, errors.New("invalid GatedDeltaNet dimensions")
 	}
+	if attributes.Chunked {
+		return gatedDeltaChunk(shape, inputs, attributes)
+	}
 
 	attentionElements := size * heads * tokens * sequences
 	stateElements := size * size * heads * sequences

@@ -63,15 +63,11 @@ func ValidateQwen35Repository(repository *hfrepo.Repository) (model.Spec, error)
 	if repository == nil || repository.Tensors == nil {
 		return model.Spec{}, errors.New("HF/GGUF adapter: nil repository")
 	}
-	metadata, blockCount, err := qwen35Metadata(repository)
-	if err != nil {
-		return model.Spec{}, err
+	if repository.Identity.ModelType != "qwen3_5" {
+		return model.Spec{}, fmt.Errorf("HF/GGUF adapter: unsupported Qwen 3.5 identity %q", repository.Identity.ModelType)
 	}
-	mappings, err := qwen35TensorMappings(repository, blockCount)
-	if err != nil {
-		return model.Spec{}, err
-	}
-	return validateMappedRepository(metadata, mappings, "Qwen 3.5")
+	catalog, err := InspectLanguageModel(repository, LanguageTokens)
+	return catalog.Spec, err
 }
 
 // Qwen35Conversion: model metadata plus streamed language tensors for GGUF
@@ -115,6 +111,13 @@ func qwen35Parts(repository *hfrepo.Repository) ([]gguf.Metadata, []tensorMappin
 }
 
 func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, error) {
+	return qwen35MetadataForOutput(repository, LanguageTokens)
+}
+
+func qwen35MetadataForOutput(repository *hfrepo.Repository, output LanguageOutput) ([]gguf.Metadata, uint32, error) {
+	if output == LanguageTokens && qwen35BaseModel(repository) {
+		return nil, 0, errors.New("HF/GGUF adapter: base Qwen3.5 model does not declare token prediction")
+	}
 	if repository.Identity.ModelType != "qwen3_5" || repository.Identity.TextModelType != "qwen3_5_text" {
 		return nil, 0, fmt.Errorf(
 			"HF/GGUF adapter: unsupported Qwen 3.5 identity %q/%q",
@@ -126,7 +129,7 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 		return nil, 0, err
 	}
 	dimensions, err := requiredValues[uint32](text,
-		"max_position_embeddings", "hidden_size", "num_hidden_layers", "mtp_num_hidden_layers",
+		"max_position_embeddings", "hidden_size", "num_hidden_layers",
 		"intermediate_size", "num_attention_heads", "num_key_value_heads", "head_dim", "vocab_size",
 		"full_attention_interval", "linear_conv_kernel_dim", "linear_key_head_dim",
 		"linear_num_key_heads", "linear_num_value_heads", "linear_value_head_dim",
@@ -134,11 +137,18 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 	if err != nil {
 		return nil, 0, err
 	}
-	contextLength, embeddingLength, blockCount, mtpBlocks := dimensions[0], dimensions[1], dimensions[2], dimensions[3]
-	feedForwardLength, headCount, kvHeadCount, headLength := dimensions[4], dimensions[5], dimensions[6], dimensions[7]
-	vocabulary, fullAttentionInterval, convKernel := dimensions[8], dimensions[9], dimensions[10]
-	stateSize, groupCount, timeStepRank, valueHeadLength := dimensions[11], dimensions[12], dimensions[13], dimensions[14]
-	if mtpBlocks != 1 || blockCount == math.MaxUint32 {
+	contextLength, embeddingLength, blockCount := dimensions[0], dimensions[1], dimensions[2]
+	feedForwardLength, headCount, kvHeadCount, headLength := dimensions[3], dimensions[4], dimensions[5], dimensions[6]
+	vocabulary, fullAttentionInterval, convKernel := dimensions[7], dimensions[8], dimensions[9]
+	stateSize, groupCount, timeStepRank, valueHeadLength := dimensions[10], dimensions[11], dimensions[12], dimensions[13]
+	var mtpBlocks uint32
+	if output == LanguageTokens {
+		mtpBlocks, err = required[uint32](text, "mtp_num_hidden_layers")
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	if (output == LanguageTokens && mtpBlocks != 1) || blockCount == math.MaxUint32 {
 		return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 requires one valid MTP layer")
 	}
 	normEpsilon, err := required[float32](text, "rms_norm_eps")
@@ -240,7 +250,7 @@ func qwen35TensorMappings(repository *hfrepo.Repository, blockCount uint32) ([]t
 	}
 	return collectTensorMappings(repository.Tensors, func(name string) (string, bool, error) {
 		return qwen35TensorName(name, blockCount)
-	}, qwen35TensorShape, qwen35TensorTransforms(dims))
+	}, qwen35TensorShape, qwen35TensorTransforms(dims, false))
 }
 
 type qwen35LinearDims struct {
@@ -270,57 +280,44 @@ func qwen35LinearDimensions(repository *hfrepo.Repository) (qwen35LinearDims, er
 	return dims, nil
 }
 
-// qwen35TensorTransforms: llama.cpp GGUF conventions the runtime consumes —
-// the GDN decay base is stored as -exp(A_log), and V-head-major payloads
-// reorder from HF K-grouped order to tiled order when valueHeads > keyHeads.
-func qwen35TensorTransforms(dims qwen35LinearDims) tensorValueMapper {
+// qwen35TensorTransforms binds payload layout to the selected arithmetic.
+// Native BF16 conditioning retains source head order and raw decay parameters.
+// Default execution consumes tiled heads and negative exponentiated decay.
+func qwen35TensorTransforms(dims qwen35LinearDims, native bool) tensorValueMapper {
 	reorder := dims.keyHeads != dims.valueHeads
 	qkRows := 2 * dims.keyHeads * dims.keyWidth
 	vRows := dims.valueHeads * dims.valueWidth
-	return func(name string) func([]byte, uint64) error {
-		if strings.HasSuffix(name, ".linear_attn.A_log") {
-			return func(data []byte, elementSize uint64) error {
-				if reorder {
-					if err := dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1); err != nil {
-						return err
-					}
-				}
-				return negateExpF32(data, elementSize)
-			}
+	rows := func(total, start, block uint64) []TensorTransform {
+		if !reorder {
+			return nil
 		}
+		return []TensorTransform{{Operation: transformHeadRows, Groups: dims.keyHeads, Heads: dims.valueHeads, Width: dims.valueWidth, Rows: total, Start: start, Block: block}}
+	}
+	return func(name string) []TensorTransform {
 		// Zero-centered RMSNorm: every norm stores w, the runtime consumes 1+w, the
 		// draft layer's input norms (mtp.pre_fc_norm_embedding, _hidden) too, as
 		// llama.cpp's conversion stores them; the GDN group norm (linear_attn.norm)
 		// is conventional and stays raw.
 		if (strings.HasSuffix(name, "norm.weight") || strings.HasPrefix(name, "mtp.pre_fc_norm_")) &&
 			!strings.HasSuffix(name, ".linear_attn.norm.weight") {
-			return addOneF32
+			return []TensorTransform{{Operation: transformAddOne}}
 		}
-		if !reorder {
+		if native {
 			return nil
 		}
+		if strings.HasSuffix(name, ".linear_attn.A_log") {
+			return append(rows(dims.valueHeads, 0, 1), TensorTransform{Operation: transformNegateExp})
+		}
 		switch {
-		case strings.HasSuffix(name, ".linear_attn.dt_bias"):
-			return func(data []byte, elementSize uint64) error {
-				return dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1)
-			}
-		case strings.HasSuffix(name, ".linear_attn.in_proj_qkv.weight"),
-			strings.HasSuffix(name, ".linear_attn.conv1d.weight"):
-			return func(data []byte, elementSize uint64) error {
-				return dims.reorderVRows(data, elementSize, qkRows+vRows, qkRows, dims.valueWidth)
-			}
+		case strings.HasSuffix(name, ".linear_attn.dt_bias"), strings.HasSuffix(name, ".linear_attn.in_proj_a.weight"), strings.HasSuffix(name, ".linear_attn.in_proj_b.weight"):
+			return rows(dims.valueHeads, 0, 1)
+		case strings.HasSuffix(name, ".linear_attn.in_proj_qkv.weight"), strings.HasSuffix(name, ".linear_attn.conv1d.weight"):
+			return rows(qkRows+vRows, qkRows, dims.valueWidth)
 		case strings.HasSuffix(name, ".linear_attn.in_proj_z.weight"):
-			return func(data []byte, elementSize uint64) error {
-				return dims.reorderVRows(data, elementSize, vRows, 0, dims.valueWidth)
-			}
-		case strings.HasSuffix(name, ".linear_attn.in_proj_a.weight"),
-			strings.HasSuffix(name, ".linear_attn.in_proj_b.weight"):
-			return func(data []byte, elementSize uint64) error {
-				return dims.reorderVRows(data, elementSize, dims.valueHeads, 0, 1)
-			}
+			return rows(vRows, 0, dims.valueWidth)
 		case strings.HasSuffix(name, ".linear_attn.out_proj.weight"):
-			return func(data []byte, elementSize uint64) error {
-				return dims.reorderVColumns(data, elementSize)
+			if reorder {
+				return []TensorTransform{{Operation: transformHeadColumns, Groups: dims.keyHeads, Heads: dims.valueHeads, Width: dims.valueWidth}}
 			}
 		}
 		return nil

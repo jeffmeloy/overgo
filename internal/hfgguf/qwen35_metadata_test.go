@@ -18,7 +18,7 @@ import (
 // gated-delta group norm stays raw.
 func TestQwen35ZeroCenteredNormsShiftByOne(t *testing.T) {
 	t.Parallel()
-	transforms := qwen35TensorTransforms(qwen35LinearDims{keyHeads: 1, valueHeads: 1, keyWidth: 1, valueWidth: 1})
+	transforms := qwen35TensorTransforms(qwen35LinearDims{keyHeads: 1, valueHeads: 1, keyWidth: 1, valueWidth: 1}, false)
 	for name, want := range map[string]float32{
 		"model.language_model.layers.0.input_layernorm.weight":  1.5,
 		"model.language_model.layers.0.self_attn.q_norm.weight": 1.5,
@@ -29,8 +29,8 @@ func TestQwen35ZeroCenteredNormsShiftByOne(t *testing.T) {
 		"model.language_model.layers.0.linear_attn.norm.weight": 0.5,
 	} {
 		payload := binary.LittleEndian.AppendUint32(nil, math.Float32bits(0.5))
-		if transform := transforms(name); transform != nil {
-			if err := transform(payload, 4); err != nil {
+		for _, transform := range transforms(name) {
+			if err := transform.apply(payload, 4); err != nil {
 				t.Fatal(err)
 			}
 		}

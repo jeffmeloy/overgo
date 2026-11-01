@@ -160,6 +160,9 @@ const (
 	traceTagGEMMEx       = uint64(2) << 32
 	traceTagSGEMMStrided = uint64(3) << 32
 	traceTagFP8Matmul    = uint64(4) << 32
+	traceTagBF16Matmul   = uint64(5) << 32
+	// Spatial convolution occupies the next external-library trace ABI tag.
+	traceTagSpatialConvolution = uint64(6) << 32
 )
 
 func validateKernelArgumentCount(function boundKernel, count int) error {

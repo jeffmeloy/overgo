@@ -36,11 +36,11 @@ func TestValidateDenseRepositoryRejectsUnmappedTensor(t *testing.T) {
 
 func TestDenseTensorDataReversesShapesAndPromotesVectors(t *testing.T) {
 	repository := denseFixture(t, "qwen2", true)
-	mappings, err := denseTensorMappings(repository.Tensors)
+	catalog, err := InspectLanguageModel(repository, LanguageTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tensors, err := mappedTensorData(mappings)
+	tensors, err := mappedTensorData(catalog.mappings)
 	if err != nil {
 		t.Fatal(err)
 	}

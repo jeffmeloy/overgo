@@ -268,9 +268,9 @@ func generateBindings(document []byte) ([]byte, error) {
 }
 
 // executorModules are the PTX modules whose functions the executor binds, in the order it loads them: the operation
-// module, then Strata's QSA kernels, compiled apart without fast math, then the native kernels of Strata's decode round,
-// compiled apart as C++17.
-var executorModules = []string{"ops_f32.ptx", "strata_qsa.ptx", "strata_native.ptx"}
+// module, then MOSS's source-pinned native kernels, compiled apart without fast math, then Strata's QSA kernels, compiled
+// apart without fast math, then the native kernels of Strata's decode round, compiled apart as C++17.
+var executorModules = []string{"ops_f32.ptx", "ops_native.ptx", "strata_qsa.ptx", "strata_native.ptx"}
 
 func kernelIdentifier(name string) string {
 	var result strings.Builder

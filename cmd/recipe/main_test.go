@@ -148,7 +148,7 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			model, definition, err := prepareCapability(t.Context(), store, path, recipe.TaskSeq2Seq, capability)
+			model, definition, err := mediacapability.Prepare(t.Context(), store, path, recipe.TaskSeq2Seq, capability)
 			if err != nil || model != inventory.Manifest.ID || definition.ID != want.ID {
 				t.Fatalf("prepare = %s/%s, %v; want %s/%s", model, definition.ID, err, inventory.Manifest.ID, want.ID)
 			}
@@ -157,12 +157,12 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
-	if _, _, err := prepareCapability(ctx, store, path, recipe.TaskSeq2Seq, capability); !errors.Is(err, context.Canceled) {
+	if _, _, err := mediacapability.Prepare(ctx, store, path, recipe.TaskSeq2Seq, capability); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled preparation = %v", err)
 	}
 	unchanged()
 	inventory.Components[0].MediaType = "application/octet-stream"
-	if _, _, err := prepareCapability(t.Context(), store, path, recipe.TaskSeq2Seq, capability); !errors.Is(err, overgodb.ErrArtifactConflict) {
+	if _, _, err := mediacapability.Prepare(t.Context(), store, path, recipe.TaskSeq2Seq, capability); !errors.Is(err, overgodb.ErrArtifactConflict) {
 		t.Fatalf("conflicting facts = %v", err)
 	}
 	unchanged()
@@ -223,7 +223,7 @@ func TestModelFactsFollowTheModel(t *testing.T) {
 					return definition, []artifact.Content{fact}, err
 				}}, nil
 		}}
-		if _, _, err := prepareCapability(ctx, store, step.path, recipe.TaskSeq2Seq, capability); err != nil {
+		if _, _, err := mediacapability.Prepare(ctx, store, step.path, recipe.TaskSeq2Seq, capability); err != nil {
 			t.Fatalf("%s at %s: capability facts: %v", step.derived, step.path, err)
 		}
 		if _, err := prepareExactCandidate(ctx, store, step.path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err != nil {

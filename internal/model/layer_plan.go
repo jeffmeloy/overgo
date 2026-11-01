@@ -569,6 +569,9 @@ func (s Spec) hasPerLayerEmbeddings(profile ArchitectureProfile) bool {
 
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
 func CompileModelPlanWithProfile(spec Spec, weights Weights, profile ArchitectureProfile) (ModelPlan, error) {
+	if err := spec.validateArithmetic(profile); err != nil {
+		return ModelPlan{}, err
+	}
 	if err := ValidateArchitectureProfile(profile); err != nil {
 		return ModelPlan{}, err
 	}

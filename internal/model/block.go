@@ -29,7 +29,7 @@ func (p normalizationPlan) Apply(
 		}
 		return builder.AffineLayerNorm(input, weight, bias, p.Epsilon)
 	}
-	normalized := builder.WeightedRMSNorm(input, weight, p.Epsilon)
+	normalized := p.Arithmetic.weightedRMS(builder, input, weight, p.Epsilon)
 	if p.RMSBias && bias != nil {
 		return builder.Add(normalized, bias)
 	}
@@ -813,19 +813,22 @@ func buildGatedProjectionMixCached(
 	if err := requireTensorPair(pastKey, pastValue, "gated-delta attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
+	if spec.Arithmetic == ArithmeticTransformersBF16 && (pastKey != nil || indices != nil) {
+		return DenseBlockResult{}, errors.New("native BF16 conditioning requires uncached full attention")
+	}
 
 	tokens := uint64(len(positions))
 	headWidth := uint64(spec.KeyLength)
 	heads := uint64(spec.HeadCount)
-	queryAndGate := builder.MulMat(weights.AttentionQ, normalized)
+	queryAndGate := spec.Arithmetic.project(builder, weights.AttentionQ, normalized)
 	query := builder.GroupSlice(queryAndGate, tensor.FirstOffset, headWidth, heads, tensor.PairedExtent*headWidth)
 	gate := builder.GroupSlice(queryAndGate, headWidth, headWidth, heads, tensor.PairedExtent*headWidth)
 	if sequences > tensor.SingletonExtent {
 		query = builder.Reshape(query, headWidth, heads, tokens, sequences)
 		gate = builder.Reshape(gate, headWidth, heads, tokens, sequences)
 	}
-	keyProjection := builder.MulMat(weights.AttentionK, normalized)
-	valueProjection := builder.MulMat(weights.AttentionV, normalized)
+	keyProjection := spec.Arithmetic.project(builder, weights.AttentionK, normalized)
+	valueProjection := spec.Arithmetic.project(builder, weights.AttentionV, normalized)
 	var key, value *tensor.Tensor
 	if sequences == tensor.SingletonExtent {
 		key = builder.Reshape(keyProjection, headWidth, uint64(spec.HeadCountKV), tokens)
@@ -836,8 +839,8 @@ func buildGatedProjectionMixCached(
 			valueProjection, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens, sequences,
 		)
 	}
-	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
-	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
+	query = spec.Arithmetic.weightedRMS(builder, query, weights.AttentionQNorm, spec.RMSNormEpsilon)
+	key = spec.Arithmetic.weightedRMS(builder, key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 	query, key = rotary.Apply(builder, query, key, positions, multiPositions, nil)
 	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
 	if cells != nil {
@@ -869,16 +872,22 @@ func buildGatedProjectionMixCached(
 	if indices != nil {
 		attention = builder.SparseAttentionWithOffset(query, cacheKey, cacheValue, indices, attentionScale, true, queryStart)
 	} else {
-		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart, TensorCores: spec.Profile().Runtime.PromptTensorCores})
+		// A transformers-BF16 conditioning (MOSS's Qwen3.5 prompt encoder) takes the native attention arithmetic, never the
+		// tensor-core prompt attention a served profile admits.
+		native := spec.Arithmetic == ArithmeticTransformersBF16
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart,
+			TensorCores: spec.Profile().Runtime.PromptTensorCores && !native, NativeMath: native})
 	}
+	attention = spec.Arithmetic.round(builder, attention)
 
 	attention = builder.Reshape(
 		attention,
 		uint64(spec.HeadCount)*uint64(spec.ValueLength),
 		tokens*sequences,
 	)
-	attention = builder.Multiply(attention, builder.Sigmoid(gate))
-	attention = builder.MulMat(weights.AttentionOutput, attention)
+	gate = builder.Reshape(gate, uint64(spec.HeadCount)*headWidth, tokens*sequences)
+	attention = spec.Arithmetic.round(builder, builder.Multiply(attention, spec.Arithmetic.round(builder, builder.Sigmoid(gate))))
+	attention = spec.Arithmetic.project(builder, weights.AttentionOutput, attention)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -946,7 +955,7 @@ func buildGatedDeltaMixCached(
 		return DenseBlockResult{}, errors.New("gated-delta recurrent cache shape is invalid")
 	}
 
-	qkvProjection := builder.MulMat(weights.AttentionQKV, normalized)
+	qkvProjection := spec.Arithmetic.project(builder, weights.AttentionQKV, normalized)
 	qkvMixed := qkvProjection
 	var z *tensor.Tensor
 	if deltaPolicy == gatedDeltaInterleavedProjections && weights.AttentionGate == nil {
@@ -973,17 +982,17 @@ func buildGatedDeltaMixCached(
 		)
 		z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	} else {
-		z = builder.MulMat(weights.AttentionGate, normalized)
+		z = spec.Arithmetic.project(builder, weights.AttentionGate, normalized)
 	}
 	// A decode step's or a verify span's separate-projection layer prepares its query, key, value, gate and beta in two
 	// operations (GatedDeltaConv, GatedDeltaGates) whose bits are the composed operations': Flash-Next's decode ran the
 	// composed preparation as 17 kernels a layer.
-	fused := deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
+	fused := spec.Arithmetic != ArithmeticTransformersBF16 && deltaPolicy != gatedDeltaInterleavedProjections && sequences == tensor.SingletonExtent &&
 		tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type)
 	// Tokens no checkpoint divides (a prompt's) prepare their query, key and value in one operation too
 	// (GatedDeltaPromptConv), with the composed operations' bits: a Flash-Next 16K read ran the composed preparation's
 	// six kernels for about 450 ms.
-	promptConv := !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
+	promptConv := spec.Arithmetic != ArithmeticTransformersBF16 && !fused && sequences == tensor.SingletonExtent && !spanCheckpoints(checkpointTokens, tokens) &&
 		tensor.GatedDeltaConvFits(stateWidth, uint64(spec.SSMConvKernel), weights.SSMConv1D.Type)
 	var beta, alpha, gate *tensor.Tensor
 	switch {
@@ -993,7 +1002,7 @@ func buildGatedDeltaMixCached(
 		beta = builder.FlatSlice(gates, valueHeads*tokens, tensor.SingletonExtent, valueHeads, tokens, sequences)
 	case deltaPolicy == gatedDeltaInterleavedProjections:
 		valueHeadsPerGroup := valueHeads / keyHeads
-		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
+		betaAlpha := spec.Arithmetic.project(builder, weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
 			betaAlpha, tensor.FirstOffset, valueHeadsPerGroup, keyHeads, tensor.PairedExtent*valueHeadsPerGroup,
 		)
@@ -1005,19 +1014,23 @@ func buildGatedDeltaMixCached(
 		alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 	default:
 		beta = builder.Reshape(
-			builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
+			spec.Arithmetic.round(builder, builder.Sigmoid(spec.Arithmetic.project(builder, weights.SSMBeta, normalized))),
 			tensor.SingletonExtent, valueHeads, tokens, sequences,
 		)
-		alpha = builder.MulMat(weights.SSMAlpha, normalized)
+		alpha = spec.Arithmetic.project(builder, weights.SSMAlpha, normalized)
 		if sequences > tensor.SingletonExtent {
 			alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 		}
 	}
 	if !fused {
-		gate = builder.Multiply(
-			builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
-			weights.SSMA,
-		)
+		decay, step := weights.SSMA, builder.Add(alpha, weights.SSMTimeStep)
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			decay = builder.Scale(builder.ExpNative(decay), -1)
+			step = builder.SoftplusNative(step)
+		} else {
+			step = builder.Softplus(step)
+		}
+		gate = builder.Multiply(step, decay)
 		gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
 	}
 
@@ -1076,12 +1089,19 @@ func buildGatedDeltaMixCached(
 				convStateWidth, convChannels,
 			)
 		}
-		convolved := builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
+		convolved := spec.Arithmetic.round(builder, spec.Arithmetic.silu(builder, spec.Arithmetic.round(builder, builder.SSMConv(convInput, weights.SSMConv1D))))
 		query = builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
 		key = builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
 		value = builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
-		query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
-		key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			query = builder.L2NormNativeBF16(query, spec.RMSNormEpsilon)
+			key = builder.L2NormNativeBF16(key, spec.RMSNormEpsilon)
+		} else {
+			query = builder.L2Norm(query, spec.RMSNormEpsilon)
+			key = builder.L2Norm(key, spec.RMSNormEpsilon)
+		}
+		query = builder.Reshape(query, stateWidth, keyHeads, tokens, sequences)
+		key = builder.Reshape(key, stateWidth, keyHeads, tokens, sequences)
 		value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
 	}
 	// scan advances the state over count tokens from first and returns their outputs and the state after them.
@@ -1094,7 +1114,9 @@ func buildGatedDeltaMixCached(
 			return builder.FlatSlice(input, first*width*heads, width, heads, count, sequences)
 		}
 		var packed *tensor.Tensor
-		if deltaPolicy == gatedDeltaInterleavedProjections {
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			packed = builder.GatedDeltaNetChunked(slice(query), slice(key), slice(value), slice(gate), slice(beta), state, true)
+		} else if deltaPolicy == gatedDeltaInterleavedProjections {
 			packed = builder.GatedDeltaNetRepeatInterleave(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
 		} else {
 			packed = builder.GatedDeltaNet(slice(query), slice(key), slice(value), slice(gate), slice(beta), state)
@@ -1128,14 +1150,17 @@ func buildGatedDeltaMixCached(
 	if deltaPolicy == gatedDeltaSeparateSigmoid {
 		z = builder.Sigmoid(z)
 	} else {
-		z = builder.SiLU(z)
+		z = spec.Arithmetic.silu(builder, z)
 	}
-	attention = builder.Multiply(
-		builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon),
-		z,
-	)
+	if spec.Arithmetic == ArithmeticTransformersBF16 {
+		attention = builder.BF16Round(attention)
+		attention = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.RMSNormNative(attention, spec.RMSNormEpsilon)), weights.SSMNorm))
+	} else {
+		attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
+	}
+	attention = spec.Arithmetic.round(builder, builder.Multiply(attention, z))
 	attention = builder.Reshape(attention, valueDimension, tokens*sequences)
-	attention = builder.MulMat(weights.SSMOutput, attention)
+	attention = spec.Arithmetic.project(builder, weights.SSMOutput, attention)
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -1166,6 +1191,7 @@ func concatTokens(builder *tensor.Builder, before, part *tensor.Tensor) *tensor.
 func buildRoutedSwiGLUFeedForwardMix(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
+	spec Spec,
 	weights LayerGraphWeights,
 	experts moEGraphPlan,
 	composition expertCompositionPlan,
@@ -1181,19 +1207,25 @@ func buildRoutedSwiGLUFeedForwardMix(
 		sharedRouter := builder.Reshape(
 			weights.FeedForwardSharedRouter, normalized.Shape.ContiguousExtent(), tensor.SingletonExtent,
 		)
-		sharedGate := builder.Sigmoid(builder.MulMat(sharedRouter, normalized))
-		shared := builder.MulMat(
+		sharedGate := builder.Sigmoid(spec.Arithmetic.project(builder, sharedRouter, normalized))
+		shared := spec.Arithmetic.project(builder,
 			weights.FeedForwardSharedDown,
 			builder.SwiGLU(
-				builder.MulMat(weights.FeedForwardSharedGate, normalized),
-				builder.MulMat(weights.FeedForwardSharedUp, normalized),
+				spec.Arithmetic.project(builder, weights.FeedForwardSharedGate, normalized),
+				spec.Arithmetic.project(builder, weights.FeedForwardSharedUp, normalized),
 			),
 		)
 		feedForward = builder.Add(feedForward, builder.Multiply(shared, sharedGate))
 	} else {
-		gate := builder.MulMat(weights.FeedForwardGate, normalized)
-		up := builder.MulMat(weights.FeedForwardUp, normalized)
-		feedForward = builder.MulMat(weights.FeedForwardDown, builder.SwiGLU(gate, up))
+		gate := spec.Arithmetic.project(builder, weights.FeedForwardGate, normalized)
+		up := spec.Arithmetic.project(builder, weights.FeedForwardUp, normalized)
+		var mixed *tensor.Tensor
+		if spec.Arithmetic == ArithmeticTransformersBF16 {
+			mixed = builder.BF16Round(builder.Multiply(builder.BF16Round(builder.SiLUNative(gate)), up))
+		} else {
+			mixed = builder.SwiGLU(gate, up)
+		}
+		feedForward = spec.Arithmetic.project(builder, weights.FeedForwardDown, mixed)
 	}
 	return feedForward, builder.Err()
 }

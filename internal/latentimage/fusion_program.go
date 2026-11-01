@@ -26,9 +26,11 @@ type FusionProgram struct {
 
 	// InEncoder (TextHidden, TextLayers*TextSeq): the selected hiddens, layer-minor
 	// within each token (column = tok*TextLayers + l). Host-fed f32.
-	InEncoder *tensor.Tensor
-	keyBias   *tensor.Tensor
-	keyData   []float32
+	InEncoder         *tensor.Tensor
+	InRoPE            *tensor.Tensor
+	RefinementOutputs []*tensor.Tensor
+	keyBias           *tensor.Tensor
+	keyData           []float32
 
 	weightInputs tensor.WeightBindings
 

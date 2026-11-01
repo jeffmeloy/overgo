@@ -50,6 +50,11 @@ const (
 	// library may compute on the device's tensor units, converting single
 	// precision operands to half for them.
 	tensorMathAllowConversion = 2
+	// fmaMath is CUDNN_FMA_MATH and forbids tensor-core precision conversion.
+	// winograd is CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD for spatial F32 decoders.
+	// Reconsider these ABI values only when changing the supported cuDNN API.
+	fmaMath  = 3
+	winograd = 6
 	// extents is how many extents a convolution here runs over, and dimensions
 	// the dimensions of its tensors: a batch, channels and the extents.
 	extents    = 3

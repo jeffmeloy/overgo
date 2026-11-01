@@ -41,6 +41,12 @@ func (b *Builder) BF16Round(input *Tensor) *Tensor {
 	return b.unary(OpBF16Round, input, nil)
 }
 
+// BF16RoundNative marks a native BF16 producer boundary for linear and attention lowering.
+// Other producers retain ordinary ties-to-even BF16 conversion.
+func (b *Builder) BF16RoundNative(input *Tensor) *Tensor {
+	return b.unary(OpBF16Round, input, NativeBF16Attributes{})
+}
+
 // SignedSqrt maps x to sign(x)*sqrt(max(abs(x),minimum)), preserving zero.
 func (b *Builder) SignedSqrt(input *Tensor, minimum float32) *Tensor {
 	if minimum <= 0 || math.IsNaN(float64(minimum)) || math.IsInf(float64(minimum), 0) {
@@ -56,6 +62,26 @@ func (b *Builder) RMSNorm(input *Tensor, epsilon float32) *Tensor {
 		return nil
 	}
 	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon})
+}
+
+// RMSNormNativeMean preserves the vectorized source reduction and mean rounding.
+// The element-count ratio and sum multiplication round separately.
+func (b *Builder) RMSNormNativeMean(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native RMS mean requires positive finite epsilon"))
+		return nil
+	}
+	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon, NativeMean: true})
+}
+
+// RMSNormNative selects Torch CUDA's F32 reduction and reciprocal-root arithmetic.
+// Unsupported device reduction geometry is refused during compilation.
+func (b *Builder) RMSNormNative(input *Tensor, epsilon float32) *Tensor {
+	if epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native RMSNorm requires positive finite epsilon"))
+		return nil
+	}
+	return b.unary(OpRMSNorm, input, RMSNormAttributes{Epsilon: epsilon, Native: true})
 }
 
 // MADNorm applies row-wise rank/MAD normalization.
@@ -91,6 +117,11 @@ func (b *Builder) Softmax(input *Tensor) *Tensor {
 
 func (b *Builder) SiLU(input *Tensor) *Tensor {
 	return b.unary(OpSiLU, input, nil)
+}
+
+// SiLUNative preserves separately rounded source exponential, addition and division.
+func (b *Builder) SiLUNative(input *Tensor) *Tensor {
+	return b.unary(OpSiLU, input, NativeMathAttributes{})
 }
 
 func (b *Builder) GELU(input *Tensor) *Tensor {
@@ -271,6 +302,25 @@ func (b *Builder) PixelShuffle2D(input *Tensor, scale uint32) *Tensor {
 	return b.add("", input.Type, shape, OpPixelShuffle2D, []*Tensor{input}, PixelShuffle2DAttributes{Scale: scale})
 }
 
+// Conv2DWinogradF32 applies a padded spatial filter with native Winograd arithmetic.
+// The filter must be three by three and all operands must use F32 storage.
+func (b *Builder) Conv2DWinogradF32(input, weight, bias *Tensor) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || weight == nil || input.Type != dtype.F32 || weight.Shape.Rank != MaxDimensions || weight.Shape.Dims[0] != TripleExtent || weight.Shape.Dims[1] != TripleExtent {
+		b.setError(errors.New("winograd F32 convolution requires an F32 input and three-by-three filter"))
+		return nil
+	}
+	node := b.Conv2D(input, weight, bias, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, SingletonExtent, false)
+	if node != nil {
+		attrs := node.Attrs.(Conv2DAttributes)
+		attrs.WinogradF32 = true
+		node.Attrs = attrs
+	}
+	return node
+}
+
 // SAMAttention: batched decomposed-relative 2D attention.
 func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, scale, relativeScale float32, spatialSize uint32) *Tensor {
 	if b.err != nil {
@@ -299,6 +349,17 @@ func (b *Builder) SAMAttention(query, key, value, relativeW, relativeH *Tensor, 
 	return b.add("", query.Type, shape, OpSAMAttention, []*Tensor{query, key, value, relativeW, relativeH}, SAMAttentionAttributes{
 		Scale: scale, RelativeScale: relativeScale, SpatialSize: spatialSize,
 	})
+}
+
+// GroupNormNative selects the source Welford reduction for channel groups.
+func (b *Builder) GroupNormNative(input, weight, bias *Tensor, groups uint32, epsilon float32) *Tensor {
+	out := b.GroupNorm(input, weight, bias, groups, epsilon)
+	if out != nil {
+		attributes := out.Attrs.(GroupNormAttributes)
+		attributes.Native = true
+		out.Attrs = attributes
+	}
+	return out
 }
 
 // GroupNorm: channel groups across one sequence.
@@ -459,10 +520,38 @@ func (b *Builder) Exp(input *Tensor) *Tensor {
 	return b.unary(OpExp, input, nil)
 }
 
+// ExpNative selects the precise CUDA exponential used by native F32 tensor arithmetic.
+func (b *Builder) ExpNative(input *Tensor) *Tensor {
+	return b.unary(OpExp, input, NativeMathAttributes{})
+}
+
+// NativeSoftplusThreshold follows Torch's default F32 softplus branch boundary.
+// Reconsider this threshold when admitting another native scalar policy.
+const NativeSoftplusThreshold = 20
+
+// SoftplusNative preserves Torch's separately rounded exponential and logarithm.
+func (b *Builder) SoftplusNative(input *Tensor) *Tensor {
+	return b.unary(OpSoftplus, input, NativeMathAttributes{})
+}
+
 func (b *Builder) L2Norm(input *Tensor, epsilon float32) *Tensor {
 	if epsilon < 0 || math.IsNaN(float64(epsilon)) {
 		b.setError(errors.New("L2Norm epsilon must be non-negative"))
 		return nil
 	}
 	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon})
+}
+
+// L2NormNativeBF16 preserves Torch's BF16 squares, sum and reciprocal-root rounding.
+// Input stores BF16 values in F32 and epsilon is added to the rounded squared norm.
+func (b *Builder) L2NormNativeBF16(input *Tensor, epsilon float32) *Tensor {
+	if input == nil || input.Type != dtype.F32 || epsilon <= 0 || math.IsNaN(float64(epsilon)) || math.IsInf(float64(epsilon), 0) {
+		b.setError(errors.New("native BF16 L2Norm requires F32 storage and positive finite epsilon"))
+		return nil
+	}
+	if _, _, err := NativeReductionGeometry(input.Shape, true); err != nil {
+		b.setError(err)
+		return nil
+	}
+	return b.unary(OpL2Norm, input, L2NormAttributes{Epsilon: epsilon, NativeBF16: true})
 }

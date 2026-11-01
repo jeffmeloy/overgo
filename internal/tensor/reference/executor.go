@@ -247,6 +247,12 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}), nil
 	case tensor.OpSoftplus:
 		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			if _, native := node.Attrs.(tensor.NativeMathAttributes); native {
+				if value > tensor.NativeSoftplusThreshold {
+					return value
+				}
+				return float32(math.Log1p(float64(float32(math.Exp(float64(value))))))
+			}
 			absolute := math.Abs(float64(value))
 			return float32(max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
 		}), nil
@@ -263,6 +269,9 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			return float32(math.Exp(float64(value)))
 		}), nil
 	case tensor.OpL2Norm:
+		if node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			return nativeL2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
+		}
 		return l2Norm(node.Shape, inputs[0], node.Attrs.(tensor.L2NormAttributes).Epsilon)
 	case tensor.OpSSMConv:
 		return ssmConv(node.Shape, inputs[0], inputs[1])

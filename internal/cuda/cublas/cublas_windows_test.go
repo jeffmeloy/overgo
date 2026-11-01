@@ -293,10 +293,10 @@ func TestGEMMExBF16Integration(t *testing.T) {
 	testutil.RequireSliceClose(t, "output", output, want, 1e-6)
 }
 
-// TestMatmulFP8Integration: the cuBLASLt FP8 product of e4m3 weight
+// TestMatmulIntegration: the cuBLASLt FP8 product of e4m3 weight
 // rows and e4m3 columns. Every e4m3 product is exact in F32 and these
 // sums stay exact, so the result matches the float64 reference.
-func TestMatmulFP8Integration(t *testing.T) {
+func TestMatmulIntegration(t *testing.T) {
 	fixture := newBLASFixture(t)
 	const m, n, k = 32, 24, 64
 	const workspaceLimit = uint64(4 << 20)
@@ -328,7 +328,7 @@ func TestMatmulFP8Integration(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		defer func() { resultErr = errors.Join(resultErr, lib.DestroyFP8Plan(plan)) }()
+		defer func() { resultErr = errors.Join(resultErr, lib.DestroyMatmulPlan(plan)) }()
 		aPtr, err := memory.copy(a)
 		if err != nil {
 			return err
@@ -345,7 +345,7 @@ func TestMatmulFP8Integration(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if err := lib.MatmulFP8(lt, plan, aPtr, bPtr, output, workspace, workspaceLimit, state.Stream); err != nil {
+		if err := lib.Matmul(lt, plan, aPtr, bPtr, output, 0, workspace, workspaceLimit, state.Stream); err != nil {
 			return err
 		}
 		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {

@@ -26,7 +26,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	}
 	defer store.Close()
 	capability := mediacapability.Catalog[recipe.TaskGeneration]
-	modelID, definition, err := prepareCapability(ctx, store, modelPath, recipe.TaskGeneration, capability)
+	modelID, definition, err := mediacapability.Prepare(ctx, store, modelPath, recipe.TaskGeneration, capability)
 	if err != nil {
 		t.Fatal(err)
 	}

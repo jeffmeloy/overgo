@@ -45,6 +45,14 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 		if err != nil {
 			return err
 		}
+		stagingWant := compiled.matmulStagingBytes
+		if len(compiled.convolutions) > 0 {
+			bytes, err := resources.blas.convolutionStaging(state, compiled.convolutions)
+			if err != nil {
+				return err
+			}
+			stagingWant = max(stagingWant, bytes)
+		}
 		free, _, err := state.Driver.MemInfo()
 		if err != nil {
 			return err
@@ -66,7 +74,7 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 			staging, scores = resources.blas.stagingBytes, resources.blas.scoreBytes
 		}
 		var growth, peak uint64
-		for _, pair := range [][tensor.PairedExtent]uint64{{compiled.matmulStagingBytes, staging}, {compiled.attentionScoreBytes, scores}, {compiled.q8InputBytes, resources.q8Input.stagingBytes}} {
+		for _, pair := range [][tensor.PairedExtent]uint64{{stagingWant, staging}, {compiled.attentionScoreBytes, scores}, {compiled.q8InputBytes, resources.q8Input.stagingBytes}} {
 			if pair[0] <= pair[1] {
 				continue
 			}

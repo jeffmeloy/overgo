@@ -101,7 +101,7 @@ func (h *Handler) executeObservedOperation(
 ) (operation.Completion, error) {
 	if h.repository != nil {
 		if err := h.repository.Refresh(ctx); err != nil {
-			return operation.Completion{}, err
+			return failWorkflow(ctx, h.repository, recipeID, nil, "operation_prepare_failed", err)
 		}
 	}
 	started := time.Now()

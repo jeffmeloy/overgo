@@ -143,6 +143,7 @@ func (l *Library) Close() error {
 type Convolution struct {
 	input, filter, output, convolution uintptr
 	Workspace                          uint64
+	algorithm                          uintptr
 }
 
 // Plan describes the convolution of shape to the library, its tensors and its
@@ -150,6 +151,19 @@ type Convolution struct {
 // the type compute, and asks what workspace it needs. The library refuses a
 // shape or a pair of types it does not convolve.
 func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, err error) {
+	return l.plan(shape, data, compute, false, tensorMathAllowConversion, implicitPrecomputedGEMM)
+}
+
+// PlanSpatialWinograd describes deterministic F32 spatial Winograd convolution.
+// FMA math forbids TF32 conversion and matches native full-precision decoders.
+func (l *Library) PlanSpatialWinograd(shape Shape) (Convolution, error) {
+	if shape.Frames != 1 || shape.Kernel[overFrames] != 1 || shape.Stride[overFrames] != 1 || shape.Pad[overFrames] != 0 {
+		return Convolution{}, errors.New("cudnn: spatial convolution must have one frame and no temporal padding")
+	}
+	return l.plan(shape, DataF32, DataF32, true, fmaMath, winograd)
+}
+
+func (l *Library) plan(shape Shape, data, compute DataType, spatial bool, mathType, algorithm uintptr) (plan Convolution, err error) {
 	if !shape.valid() {
 		return Convolution{}, errors.New("cudnn: a convolution needs positive channels, extents, kernel and strides")
 	}
@@ -160,9 +174,18 @@ func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, e
 		}
 	}()
 	frames, height, width := shape.output()
+	rank, axes := dimensions, extents
+	if spatial {
+		rank--
+		axes--
+	}
+	plan.algorithm = algorithm
 	tensor := func(operation string, channels, frames, height, width int) (uintptr, error) {
 		var descriptor uintptr
 		dims := [dimensions]int32{1, int32(channels), int32(frames), int32(height), int32(width)}
+		if spatial {
+			dims = [dimensions]int32{1, int32(channels), int32(height), int32(width)}
+		}
 		var pinned runtime.Pinner
 		pinned.Pin(&descriptor)
 		pinned.Pin(&dims)
@@ -171,7 +194,7 @@ func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, e
 		if err := result("cudnnCreateTensorDescriptor", status); err != nil {
 			return 0, err
 		}
-		status, _, _ = l.setTensor.Call(descriptor, channelsFirst, uintptr(data), dimensions, uintptr(unsafe.Pointer(&dims)))
+		status, _, _ = l.setTensor.Call(descriptor, channelsFirst, uintptr(data), uintptr(rank), uintptr(unsafe.Pointer(&dims)))
 		return descriptor, result(operation, status)
 	}
 	if plan.input, err = tensor("cudnnSetTensorNdDescriptorEx input", shape.In, shape.Frames, shape.Height, shape.Width); err != nil {
@@ -181,9 +204,16 @@ func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, e
 		return plan, err
 	}
 	filter := [dimensions]int32{int32(shape.Out), int32(shape.In), int32(shape.Kernel[overFrames]), int32(shape.Kernel[overRows]), int32(shape.Kernel[overColumns])}
+	if spatial {
+		filter = [dimensions]int32{int32(shape.Out), int32(shape.In), int32(shape.Kernel[overRows]), int32(shape.Kernel[overColumns])}
+	}
 	var pad, stride, dilation [extents]int32
-	for at := range extents {
-		pad[at], stride[at], dilation[at] = int32(shape.Pad[at]), int32(shape.Stride[at]), 1
+	for at := range axes {
+		source := at
+		if spatial {
+			source++
+		}
+		pad[at], stride[at], dilation[at] = int32(shape.Pad[source]), int32(shape.Stride[source]), 1
 	}
 	var pinned runtime.Pinner
 	pinned.Pin(&plan)
@@ -196,7 +226,7 @@ func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, e
 	if err = result("cudnnCreateFilterDescriptor", status); err != nil {
 		return plan, err
 	}
-	status, _, _ = l.setFilter.Call(plan.filter, uintptr(data), channelsFirst, dimensions, uintptr(unsafe.Pointer(&filter)))
+	status, _, _ = l.setFilter.Call(plan.filter, uintptr(data), channelsFirst, uintptr(rank), uintptr(unsafe.Pointer(&filter)))
 	if err = result("cudnnSetFilterNdDescriptor", status); err != nil {
 		return plan, err
 	}
@@ -204,16 +234,16 @@ func (l *Library) Plan(shape Shape, data, compute DataType) (plan Convolution, e
 	if err = result("cudnnCreateConvolutionDescriptor", status); err != nil {
 		return plan, err
 	}
-	status, _, _ = l.setConvolution.Call(plan.convolution, extents,
+	status, _, _ = l.setConvolution.Call(plan.convolution, uintptr(axes),
 		uintptr(unsafe.Pointer(&pad)), uintptr(unsafe.Pointer(&stride)), uintptr(unsafe.Pointer(&dilation)), crossCorrelation, uintptr(compute))
 	if err = result("cudnnSetConvolutionNdDescriptor", status); err != nil {
 		return plan, err
 	}
-	status, _, _ = l.setMathType.Call(plan.convolution, tensorMathAllowConversion)
+	status, _, _ = l.setMathType.Call(plan.convolution, mathType)
 	if err = result("cudnnSetConvolutionMathType", status); err != nil {
 		return plan, err
 	}
-	status, _, _ = l.workspaceSize.Call(l.handle, plan.input, plan.filter, plan.convolution, plan.output, implicitPrecomputedGEMM, uintptr(unsafe.Pointer(&plan.Workspace)))
+	status, _, _ = l.workspaceSize.Call(l.handle, plan.input, plan.filter, plan.convolution, plan.output, algorithm, uintptr(unsafe.Pointer(&plan.Workspace)))
 	return plan, result("cudnnGetConvolutionForwardWorkspaceSize", status)
 }
 
@@ -245,6 +275,6 @@ func (l *Library) Forward(plan Convolution, input, filter, workspace, output dri
 	pinned.Pin(&zero)
 	defer pinned.Unpin()
 	status, _, _ := l.forward.Call(l.handle, uintptr(unsafe.Pointer(&one)), plan.input, uintptr(input), plan.filter, uintptr(filter),
-		plan.convolution, implicitPrecomputedGEMM, uintptr(workspace), uintptr(plan.Workspace), uintptr(unsafe.Pointer(&zero)), plan.output, uintptr(output))
+		plan.convolution, plan.algorithm, uintptr(workspace), uintptr(plan.Workspace), uintptr(unsafe.Pointer(&zero)), plan.output, uintptr(output))
 	return result("cudnnConvolutionForward", status)
 }

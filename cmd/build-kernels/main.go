@@ -23,7 +23,8 @@ type kernel struct {
 	// those last bits and break byte-parity with PyTorch's standard-precision
 	// curand. Bit-exact RNG is an ABI requirement, not a knob. strata_qsa is
 	// compiled as Strata compiles its QSA files, without fast math, since its
-	// parity checks are bitwise.
+	// parity checks are bitwise; ops_native, MOSS's source-pinned module, keeps
+	// native arithmetic and subnormals the same way.
 	noFastMath bool
 	// cxx17 compiles a fast-math module as C++17: Strata's native kernels (strata_native.cu)
 	// take if constexpr as Strata compiles them.
@@ -33,6 +34,7 @@ type kernel struct {
 var kernels = []kernel{
 	{source: "kernels/cuda/vector_add.cu", output: "internal/cuda/kernel/vector_add.ptx"},
 	{source: "kernels/cuda/ops_f32.cu", output: "internal/cuda/kernel/ops_f32.ptx"},
+	{source: "kernels/cuda/ops_native.cu", output: "internal/cuda/kernel/ops_native.ptx", noFastMath: true},
 	{source: "kernels/cuda/torch_cuda_randn.cu", output: "internal/cuda/kernel/torch_cuda_randn.ptx", noFastMath: true},
 	{source: "kernels/cuda/strata_qsa.cu", output: "internal/cuda/kernel/strata_qsa.ptx", noFastMath: true},
 	{source: "kernels/cuda/strata_native.cu", output: "internal/cuda/kernel/strata_native.ptx", cxx17: true},
@@ -55,8 +57,7 @@ func run() error {
 				args = append(args, "--std=c++17")
 			}
 		} else {
-			// curand device headers are C++17 and resolve from the toolkit
-			// include dir; keep standard precision for bit-exact normals.
+			// Source-pinned scalar math and curand require standard precision.
 			args = append(args, "--std=c++17")
 		}
 		args = append(args, "-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))

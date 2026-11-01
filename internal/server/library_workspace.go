@@ -11,12 +11,10 @@ import (
 	"strings"
 
 	"overgo/internal/apimanifest"
-	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
-	"overgo/internal/recipe"
 )
 
 // The library lifecycle (professional GUI campaign, gui-library): a model
@@ -51,7 +49,7 @@ import (
 type LibraryIntake struct {
 	ModelFiles func(path, explicitProjector string) (model, projectorPath string, err error)
 	Register   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error)
-	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (artifact.ID, operation.Executor, error)
+	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (operation.Request, operation.Executor, error)
 	// DeclareProvider declares a hosted provider's models in the store as
 	// the provider command does; absent, the provider kind answers that it
 	// needs it.
@@ -364,18 +362,18 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	recipeID, execute, err := intake.Validate(request.Context(), h.repository, path, projectorPath)
+	validation, execute, err := intake.Validate(request.Context(), h.repository, path, projectorPath)
 	if err != nil {
 		writeLibraryError(response, err)
 		return
 	}
 	id, err := h.operations.Submit(context.WithoutCancel(request.Context()),
-		operation.Request{Task: recipe.TaskInference, Recipe: recipeID}, execute)
+		validation, execute)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
 	writeJSON(response, http.StatusAccepted, map[string]any{
-		"operation": id, "path": path, "projector": projectorPath, "recipe": recipeID,
+		"operation": id, "path": path, "projector": projectorPath, "recipe": validation.Recipe,
 	})
 }

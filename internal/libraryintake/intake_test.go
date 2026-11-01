@@ -16,7 +16,7 @@ func TestLibraryProjectionRefusesUndeclaredProjector(t *testing.T) {
 	if !rejected || !strings.Contains(err.Error(), "does not declare a projector") {
 		t.Fatalf("undeclared projector contract: %v", err)
 	}
-	if execute != nil || id.String() != "" {
+	if execute != nil || id.Recipe.String() != "" {
 		t.Fatalf("refused intake returned an executable or identity: %v", id)
 	}
 }

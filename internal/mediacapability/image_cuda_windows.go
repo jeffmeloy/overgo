@@ -4,10 +4,12 @@ package mediacapability
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/checked"
 	"overgo/internal/diffusionimage"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
@@ -80,7 +82,8 @@ func imageCapability() Capability {
 	)
 	diffusion := sessionExecutor(diffusionDirector, diffusionErr)
 	return Capability{
-		Resolve: resolveImageSource,
+		Resolve:         resolveImageSource,
+		ValidationInput: imageValidationInput,
 		Execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleRoutedImagePrepare:     routed,
 			modelrecipe.ModuleLatentImagePrepare:     latent,
@@ -89,4 +92,32 @@ func imageCapability() Capability {
 			modelrecipe.ModuleRAEImagePrepare:        raeImage,
 		}.Execute,
 	}
+}
+
+func imageValidationInput(directory, prompt string) (string, error) {
+	profile, err := latentimage.ResolveProfile(directory)
+	if err != nil {
+		return "", err
+	}
+	var scale int
+	if profile.Rotary != nil {
+		scale = profile.Rotary.SpatialScale
+	} else {
+		spec, err := latentimage.Derive(directory)
+		if err != nil {
+			return "", err
+		}
+		var ok bool
+		scale, ok = checked.MulInt(spec.VAE.SpatialScale, spec.PatchSize)
+		if !ok {
+			return "", fmt.Errorf("image validation: source geometry overflows")
+		}
+	}
+	// One stride and one step are the smallest positive source-valid image request.
+	request := latentimage.Request{Prompt: prompt, Width: scale, Height: scale, Steps: 1}
+	if err := latentimage.ValidateRequest(request); err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(request)
+	return string(b), err
 }

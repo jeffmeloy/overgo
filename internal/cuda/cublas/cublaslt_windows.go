@@ -10,7 +10,7 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// cuBLASLt enumerants the FP8 product sets (cublasLt.h, CUDA 12.9).
+// cuBLASLt enumerants follow cublasLt.h from CUDA 12.9.
 const (
 	// dataF8E4M3 is CUDA_R_8F_E4M3: OCP E4M3FN bytes.
 	dataF8E4M3 = DataType(28)
@@ -25,7 +25,21 @@ const (
 	ltHeuristicTailBytes = 32
 	// statusNotSupported: CUBLAS_STATUS_NOT_SUPPORTED.
 	statusNotSupported = int32(15)
+	// CUDA 12.9 cublasLt.h defines bias epilogues and pointer attributes.
+	ltDescEpilogue    = uintptr(7)
+	ltDescBiasPointer = uintptr(8)
+	ltEpilogueBias    = int32(4)
+	// ltBF16Alignment admits operands aligned to one 16-byte vector.
+	ltBF16Alignment = uint32(16)
+	// CUDA 12.9 cublasLt.h assigns these A/B/C/D alignment preference attributes.
+	ltAlignmentA = uintptr(5)
+	ltAlignmentB = uintptr(6)
+	ltAlignmentC = uintptr(7)
+	ltAlignmentD = uintptr(8)
 )
+
+// ltOperandAlignments names the A, B, C and D minimum-alignment preferences in cublasLt.h.
+var ltOperandAlignments = [...]uintptr{ltAlignmentA, ltAlignmentB, ltAlignmentC, ltAlignmentD}
 
 // ltHeuristicResult mirrors cublasLtMatmulHeuristicResult_t.
 type ltHeuristicResult struct {
@@ -33,7 +47,7 @@ type ltHeuristicResult struct {
 	_    [ltHeuristicTailBytes]byte
 }
 
-// ltProcs: the cuBLASLt entry points the FP8 product uses.
+// ltProcs holds the cuBLASLt entry points used by native tensor-core products.
 type ltProcs struct {
 	create, destroy                                             *syscall.Proc
 	descCreate, descDestroy, descSetAttribute                   *syscall.Proc
@@ -79,15 +93,24 @@ func (l *Library) DestroyLt(handle LtHandle) error {
 }
 
 // PlanFP8 builds the descriptors of an m x n x k FP8 product (see
-// FP8Plan) and takes cuBLASLt's first heuristic algorithm needing at
+// MatmulPlan) and takes cuBLASLt's first heuristic algorithm needing at
 // most workspaceLimit bytes of workspace. plan owns every descriptor
 // created until the product is built: an error return overwrites the
 // result, never plan, so a failed construction destroys each one.
-func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (built *FP8Plan, err error) {
-	plan := &FP8Plan{}
+func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (built *MatmulPlan, err error) {
+	return l.planMatmul(handle, m, n, k, workspaceLimit, dataF8E4M3, DataF32, false)
+}
+
+// PlanBF16Bias selects a BF16 product with native bias and BF16 output rounding.
+func (l *Library) PlanBF16Bias(handle LtHandle, m, n, k, workspaceLimit uint64) (*MatmulPlan, error) {
+	return l.planMatmul(handle, m, n, k, workspaceLimit, DataBF16, DataBF16, true)
+}
+
+func (l *Library) planMatmul(handle LtHandle, m, n, k, workspaceLimit uint64, inputType, outputType DataType, bias bool) (built *MatmulPlan, err error) {
+	plan := &MatmulPlan{}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, l.DestroyFP8Plan(plan))
+			err = errors.Join(err, l.DestroyMatmulPlan(plan))
 			built = nil
 		}
 	}()
@@ -113,9 +136,9 @@ func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (buil
 		dataType   DataType
 		rows, cols uint64
 	}{
-		{&plan.a, dataF8E4M3, k, m},
-		{&plan.b, dataF8E4M3, k, n},
-		{&plan.d, DataF32, m, n},
+		{&plan.a, inputType, k, m},
+		{&plan.b, inputType, k, n},
+		{&plan.d, outputType, m, n},
 	} {
 		status, _, _ = l.lt.layoutCreate.Call(
 			uintptr(unsafe.Pointer(layout.dst)), uintptr(layout.dataType),
@@ -137,6 +160,16 @@ func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (buil
 	if err := setAttribute(l.lt.preferenceSetAttribute, "cublasLtMatmulPreferenceSetAttribute", preference, ltPreferenceMaxWorkspace, workspaceLimit); err != nil {
 		return nil, err
 	}
+	if bias {
+		if err := setAttribute(l.lt.descSetAttribute, "cublasLtMatmulDescSetAttribute", plan.desc, ltDescEpilogue, ltEpilogueBias); err != nil {
+			return nil, err
+		}
+		for _, attribute := range ltOperandAlignments {
+			if err := setAttribute(l.lt.preferenceSetAttribute, "cublasLtMatmulPreferenceSetAttribute", preference, attribute, ltBF16Alignment); err != nil {
+				return nil, err
+			}
+		}
+	}
 	var chosen ltHeuristicResult
 	var count int32
 	status, _, _ = l.lt.heuristic.Call(
@@ -153,15 +186,20 @@ func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (buil
 	return plan, nil
 }
 
-// MatmulFP8 enqueues plan's product d = a^T*b on stream, in a
-// workspace of at least the limit the plan was chosen under.
-func (l *Library) MatmulFP8(
+// Matmul enqueues the planned product with the current bias address.
+// The workspace must meet the limit used for algorithm selection.
+func (l *Library) Matmul(
 	handle LtHandle,
-	plan *FP8Plan,
-	a, b, d, workspace driver.DevicePtr,
+	plan *MatmulPlan,
+	a, b, d, bias, workspace driver.DevicePtr,
 	workspaceBytes uint64,
 	stream driver.Stream,
 ) error {
+	if bias != 0 {
+		if err := setAttribute(l.lt.descSetAttribute, "cublasLtMatmulDescSetAttribute", plan.desc, ltDescBiasPointer, bias); err != nil {
+			return err
+		}
+	}
 	alpha, beta := gemmProductScale, gemmAccumulatorScale
 	status, _, _ := l.lt.matmul.Call(
 		uintptr(handle), plan.desc, uintptr(unsafe.Pointer(&alpha)),
@@ -172,8 +210,8 @@ func (l *Library) MatmulFP8(
 	return result("cublasLtMatmul", status)
 }
 
-// DestroyFP8Plan releases a plan's descriptors.
-func (l *Library) DestroyFP8Plan(plan *FP8Plan) error {
+// DestroyMatmulPlan releases a plan's descriptors.
+func (l *Library) DestroyMatmulPlan(plan *MatmulPlan) error {
 	if plan == nil {
 		return nil
 	}
@@ -188,7 +226,7 @@ func (l *Library) DestroyFP8Plan(plan *FP8Plan) error {
 		status, _, _ := l.lt.descDestroy.Call(plan.desc)
 		errs = append(errs, result("cublasLtMatmulDescDestroy", status))
 	}
-	*plan = FP8Plan{}
+	*plan = MatmulPlan{}
 	return errors.Join(errs...)
 }
 

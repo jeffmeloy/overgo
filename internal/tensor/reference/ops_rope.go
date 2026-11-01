@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 // rope rotates the first rotary elements of each head by its token's position, under rope_neox or rope_normal.
@@ -34,6 +35,11 @@ func rope(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttributes, 
 			for head := range heads {
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
 				for pairIndex := range half {
+					if attributes.NativeBF16 {
+						first, second := offset+pairIndex, offset+pairIndex+half
+						output[first], output[second] = nativeRotaryPair(input.Data[first], input.Data[second], float32(position)*factors[pairIndex])
+						continue
+					}
 					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
 					first, second := offset+pairIndex, offset+pairIndex+half
 					if operation == tensor.OpRoPENormal {
@@ -120,6 +126,17 @@ func ropeMulti(
 		return Value{}, errors.New("invalid rope_multi dimensions")
 	}
 	output := slices.Clone(input.Data)
+	positionInput := len(inputs) == tensor.PairedExtent
+	var frequencies []float32
+	if attributes.NativeBF16 {
+		positionInput = len(inputs) == tensor.TripleExtent
+		frequencyInput := inputs[len(inputs)-1]
+		var err error
+		frequencies, err = ropeFrequencyFactors([]Value{input, frequencyInput}, rotary)
+		if err != nil {
+			return Value{}, err
+		}
+	}
 	for batch := range batches {
 		for token := range tokens {
 			for head := range heads {
@@ -140,14 +157,26 @@ func ropeMulti(
 							axis = spatialAxes
 						}
 					}
+					if attributes.NativeBF16 {
+						const axes = tensor.MaxDimensions - 1
+						axis = pair % axes
+						if pair >= axes*int(attributes.Sections[axis]) {
+							axis = 0
+						}
+					}
 					var position float64
-					if len(inputs) == tensor.PairedExtent {
+					if positionInput {
 						position = float64(inputs[1].Data[token*tensor.MaxDimensions+axis])
 						if position < 0 || math.IsNaN(position) || math.IsInf(position, 0) || position != math.Trunc(position) {
 							return Value{}, errors.New("multi-axis RoPE coordinate is not a nonnegative integer")
 						}
 					} else {
 						position = float64(attributes.Positions[axis][token])
+					}
+					if attributes.NativeBF16 {
+						first, second := offset+pair, offset+pair+half
+						output[first], output[second] = nativeRotaryPair(input.Data[first], input.Data[second], float32(position)*frequencies[pair])
+						continue
 					}
 					theta := position * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
@@ -169,6 +198,11 @@ func ropeMulti(
 		}
 	}
 	return Value{Shape: shape, Data: output}, nil
+}
+
+func nativeRotaryPair(first, second, angle float32) (float32, float32) {
+	cosine, sine := dtype.RoundBF16(float32(math.Cos(float64(angle)))), dtype.RoundBF16(float32(math.Sin(float64(angle))))
+	return dtype.RoundBF16(dtype.RoundBF16(first*cosine) + dtype.RoundBF16(-second*sine)), dtype.RoundBF16(dtype.RoundBF16(second*cosine) + dtype.RoundBF16(first*sine))
 }
 
 func repeatHeads(shape tensor.Shape, input Value) Value {

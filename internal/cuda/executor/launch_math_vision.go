@@ -8,10 +8,15 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 )
 
+// Torch group_norm_kernel.cu selects one warp below 512 values.
+// Keep this reduction geometry with the pinned Welford arithmetic.
 const (
+	groupReductionThreads = uint32(512)
+	groupWarpThreads      = uint32(32)
 	// groupNormGroupedThreads: the block that normalizes one group's values.
 	groupNormGroupedThreads = uint32(256)
 	// samAttentionGroupedThreads: the block that scores one query's keys;
@@ -123,6 +128,14 @@ func launchMathVision(
 		} else if node.Op == tensor.OpExp {
 			function = functions[kernelExpF32]
 		}
+		if _, native := node.Attrs.(tensor.NativeMathAttributes); native {
+			function = functions[kernelExpNativeF32]
+			if node.Op == tensor.OpSoftplus {
+				function = functions[kernelSoftplusNativeF32]
+			} else if node.Op == tensor.OpSiLU {
+				function = functions[kernelSiluNativeF32]
+			}
+		}
 		return launch1DABI(state, function, count, &input, &output, &count)
 	case tensor.OpXIELU:
 		count := shapeCount32(node.Shape)
@@ -156,6 +169,9 @@ func launchMathVision(
 		bias := input
 		if attributes.HasBias {
 			bias = pointers.input(2)
+		}
+		if attributes.WinogradF32 {
+			return launchSpatialConvolution(state, functions, blas, node, input, weight, bias, output)
 		}
 		channelsIn := uint32(node.Inputs[0].Shape.Dims[0])
 		inputW, inputH := uint32(node.Inputs[0].Shape.Dims[1]), uint32(node.Inputs[0].Shape.Dims[2])
@@ -247,6 +263,16 @@ func launchMathVision(
 		tokens := uint32(node.Shape.Dims[1])
 		groups := attributes.Groups
 		epsilon := attributes.Epsilon
+		if attributes.Native {
+			threads := groupReductionThreads
+			if count/groups < groupReductionThreads {
+				threads = groupWarpThreads
+			}
+			return launchGridABI(
+				state, functions[kernelGroupNormNativeF32], kernel.Grid1D(int(groups)), kernel.Grid1D(int(threads)),
+				&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
+			)
+		}
 		// A block a group sums the group's statistics once.
 		if groups > 0 && channels%groups == 0 && uint64(count) == uint64(channels)*uint64(tokens) {
 			return launchGridABI(
@@ -260,6 +286,9 @@ func launchMathVision(
 			&input, &weight, &bias, &output, &channels, &tokens, &groups, &epsilon, &count,
 		)
 	case tensor.OpL2Norm:
+		if node.Attrs.(tensor.L2NormAttributes).NativeBF16 {
+			return launchNativeNormalization(state, functions, node, pointers)
+		}
 		width, rows := rowWords(node.Shape)
 		input := pointers.input(0)
 		epsilon := node.Attrs.(tensor.L2NormAttributes).Epsilon

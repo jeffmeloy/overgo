@@ -46,17 +46,25 @@ func compileResidentWeights(
 	inputs tensor.WeightBindings,
 	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
-) (*graphruntime.ResidentProgram, error) {
+) (_ *graphruntime.ResidentProgram, err error) {
 	program, err := session.Compile(ctx, label, dynamic, outputs...)
 	if err != nil || len(inputs) == 0 {
 		return program, err
 	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, session.Release(context.WithoutCancel(ctx), program))
+		}
+	}()
 	source, err := safetensors.OpenSource(sourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("%s: open weights: %w", label, err)
 	}
 	defer source.Close()
 	for _, node := range inputs {
+		if _, required := program.Graph.InputSlot(node); !required {
+			continue
+		}
 		name := node.Name
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -64,6 +72,18 @@ func compileResidentWeights(
 		value, ok := source.Tensors[name]
 		if !ok {
 			return nil, fmt.Errorf("%s: missing tensor %s", label, name)
+		}
+		// Flat graph inputs preserve explicit linear views of source tables.
+		// Matrix inputs preserve source axes as well as the payload extent.
+		if node.Shape.Rank != tensor.SingletonExtent {
+			if len(value.Shape) != int(node.Shape.Rank) {
+				return nil, fmt.Errorf("%s: tensor %s rank differs from graph", label, name)
+			}
+			for axis, size := range value.Shape {
+				if size != node.Shape.Dims[len(value.Shape)-1-axis] {
+					return nil, fmt.Errorf("%s: tensor %s shape differs from graph", label, name)
+				}
+			}
 		}
 		if err := session.Bind(ctx, program, sourcePath, name, node, func() ([]byte, error) {
 			return weightPayload(value, node.Type)

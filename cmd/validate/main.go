@@ -95,7 +95,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit. Otherwise: plan, and with -run measure, that model's cells alone, and no lane, the model named by its scorecard row, its file or its identity, so a decline's row is judged without a run of every model")
 	cellValidation := flags.String("validation", "", "with -model: only that model's cells of this validation, the one a decline's metric is read from (serving for first-output, throughput, load-time or peak-device-memory; mmlu, bbh, ifeval and the other suites for held-out-quality)")
 	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
-	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
+	parityRun := flags.Bool("parity", false, "run the named reference comparison with the flags after it: audio-oracle, moss-transformer, sensenova or vqa")
 	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
 	receipt := flags.Bool("receipt", false, "run go test -json, one package at a time, with the go test arguments after the flags, and keep the passing stream in the store as a receipt")
 	command := clioptions.Command{

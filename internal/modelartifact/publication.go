@@ -8,11 +8,11 @@ import (
 	"overgo/internal/artifact"
 )
 
-// PreserveRawTextDescriptors keeps immutable catalog facts when two publishers
-// describe the same raw text bytes as plain text, Markdown or Python source. Their source
-// declarations retain each interpretation. Sizes, schemas, tensor containers
-// and every other media-type conflict remain strict.
-func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, batch *artifact.Batch) error {
+// PreserveRawFileDescriptors keeps compatible immutable facts for source files.
+// Generic binary declarations inherit existing schema-free media facts.
+// Plain text, Markdown and Python declarations retain their source interpretations.
+// Conflicting sizes, schemas and other specific media declarations are refused.
+func PreserveRawFileDescriptors(ctx context.Context, reader artifact.Reader, batch *artifact.Batch) error {
 	if ctx == nil || reader == nil || batch == nil {
 		return errors.New("model artifact: nil text publication input")
 	}
@@ -23,6 +23,13 @@ func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, bat
 		if declared.ID.Kind() != artifact.KindFile {
 			return nil
 		}
+		rawText := func(media string) bool {
+			return media == "text/plain" || media == "text/markdown" || media == "text/x-python"
+		}
+		generic := declared.MediaType == binaryMediaType && declared.Schema == ""
+		if !generic && !rawText(declared.MediaType) {
+			return nil
+		}
 		existing, found, err := reader.Artifact(ctx, declared.ID)
 		if err != nil {
 			return err
@@ -30,11 +37,8 @@ func PreserveRawTextDescriptors(ctx context.Context, reader artifact.Reader, bat
 		if !found || existing == *declared {
 			return nil
 		}
-		rawText := func(media string) bool {
-			return media == "text/plain" || media == "text/markdown" || media == "text/x-python"
-		}
 		textViews := rawText(existing.MediaType) && rawText(declared.MediaType)
-		if existing.Size != declared.Size || existing.Schema != "" || declared.Schema != "" || !textViews {
+		if existing.Size != declared.Size || existing.Schema != "" || declared.Schema != "" || (!textViews && !generic) {
 			return fmt.Errorf("model artifact: conflicting raw-file facts for %s", declared.ID)
 		}
 		*declared = existing

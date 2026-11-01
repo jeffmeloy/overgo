@@ -36,33 +36,37 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
+	args := os.Args[1:]
+	if len(args) == 0 {
+		return errors.New("usage: recipe <inspect|spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
-	verb := os.Args[1]
+	verb, arguments := args[0], args[1:]
+	if verb == "inspect" {
+		return inspectModel(arguments)
+	}
 	if verb == "register" {
-		return registerModels(os.Args[2:])
+		return registerModels(arguments)
 	}
 	if verb == "spec" {
-		return assembleSpecification(os.Args[2:])
+		return assembleSpecification(arguments)
 	}
 	if verb == "validate-candidate" {
-		return validateCandidate(os.Args[2:])
+		return validateCandidate(arguments)
 	}
 	if verb == "attribute" {
-		return attributeEvaluation(os.Args[2:])
+		return attributeEvaluation(arguments)
 	}
 	if verb == "rollback" {
-		return rollbackActivation(os.Args[2:])
+		return rollbackActivation(arguments)
 	}
 	if verb == "route" {
-		return routeDecision(os.Args[2:])
+		return routeDecision(arguments)
 	}
 	if verb == "select" {
-		return selectServing(os.Args[2:])
+		return selectServing(arguments)
 	}
 	if verb == "replay" {
-		return replayRouting(os.Args[2:])
+		return replayRouting(arguments)
 	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
@@ -83,7 +87,7 @@ func run() error {
 	fresh := flags.Bool("fresh", false, "run the request as its own operation, where an identical request this build already answered is answered with what the store kept of it (run)")
 	journey := flags.Bool("journey", false, "print where a first request's time goes, three ways, and record nothing: the parts of a first load in this process, of a second load in it, and when the prompt is evaluated and the first token comes, on those and on a second request on a loaded model (measure -task inference)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
-	if err := flags.Parse(os.Args[2:]); err != nil {
+	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
@@ -291,7 +295,7 @@ func activateCapability(
 		return err
 	}
 	defer store.Close()
-	modelID, definition, err := prepareCapability(ctx, store, path, task, capability)
+	modelID, definition, err := mediacapability.Prepare(ctx, store, path, task, capability)
 	if err != nil {
 		return err
 	}
@@ -301,51 +305,6 @@ func activateCapability(
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
 		path, task, modelID, definition.ID, reason)
 	return nil
-}
-
-func prepareCapability(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	task recipe.Task,
-	capability mediacapability.Capability,
-) (artifact.ID, recipe.Definition, error) {
-	source, err := capability.Resolve(path)
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	modelID := source.Inventory.Manifest.ID
-	var definition recipe.Definition
-	var facts []artifact.Content
-	if source.Define != nil {
-		definition, facts, err = source.Define(modelID)
-	} else {
-		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
-	}
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	batch, err := source.Inventory.Batch("recipe/facts/" + modelID.String())
-	if err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	for _, related := range source.Related {
-		relatedBatch, err := related.Batch(batch.Key)
-		if err != nil {
-			return artifact.ID{}, recipe.Definition{}, err
-		}
-		batch.Artifacts = append(batch.Artifacts, relatedBatch.Artifacts...)
-		batch.Contents = append(batch.Contents, relatedBatch.Contents...)
-		batch.Manifests = append(batch.Manifests, relatedBatch.Manifests...)
-		batch.Lineage = append(batch.Lineage, relatedBatch.Lineage...)
-		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
-	}
-	batch.Contents = append(batch.Contents, facts...)
-	batch.Manifests = append(batch.Manifests, source.Manifests...)
-	if err := modelrecipe.PublishFacts(ctx, store, batch); err != nil {
-		return artifact.ID{}, recipe.Definition{}, err
-	}
-	return modelID, definition, nil
 }
 
 func verifyCapability(repository, path string, task recipe.Task, capability mediacapability.Capability, input string) error {
@@ -362,7 +321,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability medi
 		return err
 	}
 	defer store.Close()
-	_, definition, err := prepareCapability(ctx, store, path, task, capability)
+	_, definition, err := mediacapability.Prepare(ctx, store, path, task, capability)
 	if err != nil {
 		return err
 	}
@@ -772,8 +731,15 @@ func registerModels(args []string) error {
 	repository := flags.String("repo", "", "OvergoDB store")
 	root := flags.String("root", "", "root containing the declared model directories")
 	declaration := flags.String("spec", "", "JSON array of exact model, tensor, source and license identities")
+	inspection := flags.String("inspection", "", "saved inspection JSON to replay against one model directory or GGUF")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *inspection != "" {
+		if flags.NArg() != 1 || *repository == "" || *root != "" || *declaration != "" {
+			return errors.New("usage: recipe register -repo STORE -inspection JSON MODEL_DIRECTORY_OR_GGUF")
+		}
+		return registerInspection(context.Background(), *repository, flags.Arg(0), *inspection)
 	}
 	if flags.NArg() != 0 || *repository == "" || *root == "" || *declaration == "" {
 		return errors.New("usage: recipe register -repo STORE -root MODELS -spec JSON")
@@ -788,7 +754,7 @@ func registerModels(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+	if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
 		return err
 	}
 	// Include physical locations in the idempotency key: the same exact models

@@ -1,14 +1,14 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "105 findings:78 open,3 deferred,24 resolved. One new source race278;11 merged MOSS findings reconciled without duplicate IDs.268 and277 partially addressed,257 measured progress credited. No newly resolved finding.",
-      "priority": "Data/recovery and numerical/serving correctness first; then automation admission/continuation; then complete production/test reductions.276 has a proven net test reduction; MOSS010 has a concrete allocation/production reduction with honest remaining test cost.",
-      "declined_candidates": "No arbitrary step cap, new geometry limit, statistical framework, scheduler, registry, selector, telemetry, repeated confidence run or duplicate golden corpus. Similar generator contract setup alone does not prove safe reuse across mossTolerance/mossStageTolerance and build-tag boundaries."
+      "assessment": "105 findings remain78 open,3 deferred,24 resolved. Extend232 with two resident-image predicates, no new finding or changed severity. Production tree unchanged.",
+      "priority": "Data/recovery, numerical correctness and supported serving remain first. Existing automation continuation/admission and complete253/276 reductions retain their priority; no new performance claim changes ranking.",
+      "declined_candidates": "No new audio abstraction, duplicate loader/HTTP fixture, query estimator, tolerance mechanism, literal census, scheduler, telemetry, policy suite or confidence run. Similar assertions do not establish test redundancy."
     },
   "committed_plan": {
     "git_blob": "a2d658d11c43f2115c142ad5d20097b0b5f5be55",
     "path": "docs/plan.json",
-    "revision": "ddf213036fb468869fc5145b41dd109ece9289e2",
+    "revision": "d6d17937420e296fad5db3a76607b8e490f14da6",
     "sha256": "4ae7b51b90b800bee0977385d0200e98d7c9a9419dadee4bcfc66bd2ca94d049",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
@@ -284,8 +284,8 @@
       "severity": "P2",
       "category": "numerical-acceptance",
       "classification": "confirmed-source-acceptance-gap",
-      "title": "Reject unordered distances in numerical parity, including batched draft K/V",
-      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "title": "Reject unordered distances in the existing numerical parity tests",
+      "evidence_commit": "d6d17937420e296fad5db3a76607b8e490f14da6",
       "sources": [
         {
           "path": "internal/cuda/executor/executor_windows_strata_gdn_test.go",
@@ -342,25 +342,37 @@
         {
           "path": "internal/cuda/executor/executor_windows_strata_drafter_prompt_kv_test.go",
           "symbol": "TestDrafterPromptKVBatchedAsItsRows: per-head K/V relative L2 acceptance"
+        },
+        {
+          "path": "internal/latentimage/resident_pipeline_windows_test.go",
+          "symbol": "TestResidentImagePipelineRetainsTextAndLatentOnDevice:107 latent and:131 HWC pixel absolute-distance predicates"
+        },
+        {
+          "path": "internal/latentimage/resident_pipeline_cuda_windows.go",
+          "symbol": "ResidentImagePipeline.Latent copies retained output to host; DecodeHWC returns native HWC values, then the test compares them without a later finite/equality check"
+        },
+        {
+          "path": "internal/latentimage/vae_test.go",
+          "symbol": "VAEDecoder.DecodeImage provides the separate host planar oracle; actual pixels are compared by explicit HWC/CHW indexing"
         }
       ],
-      "evidence": "Existing GDN six, attention-cell and picture counterexamples remain: unexpected NaN distance satisfies neither >bound nor <rival; picture +Inf at its reference-chosen greedy token yields NaN log-probability distance. New f3219a174 adds the same hole to TestKQuantSpansReadEachWeightOnce for columns=9: only widths1..8 are checked with slices.Equal, so one NaN in a nine-column output makes strataRelativeL1 NaN and d>1e-2 false. Finite input and reference fixtures admit this hypothetical bad output. The test does not feed these results into another sampler/check that could reject it. Widths1..8 and the newer GDN gates test retain preceding exact checks and are not additional NaN holes. No CUDA/model failure was executed or observed. New Qwen cell parity repeats difference > 0.02*spread after max/Abs aggregation. A single unexpected NaN in cell logits makes difference NaN and the comparison false; direct forwardDeviceCachedModeLocked outputs are not checked by the later, separate Generate calls. Its finite 40+20-token fixture admits that faulty output as a regression counterexample. The executor's cellAttentionParity already supplies the positive ordered-acceptance pattern. New a6e69e5fb K/V parity repeats the hole: each finite fixture row accumulates difference and norm then fails only for norm==0 or sqrt(difference/norm)>0.03. An unexpected NaN in a dequantized output/scale makes the ratio NaN; both comparisons are false, so the defective row can pass. Both paths are read directly; there is no later finiteness/equality check. This is a hypothetical faulty-output counterexample admitted by the test, not an observed GPU fault.",
-      "recommended_change": "Keep the existing numerical owners and arithmetic. At all six GDN sites reject !(d <= bound) or !(d >= rival), preserving inclusive thresholds and FP64 transcription. In TestAttentionCellsMatchF32Decoding replace difference > 0.02*spread with !(difference <= 0.02*spread). Retain its conditional greedy-identity check; the positive distance bound must pass first. No comparator framework, tolerance change or invented denominator floor. In the picture test replace apart>tolerance with !(apart<=tolerance). Keep local log-probability arithmetic and existing finite bands; no new sampler restriction, shared comparator export, validation wrapper or fixture. In TestKQuantSpansReadEachWeightOnce replace d>bound with !(d<=bound); retain exact width1..8 equality and the distinct nine-column fallback comparison. No tolerance or shared ratio-helper change. Apply !(difference <= 0.02*spread) in TestQwen35CellsMatchF32Decoding too, retaining fixed F32-fed tokens, geometry, prompt/decode horizon and exact drafted/plain check. No new test, helper or tolerance. In TestDrafterPromptKVBatchedAsItsRows use positive ordered acceptance !(norm>0 && math.Sqrt(difference/norm)<=strataBatchedTolerance). This keeps zero-norm refusal and the same3% contract while rejecting unordered ratios. No helper, denominator floor, tolerance widening or new suite.",
-      "displaced_surface": "Ten unordered-permitting predicates are replaced across five test files. No unique case, fixture or test disappears. Keep six GDN cases, gemma/Qwen cell logit/cache/lifetime cases, all 16 picture cases, and three K-quant formats at widths 1..9. Qwen retains two runners, one model fixture and both Generate paths. No production/config/export/build-tag/cancellation/lifetime change. Add the K/V predicate as the sixth affected file: its complete source1687->1689(+2 test AST), production unchanged. Preserve300 cells,256 boundary/44 tail, per-head K and V, both arithmetic paths, original fixture/streams and cleanup. Nothing is moved into fixtures or deleted; this is necessary correctness growth.",
-      "impact": "Five numerical acceptance owners can credit invalid outputs; Qwen cell parity adds another instance. No observed served failure, data loss or confidentiality effect asserted.",
+      "evidence": "Source reconfirmation: the six previously cited test files are byte-identical to f0d63464a. Their retained GDN, attention/Qwen cell, picture, nine-column K-quant and batched draft K/V counterexamples still apply: an unexpected NaN distance does not satisfy >bound (or <rival); the picture +Inf case produces unordered log-probability distance. Exact width1..8 K-quant and exact GDN checks are distinct and remain retained. Fresh rotated sample adds two predicates in TestResidentImagePipelineRetainsTextAndLatentOnDevice: latent delta>deviceTolerance and HWC pixel delta>vaeTolerance, both5e-3. In particular, an unexpected NaN in one downloaded pixel with finite host reference makes math.Abs(...) NaN, so the final pixel loop passes that component and no later check examines it. This is an admitted hypothetical faulty-output counterexample, not a NaN observed on hardware. Its finite synthetic model and correct declared geometry do not guarantee a future backend's outputs remain finite. Latent and pixel numerical checks remain distinct from exact bridge token/layer/prefix ordering.",
+      "recommended_change": "Use positive ordered acceptance at the seven existing test owners, preserving arithmetic and inclusive finite limits: the four GDN upper bounds become !(d<=bound), its two lower comparisons !(d>=rival); attention and Qwen difference bounds become !(difference<=0.02*spread); picture and nine-column K-quant use !(distance<=bound); batched K/V uses !(norm>0 && sqrt(difference/norm)<=strataBatchedTolerance). At the newly sampled resident pipeline, use !(delta<=deviceTolerance) and !(delta<=vaeTolerance) in the existing latent/pixel loops. Keep both5e-3 bands, exact1..8 K-quant checks, conditional greedy identity, forced-token/cache/lifetime cases, K/V boundary/tail, all picture cases and bridge ordering/prefix cases. Reuse the ordered predicate pattern already present in cellAttentionParity; no comparator helper/export, fixture, policy suite, denominator floor, tolerance widening or production arithmetic change.",
+      "displaced_surface": "Replace thirteen unordered-permitting predicates in seven test files; no test body or unique requirement is removed. Prior retained five-file counts6601->6621(+20) and K/V1687->1689(+2) are still applicable because these six sources are unchanged. Fresh resident_pipeline_windows_test.go1291->1295(+4), parsed with both replacements. Combined affected test surface9579->9605(+26), with0 production/helper/wrapper/config/fixture/gate growth. Setup executions, two arithmetic paths and synthetic/file/device inputs stay unchanged. This is necessary correctness growth, not a reduction; no timing or memory saving claimed.",
+      "impact": "The existing numerical acceptance tests can credit unordered output distances. The newly sampled resident pipeline's final pixel check has no later validator that repairs this gap. No served failure, data loss or confidentiality incident was observed.",
       "expected_benefit": {
-        "outcome": "Production unchanged. Retained four-file counts 5,911 to 5,929 plus complete Qwen file 690 to 692: total 6,601 to 6,621 (+20 test AST). New Qwen replacement parsed; four earlier files unchanged by widening. No helper/fixture/setup/gate growth.",
-        "uncertainty": "Correctness growth, not reduction. The 2% fixture tolerance is unchanged, not a universal bound for every model. No runtime effect measured; charge any permanent self-check separately."
+        "outcome": "Reject faulty nonfinite results within the existing numerical owners without changing their finite tolerances or adding test machinery. Current extension costs4 test AST; complete retained affected total grows26.",
+        "uncertainty": "Hypothetical bad-output regression signal established from source, not a runtime reproduction. Existing2%,3% and5e-3 fixture contracts are preserved within their original numerical scope; no general workload or distribution guarantee is implied."
       },
       "likely_effort": "Small correction to the existing numerical test owner.",
       "plan_references": [],
       "plan_coverage": "Retired strata-port/parity is no longer a valid row reference. Existing served-output numerical acceptance remains an advisory correctness obligation independent of the retired speed objective.",
       "closure_criteria": [
-        "All five owners reject unordered distances, including Qwen logits, nine-column K-quant NaN and picture's admitted +Inf row.",
-        "Finite thresholds, exact 1..8 identities, forced-token/own-draft and all numerical/state/layout/recovery cases remain; count test growth.",
-        "The batched K/V owner rejects unordered row norms/distances without altering3%, layouts, boundary/tail, two-path or cleanup coverage; complete test cost+2 AST."
+        "All thirteen identified predicates reject unordered distances while preserving their inclusive finite contracts and existing exact-identity checks.",
+        "Resident image latent and HWC-pixel comparisons retain5e-3, host oracle/layout, bridge order/prefix, cleanup and real retained-output requirements. Numerical acceptance stays independent of timing.",
+        "Preserve GDN, picture, K-quant1..9, attention/Qwen and batched K/V boundary/tail coverage. Count complete9579->9605 test AST and no extra fixture, helper, setup or gate entry."
       ],
-      "comparison": "Implementation only: one temporary NaN substitution in Qwen's cell-logit row before the bound must fail, then restore; retain the previous GDN/cell/K-quant NaN and picture +Inf deciding comparisons. No extra SQA run, permanent suite, framework or timing-dependent tolerance. For the new K/V case, one temporary NaN in a returned cell before the existing bound must be rejected; restore it afterward during normal implementation validation only. Finite bounds and zero-norm refusal must remain. SQA parsed the predicate but ran no test."
+      "comparison": "During normal implementation validation only, use the existing test owner with one temporary NaN substitution in its returned pixel before the final bound; it must fail, then restore the substitution. Retain prior bounded GDN/cell/picture/K-quant/K/V deciding comparisons without creating permanent mutation tests or another suite. SQA parsed the two resident-pipeline replacements but executed no test or model."
     },
     {
       "id": "SQA-245",
@@ -5609,25 +5621,20 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No validation executed by SQA. Credit native Go test caching, existing affected lanes, exact-input resume, partial results and phase admission. A retained pass validates its own pinned scope, not every merged source interleaving.",
+      "execution": "No validation run by SQA. Retained native Go caching, existing gate/lane selection and exact-input cycle/cell resume remain the execution owners.",
       "retained_evidence": [
-        "ddf213036 commit records49 MOSS device tests and the web UI lane passing. Gate: +41239 production/+39491 test AST,+1 schema,+848 CUDA lines/+11 entry points. Host1m37.713s; lanes14m52.74s(device9m53.529s,webui2m46.224s,cuda4m58.402s),16 executed/1 cached. These are large feature/test costs, not consolidation savings.",
-        "The gate reports0 added fixtures for its accounting boundary; the merged fixtures/moss tree actually contains30 tracked files/129852540 bytes. Do not describe the overall MOSS feature as fixture-free.",
-        "The retained Bonsai merge slice has identical outputs and unchanged5607048192-byte peak; first-output1361ms,throughput56.17tok/s,load2357.84ms. It is not the same protocol as the earlier90.2ms setup measurement and is not a MOSS quality/resource result.",
-        "Prior retained landings: Flash guard+71 production/+103 test AST; E4B+14 production/+96 test AST, with24 current cells and six historical quality cells. These are correctness/evidence growth. No new blanket30-cell rerun or gate is recommended."
+        "No source/test/plan commit since ddf213036 MOSS merge; its recorded16 executed/1 cached selected lane results remain historical evidence. The prior report's explicit large feature/test and30-file MOSS fixture costs are not reclassified as savings.",
+        "Retained .overgo-runtime/measurement_run.json names6f923752, began2026-10-31T01:55:25.337-04:00, ended11:00:43.052-04:00,9 rows. Preflight/lanes/publication/fill passed; cells did not. This is the same previously reported record, not a new run, delivery or progress event."
       ],
       "test_dispositions": [
-        "RETAIN nearest schedule: exact1/2/50/1001-step arithmetic/ties/dedup and terminal-zero oracle. Preserve616 unique times at1001. Cancellation004 needs bounded existing-owner coverage, not an arbitrary cap or another schedule suite.",
-        "RETAIN generator options/composition/lifecycle: rectangle/portrait/minimal geometry, guidance0/1/2.5, profile identity, cancellation at prepare/integrate/decode, repeated Close and workflow lineage. Already share compactGeneratorFixture and compareGeneration. No safe total net saving established by replacing two superficially similar tolerance declarations with a new cross-build conversion.",
-        "RETAIN backup writer-release/cancel-resume and snapshot/retention owners. Writer progress/rotation while immutable blobs copy, exact captured head/content, cancellation and resumability are different requirements; no merge based on similar assertions.",
-        "RETAIN MOSS progress commit/recipe filtering and library generation's two fresh executions. The latter checks exact input/output identity, valid PNG/extent, durable publication and run linkage; it is not quality evidence or a redundant self-comparison.",
-        "RETAIN TestWebUIBrowserDraftLifecycle and TestWebUIBrowserMOSSGeneration. EXTEND the existing controlled-response case for278 only; retain newer-navigation, model-switch, obsolete-mount and draft requirements, including unchanged/changed manifest paths. No extra server/browser fixture or gate entry.",
-        "RETAIN TestPreflightRefusesAnUnmeetableCell: bound short prerequisite error, missing command/location, training scratch, oracle checked-only-when-measured and no lane dispatch. It does not substitute for actual guard capacity, supervision or delivery tests.",
-        "MERGE276 five mandatory dense and one optional Flash prompt-profile cases in the existing dense owner;471->307 AST, two store/memo setups->one, six metadata resolutions remain. Move exact Flash shard path, optional stat Skip, PromptTensorCores flag and Take/Close behavior.",
-        "SIMPLIFY MOSS010 by replacing local decode with existing ReadF32; RETAIN portable dtype/refusal tests and Windows actual-load composition. Optional necessary bitwise extension costs+60..120 test AST; no standalone fixture/golden. RETAIN277 current24 cells/mask and explicit historical six-cell distinction.",
-        "REMOVE only displaced276 test body/file/imports and obsolete cross-reference after its unique row moves. No other sampled test retirement is established; no new policy suite or confidence selector."
+        "RETAIN audio stream RestartAndFinalization, BackpressureCancellationAndLeaseLifetime, FailurePreservesCheckpoint, AdmissionAndZeroValue, PanicReleasesLease and ConcurrentCloseAndCompletion. Shared audioSessionFixture already owns setup; distinct error/cancel/sequence/final/lease transitions must not be merged away.",
+        "MERGE253 only the five successful planner query/assertion bodies into their retained local table; preserve catalog fallback, RequireIndex refusal, zero-match and same-head repeat. Separate query/cursor/projection/recovery tests stay retained. Eight Query executions and one store/commit remain eight/one.",
+        "RETAIN TestStreamingTranscriptionAcceptance: unauthenticated refusal, exact source/output/admission/checkpoint identities, first partial before final, disconnect/resume, out-of-order refusal and lease-driven cleanup. Its HTTP behavior is not duplicated by audio-session unit tests; numerical transcript acceptance remains exact and timing has no speed threshold.",
+        "RETAIN TestARunRecordsItsEnd: failure reporting/phase identity, partial publication, second-run ETA from prior wall and9-row record distinction belong to recording. Driver/hook fixtures retain their separate continuation/rendering requirements.",
+        "SIMPLIFY/CORRECT232 TestResidentImagePipelineRetainsTextAndLatentOnDevice's two bounds only:1291->1295(+4). RETAIN synthetic file-loading, actual retained device latent, host denoising oracle, HWC/planar pixel mapping, Close/conditioning release and two exact selected-hidden bridge order/prefix tests.",
+        "REMOVE no newly sampled test. Existing253 displaces only the forwarding wrapper and duplicated assertion bodies after all cases move; no new fixture, setup, helper, schema or gate selector."
       ],
-      "material_cost": "Profile consolidation is -164 test AST,0 production/helper/fixture/gate growth, one fewer store/memo setup. VAE: -107 production AST, estimated+60..120 test AST, unchanged existing setup counts, inline bits grow slightly,0 persistent fixture/helper/gate growth; combined -47..+13 is not a proven total saving.278 adds small JS and existing-test coverage; correctness growth is explicit. No elapsed or peak-memory benefit measured by SQA."
+      "material_cost": "Fresh changed recommendation: production0,test+4 AST,fixtures/setup/gate0. The complete232 affected test estimate9579->9605(+26) combines unchanged retained six-file counts and the freshly parsed seventh. Existing253 remains production-24/test-186=-210 total and unchanged eight queries/one store;276 remains-164 test/one fewer store-memo setup. No runtime saving measured."
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
   "implementation_review": {
@@ -6000,13 +6007,13 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "No test, gate, model workload, benchmark, profile, service, browser execution, worker message or new recurring task was run. Only source/Git reads and standalone Go parsing/type analysis executed. Full packages, CUDA/C++ and JavaScript were not typechecked; Go AST undercounts embedded-JavaScript work.",
-      "Measurements are retained implementation evidence, not independent reproduction. MOSS branch findings that describe a historical 'this review' test refer to their recorded branch revision/log, not this heartbeat. Source allocation estimates and AST/setup counts are proxies.",
-      "Nearest-grid halves=2, lower-tie order, float32 rounding,1000 training grid and terminal zero are pinned algorithm contracts, not arbitrary literals. The1001-step fixture has616 unique selected times; capping steps at the training grid would change admitted behavior. Source-supported cancellation004 and overflow007 remain separate from those valid constants.",
-      "Prompt max4096, unpadded attention admission, packed channels/patch scale and RGB channels come from typed model/profile/format contracts. The h*w check does not establish ZDim*h*w safety (MOSS007). No normality, independence or workload representativeness claim follows from compact noise/seed fixtures or two exact-repeat image requests.",
-      "The new GUI race is source-established under a delayed response, with no runtime reproduction. No new observed data-loss, confidentiality incident, performance regression or wakeup delivery is claimed.",
-      "The VAE production reduction is107 AST and4*N transient bytes by source. After bounded bit-corner test growth, complete sampled AST savings remain uncertain. The profile-test merger remains a demonstrated164-node test reduction with no new helper or fixture.",
-      "Both implementation-owned top-level objects and every unknown/implementation-owned finding field are preserved raw-exact. Unrelated worker files/index and the committed plan are excluded from report publication."
+      "No test, production gate, browser, model workload, benchmark, profile, service, worker message or new automation ran. Only Git/file reads and standalone Go parsing/type analysis executed.",
+      "No new measured latency/memory improvement or implementation progress since the previous report. Earlier merge/Flash/E4B measurements retain their original identities and protocols; reusing those facts is not an independent reproduction.",
+      "The new232 pixel counterexample is hypothetical faulty output, not observed hardware NaN. Its5e-3 tolerance and synthetic1x1 grid/2x2 patch establish this fixture only, not all geometries or distributions. No literal lint or tolerance change is proposed.",
+      "Audio16kHz/mono, eight-sample chunks and two-sample overlap are test policy values; production validates typed format/spans and actual decoded length. The32-iteration concurrent-close case is bounded stress, not proof of all schedules or a calibrated probability. No safe deletion established.",
+      "Query index sizes are exact current-head counts, not assumptions of uniformity or stationary selectivity. Preserve cursor/head/contract identity, sorted IDs, zero-match, alias/lineage and projection authority.",
+      "The retained run record's prior-phase duration predicts an ETA only. A completed record with9 filed rows proves neither a delivered wakeup nor current worker idleness; actual supervised continuation and partial/failure outcomes remain distinct.",
+      "No new safe total production/test reduction proved in fresh audio, stream or resident-pipeline samples. Existing253/276 reductions remain actionable; new232 coverage correction adds4 AST. Unknown implementation-owned fields and both owner objects are preserved raw-exact."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -6078,11 +6085,11 @@
   },
   "next_finding_number": 279,
   "publication_context": {
-      "checked_head": "ddf213036fb468869fc5145b41dd109ece9289e2",
+      "checked_head": "d6d17937420e296fad5db3a76607b8e490f14da6",
       "committed_plan_git_blob": "a2d658d11c43f2115c142ad5d20097b0b5f5be55",
-      "assessment": "Substantive current merged-code review: new278, quantified MOSS010, current resource-evidence gap008, and previously unpublished Flash/E4B partial closures.",
-      "newer_commit_note": "Merge is complete; initial/current checks show master at the pin and a clean index/worktree. Reconciliation retains all104 existing findings and owner fields, adding only278; the old93-row unpublished candidate is not applied wholesale.",
-      "publication": "Immediately re-read current report, HEAD, branch and plan; parse the replacement and verify protected raw values. Acquire existing publication locks nonblocking and make a path-limited report-only commit. No production gate or plan change."
+      "assessment": "Additional concrete232 affected caller/test and full cost, rotated audio/query/stream/automation coverage; no timestamp-only finding churn.",
+      "newer_commit_note": "Initial review saw a clean tree at the prior report-only commit; production and plan unchanged. Recheck current owner/report fields and Git state immediately before publication.",
+      "publication": "Parse replacement, preserve both owner objects and every unknown implementation-owned field raw-exact, use existing nonblocking publication locks and commit only docs/sqa_findings.json."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -6167,38 +6174,32 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "Master made substantive progress: ddf213036 merged the native MOSS pipeline, library onboarding and serving, and retired eight completed MOSS rows. Efficiency, model parity, comparable resources and closeout remain open. Its shared HF converter retains master's native directory view; this merge does not reinstate blanket conversion of every text model.",
-      "Carry forward the previously unpublished Flash/E4B assessment after reconciling the completed merge:8e911e1eb repaired the Flash guard and met the fourth268 criterion; f36548a91 rebound24 E4B protocol/resource cells and mask, while six quality cells remain explicitly historical (277).4dbf0a8ce's setup measurements and current text scores are credited within their own protocols.",
-      "New278: return-to-Chat refresh starts an await before the existing navigation lifetime check; a superseded response can activate Chat over a later choice. Reuse existing ownership and one controlled browser case. This is distinct from218 inventory resync and MOSS009 operation wait completion.",
-      "Strengthened MOSS010 with actual parsed cost and actual-load test ownership. ReadF32 can remove the raw4*N-byte staging and107 production AST. Existing compact generator tests already reach the loader; do not create a second loader/golden corpus merely to migrate an unchanged filter.",
-      "Keep data protection254/272, supported host open275, ordered numerical acceptance232 and merged MOSS overflow/cancellation/evidence correctness ahead of cleanup. No additional safe consolidation established for backup, schedule, generation progress or composition/options: their distinct transitions/build types matter.",
-      "Automation: existing preflight names missing bound short benchmarks before measurement, but the mock does not prove device-capacity admission. Flash's repaired guard is credited, not refiled. loop.Run owns a real bounded continuation; a one-shot Improve result/completion timestamp still does not prove dispatch or external wake delivery. Reuse these owners and exact-input partial/resume credit; no new scheduler or all-model readiness campaign.",
-      "Current plan's master image scorecard rows depend on MOSS resources/closeout owned by overgo_moss. That declared wait is not proof that independent host fixes must wait for the device, nor proof of an idle worker. No worker status, delivered wakeup or observed delay inferred from plan timestamps."
+      "No new IDs, closures, priority changes or new implementation commits. Consolidate the additional resident-image acceptance evidence into232; preserve existing stable IDs.",
+      "232 now names the resident image test's final pixel comparison, which accepts NaN because delta>5e-3 is false. Replace the existing two predicates with positive ordered acceptance; keep host/device and HWC/planar comparisons and exact bridge cases. Parsed whole test1291->1295.",
+      "Primary reduction check:253's existing queryIndexPlan owns actual cardinality for Query and visitDescriptorCandidates; descriptorCandidateCount still only forwards its result. The five planner assertions retain separate cases but can share the already-proposed native table. Its earlier complete7483->7273(-210) comparison remains unchanged; no new abstraction or run.",
+      "Audio lifecycle already reuses idempotent director/SpeechLease release and one bounded chunk at a time. Admission failure, execution failure, unpublished output, cancelled close, panic, finalized restart and concurrent completion have different observable requirements. No duplicate fixture removal established.",
+      "Native transcription intentionally rechecks activation after waiting for a lease and records admission/output/checkpoint before SSE delivery. HTTP inspection and backend format/length checks have different trust and resource contracts; do not delete either just because both read the waveform. No new transport or buffer wrapper is justified by this sample.",
+      "Record/recovery review reconfirms271: runRecorder.end persists Ended; actual dispatch belongs to loop.Run. Existing preflight->lanes->cells->publication, exact-input credit, partial results and failure stops remain retained. No new polling, scheduler, wake registry or all-model preflight is proposed.",
+      "Prior merged MOSS/Flash/E4B conclusions are unchanged: MOSS quality/resources/closeout and six current E4B quality outcomes remain open. The earlier Flash guard recovery and setup gains remain credited; no revalidation workload is requested."
     ],
-  "reviewed_at": "2026-11-01T07:49:13Z",
-  "reviewed_master": "ddf213036fb468869fc5145b41dd109ece9289e2",
+  "reviewed_at": "2026-11-01T09:42:52Z",
+  "reviewed_master": "d6d17937420e296fad5db3a76607b8e490f14da6",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master ddf213036fb468869fc5145b41dd109ece9289e2 after the MOSS merge. Repository instructions and committed plan identity read first; provisional source conclusions recorded before prior findings. Plan blob a2d658d11c43f2115c142ad5d20097b0b5f5be55.",
-      "Rotated first sample: nearest-grid schedule/test; model encoder and generator options/composition; DB backup/writer-release test; committed generation progress; library generation validation; command preflight. Follow-up: VAE loading/reader/decoder and draft-lifecycle browser fixture. Architecture/callers include source inventory, resident lifetime, inference transfer, retention head ownership, GUI stream/navigation, and actual loop supervision versus one-shot completion.",
-      "Actual Go parser analysis of 14 committed files: 13169 AST nodes = 5948 production +7221 test; 45 functions,3018 parser-local identifier bindings. First10 files9639 nodes; four deciding follow-ups3530. Counts include comments. No recurring whole-repository census.",
-      "Fresh go/types check of unaltered nearestGridSigma with its original nearestGridHalves constant:39 uses/11 definitions, no stubs. Rechecked unaltered judgeDrafts:34 uses/14 definitions. Current-pin parsed proposals: profile tests471->307; VAE loader file1291->1184; host eligibility guard702->711. These candidate strings were parsed only, never installed or executed.",
-      "MOSS002-007,009-010 cited source paths are byte-identical to their original evidence revisions. Changed source sets for001,008,011 were checked at current callers; cancellation, peak-presence and late-publication gaps remain. Other historical rows retain original evidence revisions unless specifically rechecked; this is not a fresh exhaustive validation of104 findings.",
-      "Selected files: internal/latentimage/{nearest_schedule.go,nearest_schedule_test.go,model_encoder_windows.go,generator_options_windows_test.go,generator_composition_windows_test.go,vae.go,decoder_test.go}; internal/overgodb/{backup.go,backup_writer_release_test.go}; internal/server/{moss_progress_windows_test.go,webui_browser_draft_test.go}; internal/libraryintake/generation.go; internal/safetensors/convert_test.go; cmd/validate/preflight_test.go."
+      "Pinned committed master d6d17937420e296fad5db3a76607b8e490f14da6. Repository instructions and committed plan identity read before source review; plan blob a2d658d11c43f2115c142ad5d20097b0b5f5be55. Production, tests and plan are unchanged since the previous review; the intervening commit changed only this report.",
+      "Rotated sample: capabilityruntime audio stream/lease and tests; OvergoDB query/planner tests; native HTTP transcription stream/tests; loop phase/run recording; resident image pipeline and its parity/bridge tests. Supplemental callers cover speech component admission/backend execution, blob read lifetime, retention snapshot/head authority, shared SSE emitter and supervised loop dispatch.",
+      "Actual Go AST on10 committed files:19005 nodes=12676 production+6329 test;95 functions/3767 parser-local identifier bindings. Files: internal/capabilityruntime/audio_stream{,_test}.go; internal/overgodb/{query.go,query_plan_test.go}; internal/server/streaming_transcriptions{,_test}.go; cmd/loop/{improve.go,run_record_test.go}; internal/latentimage/{resident_pipeline_cuda_windows.go,resident_pipeline_windows_test.go}. Counts include comments; no whole-repository census.",
+      "go/types checked original MeasurementRun, MeasurementPhase and Wall with the real standard time package:40 uses/21 definitions, no stubs. No full application/package typecheck. Parsed two resident-image test predicate changes1291->1295(+4); no proposed production/test code installed or executed.",
+      "Before prior-report reconciliation, provisional conclusions retained audio restart/cancel/finalization, distinct stream admission/publication, exact-head query cardinalities and record-versus-continuation distinctions; identified the resident-image NaN acceptance as an extension of232, not a new algorithm incident.",
+      "Reconciled current implementation responses raw-exact. Six earlier232 test files have unchanged blobs;253 query files match their retained counts and shared-owner recommendation;271 retained completion record still carries no dispatch/delivery evidence. Other findings retain their existing evidence revisions and status."
     ],
   "sqa_response": {
-      "reviewed_master": "ddf213036fb468869fc5145b41dd109ece9289e2",
-      "assessment": "78 open,3 deferred,24 resolved after incorporating11 MOSS rows and one new278 race.268/277 have real partial progress;257 setup gains credited. MOSS integration is landed, its quality/resource closeout is not.",
-      "evidence": "14 committed files/13169 AST,45 functions/3018 local bindings. Two isolated original declarations typechecked without stubs. Parsed profile replacement471->307; VAE1291->1184; host guard702->711. Retained merge and Flash/E4B results remain identity/protocol scoped.",
-      "new_findings": [
-        "SQA-278"
-      ],
+      "reviewed_master": "d6d17937420e296fad5db3a76607b8e490f14da6",
+      "assessment": "78 open,3 deferred,24 resolved; no new/resolved finding or priority change. Extended232 to resident image latent/pixel parity; source and plan otherwise unchanged.",
+      "evidence": "Fresh10-file19005 AST sample(12676 production/6329 test),95 functions/3767 local bindings. Original run record types/Wall checked with actual time import:40 uses/21 definitions. Parsed resident test1291->1295; six prior232 files unchanged.",
+      "new_findings": [],
       "resolved_findings": [],
-      "partially_addressed_findings": [
-        "SQA-268",
-        "SQA-277",
-        "SQA-257"
-      ],
+      "partially_addressed_findings": [],
       "reopened_findings": [],
       "plan_adopted_findings": [],
       "implementation_response_context": {
@@ -6207,8 +6208,8 @@
         "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
         "status": "Both owner objects and every implementation-owned finding field preserved raw-exact; current source/retained evidence assessed separately."
       },
-      "recommendation": "Repair the shared geometry/cancellation and measurement-presence owners, retain data/numerical protections, and guard Chat refresh with existing lifetime ownership. Reuse276 and the shared VAE reader; finish only six missing current E4B quality cells. Deterministic preflight/supervision/resume should displace manual handoffs without new workloads or a scheduler.",
-      "next_action": "Implementation owner can adopt the bounded recommendations through existing owners and normal affected verification. This publication commits only the report and does not advance plan rows.",
-      "uncertainty": "No independent device reproduction, browser interleaving run or wake delivery evidence. Historical unchanged rows retain their own evidence revisions; compact fixtures are not distribution-wide guarantees."
+      "recommendation": "Apply positive ordered acceptance in the existing numerical test owners, retain distinct audio/HTTP/recovery coverage, and use the already-established253/276 consolidation opportunities. Actual continuation remains the configured loop's responsibility; completion timestamps alone do not establish delivery.",
+      "next_action": "Implementation owner can adopt the existing bounded recommendations. This report update changes no plan, production code, test or worker state.",
+      "uncertainty": "No runtime failure or new timing/memory result established. Other findings remain scoped to their original retained evidence; new232 counterexample is source-based."
     }
 }

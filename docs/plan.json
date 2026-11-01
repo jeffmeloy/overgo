@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "moss-findings",
-      "title": "Close the review findings on merged MOSS before building on it",
-      "owner": "overgo_moss",
-      "status": "open",
-      "budget": {
-        "nodes": 194,
-        "reason": "Repairs in existing owners; each finding names the owner to extend and refuses a new mechanism."
-      },
-      "steps": [
-        {
-          "id": "verifier",
-          "title": "Fail bit mismatches at exact boundaries in the generation verifier",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^(TestMOSSGeneratorComposition|TestMOSSVerifierFailsExactBoundaries)$'",
-          "rationale": "SQA-MOSS-002: the verifier that decides model parity fails at the first exact boundary that differs in bits, and says which.\nThis is a P3 filed as a row because moss-evaluation/model-parity is decided by it.\nServes: parity evidence that cannot pass a differing exact boundary.\nDisappears: nothing.\nEvidence: the composition test and one planted difference.\nBatch: media lane."
-        }
-      ]
-    },
-    {
       "id": "moss-training",
       "title": "Train MOSS-Image adapters natively and serve what they train",
       "owner": "overgo_moss",

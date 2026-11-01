@@ -6252,6 +6252,18 @@
         "plan_steps": [
           "moss-findings/browser"
         ]
+      },
+      {
+        "comment": "Landed with moss-findings/verifier. mossExactBoundary names the boundaries with no arithmetic to tolerate (initial_latents, schedule.*, conditioning.*) and mossBoundaryAccepted refuses a nonzero unequal count at them. TestMOSSVerifierFailsExactBoundaries fails a -0 against +0 at those boundaries though both passes agree, passes equal bits, and keeps the frozen tolerance elsewhere.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestMOSSVerifierFailsExactBoundaries",
+          "internal/latentimage/refinement_verify_windows.go mossBoundaryAccepted"
+        ],
+        "finding_id": "SQA-MOSS-002",
+        "plan_steps": [
+          "moss-findings/verifier"
+        ]
       }
     ],
     "experiments": {
@@ -6294,7 +6306,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "fb10267938f51e93cd16259965e3cc44bd8758c7",
+    "head": "bd7e3103e76c77c97554311777671575dca221c7",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6436,11 +6448,11 @@
         "note": "Mine, from the boot.js change in moss-merge/do, and worse than the review read it: every first page load goes through this path, and a trace of the failing gate showed a second interleaving the finding does not name. The hash is set, its hashchange is still queued, the response arrives in that gap, the mount attempt is unchanged, and Chat overwrites the hash, so the queued event reads #chat and the navigation is lost. Fixed with the mount attempt and the hash together; each of the four interleavings is held by the browser test, which fails on both earlier versions. Awaits the reviewer's closure."
       },
       "SQA-MOSS-002": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/verifier"
         ],
-        "note": "P3 but filed: model parity is decided by this verifier, so its exact-boundary behavior is fixed before moss-evaluation/model-parity reads it."
+        "note": "Landed. The generation and sampling verifiers judge a boundary through mossBoundaryAccepted, so a bit difference at an exact boundary fails though its distance is zero, and a boundary with a frozen tolerance keeps it. Whether the real goldens hold at this stricter bar is read at moss-evaluation/model-parity. Awaits the reviewer's closure."
       },
       "SQA-254": {
         "action": "filed",

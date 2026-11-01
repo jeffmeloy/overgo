@@ -110,7 +110,7 @@ func verifyMOSSTrajectory(ctx context.Context, runtime *graphruntime.ResidentSes
 				return fmt.Errorf("MOSS %s length differs", boundary)
 			}
 			tolerance := tolerances[source.Tensors[boundary].DType]
-			if boundary == "initial_latents" {
+			if mossExactBoundary(boundary) {
 				tolerance = mossStageTolerance{}
 			}
 			failed, unequal, worst := compareMOSSValues(actual, want, tolerance)
@@ -125,7 +125,7 @@ func verifyMOSSTrajectory(ctx context.Context, runtime *graphruntime.ResidentSes
 			if e := json.NewEncoder(output).Encode(map[string]any{"stage": "sampling", "case": name, "boundary": boundary, "reference": identity, "pass": pass, "values": len(want), "failed": failed, "unequal": unequal, "max_abs": worst, "repeat_checked": pass != 0, "repeat_equal": repeatEqual, "resident_weight_and_static_bytes": runtime.StaticBytes()}); e != nil {
 				return e
 			}
-			if failed != 0 || !repeatEqual {
+			if !mossBoundaryAccepted(boundary, failed, unequal, repeatEqual) {
 				return fmt.Errorf("MOSS sampling violates frozen comparison in %s/%s", name, boundary)
 			}
 			return nil

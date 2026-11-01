@@ -87,7 +87,7 @@ func compareGeneration(ctx context.Context, root, name, prefix string, request R
 			if !ok {
 				return fmt.Errorf("generation tolerance missing for %s", item.DType)
 			}
-			if boundary == "initial_latents" || strings.HasPrefix(boundary, "schedule.") || strings.HasPrefix(boundary, "conditioning.") {
+			if mossExactBoundary(boundary) {
 				tolerance = mossStageTolerance{}
 			}
 			failed, unequal, worst := compareMOSSValues(actual, want, tolerance)
@@ -98,7 +98,7 @@ func compareGeneration(ctx context.Context, root, name, prefix string, request R
 			if err := json.NewEncoder(output).Encode(map[string]any{"stage": "generation", "case": name, "boundary": boundary, "reference": id, "pass": pass, "values": len(want), "failed": failed, "unequal": unequal, "max_abs": worst, "repeat_checked": pass != 0, "repeat_equal": repeat}); err != nil {
 				return err
 			}
-			if failed != 0 || !repeat {
+			if !mossBoundaryAccepted(boundary, failed, unequal, repeat) {
 				return fmt.Errorf("MOSS generation violates frozen comparison in %s/%s", name, boundary)
 			}
 			return nil

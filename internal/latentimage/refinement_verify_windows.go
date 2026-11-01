@@ -11,6 +11,7 @@ import (
 	"math"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -45,6 +46,20 @@ func compareMOSSValues(actual, want []float32, tolerance mossStageTolerance) (in
 		}
 	}
 	return failures, unequal, worst
+}
+
+// mossExactBoundary says a generation boundary has no arithmetic to tolerate: the
+// noise, the schedule and the conditioning either are the reference's bits or are not.
+func mossExactBoundary(boundary string) bool {
+	return boundary == "initial_latents" || strings.HasPrefix(boundary, "schedule.") || strings.HasPrefix(boundary, "conditioning.")
+}
+
+// mossBoundaryAccepted judges one compared boundary of a generation. A distance
+// of zero is not equality at an exact boundary: -0 and +0 are no distance apart
+// and differ in their bits, and a repeat of the same drift would pass the
+// repeat check too.
+func mossBoundaryAccepted(boundary string, failed, unequal int, repeat bool) bool {
+	return failed == 0 && repeat && (!mossExactBoundary(boundary) || unequal == 0)
 }
 
 // VerifyMOSSTransformer compares a resident transformer stage with pinned native cases.

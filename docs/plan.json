@@ -148,20 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "flashnext-guard",
-      "title": "Flash-Next's long-form guard climbs past rung 1024: the ladder counts the card's experts as yielding to a longer prompt",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Flash-Next's long-form guard climbs past rung 1024: the ladder counts the card's experts as yielding to a longer prompt",
-          "status": "open",
-          "verify": "go test ./cmd/longform -count=1 -run '^TestALadderCountsTheExpertsThatYield$'"
-        }
-      ]
-    },
-    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

@@ -25,6 +25,28 @@ func TestLadderCapacityIncludesTemporaryPeak(t *testing.T) {
 	}
 }
 
+// TestALadderCountsTheExpertsThatYield holds the ladder's fit to the card the expert residency gives up: Flash-Next's
+// guard, after rung 1024 on its 51526500352-byte card, held 47,185 MiB at its peak, about 38 GiB of it experts on the card
+// that yield their slots to a longer prompt; counted as held they stopped the climb before its required rung 2048. A
+// rung the yielding experts cannot make room for still stops, and yielding bytes past the prediction admit nothing more.
+func TestALadderCountsTheExpertsThatYield(t *testing.T) {
+	t.Parallel()
+	const card, mebibyte = uint64(51526500352), uint64(1) << 20
+	peak, experts := 47185*mebibyte, 38<<30
+	if rungFits(peak, 0, card) {
+		t.Fatal("a peak of 47,185 MiB fits 9/10 of the card without the experts yielding")
+	}
+	if !rungFits(peak, uint64(experts), card) {
+		t.Fatal("the rung after 1024 is refused although the experts it would displace yield their slots")
+	}
+	if rungFits(card, card/deviceFitDenominator, card) {
+		t.Fatal("a rung of the whole card fits with a tenth of it yielding")
+	}
+	if !rungFits(peak, 2*peak, card) {
+		t.Fatal("yielding bytes past the prediction refuse the rung")
+	}
+}
+
 func TestLadderCapacityDoesNotWrapOrInventGrowth(t *testing.T) {
 	for _, test := range []struct {
 		name              string

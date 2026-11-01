@@ -52,6 +52,9 @@ const (
 	deviceFitDenominator = uint64(10)
 )
 
+// mebibyteShift turns a byte count into MiB for the ladder's stop.
+const mebibyteShift = 20
+
 // corpusBytesPerToken sizes the text read for the ladder: the
 // tokenizers in the catalog average under four bytes per token on the
 // repository's text, so six bytes per token reads enough for the
@@ -416,8 +419,14 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		}
 		next := nextRungMemory(previous, memory)
 		previous = memory
-		if next > options.deviceInfo.TotalMemoryBytes/deviceFitDenominator*deviceFitNumerator {
-			return fmt.Sprintf("the device retains %d MiB with a %d MiB peak of %d; the next rung predicts %d MiB", memory.CurrentBytes>>20, memory.PeakBytes>>20, options.deviceInfo.TotalMemoryBytes>>20, next>>20)
+		// The experts a residency holds on the card yield their slots to a longer prompt's memory, as a prompt read borrows
+		// them: counted as held, Flash-Next's stopped its guard at rung 1024 (47,185 MiB of 49,139 predicted).
+		var yielding uint64
+		if placement, err := runner.DeviceMemory(ctx); err == nil && placement.Experts != nil {
+			yielding = placement.Experts.CardBytes
+		}
+		if !rungFits(next, yielding, options.deviceInfo.TotalMemoryBytes) {
+			return fmt.Sprintf("the device retains %d MiB with a %d MiB peak of %d; the next rung predicts %d MiB, %d MiB of it experts that yield", memory.CurrentBytes>>20, memory.PeakBytes>>20, options.deviceInfo.TotalMemoryBytes>>20, next>>20, yielding>>mebibyteShift)
 		}
 		return ""
 	})
@@ -457,6 +466,12 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	}
 	result.Verdict = longform.Judge(result.Measure, result.Short, floors)
 	return result, nil
+}
+
+// rungFits reports whether a rung predicted to hold next bytes fits a card of total bytes, the expert residency's
+// yielding bytes given up to it.
+func rungFits(next, yielding, total uint64) bool {
+	return next-min(next, yielding) <= total/deviceFitDenominator*deviceFitNumerator
 }
 
 func nextRungMemory(previous, current driver.MemoryStats) uint64 {

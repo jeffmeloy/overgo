@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "63open,3deferred,24resolved. Concrete native serving and measured latency progress credited. New274 is a15node production deletion with all tests retained; no broader safe reduction established in rotated cache/retention/browser samples.",
-      "priority": "Durability and numerical/recovery correctness remain first. Existing261/268/271 automation gaps precede small cleanup. Align Gemma activation scope with its actual accepted-evidence prerequisite using existing dispatch.",
-      "declined_candidates": "No new reprofile command, scheduler, notification framework, all-model preflight, repeated full cycle or literal lint. No speculative larger catalog cap and no wholesale cache-signature replacement without accounting for persisted evidence and load proof."
+      "assessment": "66 open,3 deferred,24 resolved. Flash16K target is now met by retained measurements, with explicit memory/precision trades. Publish carried275–277 and extend232 to the new K/V NaN-permitting assertion; no duplicate finding or additional ID.",
+      "priority": "Durability/numerical/serving correctness precede cleanup. Repair275 host eligibility and277 current E4B acceptance;232 now also covers new K/V parity. Keep268 guard failure separate from the restored Flash latency row.276 remains a demonstrated164-node test reduction.",
+      "declined_candidates": "No new suite, scheduler, notification framework, selector or full-cycle confidence run. New batched K/V test owns distinct execution/layout requirements; its large growth is not by itself redundancy. No safe further whole-fixture reduction established."
     },
   "committed_plan": {
-    "git_blob": "b67fad8a86d3138aa090e45b66b9c8545bf51571",
+    "git_blob": "cac478c70f812e3772dc904d24b8e3de1acbf1e3",
     "path": "docs/plan.json",
-    "revision": "b8eedd9da289a548232896f336738eb4fd9c1770",
-    "sha256": "1a89b5dfc3d7551d9437ab34bd4ab0e4bb5f44044f22509ee85df2cfecebcb4a",
+    "revision": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+    "sha256": "057aa736cba2453354895f70cc6a20d2457529dfe860fb509fd78efbb9ca9db4",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -88,6 +88,120 @@
         "Retain TestExternalBlobCommitAtomicity and TestBlobStorePublicationContract. Retain the small Windows TestReplaceRequestsWriteThrough as the OS flag/error self-check and confirm the blob caller routes through that owner. If retry semantics change, extend the existing publication test with that one failure/retry case rather than adding a suite; count its full cost."
       ],
       "comparison": "Smallest deciding comparison: source trace from commitCoordinator through both new/existing loose preparation paths to the platform persistence operation, plus existing Windows TestReplaceRequestsWriteThrough during normal implementation validation. Existing commit fault/reopen coverage owns journal ordering, not power-loss proof; do not mislabel it as such. Exact direct substitution parsed1184->1180. No SQA test, service, model, benchmark, profile or crash experiment."
+    },
+    {
+      "id": "SQA-275",
+      "status": "open",
+      "severity": "P2",
+      "category": "served-load-eligibility",
+      "classification": "source-established-host-startup-regression",
+      "title": "Check drafting eligibility before requesting a device identity",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "sources": [
+        {
+          "path": "internal/modelcli/draft_verdict.go",
+          "symbol": "judgeServedDrafts"
+        },
+        {
+          "path": "internal/modelcli/model.go",
+          "symbol": "openRunner; OpenServedRunner; ModelFlags.OpenRunnerWithOptions"
+        },
+        {
+          "path": "internal/inference/sampling_vocab.go",
+          "symbol": "Runner.DeviceUUID; Runner.CardReadings"
+        },
+        {
+          "path": "internal/inference/nextn_device_speculation.go",
+          "symbol": "Runner.SpeculatesByDefault; deviceSpeculationReady; ownDraftLayer; JudgeOwnDrafts"
+        },
+        {
+          "path": "internal/inference/runner_lifecycle.go",
+          "symbol": "OpenWithProgram; bindResidency; failed-open Close"
+        },
+        {
+          "path": "internal/modelcli/open_claimed_test.go",
+          "symbol": "writeServingFixture; TestOpenRunnerProvesTheRememberedIdentity"
+        },
+        {
+          "path": "cmd/server/main.go",
+          "symbol": "run enables JudgeOwnDrafts then OpenRunnerWithOptions"
+        },
+        {
+          "path": "cmd/recipe/inference_measure.go",
+          "symbol": "OpenServedRunner caller"
+        }
+      ],
+      "evidence": "512685492 calls runner.DeviceUUID before runner.JudgeOwnDrafts. DeviceUUID returns errRunnerNil when worker is nil, while JudgeOwnDrafts previously returned success immediately for !ownDraftLayer. OpenWithProgram creates a worker only for deviceF32/deviceNative residency; host-reference is explicitly admitted and exercised by writeServingFixture/TestOpenRunnerProvesTheRememberedIdentity. Counterexample: the same valid host qwen2 fixture, opened through OpenServedRunner or OpenRunner with JudgeOwnDrafts=true, reaches the unconditional UUID request with worker=nil and is closed/refused. Server sets that option for every local model; inference measurement uses OpenServedRunner. This is a source-established regression, not an observed live failure or an impossible state.",
+      "recommended_change": "In shared judgeServedDrafts, reuse the existing SpeculatesByDefault predicate before looking up execution/card/cache identity and return success when no draft applies. The predicate already incorporates device residency and own-layer eligibility. Keep JudgeOwnDrafts as the final own-layer decision for eligible runners; keep DeviceUUID's actual device-only contract for CardReadings. Do not add a host UUID, new export, wrapper, configuration or copied residency predicate. Extend the existing host fixture to exercise served and explicit-judgement opens; retain memo proof, unknown-recipe refusal and close behavior.",
+      "displaced_surface": "Remove unconditional GPU/cache work from the admitted no-draft host path; no test is retired. Parsed guard changes draft_verdict.go702->711(+9 production AST); other production owners unchanged (model1246, lifecycle3137, nextn2858, sampling_vocab1410; selected production total9353->9362). Existing open_claimed1148 and verdict tests281+199 total1628; estimate50–100 test nodes for two tiny host opens/checks/Close within the existing fixture, total1678–1728. Complete selected total10981->11040–11090: correctness growth, not reduction. Fixtures/schema/helpers0; existing store/model setup reused, about two additional host opens, no GPU/modeltest or gate selector added.",
+      "impact": "Supported host-reference local serving and served inference measurement can fail even though no draft calibration or GPU is needed. Failed-open Close already prevents leaked resources; preserve it. Identity/claims and trust-boundary validation remain unchanged; no data/confidentiality relaxation.",
+      "expected_benefit": {
+        "outcome": "Restore admitted host opens and avoid unnecessary identity/cache work for models that do not draft.",
+        "uncertainty": "Source/caller proof and parsed guard cost only. Test growth is an estimate; no reproduction, elapsed or memory measurement performed."
+      },
+      "likely_effort": "Small shared-owner guard and existing native host-fixture extension.",
+      "plan_references": [],
+      "plan_coverage": "Regression introduced by completed draft-verdict-record/do; no explicit committed repair row. Existing257 covers cache/policy efficiency, this finding covers distinct supported-open correctness.",
+      "closure_criteria": [
+        "Both actual modelcli entry paths accept the existing host-reference model with no GPU identity access.",
+        "Eligible device drafting still honors recorded/uncached modes, cancellation and failed-open Close; CardReadings device errors stay intact.",
+        "Existing true/stale memo, changed-byte and missing-recipe cases remain; count added coverage honestly without a new fixture or workload."
+      ],
+      "comparison": "Smallest deciding comparison is the existing tiny host fixture opened normally, as served, and with JudgeOwnDrafts=true; compare successful identity and cleanup. Reuse existing verdict tests for cached/uncached behavior. Normal implementation verification only; SQA ran none."
+    },
+    {
+      "id": "SQA-277",
+      "status": "open",
+      "severity": "P2",
+      "category": "acceptance-identity-and-sequencing",
+      "classification": "source-established-current-validation-gap",
+      "title": "Restore E4B modality acceptance against the definition being served",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "sources": [
+        {
+          "path": "cmd/validate/accepted_e4b_test.go",
+          "symbol": "TestAcceptedE4BModalities"
+        },
+        {
+          "path": "docs/verification/e4b-validation.json",
+          "symbol": "30 accepted text/audio/image/video protocol, quality and resource cells"
+        },
+        {
+          "path": "cmd/validate/accepted_modalities_model_test.go",
+          "symbol": "TestAcceptedTextVisionEvidence; accepted coverage projection"
+        },
+        {
+          "path": "docs/verification/text-vision-coverage.json",
+          "symbol": "current inference recipe coverage"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "e4b-tensor-cores/do"
+        },
+        {
+          "path": "internal/evaluation/prompt_tensor_cores_heldout_windows_model_test.go",
+          "symbol": "TestPromptTensorCoresHoldHeldOut; text-only BBH/IFEval requirement"
+        }
+      ],
+      "evidence": "d0d450e62 activates Gemma's tensor-core inference definition and changes TestAcceptedE4BModalities from ActiveRecord(TaskInference) to literal historical recipe d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e. It still checks active projection. Thus the30-cell comparison can pass while the inference being served has a different definition; this mismatch is explicitly recorded in the plan. 52bf839e4 ranked the rerun after scorecard-number work because it does not move a number. That Flash work has now landed; the current plan retains E4B validation after blocked image rows, before executor setup. Paired text held-out evidence is useful but does not establish audio/image/video/protocol/recovery requirements. The planned TestAcceptedE4BModalitiesNameTheServedDefinition symbol is absent at this pin. No numerical failure is alleged: the gap is current identity-bound acceptance.",
+      "recommended_change": "Restore current inference/projection comparison in the existing TestAcceptedE4BModalities owner and prioritize the existing e4b-tensor-cores validation before treating current full-modality support as accepted. Retain historical artifacts as historical evidence, without weakening current admission to make the test pass. Reuse checkModelValidation/e4bValidationCells and the existing30-cell campaign, activating inference/projection together under their existing owner. Point the plan verification at that retained test when the implementation owner reconciles it; avoid a near-copy test/new selector or additional campaign.",
+      "displaced_surface": "Replacing the historical ParseID/RequireDefinition/model-task check with the prior ActiveRecord owner removes the extra artifact import and32 test AST: accepted_e4b_test587->555, production unchanged. All30 cell requirements, mask causality, exact code/source/oracle identity, projection binding and existing store/fixture setup remain. No helper/schema/fixture file added and no test body duplicated. Necessary current-definition evidence acquisition remains30 planned cells unless existing valid same-identity evidence is reusable; its execution/storage/maintenance cost is real and not erased by32-node simplification. Historical fixture/evidence files stay; new records must bind current definitions rather than relabel old results.",
+      "impact": "A passing acceptance test currently proves an earlier inference definition alongside current projection, potentially overstating current supported modality/recovery coverage. This is a correctness/evidence obligation rather than a discretionary metric optimization; numerical and data/recovery protections must not be retired for timing gains.",
+      "expected_benefit": {
+        "outcome": "One acceptance owner again verifies what users receive, with32 fewer test nodes and no duplicate test/campaign.",
+        "uncertainty": "Source-established mismatch and explicit plan acknowledgment. Tensor-core output errors are not demonstrated; retained text quality and speed improvements remain valid within their scope."
+      },
+      "likely_effort": "Small acceptance/verification-owner correction plus the already planned current-definition modality validation; acquisition cost is larger than code change.",
+      "plan_references": [
+        "e4b-tensor-cores/do"
+      ],
+      "plan_coverage": "Existing e4b-tensor-cores/do owns the full problem; Flash performance work ahead of it has now landed. Validation is still open and its named future test is absent. No duplicate row or scheduler proposed; reuse the existing acceptance owner.",
+      "closure_criteria": [
+        "The existing acceptance compares every cell's ModelDefinition with current served inference and each required nontext recipe with current projection.",
+        "All30 required modality/quality/resource/recovery cells retain valid current identity-bound evidence, exact source/oracle and mask causality; historical evidence remains explicitly historical.",
+        "One real existing native acceptance test owns the plan verification; no duplicate body or selector. Record actual campaign cost and preserve numerical acceptance independently of timing."
+      ],
+      "comparison": "First read current active inference/projection dependencies versus the retained spec's identities; this alone decides the mismatch without model execution. Implementation then reuses existing valid same-identity evidence or its already required30-cell validation. SQA launches none; no extra confidence campaign."
     },
     {
       "id": "SQA-245",
@@ -356,8 +470,8 @@
       "severity": "P2",
       "category": "numerical-acceptance",
       "classification": "confirmed-source-acceptance-gap",
-      "title": "Reject unordered distances in recurrent, attention-cell, picture and K-quant parity",
-      "evidence_commit": "a81aa20346eba74c2e2fc756525e9cfc2ef05acd",
+      "title": "Reject unordered distances in numerical parity, including batched draft K/V",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
       "sources": [
         {
           "path": "internal/cuda/executor/executor_windows_strata_gdn_test.go",
@@ -410,11 +524,15 @@
         {
           "path": "internal/model/block_cells.go",
           "symbol": "HoldsAttentionCells; cellAttentionStep; buildGatedProjectionMixCached caller"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_strata_drafter_prompt_kv_test.go",
+          "symbol": "TestDrafterPromptKVBatchedAsItsRows: per-head K/V relative L2 acceptance"
         }
       ],
-      "evidence": "Existing GDN six, attention-cell and picture counterexamples remain: unexpected NaN distance satisfies neither >bound nor <rival; picture +Inf at its reference-chosen greedy token yields NaN log-probability distance. New f3219a174 adds the same hole to TestKQuantSpansReadEachWeightOnce for columns=9: only widths1..8 are checked with slices.Equal, so one NaN in a nine-column output makes strataRelativeL1 NaN and d>1e-2 false. Finite input and reference fixtures admit this hypothetical bad output. The test does not feed these results into another sampler/check that could reject it. Widths1..8 and the newer GDN gates test retain preceding exact checks and are not additional NaN holes. No CUDA/model failure was executed or observed. New Qwen cell parity repeats difference > 0.02*spread after max/Abs aggregation. A single unexpected NaN in cell logits makes difference NaN and the comparison false; direct forwardDeviceCachedModeLocked outputs are not checked by the later, separate Generate calls. Its finite 40+20-token fixture admits that faulty output as a regression counterexample. The executor's cellAttentionParity already supplies the positive ordered-acceptance pattern.",
-      "recommended_change": "Keep the existing numerical owners and arithmetic. At all six GDN sites reject !(d <= bound) or !(d >= rival), preserving inclusive thresholds and FP64 transcription. In TestAttentionCellsMatchF32Decoding replace difference > 0.02*spread with !(difference <= 0.02*spread). Retain its conditional greedy-identity check; the positive distance bound must pass first. No comparator framework, tolerance change or invented denominator floor. In the picture test replace apart>tolerance with !(apart<=tolerance). Keep local log-probability arithmetic and existing finite bands; no new sampler restriction, shared comparator export, validation wrapper or fixture. In TestKQuantSpansReadEachWeightOnce replace d>bound with !(d<=bound); retain exact width1..8 equality and the distinct nine-column fallback comparison. No tolerance or shared ratio-helper change. Apply !(difference <= 0.02*spread) in TestQwen35CellsMatchF32Decoding too, retaining fixed F32-fed tokens, geometry, prompt/decode horizon and exact drafted/plain check. No new test, helper or tolerance.",
-      "displaced_surface": "Ten unordered-permitting predicates are replaced across five test files. No unique case, fixture or test disappears. Keep six GDN cases, gemma/Qwen cell logit/cache/lifetime cases, all 16 picture cases, and three K-quant formats at widths 1..9. Qwen retains two runners, one model fixture and both Generate paths. No production/config/export/build-tag/cancellation/lifetime change.",
+      "evidence": "Existing GDN six, attention-cell and picture counterexamples remain: unexpected NaN distance satisfies neither >bound nor <rival; picture +Inf at its reference-chosen greedy token yields NaN log-probability distance. New f3219a174 adds the same hole to TestKQuantSpansReadEachWeightOnce for columns=9: only widths1..8 are checked with slices.Equal, so one NaN in a nine-column output makes strataRelativeL1 NaN and d>1e-2 false. Finite input and reference fixtures admit this hypothetical bad output. The test does not feed these results into another sampler/check that could reject it. Widths1..8 and the newer GDN gates test retain preceding exact checks and are not additional NaN holes. No CUDA/model failure was executed or observed. New Qwen cell parity repeats difference > 0.02*spread after max/Abs aggregation. A single unexpected NaN in cell logits makes difference NaN and the comparison false; direct forwardDeviceCachedModeLocked outputs are not checked by the later, separate Generate calls. Its finite 40+20-token fixture admits that faulty output as a regression counterexample. The executor's cellAttentionParity already supplies the positive ordered-acceptance pattern. New a6e69e5fb K/V parity repeats the hole: each finite fixture row accumulates difference and norm then fails only for norm==0 or sqrt(difference/norm)>0.03. An unexpected NaN in a dequantized output/scale makes the ratio NaN; both comparisons are false, so the defective row can pass. Both paths are read directly; there is no later finiteness/equality check. This is a hypothetical faulty-output counterexample admitted by the test, not an observed GPU fault.",
+      "recommended_change": "Keep the existing numerical owners and arithmetic. At all six GDN sites reject !(d <= bound) or !(d >= rival), preserving inclusive thresholds and FP64 transcription. In TestAttentionCellsMatchF32Decoding replace difference > 0.02*spread with !(difference <= 0.02*spread). Retain its conditional greedy-identity check; the positive distance bound must pass first. No comparator framework, tolerance change or invented denominator floor. In the picture test replace apart>tolerance with !(apart<=tolerance). Keep local log-probability arithmetic and existing finite bands; no new sampler restriction, shared comparator export, validation wrapper or fixture. In TestKQuantSpansReadEachWeightOnce replace d>bound with !(d<=bound); retain exact width1..8 equality and the distinct nine-column fallback comparison. No tolerance or shared ratio-helper change. Apply !(difference <= 0.02*spread) in TestQwen35CellsMatchF32Decoding too, retaining fixed F32-fed tokens, geometry, prompt/decode horizon and exact drafted/plain check. No new test, helper or tolerance. In TestDrafterPromptKVBatchedAsItsRows use positive ordered acceptance !(norm>0 && math.Sqrt(difference/norm)<=strataBatchedTolerance). This keeps zero-norm refusal and the same3% contract while rejecting unordered ratios. No helper, denominator floor, tolerance widening or new suite.",
+      "displaced_surface": "Ten unordered-permitting predicates are replaced across five test files. No unique case, fixture or test disappears. Keep six GDN cases, gemma/Qwen cell logit/cache/lifetime cases, all 16 picture cases, and three K-quant formats at widths 1..9. Qwen retains two runners, one model fixture and both Generate paths. No production/config/export/build-tag/cancellation/lifetime change. Add the K/V predicate as the sixth affected file: its complete source1687->1689(+2 test AST), production unchanged. Preserve300 cells,256 boundary/44 tail, per-head K and V, both arithmetic paths, original fixture/streams and cleanup. Nothing is moved into fixtures or deleted; this is necessary correctness growth.",
       "impact": "Five numerical acceptance owners can credit invalid outputs; Qwen cell parity adds another instance. No observed served failure, data loss or confidentiality effect asserted.",
       "expected_benefit": {
         "outcome": "Production unchanged. Retained four-file counts 5,911 to 5,929 plus complete Qwen file 690 to 692: total 6,601 to 6,621 (+20 test AST). New Qwen replacement parsed; four earlier files unchanged by widening. No helper/fixture/setup/gate growth.",
@@ -425,9 +543,10 @@
       "plan_coverage": "Retired strata-port/parity is no longer a valid row reference. Existing served-output numerical acceptance remains an advisory correctness obligation independent of the retired speed objective.",
       "closure_criteria": [
         "All five owners reject unordered distances, including Qwen logits, nine-column K-quant NaN and picture's admitted +Inf row.",
-        "Finite thresholds, exact 1..8 identities, forced-token/own-draft and all numerical/state/layout/recovery cases remain; count test growth."
+        "Finite thresholds, exact 1..8 identities, forced-token/own-draft and all numerical/state/layout/recovery cases remain; count test growth.",
+        "The batched K/V owner rejects unordered row norms/distances without altering3%, layouts, boundary/tail, two-path or cleanup coverage; complete test cost+2 AST."
       ],
-      "comparison": "Implementation only: one temporary NaN substitution in Qwen's cell-logit row before the bound must fail, then restore; retain the previous GDN/cell/K-quant NaN and picture +Inf deciding comparisons. No extra SQA run, permanent suite, framework or timing-dependent tolerance."
+      "comparison": "Implementation only: one temporary NaN substitution in Qwen's cell-logit row before the bound must fail, then restore; retain the previous GDN/cell/K-quant NaN and picture +Inf deciding comparisons. No extra SQA run, permanent suite, framework or timing-dependent tolerance. For the new K/V case, one temporary NaN in a returned cell before the existing bound must be rejected; restore it afterward during normal implementation validation only. Finite bounds and zero-norm refusal must remain. SQA parsed the predicate but ran no test."
     },
     {
       "id": "SQA-260",
@@ -754,7 +873,7 @@
       "category": "measurement-cost",
       "classification": "late-runtime-admission-failure-with-overbroad-probe-proposal",
       "title": "Expose the guard's actual readiness failure without a second all-model workload",
-      "evidence_commit": "b8eedd9da289a548232896f336738eb4fd9c1770",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
       "sources": [
         {
           "path": "internal/clioptions/command.go",
@@ -773,7 +892,7 @@
           "symbol": "runSmoke: loads every active inference model with small requests"
         }
       ],
-      "evidence": "Retained measure-run-20261031b.log35/110 reports FlashNext loaded48489668096bytes, rungs1024/2048/4096/8192, then physical admission requested48bytes with available0. No 'warm' stage follows. cmd/longform.run calls Ready after catalog lookup before driver/model open; measureModel calls Warm on rungs[0] before Short/Ladder. Thus the retained failure is consistent with the first1024-token warm prefix, not proof that testing largest8192 shape detects every path. The next serving cell loads successfully. cmd/validate.runSmoke also calls Ready before serve/OpenRunner and uses a separate oracle/default-open path. Unsupported assumption: one largest request per model covers every cell's recipe, lifecycle, transient workspace and order; guard and serving already demonstrate different contracts. Cause, from 2314b1de7 (2026-10-31): Flash-Next's decode round fills the card memory the round leaves free, by the design 8cc359407 declared, so the peak is the card's 49140 MiB less what other processes hold; after the load the long-form check's own request finds 0 bytes available. Declaring that peak a trade closed the peak-memory row and left this check broken: it has measured nothing in the 2026-10-30 and 2026-10-31 runs, and no plan row names it. Rechecked atb8eedd9da: fe475df7e only replaces the discovery listing cap with shared CatalogBound. It fixes the separate256/258 prerequisite refusal; readiness still precedes model loading/warm and the retained allocation failure remains unresolved.",
+      "evidence": "Historical measure-run-20261031b.log reports a48489668096-byte Flash load followed by a48-byte request with available0 before the warm-stage marker. Keep that distinct from latest f0d63464 retained evidence: the58362ae42 validate -run -model guard fails at rung1024, attributed to expert cache filling the card and the ladder9/10 fit rule, with evidence ade181b47d663f7b5f753e60efdc1dd3a43d2bae913f905171d46996e9cc2bb1. Source run calls Ready after catalog lookup; measureModel then Warm, Short and Ladder. The ladder predicts the next rung using temporary peaks and compares against TotalMemoryBytes/10*9. Thus a catalog-ready result still cannot establish guard readiness; a serving cell and latency cell can succeed while the distinct guard fails. New5.46s Flash16K latency closes its speed row, not this guard. Latest failure is retained commit evidence, not an SQA reproduction; do not assume the earlier allocation operation is still the exact current stop.",
       "recommended_change": "Correct the specific guard admission/setup path and expose its readiness truth through its existing producer and run-record owners before committing to another full cycle. Reuse the failing producer's own declared load/warm/fit boundary; do not clone it into smoke, move Ready generically across all producers, or add a new all-model largest-shape pass/flag. First compare retained guard versus serving options/lifetime and determine the smallest existing producer prefix that detects this failure; any reordered prefix must preserve device ownership, cleanup and avoid duplicate loads. Keep known setup failures explicit before long work while preserving valid partial evidence from unrelated models. No new SQA workload or blanket early-stop policy. Sequence this known broken-producer repair before another full cycle expected to exercise the same guard; existing partial-result ownership remains valid for unrelated admitted cells. Missing profiles,missing recorded baselines and actual capacity failures require their own existing producers,not one copied preflight rule.",
       "displaced_surface": "Target the gap between catalog-ready and the actual guard-ready boundary at existing producer/consumer owners. No complete replacement/net AST saving established: setup ownership/reuse may require growth. Smoke's per-model oracle loop is not proven redundant with the guard. Do not remove existing warm/short/ladder stages, add fixture frameworks or promise one load covers every cell.",
       "impact": "Catalog preflight currently cannot establish runtime capacity, and a known broken guard can be discovered after hours. A second broad probe would itself cost time and still not prove all shapes/recipes safe. Protect exact memory admission, failure records and device/resource lifetime.",
@@ -783,14 +902,14 @@
       },
       "likely_effort": "Bounded existing-producer comparison first; runtime redesign cost unpriced.",
       "plan_references": [],
-      "plan_coverage": "No committed row names this guard readiness repair.268 came from another review and is retained with qualified evidence; long-read remains separate quality work.",
+      "plan_coverage": "Flash long-prompt latency row closed; its commit explicitly parks the existing guard failure as evidence. No committed plan row explicitly repairs this producer. Keep this existing finding rather than filing a duplicate.",
       "closure_criteria": [
         "Identify the exact guard setup operation refusing capacity and retain its error before unrelated long work without implying catalog preflight exercised it.",
         "Any reused readiness prefix preserves actual recipe/layout/device lifetime and does not duplicate every model's load/request.",
         "Keep distinct serving/guard and partial-result behavior; count full code/test/setup cost, no new selector or universal largest-shape pass.",
         "Flash-Next's long-form check measures with the round's card fill in place: the fill leaves the memory the check's request needs, or the check sizes its request to what the fill leaves."
       ],
-      "comparison": "Smallest deciding evidence is retained guard/serving call-option/lifetime comparison and the existing native producer sequencing fixture when implementation changes it. A real guard prefix belongs only to normal implementation validation, not SQA confidence runs.",
+      "comparison": "Use latest retained guard record and actual Warm/Short/Ladder memory/lifetime versus the served round. Distinguish reclaimable expert fill from irreducible request/temporary peak before choosing the existing reserve/fit owner; no universal threshold change, all-model preflight or SQA run. The earlier48-byte failure is historical context, not a substitute for identifying the current9/10 fit stop.",
       "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"we should be able to check for broken SW before running for hours?\"; \"software does not fail. it is either broken or not broken\")"
     },
     {
@@ -1109,9 +1228,9 @@
       "status": "open",
       "severity": "P2",
       "category": "inference-first-output-regression",
-      "classification": "measured-throughput-repair-with-retained-policy-and-test-cost-risk",
+      "classification": "partial-draft-cache-repair-with-policy-generalization-and-test-cost-risk",
       "title": "Consolidate drafting decisions and remove duplicated model-test setup",
-      "evidence_commit": "2314b1de755d63469ce05e1144a2921528d888a4",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
       "sources": [
         {
           "path": "internal/inference/nextn_device_speculation.go",
@@ -1212,30 +1331,40 @@
         {
           "path": "internal/scorecard/spread_test.go",
           "symbol": "TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt"
+        },
+        {
+          "path": "internal/modelcli/draft_verdict.go",
+          "symbol": "judgeServedDrafts; readDraftVerdicts; publishDraftVerdict"
+        },
+        {
+          "path": "internal/modelcli/draft_verdict_test.go",
+          "symbol": "TestADraftVerdictIsRecordedPerModelBuildAndCard"
+        },
+        {
+          "path": "internal/inference/draft_verdict_test.go",
+          "symbol": "TestARecordedDraftVerdictRunsNoProbe"
         }
       ],
-      "evidence": "Established retained repairs remain distinct:8ce06a06 removes private-window sessionModelSignature work and adds served-open plain/draft judgement;4B throughput recovered, with declared4B/27B load costs0.64s/1.0s and4B probe high-water about0.79GB. Both served-open callers enable judgement; the old48-draft/10%-kept refusal still coexists. One fixed16-token prompt/plain-first ordering does not establish later workload representativeness or independence. Flash short-first-output recovered to760-850ms in36786ae, while load41.3-41.5s versus29.7s was declared worse and16K first-output remained6.2s versus5.5639s. New3c202cd72 traces a distinct shared first-request cost to module loading introduced by8cc359407: retained fresh-context operation/QSA/native module loads13.0/7.3/4.6ms. New/NewWithWorker now call one preloadModules; it serializes ensureResources(false,0,0,0) on the existing worker under the executor read lock. ensureResources publishes module state only after full lookup/configuration, unloading partial failures; ordinary request retries remain the error owner. Close takes the write lock and retains worker/resource ownership. Two actual constructor callers share this behavior; no second loader. Bonsai retained serving readings90.2/82.4ms are below102.68target, loads2.28-2.35s versus2.34s. Qwen9B22.37/21.99ms,gemma81.68/66.62ms, and SenseNova12.22/11.81s meet their respective targets. These are retained implementation measurements, not fresh SQA or proof that module preload explains every historical regression. Long-prompt gemma timings remain above target. c77189c0c changes Flash peak verifier to consult declared trades;2314b1de7 then declares49433735344bytes and closes that row. Reading remains about31MB above original target; acceptance changed, physical memory did not fall.",
-      "recommended_change": "Retain the shared constructor preload and its existing request-error/Close owners; do not implement another lazy-module abstraction solely to chase a now-recovered short-first-output row. For remaining draft work, reuse existing model/source/device/build identity and the existing refusal owner; remove repeated load probes only under a valid retained verdict and count persistence/invalidation. Consolidate competing default-drafting decisions and duplicate4B parity setup only after moving forced-override cases; keep independent96-token equality, native tensor/type/norm and27B cases. A cached fixed-prompt judgement does not establish its representativeness or eliminate the acceptance-only rule. Keep original historical targets and declared load/memory trades explicit.",
-      "displaced_surface": "Original draft landing selected total14376->14972(+306production/+290test), including private signature-10 and new judgement/probe plus wiring. Old observeOwnDrafts84 and threshold test198 remain; gross removal is not a full replacement saving. New3c202cd72 adds102production/0test AST, no fixtures/schema/CUDA growth; one existing shared ensureResources loader serves both constructors, with one goroutine per executor. It moves work in lifecycle rather than removing module/function lookup work. Current executor file17183nodes,New54/NewWithWorker52/preloadModules86; lifecycle3108. Any model-specific lazy-loading redesign remains unpriced and is not recommended absent residual evidence. Prior duplicate4B model-open/parity proposal remains separate; no new setup eliminated by preload.",
-      "impact": "Short-first-output has improved under retained measurements through a shared loader; numerical/resource/error paths remain. The load-time draft calibration and competing policy/generalization risk are separate open issues. Declaring a memory trade does not restore historical peak memory.",
+      "evidence": "Earlier private-session signature removal, shared executor preload and short-first-output recovery remain credited; declared load/peak trades remain explicit. New512685492 moves served judgement into modelcli, reads verdicts in the same read-only store session, and keys them by model artifact, runner execution identity and GPU UUID. A recorded verdict performs one warm decode in its served mode; a miss/unstamped build probes both modes. Writes are best-effort through existing JSONDocumentCodec/alias CAS and a nonblocking writer open, adding first-load cost. Both cmd/server JudgeOwnDrafts and cmd/recipe OpenServedRunner use this owner. The48-draft/10%-kept refusal still coexists with fixed16-token, plain-first speed judgement; caching supplies no evidence of representative prompts or stable future workload. d0d450e62 activates dense prompt profiles with measured gains; E4B current modality binding is separately277. Flash16K is now5.46s versus5563.9ms after a6e69e5fb batched draft K/V and58362ae42 single-f16 expert inputs; f0d63464 closes the row. Short678ms and4096-token2.04s are retained readings. The draft batch adds about36MB retained device buffers; guard readiness remains268. Cache's host eligibility regression is separately275, not proof the optimization is worthless.",
+      "recommended_change": "Retain existing modelcli/artifact verdict reuse and shared constructor preload. Repair host eligibility via275. Before removing remaining policy or duplicated4B setup, retain forced-override,96-token equality, native tensor/type/norm and27B beneficial-drafting cases. Consolidate the competing refusal rules only when retained workload evidence justifies it, naming displaced fields/tests; one cached calibration prompt is not general proof. Keep load-plus-first-request and original peak targets/trades explicit. Use existing verification, not another full measurement cycle.",
+      "displaced_surface": "512685492 total landed growth is+937 production/+480 test AST,+1 schema,0 fixtures/CUDA. New draft owner702, tests281+199; modelcli.openRunner and server share it, and CardReadings reuses DeviceUUID. One probe decode disappears on a valid cache hit, but one warm decode remains; first judged open pays writer publication. Existing observeOwnDrafts84 and threshold test198 remain, so no complete policy reduction established. Earlier shared preload+102 production remains lifecycle relocation, not eliminated loading. Proposed275 correctness coverage adds cost. Existing4B fixture consolidation remains separate and unpriced; do not report937+480 growth as a net code reduction. Subsequent Flash optimization adds1554 production/+1719 test AST for batching, then0 production Go/+2 test and-10 CUDA lines for one-part inputs. These improve latency but are not a net Go/test or device-memory reduction.",
+      "impact": "Repeated judgement can be avoided in source while warming the served mode. Actual second-open4B/27B load/peak benefit is not yet retained; same fixed-prompt calibration may remain unrepresentative. A cache hit does not resolve independent long-prompt or current-modality obligations.",
       "expected_benefit": {
-        "outcome": "Delete unnecessary private-session work and avoid maintaining duplicate drafting policies and repeated parity setup. The source proves removable work in the private caller; elapsed improvement is retained worker evidence. Landed declared load costs are acknowledged rather than hidden, but a declared trade alone does not establish restoration of the original target.",
-        "uncertainty": "Draft policy/test portion still matches8ce06. Credit4B throughput and declared load/memory trades;36786ae closes Flash's short-first-output/throughput row with760-850ms retained first-output evidence, while load41.3-41.5s versus29.7s is declared worse.16K first-output6.2s versus5.5639s remains open. Fixed-prompt representativeness, total load-plus-first-request benefit and complete memory reduction remain unproved."
+        "outcome": "Credit landed shared caching and dense prompt gains. Remaining recommendation is fewer duplicate policy/setup owners with preserved overrides, identity and recovery.",
+        "uncertainty": "Retained Bonsai cache-commit slice is not a post-cache4B/27B comparison. Flash16K5.46s now meets the historical target, with a declared36MB draft-buffer cost and lower grouped-input precision. Fixed-prompt cache generalization and4B/27B load/peak benefit remain unproved."
       },
-      "likely_effort": "Small private-session deletion; bounded policy/test consolidation after the smallest retained phase comparison. Full replacement cost remains unknown.",
+      "likely_effort": "Bounded eligibility correction; remaining policy/test consolidation requires retained evidence and complete replacement accounting.",
       "plan_references": [
-        "flashnext-long-read/do",
-        "executor-setup/do",
-        "draft-verdict-record/do"
+        "executor-setup/do"
       ],
-      "plan_coverage": "Shared preload repair remains credited; executor-setup/do, flashnext-long-read/do and draft-verdict-record/do remain open. Native migration now completed in09fc2300f; served Qwen/MiniCPM directory probes show large long-prompt gains. Carbon/OCR re-onboarding is recorded inb8eedd9da; Gemma's earlier accepted modality definition requires the separately filed e4b-tensor-cores/do. This does not establish a universal draft cause or restore Flash-Next's long read.",
+      "plan_coverage": "draft-verdict-record/do, dense activation and flashnext-long-read/draft-kv,expert-inputs,do have landed and are removed. Existing executor-setup/do remains; E4B existing validation belongs to277. Partial progress does not close competing draft policy/setup questions.",
       "closure_criteria": [
         "Credit the landed throughput repair. Retained normal evidence separates signature deletion, recurring draft/plain decision and load warmup; account load plus first request and preserve explicit trade history without claiming all latency/memory obligations restored.",
         "Only one default-drafting decision remains; displaced heuristic/probe code, fields and tests are removed or explicitly justified. Both served callers and explicit overrides retain correct cancellation, failed-open cleanup and token behavior.",
         "Private window sessions avoid unneeded cross-run identity work while public verification/persistence retain exact model identity and existing validation.",
         "Count full production/test/fixture/open/generation cost. Move unique forced-draft-after-refusal coverage before removing duplicated4B parity. Keep the96-token/native tensor requirements and genuine27B coverage; timing variability cannot decide numerical acceptance."
       ],
-      "comparison": "Use retained first-window/signature and steady draft/plain observations first. The smallest unresolved comparison is the same existing4B serving request separating private signature work already removed, separating Open, first window and recurring decode from the landed warmup/policy effect; reuse the existing27B beneficial-drafting record as a distinct counterexample to blanket disable. Obtain any missing evidence only in normal implementation verification, not an SQA run or a new permanent benchmark/test selector. If retained evidence does not justify a general default decision, say so rather than infer it from one16-token prompt. Account the load probe's measured high-water buffers too; no new SQA measurement or implicit memory-target reset."
+      "comparison": "First reuse existing4B/27B records. If deciding cache benefit in normal implementation verification, compare uncached versus recorded open of the same model/build/card with load, first request, peak and identical output; don't repeat whole-catalog work or add a permanent selector. Keep beneficial27B and refused4B distinct. Fixed-prompt workload generalization remains explicitly unproven."
     },
     {
       "id": "SQA-238",
@@ -1664,6 +1793,46 @@
         "Whole affected production/test surface stays below7483 nodes after all migration cost, with no extra fixture/setup/test selection. Retained candidate is7273; no extra validation run solely for SQA."
       ],
       "comparison": "Deciding source comparison is complete:3720+719+3044 ->3696+533+3044. During normal implementation validation use the existing TestProjectionQueryPlanEfficiency, preserving its named case errors and eight operations; no new test or confidence run. This expands stable SQA-253 rather than filing a duplicate."
+    },
+    {
+      "id": "SQA-276",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-consolidation",
+      "classification": "complete-parsed-net-test-reduction",
+      "title": "Keep the six prompt-profile admission cases in one test owner",
+      "evidence_commit": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "sources": [
+        {
+          "path": "internal/modelcli/dense_tensor_cores_model_test.go",
+          "symbol": "TestDenseModelsServePromptTensorCores"
+        },
+        {
+          "path": "internal/modelcli/flashnext_tensor_cores_model_test.go",
+          "symbol": "TestFlashNextServesPromptTensorCores"
+        },
+        {
+          "path": "internal/modelrecipe/loaded_program.go",
+          "symbol": "LoadedProgram.Take; LoadedProgram.Close"
+        }
+      ],
+      "evidence": "The two actual modeltest callers repeat Resolve roots, OpenReadOnly, LoadMemo.Claim, ResolveClaimedGGUF, Take, Close and spec.Profile().Runtime.PromptTensorCores. The dense test covers five required paths; Flash covers the exact first shard of its three-file GGUF and skips on any stat error. Both inspect active metadata rather than generate tokens. Repository symbol search found no other code callers/selectors apart from their comments; completed activation's verifier is no longer a current plan prerequisite. Similar AST alone is not the rationale: both assert the same stored-profile admission requirement through the same owner.",
+      "recommended_change": "Reuse TestDenseModelsServePromptTensorCores as the single owner, moving Flash's path and optional absence into its native table. Use per-row t.Run for errors/Skip, keeping five dense paths mandatory and Flash optional. Keep exact profile flag and successful file Close checks. Remove TestFlashNextServesPromptTensorCores and its file/imports/comment cross-reference. Use sequential metadata cases; no new fixture, helper, abstraction or selector.",
+      "displaced_surface": "Complete affected test files260+211=471 AST ->307 in an in-memory parsed six-row candidate, net-164 including imports, table/optional branch and subtest plumbing. Production0->0 change. Two live read-only store/memo setups->one; six successful model resolutions/Take/Close operations remain six; no GPU generations. Fixture files/bytes0, schemas0, exported helpers/wrappers0. Dense t.Parallel is omitted in candidate, so all metadata checks run sequentially; no new concurrency assumption. Per-row Fatal preserves aggregate failure while allowing remaining cases, as dense Error/continue already did. Gate selection unchanged; delete old test name only after any external manual reference is migrated, without adding a wrapper.",
+      "impact": "Less repeated live-store setup and one owner for profile-admission assertions. Preserve optional-versus-required availability, build tag modeltest, file ownership and all six architectures/paths. No numerical behavior, data or confidentiality changes.",
+      "expected_benefit": {
+        "outcome": "164 fewer test AST nodes and one fewer store/memo setup, with all admitted requirements retained.",
+        "uncertainty": "Parsed complete replacement estimate, not typechecked/compiled candidate or measured wall/RSS saving. No assumption that metadata work is the dominant gate cost."
+      },
+      "likely_effort": "Small two-file test merge.",
+      "plan_references": [],
+      "plan_coverage": "Five-model activation landed; this consolidates its new260-node test with the existing211-node Flash owner.",
+      "closure_criteria": [
+        "All six exact served paths retain stored PromptTensorCores admission and successful Close checks.",
+        "Five dense missing-path cases fail; absent Flash skips only its case. Other resolution/Take/Close/profile errors still fail.",
+        "Delete the displaced Flash body/imports/file and stale comment reference; whole replacement including setup/table stays below471 AST with no wrapper/new fixture."
+      ],
+      "comparison": "Existing native modeltest selection supplies the same six metadata cases during normal affected verification. Check required versus optional missing input and owned close without creating another test suite or acquisition. No SQA execution."
     },
     {
       "id": "SQA-269",
@@ -4607,21 +4776,20 @@
   ],
   "gate_test_assessment": {
       "retained_evidence": [
-        "fe475df7e catalog fix gate:+9production/+127testAST,fixtures/schema/CUDA0; invariants12.503s,host1m33.086s,lanes2m43.534s(web2m42.751s,CUDA34.808s;1executed/15cached),verify17.39s. Retained Carbon scorecard38.1008ms first-output,1284.3681ms load,1806593536bytes peak,446.2872tokens/s; distinct short-prompt identity, not long-prompt speed proof.",
-        "6d8b18ec2 directory preference:+35production/+393testAST; invariants1m24.792s,host3m24.696s,lanes2m44.61s(web2m43.829s,CUDA34.602s;1executed/15cached),verify1.404s. Feature and regression coverage growth, not a net reduction.",
-        "09fc2300f migration closure:+0production/+261testAST; invariants1m27.295s,host1m44.015s,lanes748ms(all device/web/CUDA skipped),verify20.846s. The live inventory test adds one store/inventory setup, not a model execution.",
-        "b8eedd9da plan rescope:verify108ms, no production/test change. Retained times are not added across overlapping lanes or extrapolated into SQA savings."
+        "a6e69e5fb draft-KV: gate deltas+1554 production/+1719 test AST,CUDA+99 lines/+3 entries,schemas/fixtures0. Invariants1m20.34s,host2m51.226s,lanes15m23.676s(device9m57.729s,web2m44.85s,CUDA5m25.14s;16 executed/0 cached),verify1.328s. Retained8192 draft prompt rows12.3ms versus153ms; about36MB retained device buffers added. This is code/test/memory growth for speed.",
+        "58362ae42 expert inputs: production Go+0,test+2 AST,CUDA-10 lines,schemas/fixtures0. Invariants12.087s,host2m39.923s,lanes16m4.243s(device10m15.032s,web2m45.557s,CUDA5m48.447s;16 executed/0 cached),verify29.424s. Removes low-f16 part/shared storage/product loop; host-reference discrepancy worsens to about1.3e-3 from below5e-4, assessed under existing5e-3 f16-staged tolerance. Numerical change is explicit, not inferred safe from speed.",
+        "f0d63464 plan closure: verify1m5.454s; no production change. Retained Flash cell at58362ae42:16K5.46s median of newest recipe attempts against5563.9ms target;4096 tokens2.04s,short678ms. MMLU-Pro chat0.6576±0.014 versus0.665,BBH0.778,IFEval prompt-strict0.836; guard still fails separately. Sampled scorecard gate slice was Bonsai with identical outputs and5607048192-byte peak, not a Flash memory proof.",
+        "Earlier unpublished review retained d0d450e62 dense gains and512685492 draft caching. Cache added937 production/480 test AST and one schema; actual second-open4B/27B benefit remains unmeasured in retained commit evidence."
       ],
-      "caching": "Credit native Go caching, existing lane selection and phase/cell resume. Native-view resume issue263 remains despite successful one-time migration; no new cache, selector, telemetry or confidence run.",
+      "caching": "Credit native Go test caching, existing affected lanes, cycle input identity and successful cell/publication resume. Both kernel landings executed16 cached0 selected tests; no evidence that another scheduler/cache is needed. Cell preflight failures retain actionable error while unrelated valid measurements proceed; lane failure stops costly cells. Completion records remain distinct from supervised continuation.",
       "test_dispositions": [
-        "RETAIN TestADirectoryThatIsItsConversionsImageServesFromItself: directory preference for exact same bytes and file fallback for wrong directory bytes are distinct.393test nodes for35production nodes buys these new conditions; don't replace real requirement with a self-comparison.",
-        "RETAIN TestADirectoryModelIsItsViewsIdentity and TestMovedModelResolvesByIdentity: virtual identity, claim invalidation/empty directory/selection, and relocated-file identity refusal have separate owners. No cases move for274's trivial deletion; retained tests total1223AST.",
-        "RETAIN TestSelectedServableScope: selected metadata/hash filtering, full-catalog denominator, explicit truncated refusal, no publication and corrupt-unrelated activation. Catalog-bound live test is114AST/one read-only store pass; it establishes only today's store below the cap. Do not expand it into recurring census or claim a universal catalog bound.",
-        "RETAIN TestEveryViewedTextModelServesFromItsDirectory as the requested migration check: training-only conversions stay. Its no-conversion assertion is not alone proof that every directory has an active accepted recipe; existing activation/coverage owners supply that distinct requirement.",
-        "RETAIN cache paging policy, non-power-of-two cap and fixed-state layout checks. Round-trip/schema/corrupt-header tests protect different boundaries; no safe complete consolidation established in this sample.",
-        "RETAIN profile/dataset retention tests. Both reuse Release/releaseEverything but their authority and physical-location requirements differ; a new generic fixture would not demonstrate net savings.",
-        "RETAIN browser lifecycle test: real clean-end reconnect, remount abort, operation delivery, changed-inventory refresh and hidden-page pause/resume. It does not cover missed workspace changes during disconnected/overflow intervals (218). RETAIN driver fakeWorld stop/budget/feedback cases, separate from record/render tests.",
-        "SIMPLIFY274 production only: retain all tests, fixtures, setup executions and gate selection. Existing236/269/270 consolidation proposals remain separate;273 cleanup adds necessary recovery surface and must not be mislabeled a reduction."
+        "RETAIN TestDrafterPromptKVBatchedAsItsRows: two actual arithmetic paths share weights/rows,300 cells exercise256-row boundary and44-row tail; K and V per-head reads, dequantization, rope position, record upload and stream cleanup remain. SIMPLIFY/CORRECT232 only its acceptance predicate to reject unordered values,1687->1689(+2). No tolerances, cases, fixtures or setup removed.",
+        "RETAIN TestPromptExpertsMultiplyEncodedWeights: card/host placement, four format/fused variants,16-token fallback,64-token grouped tile,1561-token host document and distinct full-size grouping cases. Pinned bits preserve declared result identity; host-reference comparison is a different requirement. Existing5e-3 bound now applies to the declared one-f16 path; do not treat replacing golden bits alone as accuracy evidence.",
+        "RETAIN TestPromptExpertCopiesOverlapCompute and new draft K/V lifetime coverage: transfer/stream overlap and cell numerical parity protect different failures. New K/V resources are in StrataDrafter.release; no safe setup merger established without full costs.",
+        "RETAIN TestExternalBlobCommitAtomicity: compact envelope, absent required blob, append fault leaving an unreachable orphan and reopen recovery. copyVerified is already shared by verify and packing; do not duplicate it. Packed/backup/cancellation tests remain separate requirements under223.",
+        "SIMPLIFY252 remains valid for TestOneWorkbenchEventStream: reuse existing controlled runtimeServingProbe, keep file/whole-percent publication and admitted/cancelled payloads. RETAIN TestWebUIBrowserServingStream for real authenticated TCP/browser delivery, bounded rows, operation-state preservation and reconnect; it is not redundant with the in-process probe.",
+        "RETAIN improve_resume tests: preflight/lanes/cells/publication order, no cell work after lane failure, same-input credit, changed-input invalidation, unchanged costs/replay metadata, filing after publication and retry after interrupted filing. Reporting text and deterministic execution requirements are distinct; no new regex/selector/framework proposed.",
+        "MERGE276 the existing five dense and optional Flash profile cases:471->307 test AST,one store/memo setup instead of two,six resolutions remain. EXTEND275 existing host identity fixture for served/explicit-judgement opens. RESTORE277 existing E4B acceptance to active inference/projection,587->555, retaining all30 modality/recovery requirements and historical artifacts."
       ]
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
@@ -4995,12 +5163,14 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded committed-source review; not exhaustive type resolution or re-execution of89historical findings. Changed-source mapping and current sampled owners were checked; earlier evidence remains scoped to its recorded revision.",
-      "AST counts include comments; proposed deletion only parsed in memory. Typecheck covers original standalone directory signature declarations, not the complete discovery package.",
-      "Native migration/gains are retained implementation evidence. Gemma acceptance/hold is pending at this pin; uncommitted worker edits are excluded. No new runtime memory, corruption or leak incident observed.",
-      "Directory sum-size/max-mtime signature has a source-visible collision: equal-sized older-member changes can leave the maximum unchanged. The sampled test advances config time above every member, so it does not decide that case. Downstream VerifyClaims provides separate byte proof; served wrong-byte acceptance is not established. Further recommendation needs the existing tiny directory fixture/claim-proof owner and full persistence/migration costs, not a new signature registry.",
-      "Cache format20/4/8/44-byte fields andfloat32scalar4bytes are codec dimensions, not arbitrary tuning. Page sizing usesuint64 arithmetic and real context/session policy; no admitted model-range overflow counterexample established. Do not infer numerical equivalence from paired-test nonsignificance or correlate speed with quality acceptance.",
-      "Report publication re-reads HEAD/current report/committed plan, preserves owner values, parses replacement, uses existing locks nonblocking and commits only docs/sqa_findings.json. No production gate or hook/security change."
+      "Bounded source/AST review, not re-execution of historical findings, whole-catalog timing or GPU parity. Complete changed-path mapping plus selected owners rechecked. CUDA behavior and retained measurements are implementation evidence, not SQA executions.",
+      "New K/V NaN rejection gap232 is an admitted faulty-output counterexample: a NaN scale/output can make norm or distance NaN and both current failure comparisons false. No NaN was observed on the machine. Positive ordered acceptance adds2 test nodes; it does not alter3% tolerance or arithmetic.",
+      "256 batch rows has retained12.3ms/36MB versus1024 rows9.7ms/142MB;64-row admission mirrors the compared engine's minimum, not proven universal optimum. No concrete new routing failure establishes a need for adaptive batching. Q8_0 32-element/34-byte blocks,2-byte scales,KV heads/pages and step widths are existing layout contracts.",
+      "Random normal weights and uniform Q8 codes/tokens in the K/V fixture establish that fixture's comparison only. Its3% row-relative band catches the retained wrong-rope38% counterexample; it does not prove all skewed/outlier workloads. Grouped expert5e-3 tolerance is an existing f16 contract; changed1.3e-3 error and model evidence are disclosed rather than hidden.",
+      "Flash16K latency closure does not close268's guard or establish peak-memory restoration. New36MB buffers persist from first long prompt until Close; new batch arena/prefill records are included in release. Strata is a comparison, not an optimum.",
+      "Blob fanout2 hex digits is physical layout; compact-envelope8192-byte fixture and frame-header fault offset establish different storage/recovery requirements. No admitted overflow counterexample in bounded blob reads found. Session/stream counters and download percent coalescing are not latency or statistical guarantees.",
+      "Unchanged275–277 carried from the previous review whose publication lock was busy. Code/test reduction counts are parsed estimates;275 necessary coverage grows. No new metric, incident or external wake delivery inferred from the heartbeat.",
+      "Publication re-reads current report/HEAD/plan and preserves all implementation-owned fields raw-exact. Only the report is committed; no plan, skill, gate or worker change."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -5070,16 +5240,18 @@
       }
     }
   },
-  "next_finding_number": 275,
+  "next_finding_number": 278,
   "publication_context": {
-      "checked_head": "b8eedd9da289a548232896f336738eb4fd9c1770",
-      "committed_plan_git_blob": "b67fad8a86d3138aa090e45b66b9c8545bf51571",
-      "assessment": "Substantive native migration/served timing credit, activation rescope, fresh bounded AST and reduction274; not a timestamp-only update.",
-      "newer_commit_note": "Initial and final review pin checked before publication. Worker modality tests, plan/coverage and dense activation test edits are excluded and preserved.",
-      "publication": "Re-read report/HEAD/plan, parse candidate, preserve raw owner fields and commit only the report under existing nonblocking locks."
+      "checked_head": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "committed_plan_git_blob": "cac478c70f812e3772dc904d24b8e3de1acbf1e3",
+      "assessment": "Substantive Flash long-prompt closure, memory/precision costs, expanded232 numerical assertion, and carried275–277 recommendations now ready for report-only publication.",
+      "newer_commit_note": "Initial checkout clean; concurrent E4B acceptance/media contract/spec edits appeared during review and are excluded from committed findings and preserved. Publication rechecks HEAD and index/worktree state.",
+      "publication": "Re-read report/HEAD/plan; parse candidate and preserve raw implementation fields; use existing nonblocking locks and commit only the report."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
+    "SQA-275",
+    "SQA-277",
     "SQA-245",
     "SQA-218",
     "SQA-272",
@@ -5104,6 +5276,7 @@
     "SQA-236",
     "SQA-235",
     "SQA-253",
+    "SQA-276",
     "SQA-269",
     "SQA-270",
     "SQA-216",
@@ -5146,45 +5319,48 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "SQA reviewer in a chat that previously implemented Overgo changes; this is not an independent third-party review.",
   "review_notes": [
-      "Native migration completed in09fc2300f: all eight currently viewable text directories pass the retained conversion-retirement check. Qwen0.5B and MiniCPM5 activate current profiles; Qwen's training GGUF remains required. Carbon's byte-identical view now wins over its duplicate GGUF locations. This avoids disk conversion for supported directory views; it does not establish arbitrary new architecture support or authorize duplicate-file deletion by SQA.",
-      "Retained served-directory probes: Qwen4096/16384 first output75.9/466.1ms versus229/2178ms; MiniCPM117.7/901.5ms versus219/1684ms. These are isolated implementation measurements. The report no longer labels all speed gains as pending activation. Carbon and OCR later re-onboarding results are recorded inb8eedd9da (Carbon651->99ms at4096; OCR1115->928ms at16384), not a new whole-catalog cycle.",
-      "b8eedd9da removed the proposed custom reprofile mode after existing validate -onboard proved sufficient. Gemma revalidation5/5 and faster prompts do not replace its accepted30text/audio/image/video cells bound to the earlier definition and projection recipe. Hold/re-admission remains planned; do not claim it implemented at this pin.",
-      "Sequencing recommendation: reconcile activate's five-model verifier/rationale with gemma4-hold and e4b-tensor-cores before executing it; the committed activate wording still includes held Gemma. Use existing plan.DependsOn/dispatch where acceptance truly requires the E4B campaign, or explicitly scope the earlier activation check to the admitted models. Preserve the30-cell requirement. No new scheduler or broad rerun. Worktree edits may already be addressing this; they are excluded.",
-      "fe475df7e corrects the observed256/258 catalog refusal across longform/evaluate/smoke. CatalogBound10000 is an administrative listing cap, not an ABI, memory or statistical bound; truncation still refuses rather than samples. LocalServable/model-config already use math.MaxInt for whole-catalog consumers. No current10000-limit failure established, so do not add a speculative capacity mechanism or a recurring census.",
-      "New274 removes only the unreachable second directory-success branch after the new preferred-directory pass. Keep holds/identifyLocation as the common validation owner and keep missing-location diagnostics. Entire affected production/test comparison3445->3430(-15nodes), no test or fixture deletion and no measured timing/memory claim.",
-      "Rechecked272 snapshot/head race,218 GUI reconnect inventory gap and271 record-versus-continuation gap in current source; unchanged. Retain separate DB profile/dataset authority tests and actual browser lifecycle behavior. Existing273 native failure cleanup and236 statistical consolidation are unchanged by the intervening commits.",
-      "The retained measurement_run still ends2026-10-31T11:00:43.0520986-04:00 with9rows filed. Neither that timestamp nor hook rendering proves delivered wakeup. loop.Run owns supervised continuation, stops, budgets and replay; -improve remains one-shot. No new completion-delivery incident is claimed.",
-      "Prior source impact checked against all listed finding paths: only268's production paths changed (catalog-bound wiring), with other affected references limited to plan metadata. That cap repair does not repair Flash-Next's separate warm/allocation failure. Existing rankings retain durability/numerical/recovery priority; low-impact274 is below those concerns. Implementation-owned fields are preserved raw-exact."
+      "Flash-Next improved: f0d63464 closes the16K latency row with retained5.46s against5.5639s; earlier6.15s. Draft batching and one-f16 expert inputs were measured and scoped separately before implementation. This is useful sequencing progress. Current plan has17 items; Flash row is gone and e4b-tensor-cores/do is next master numerical-acceptance work after blocked image rows.",
+      "Do not hide costs: draft batching adds1554 production+1719 test AST and roughly36MB retained device memory. Expert-input simplification removes10 CUDA lines and the low-part product loop but widens host-reference discrepancy; existing direct/host equality, format branches and model-quality evidence remain relevant.",
+      "New sample extends232 rather than adding another issue: the K/V test's norm==0 || sqrt(difference/norm)>0.03 can accept NaN. Use !(norm>0 && ratio<=bound) in the same owner, keeping its full boundary/tail/layout coverage; parsed+2 nodes.",
+      "Carried275 host-opening regression remains unchanged in current committed source. Carried276 whole-file profile-test merger still saves164 test nodes and one store/memo setup. Carried277 E4B acceptance still names historical inference while projection is current; text quality evidence is not the30-cell modality proof.",
+      "268 updated to distinguish historical48-byte/available0 allocation failure from the latest commit's retained rung1024/9-of-10 fit stop. Actual guard producer still warms, measures short, then predicts next-rung memory; catalog readiness is not proof of this path. Correct its own admission with existing owners before another full cycle; no all-model largest-shape preflight.",
+      "Rotated DB/GUI review: copyVerified already serves verification and packing; blobReader bounds and closes exhausted reads. Existing254 Windows rename durability and272 reachability/head race remain. Runtime snapshots restore sessions/activity/operations/downloads, not workspace invalidation;218 remains distinct. Existing252 probe reuse still owns a complete127-node test reduction.",
+      "Rotated automation review: measurePhases re-runs checks, credits valid cells/publication by exact inputs, stops after failed lanes and files gaps immediately after successful publication. Keep these deterministic owners. Retained measurement_run still does not prove external wake delivery;271/258 remain scoped to actual continuation/process lifetime.",
+      "Prior report and current implementation-owned fields reconciled after provisional conclusions. Neither owner response object nor implementation-owned finding values are edited. No SQA implementation, new workloads or worker messages."
     ],
-  "reviewed_at": "2026-10-31T23:43:05Z",
-  "reviewed_master": "b8eedd9da289a548232896f336738eb4fd9c1770",
+  "reviewed_at": "2026-11-01T03:43:34Z",
+  "reviewed_master": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
   "schema_version": 1,
   "scope": [
-      "Fresh bounded review of committed master b8eedd9da289a548232896f336738eb4fd9c1770; repository instructions and committed plan identity read first. Provisional source conclusions were recorded before reading prior findings. Internal SQA overlaps this chat's earlier implementation; not independent third-party review.",
-      "Rotated sample: native-directory discovery and identity/caller lifetime; cache paging and serialized shape bounds; query projection and blob-retention authority; GUI stream reconnection/inventory refresh; loop start, prerequisites, partial failure, publication and continuation. Excluded uncommitted accepted-modality tests, plan/coverage edits and dense-activation test.",
-      "Actual Go AST: 16 committed files, 13931 nodes = 7273 production + 6658 test; 77 functions and 2963 parser-local identifier bindings. Initial14: servable2222,directory_image_test393,catalog_bound_model_test114,selection_test760,viewed_text_models_model_test261,cache_paging114,cache_state3635,device_cache_paging_test2012,profile_catalog_retention_test175,dataset_catalog_retention_test385,stream_events66,webui_browser_stream_lifecycle_test808,loop/driver1236,loop/driver_test920. Additional caller tests directory_model428 and moved_model402.",
-      "In-memory parsed deletion comparison: servable.go2222->2207, test surface unchanged. Unmodified directorySignature/directoryInfo declarations typechecked with real standard-library imports:69uses/26definitions, no stubs. Package-wide runtime/discovery types and JavaScript were traced manually; no full census or application build.",
-      "No new tests, gate, model workload, benchmark, profile, service, worker messaging or automation mutation. Retained commit/gate/run records are implementation evidence, not measurements made by SQA."
+      "Fresh bounded review of pinned committed master f0d63464a3b19befb29b275fbaa3e96d564736ff. Repository instructions and committed plan identity read first; provisional conclusions recorded before prior findings. This chat previously implemented changes: internal overlapping SQA, not independent third-party review.",
+      "Rotated scope: batched draft K/V and grouped expert inputs, two prefill callers and resource release; loose/packed blob reading/publication and retention authority; runtime/download/browser streaming; cycle prerequisite ordering, partial results and resume. Previous blocked publication275–277 rechecked: their source paths are unchanged from043079e.",
+      "Actual fresh Go AST:10 committed files,21267 nodes=7237 production+14030 test;80 functions,4462 parser-local bindings. strata_drafter_prompt_kv1663; executor_windows_strata_drafter_prompt_kv_test1687; executor_windows_moe_pinned_test9103; blobs1184; blob_commit_test692; one_event_stream_test601; runtime_activity1259; webui_browser_serving_stream_test489; improve_resume_test1458; improve3131.",
+      "Unmodified blobReader type/Read/Close checked with go/types and real standard imports:58 uses/13 definitions, no stubs. Current-pin parsed K/V predicate1687->1689(+2). Repeated carried comparisons confirm profile tests471->307, draft guard702->711, E4B587 versus prior active-binding555; original judgeDrafts34 typed uses/14 definitions. No candidates executed or placed in repository.",
+      "AST counts include comments; full-package/CUDA/C++/JavaScript typing not performed. Kernel/layout and additional callers traced by bounded source reads. No tests, gate, model workload, profile, benchmark, service, worker message or automation change."
     ],
   "sqa_response": {
-      "reviewed_master": "b8eedd9da289a548232896f336738eb4fd9c1770",
-      "assessment": "63open,3deferred,24resolved. Native migration and Qwen/MiniCPM served speed gains now established by retained implementation evidence; Gemma's new profile still needs modality acceptance. New274 removes an obsolete directory fallback success branch.",
-      "evidence": "16files13931AST=7273production+6658test,77functions,2963local bindings; directory signature declarations typechecked69uses.15production-node in-memory reduction. No workload run.",
+      "reviewed_master": "f0d63464a3b19befb29b275fbaa3e96d564736ff",
+      "assessment": "66 open,3 deferred,24 resolved. Flash16K target restored; caching/dense improvements credited. Publish carried275–277, extend232 to new K/V NaN acceptance and keep guard268 separate.",
+      "evidence": "Fresh10 files/21267 AST (7237 production,14030 test),80 functions/4462 local bindings; original blobReader58 typed uses/13 definitions. Positive K/V acceptance+2 test nodes. Current-pin carried profile merger-164 test nodes, E4B owner-32, host guard+9 plus needed coverage.",
       "new_findings": [
-        "SQA-274"
+        "SQA-275",
+        "SQA-276",
+        "SQA-277"
       ],
       "resolved_findings": [],
-      "partially_addressed_findings": [],
+      "partially_addressed_findings": [
+        "SQA-257"
+      ],
       "plan_adopted_findings": [],
       "reopened_findings": [],
       "implementation_response_context": {
         "reviewed_at": "2026-10-15T18:25:52.1302923Z",
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
-        "status": "Both owner objects and every implementation-owned finding field preserved raw-exact; newer native migration/rescope commit evidence assessed separately."
+        "status": "Both owner objects and every implementation-owned finding field preserved raw-exact; new committed evidence assessed separately."
       },
-      "recommendation": "Keep the successful native migration. Finish activation with Gemma's30modality cells and projection binding as genuine prerequisites, reusing onboard and plan dispatch. Retain263 resume and271 supervised-completion recommendations; remove only the redundant branch identified by274.",
-      "next_action": "Implementation owner adopts changes through normal affected verification; SQA report-only publication.",
-      "uncertainty": "No new whole-catalog cycle, external wake delivery or memory savings established. Gemma work in the live tree is not counted as landed."
+      "recommendation": "Repair275 host eligibility,277 current-definition acceptance and232 ordered numerical rejection; reuse276/252 existing test owners. Credit restored Flash latency while keeping268 guard and memory trade actionable.",
+      "next_action": "Implementation owner adopts recommendations through normal affected verification; this publication is report-only SQA.",
+      "uncertainty": "No new workloads; retained Flash results are scoped implementation measurements. No current numerical fault or external wake delivery established. Previous publication blocked by worker lock; rechecked at current pin."
     }
 }

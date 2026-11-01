@@ -1924,7 +1924,7 @@
       },
       "likely_effort": "Delete three displaced blocks in one existing file; no new test or fixture.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "scorecard-unscored-image-gen/do"
       ],
       "plan_coverage": "Fits the current reduction owner. This replaces the unpublished19:40 candidate: the new complete check genuinely consumes the store for activation, so moving it solely into training is no longer correct. No prior published finding or implementation-owned field is withdrawn.",
       "closure_criteria": [
@@ -6240,6 +6240,17 @@
         "plan_steps": [
           "moss-training/heldout"
         ]
+      },
+      {
+        "comment": "Landed with scorecard-unscored-image-gen/do. Only the three parent t.Run blocks went; checkMOSSComplete still calls all three helpers, so every retained reading runs once.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestMOSSRetainedEvidence/complete"
+        ],
+        "finding_id": "SQA-282",
+        "plan_steps": [
+          "scorecard-unscored-image-gen/do"
+        ]
       }
     ],
     "experiments": {
@@ -6286,7 +6297,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "998bc66b220f74a1437128d6526baea66d6d7e55",
+    "head": "285db113c15dcb5103d964cb494056fe29462acd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6848,6 +6859,13 @@
           "moss-training/heldout"
         ],
         "note": "Landed. outsideGo counts the root fixtures directory with the same before and after bytes as nested testdata, and the existing rules test holds a two-byte root fixture. Awaits the reviewer's closure."
+      },
+      "SQA-282": {
+        "action": "implemented",
+        "rows": [
+          "scorecard-unscored-image-gen/do"
+        ],
+        "note": "Landed. The training, parity and resources subtests are gone and complete stays the single owner, with its helpers unchanged. Awaits the reviewer's closure."
       }
     }
   },

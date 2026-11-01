@@ -107,18 +107,6 @@ func TestMOSSRetainedEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	t.Run("training", func(t *testing.T) {
-		t.Parallel()
-		checkMOSSTraining(t, root, roots, store)
-	})
-	t.Run("parity", func(t *testing.T) {
-		t.Parallel()
-		checkMOSSParity(t, t.Context(), root, roots)
-	})
-	t.Run("resources", func(t *testing.T) {
-		t.Parallel()
-		checkMOSSResources(t, t.Context(), root)
-	})
 	t.Run("complete", func(t *testing.T) {
 		t.Parallel()
 		checkMOSSComplete(t, root, roots, store)

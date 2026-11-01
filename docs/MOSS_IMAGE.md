@@ -20,6 +20,8 @@ A control outside this list is refused, never ignored.
 
 **Pictures match upstream.** Four whole generations at 50 steps and guidance 3 were compared with the pinned upstream pipeline at the conditioning, every step and the final pixels: English, Chinese and layout prompts, square, landscape and portrait, a negative prompt and a second seed. All 1,664 compared boundaries pass. The worst difference in any compared value is 3.9e-6, and each case's repeat gave the same PNG. See [`moss-image-parity.json`](verification/moss-image-parity.json).
 
+**Quality.** On TIFA v1.0, 64 held-out captions drawn at 1024 square with the default request, a vision-language model answered 415 questions about the pictures: 0.911 ±0.014, judged by Qwen3.8-27B. This is the scorecard's held-out reading for image generation, and it measures whether a picture shows what its caption says. Since native pictures match upstream's, it is a reading of the upstream model as well.
+
 **Cost.** On one NVIDIA GeForce RTX 4090 D, on one protocol, with the OS file cache warm for both ([`moss-image-resources.json`](verification/moss-image-resources.json)):
 
 | Picture | Native | Upstream |

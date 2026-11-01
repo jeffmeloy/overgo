@@ -528,50 +528,38 @@ func (e *Executor) FirstDraftStrata(ctx context.Context, d *StrataDrafter, resid
 	return e.DraftStrata(ctx, d, []int32{token}, cell, 0, minP, StrataCommit{}, nil)
 }
 
-// PrefillStrataDrafter is prefill's E-4 path: the n prompt cells from cell0, rows the main model's final residual
-// streams of each (on the card) and next the token after each; the records uploaded at once, each group of up to max_t
-// rows its inputs copied on the card and its graph launched, the cells the window can never reach again skipped.
+// PrefillStrataDrafter is prefill's draft K/V: the n prompt cells from cell0, rows the main model's final residual
+// streams of each (on the card) and next the token after each, the cells the window can never reach again skipped. A
+// prompt read's many rows take the batched pass (prefillStrataDrafterBatched, E-9) where the drafter's weights allow
+// it, as Strata's prompt path takes it before its six-row pass; the rest take E-4: the records uploaded at once, each
+// group of up to max_t rows its inputs copied on the card and its graph launched. Six-row groups had taken a 16K
+// Flash-Next read about 150 ms a chunk of 8,192 rows, 1,366 graphs of small kernels each.
 func (e *Executor) PrefillStrataDrafter(ctx context.Context, d *StrataDrafter, rows driver.DevicePtr, next []int32, cell0 int64) error {
 	n := int64(len(next))
 	if n == 0 {
 		return nil
 	}
-	maxT := int64(d.spec.MaxTokens)
 	firstNeeded := int64(0)
 	if d.window > 0 && d.prompt > 0 {
 		firstNeeded = d.prompt - d.window - strataDrafterRingLead
 	}
-	nh := int64(strataDrafterHeads)
-	perRow := 1 + strataDrafterStepWords + nh
-	records := make([]int32, n*perRow)
-	tok, step, pos := records[:n], records[n:n+strataDrafterStepWords*n], records[n+strataDrafterStepWords*n:]
-	for i := range n {
-		cell := cell0 + i
-		tok[i] = next[i]
-		record := step[i*strataDrafterStepWords:]
-		record[0], record[1] = int32(cell), int32(cell+1)
-		record[strataRoundStepBlocks], record[strataRoundStepWidth] = int32((cell+1)/tensor.QSABlockCells), int32(cell+1)
-		for h := range nh {
-			pos[i*nh+h] = int32(cell)
-		}
+	if n >= strataDraftBatchMinimum && d.draftBatched() {
+		return e.prefillStrataDrafterBatch(ctx, d, rows, next, cell0, firstNeeded)
 	}
+	return e.prefillStrataDrafterGroups(ctx, d, rows, next, cell0, firstNeeded)
+}
+
+// prefillStrataDrafterGroups is the six-row pass (E-4) over the cells from firstNeeded on.
+func (e *Executor) prefillStrataDrafterGroups(ctx context.Context, d *StrataDrafter, rows driver.DevicePtr, next []int32, cell0,
+	firstNeeded int64) error {
+	n, maxT := int64(len(next)), int64(d.spec.MaxTokens)
+	nh := int64(strataDrafterHeads)
+	records := strataDrafterPrefillRecords(next, cell0, nh)
 	hcn := int64(strataGRStreams * strataGREmbedding)
 	return e.worker.Do(ctx, func(state *device.State) error {
 		resources, err := e.ensureResources(state, false, 0, 0, 0)
 		if err != nil {
 			return err
-		}
-		if d.prefillCapacity < n*perRow {
-			if d.prefillRecords != 0 {
-				if err := state.Driver.MemFree(d.prefillRecords); err != nil {
-					return err
-				}
-				d.prefillRecords, d.prefillCapacity = 0, 0
-			}
-			if d.prefillRecords, err = d.resources.allocate(state, uint64(n*perRow)*strataRoundWordBytes); err != nil {
-				return fmt.Errorf("mtp prefill: the input records do not fit: %w", err)
-			}
-			d.prefillCapacity = n * perRow
 		}
 		// The prompt's rows were written on the executor's stream.
 		if err := state.Driver.StreamWait(d.cs, state.Stream); err != nil {
@@ -580,8 +568,8 @@ func (e *Executor) PrefillStrataDrafter(ctx context.Context, d *StrataDrafter, r
 		// The records go up on the drafter's stream (pf_ring_.h2d on cs_), ahead of the copies that read them: a
 		// synchronous upload on the legacy stream returned before its bytes landed, and the non-blocking stream's copies
 		// read the buffer first, so every group wrote its cells at cell 0. The records stay alive until the stream's wait.
-		if err := state.Driver.MemcpyHtoDAsync(d.prefillRecords, int32Words(records), d.cs); err != nil {
-			return fmt.Errorf("mtp prefill: the input records upload failed: %w", err)
+		if err := d.prefillRecordsUpload(state, records, d.cs); err != nil {
+			return err
 		}
 		dTok := d.prefillRecords
 		dStep := dTok + driver.DevicePtr(n*strataRoundWordBytes)

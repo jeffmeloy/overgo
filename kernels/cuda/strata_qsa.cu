@@ -1675,6 +1675,10 @@ extern "C" __global__ void strata_prefill_kv_append_q8(
 // verify_kernels.cu, elementwise.cu), compiled with this module's flags as Strata compiles them.
 #include "strata_mtp.cuh"
 
+// Strata's prompt-path hyper-connection read, which its batched draft-layer pass runs (src/prefill/kernels.cu), compiled
+// with this module's flags.
+#include "strata_prompt_gr.cuh"
+
 // Strata's sampler chain for the round's sampled windows (sampler.cu), compiled with this module's flags as Strata compiles
 // it.
 #include "strata_sampler.cuh"

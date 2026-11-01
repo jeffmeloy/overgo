@@ -2120,7 +2120,7 @@
     },
     {
       "source": "kernels/cuda/strata_qsa.cu",
-      "sourceSha256": "04ea7e5ef8a9e15929466d3e6712a22f5f0191d2bba74e097d0dea284c24239a",
+      "sourceSha256": "deabfef843d8268631704576a3ec5bf8c87fba258593843d12e3d4837c519068",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/strata_fused_gr.cuh",
@@ -2148,7 +2148,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "62aa1957155389d18c4c9d4d86238fb4181d17ac1bdfceb0a271e4e04c4826a0",
+      "assetSha256": "b81bc4375d27a2d57ef213e65e1f0cc0b59a0562d801d3bbaa39ea56ccf91f6d",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2276,6 +2276,9 @@
         "strata_copy_row_to_first",
         "strata_row_top_prob_split",
         "strata_window_ids",
+        "strata_prompt_gr_norm_rs",
+        "strata_prompt_gr_silu",
+        "strata_prompt_gr_mix_r",
         "strata_sampler_split_part",
         "strata_sampler_split_merge"
       ],
@@ -2359,7 +2362,8 @@
             ".u64"
           ],
           "functions": [
-            "strata_block_scores"
+            "strata_block_scores",
+            "strata_prompt_gr_mix_r"
           ]
         },
         {
@@ -2798,7 +2802,8 @@
           ],
           "functions": [
             "strata_copy_from_mapped",
-            "strata_quantize_q8_1"
+            "strata_quantize_q8_1",
+            "strata_prompt_gr_silu"
           ]
         },
         {
@@ -3077,6 +3082,18 @@
           ],
           "functions": [
             "strata_window_ids"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".f32",
+            ".u64",
+            ".u64"
+          ],
+          "functions": [
+            "strata_prompt_gr_norm_rs"
           ]
         },
         {

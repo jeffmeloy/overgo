@@ -130,6 +130,7 @@ type StrataDrafter struct {
 	stepExec               [strataDrafterGraphs]driver.GraphExec
 	prefillRecords         driver.DevicePtr // pf_dev_
 	prefillCapacity        int64            // pf_cap_, in words
+	batch                  strataDraftBatch // the batched prompt pass's buffers (Prefill::draft_kv)
 	rounds                 int64
 }
 
@@ -420,7 +421,7 @@ func (d *StrataDrafter) release(state *device.State) error {
 			*stream = 0
 		}
 	}
-	for _, pointer := range []*driver.DevicePtr{&d.arena, &d.kvArena, &d.headLogits, &d.prefillRecords, &d.head, &d.vocabulary} {
+	for _, pointer := range []*driver.DevicePtr{&d.arena, &d.kvArena, &d.headLogits, &d.prefillRecords, &d.head, &d.vocabulary, &d.batch.arena} {
 		if *pointer != 0 {
 			errs = append(errs, state.Driver.MemFree(*pointer))
 			*pointer = 0

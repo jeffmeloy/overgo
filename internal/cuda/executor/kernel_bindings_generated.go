@@ -381,6 +381,9 @@ const (
 	kernelStrataCopyRowToFirst
 	kernelStrataRowTopProbSplit
 	kernelStrataWindowIds
+	kernelStrataPromptGrNormRs
+	kernelStrataPromptGrSilu
+	kernelStrataPromptGrMixR
 	kernelStrataSamplerSplitPart
 	kernelStrataSamplerSplitMerge
 	kernelStrataBf16F32MmvfB256
@@ -831,6 +834,9 @@ var kernelFunctionNames = [...]string{
 	"strata_copy_row_to_first",
 	"strata_row_top_prob_split",
 	"strata_window_ids",
+	"strata_prompt_gr_norm_rs",
+	"strata_prompt_gr_silu",
+	"strata_prompt_gr_mix_r",
 	"strata_sampler_split_part",
 	"strata_sampler_split_merge",
 	"strata_bf16_f32_mmvf_b256",
@@ -1280,6 +1286,9 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	4,
+	5,
+	3,
+	6,
 	8,
 	6,
 	4,
@@ -1612,6 +1621,9 @@ var kernelFunctionModules = [...]uint8{
 	0,
 	0,
 	0,
+	1,
+	1,
+	1,
 	1,
 	1,
 	1,

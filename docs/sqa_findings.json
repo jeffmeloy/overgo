@@ -1,15 +1,15 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "108 retained findings:69 open,3 deferred,36 resolved. Twelve closures; newSQA-279/280/281. Preserve all implementation-owned history exactly while the current assessment stays bounded.",
-      "priority": "Data durability/reachability and numerical correctness retain priority. Existing automation/store-root/commit-turn gaps remain meaningful development delays. P3 reductions should ride ordinary affected work, not initiate extra confidence campaigns.",
-      "declined_candidates": "No new cache/free-list/scheduler/notification framework/selector/literal registry/census or test suite. New training wrappers share actual VAE/conditioning ownership; no blanket deletion of native model, sharded publication or pixel-range tests."
+      "assessment": "109 retained findings:67open,3deferred,39resolved. Close279/280/281; partially address271; new282. Keep implementation-owned history exact while this current assessment stays bounded.",
+      "priority": "Unchanged durability/reachability and numerical correctness lead. Store-root is repaired; remaining startup/configuration/ownership/continuation and commit-queue work still matters. Batch89-node MOSS and already established query/stream reductions with affected work. Provenance wording is secondary.",
+      "declined_candidates": "No new scheduler, notification framework, selector, blanket flag/literal census or test suite. The prior move-store-into-training candidate is obsolete because complete now consumes the store too. No broader safe reduction established in rotated DB/transfer/scorecard samples."
     },
   "committed_plan": {
-    "git_blob": "05bf282238391be4e780c67269775ca3bddee5f0",
+    "git_blob": "efaf0dec7806fab6b0d2945d20cb4e844752c604",
     "path": "docs/plan.json",
-    "revision": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
-    "sha256": "ae282d2408933f530a364632187fe9790feb40586e9fef62da30188a11698342",
+    "revision": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+    "sha256": "059fdc7d33544a8314757a7ce11271299ee987817d672c3f283c0bd9c5329b26",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -778,7 +778,7 @@
       "category": "automation-continuation",
       "classification": "source-established-handoff-boundary-with-unverified-external-delivery",
       "title": "Give unattended measurement completion an actual continuation owner",
-      "evidence_commit": "b985335411244bd4682c810b833b9b786eb0e46a",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
       "sources": [
         {
           "path": "cmd/loop/main.go",
@@ -825,22 +825,21 @@
           "symbol": "retained 6f9237525 run: ended 2026-10-31T11:00:43.0520986-04:00; filed 9"
         }
       ],
-      "evidence": "The two real entry paths have different contracts: run(improveOnce) calls Improve, prints the proposed count and returns; configured run constructs execWorld and calls loop.Run. runRecorder.end writes Ended, and measurementRun/Report format a record only when a prompt/stop/doctrine hook is invoked. Neither the writer nor those readers initiate an idle session. The existing supervised Run re-reads work after a successful cycle and honors stops/budgets; a cycle error returns after preserving partial evidence. TestARunRecordsItsEnd proves recording, TestTheHooksPrintTheRunsEnd proves rendering when explicitly invoked, and the driver tests prove continuation inside a live driver. These are distinct contracts. Unsupported assumption: a completion timestamp or hook text proves an idle lead was notified and continued. Admitted counterexample: a one-shot run finishes with no live supervisor and no later hook invocation; its record changes but this code initiates no next action. The retained Oct31 run ended at11:00:43 Eastern and filed9 rows, but that file contains no delivery/acknowledgment or next-dispatch evidence. Source comment records a prior detached run unnoticed for five hours; the user's separate approximately ten-hour claim and any current external wakeup failure are not independently established here. Fresh pinned trace: cmd/loop/main.go opens relative gitauthority.CanonicalOvergoDBDirectory for strategy lookup instead of its resolved store; the configured driver invokes loop.Run once and returns its outcome. Run still returns ReasonWorkWaiting on ErrWorkWaiting. TestDispatchContentionPreservesWork asserts zero calls/no parked rows, not later resumption. The local .overgo-runtime/loop.json was absent when inspected; that supports the plan's setup concern but does not establish any external wakeup status.",
-      "recommended_change": "Use existing plan sequencing: repair store-history/store-root before unattended-driver/first-start (already declared dependency), establish the real supervised entry/configuration and then decide ownership-wait behavior at loop.Run. Preserve -improve as a deliberate single cycle. Reconcile sqa-cycle/run-continuation with these same owners so it does not build a second launcher/scheduler or repeat setup. A wait must honor existing stop/budget/authority and actual ownership release; current terminal WorkWaiting is not continuation. Inspect retained launch/completion/next-dispatch evidence before claiming unattended success. Existing landing.inLaneTurn already permits independent host preparation while the device waits; preserve that separation and exact-input evidence/caching.",
-      "displaced_surface": "Reuse rather than replace both legitimate entry modes. Selected ten-file baseline12147AST=8865production+3282test; no implementation candidate and no net AST reduction established. Choosing the existing supervised entry needs0new production/test/fixture surface and can remove a manual handoff; exact removed launcher/rule surface awaits evidence of the real launch. Any required wiring or native-fixture extension must be counted as growth. Keep run-record702 and hook-render602 test AST: phase failures, partial results, interrupted process, times and rendering are not duplicate continuation coverage. Keep driver920 and existing triggeredWorld/continuation fixtures. No new model setup or gate suite. Fresh bounded driver sample is driver.go 1236 + dispatch_wait_test.go 104 AST; no implementation or replacement AST measured. Store path/initialization and ownership waiting require actual wiring and honest test growth; zero-code launcher reuse is no longer assumed sufficient on this installation. The existing host/lane overlap test is retained at344 AST.",
+      "evidence": "31fd13011 fixes the concrete startup-store defect: run passes its resolved store to resolveConfiguredStrategy, which reads both strategy and prompt from cmp.Or(loaded.Repository,resolved) using one read-only open. The former relative canonical-store prompt open is gone. TestLoopConfigResolvesStrategyAuthority retains exact authority/explicit repository precedence; TestTheDriverOpensTheStoreItResolved covers fallback from a directory without a store. This addresses a prerequisite, not continuation. Config/init remains separate; Run still returns ReasonWorkWaiting on ErrWorkWaiting, and the configured command returns its outcome. The deliberate one-shot -improve still ends after Improve. runRecorder.end records an end and hooks print it only when invoked; neither proves an idle lead was notified. Earlier retained end/9filed rows and observed delay keep their original provenance. No new delivered-wakeup/next-dispatch evidence was obtained.",
+      "recommended_change": "Credit the completed store-root prerequisite. Continue through existing unattended-driver/first-start and ownership-wait, reconciling sqa-cycle/run-continuation at the same owners rather than building another launcher. Preserve explicit stops, strategy authority, budgets, exact completed evidence, failure/partial publication and deliberate one-shot -improve. Use actual retained launch/end/next-dispatch evidence before declaring unattended reliability. The separate store-history/explicit-create row owns refusing accidental writable creation; do not repeat store-root repairs.",
+      "displaced_surface": "Startup now consolidates two read-only store opens into one configured-or-resolved strategy/prompt read. Actual cmd/loop/main.go2478->2449(-29productionAST), strategy_config_test314->487(+173testAST); pair2792->2936(+144). Shared dataroot.go1117->1152(+35) and new store_flags_test448 are separate costs across real CLI consumers; entire store-root gate records+471production/+621test. Correctness/setup improvement, not a net code reduction. The existing strategyStore fixture is reused by two tests (two store setups), and the read-only close error formerly returned by strategy resolution is now ignored through defer. Continuation itself remains unimplemented/unpriced; preserve existing record, partial-evidence, dispatch-wait and stop/budget tests, with no new scheduler or recurring workload.",
       "impact": "A recorded end can coexist with an unattended stall. The repair concerns ownership of authorized continuation, not numerical inference or data mutation. Preserve explicit stops, execution identity, strategy authority, exact completed evidence and unrelated workers; never use a wakeup to broaden authorization.",
       "expected_benefit": {
-        "outcome": "Replace an unowned conversational handoff with an existing deterministic continuation owner, or establish the exact external boundary that failed.",
-        "uncertainty": "The code boundary is established; current launcher ownership and external wakeup delivery are not. No new measured delay, saved-hours claim or proof of a current failed wakeup."
+        "outcome": "Startup now reads the correct strategy and prompt once; remaining continuation work must eliminate unowned handoffs through existing supervision.",
+        "uncertainty": "Retained gate/source establishes the store repair. No current external wakeup delivery, saved-hours figure or completed unattended dispatch is established."
       },
-      "likely_effort": "First resolve the existing launch/completion evidence; zero production code if the existing driver is suitable. Any demonstrated boundary repair remains unpriced.",
+      "likely_effort": "Store prerequisite implemented; remaining configured start and ownership/continuation wiring use current plan owners and remain unpriced.",
       "plan_references": [
         "sqa-cycle/run-continuation",
-        "store-history/store-root",
         "unattended-driver/first-start",
         "unattended-driver/ownership-wait"
       ],
-      "plan_coverage": "The committed plan now explicitly adopts continuation, store-root repair, driver initialization and ownership wait. first-start already depends on store-history/store-root; honor that existing dependency. These rows remain open. No launcher/configuration changes or worker dispatch were made by SQA.",
+      "plan_coverage": "store-history/store-root landed31fd13011 and is pruned, satisfying the historical first-start prerequisite. First-start, ownership-wait and run-continuation remain open. store-history/explicit-create now separately owns implicit writable creation. SQA did not start/configure a driver.",
       "closure_criteria": [
         "Identify the actual run launcher and continuation owner from retained evidence; distinguish completed record, completion delivery and next dispatch.",
         "An eligible successful cycle proceeds through the existing owner without another user prompt; failure, interruption, pause and budget outcomes remain truthful and do not trigger duplicate cycles.",
@@ -1348,146 +1347,68 @@
       "comparison": "Smallest deciding implementation comparison: in the existing test, check that one deliberately perturbed finite attention value is refused and that the controlled fixture has its required selection separation; then use ordinary affected package validation. This is a local self-check in the existing owner, not a new permanent policy suite or SQA workload. No change to timing thresholds."
     },
     {
-      "id": "SQA-279",
+      "id": "SQA-221",
       "status": "open",
       "severity": "P3",
-      "category": "test-acceptance-vacuity",
-      "classification": "source-confirmed-assertion-gap",
-      "title": "Require the peak-presence publication test to observe its attempt",
-      "evidence_commit": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
+      "category": "measurement-provenance",
+      "classification": "confirmed-source-contract-mismatch",
+      "title": "Do not describe a scorecard's representative sample as an exact joint timing and memory measurement",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
       "sources": [
         {
-          "path": "internal/server/generation_serving_observation_test.go",
-          "symbol": "TestAbsentPeakPublishesNoSample final loop; storedServingObservations; TestGenerationRunPublishesServingObservation outcome counts; TestGenerationAttemptCitesTheRunItsExecutorMade.attempt count"
+          "path": "cmd/validate/media_selection.go",
+          "symbol": "measuredSampleSelection:90-113; loadMediaSampleSelection; mediaSampleSelection.includes"
         },
         {
-          "path": "internal/server/generation_store_workspace.go",
-          "symbol": "ExecuteWorkflow -> observe"
+          "path": "cmd/validate/media.go",
+          "symbol": "mediaReportScope.MeasuredAttempts comment:28-31; resolveMediaReportScope"
         },
         {
-          "path": "internal/capabilityruntime/measured_test.go",
-          "symbol": "TestPeakIsMeasuredOnlyWhereTheMeterAnswers"
+          "path": "cmd/validate/samples.go",
+          "symbol": "exportMediaSamples; visitRecipeSamples; exportRecipeSamples; sampleRef"
+        },
+        {
+          "path": "internal/scorecard/scorecard.go",
+          "symbol": "servingSummary.timed:544-567; firstOutputCell:762; peakMemoryCell:1104"
+        },
+        {
+          "path": "internal/scorecard/scorecard_test.go",
+          "symbol": "TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts:121-268"
+        },
+        {
+          "path": "README.md",
+          "symbol": "Sample outputs introduction and time/peak claims"
+        },
+        {
+          "path": "cmd/validate/image_video_report_contract_test.go",
+          "symbol": "TestImageVideoReportContract measured-scope admission:135"
+        },
+        {
+          "path": "docs/verification/moss-image-resources.json",
+          "symbol": "native.requests first(seed42,101.4561856s),new-seed(seed7,95.119052s)"
+        },
+        {
+          "path": "docs/verification/moss-image-parity.json",
+          "symbol": "full-english seed42 -> output cfab6e10..."
         }
       ],
-      "evidence": "The new absent/zero publication test performs one workflow per fresh store, then checks Hardware only in a loop guarded by observation.Model==modelID. Empty observations or observations only for another model pass both cases without asserting publication. This is a source-established faulty-output counterexample, not an observed lost write. Two existing tests in the same file already require outcome/additional-observation counts, so the positive acceptance pattern and result reader exist.",
-      "recommended_change": "Replace the final loop/model filter with one storedServingObservations result and require exactly one observation for modelID with Hardware length equal to test.samples. Short-circuit the length check before indexing. Keep both cases and use the existing reader; no helper, fixture, test suite or model run.",
-      "displaced_surface": "Delete permissive for-range and conditional model filter. Retain two stores, activatedImageModel, tinyPNG, workspace execution and cleanup; no cases move. Fresh source-only whole-file comparison1938->1943(+5AST), production1922 unchanged: pair3860->3865. Envelope table215 unchanged. No helper, fixture, setup, build-tag or gate growth; this is acceptance growth, not reduction.",
-      "impact": "Dropping or misattributing the new absence/zero observation can falsely pass this regression. No present production loss, wrong meter implementation or confidentiality defect established.",
+      "evidence": "The original median/source mismatch remains: measuredSampleSelection uses FirstOutput.Source's observation/run, while a two-attempt midpoint need not equal that source's elapsed time and peak memory may use another attempt. mediaReportScope and README still call it an exact joint sample measurement. Fresh pinned counterexample: README's MOSS caption identifies the retained full-english image cfab6e10..., seed42/1024square, but labels it95s and calls sample timing a first request after fresh load. moss-image-resources.json records that matching prompt/seed/shape as first101.4561856s;95.119052s is new-seed7 on the resident generator. The parity record binds cfab6e10... to seed42. This contradicts the retained resource-protocol attribution, not proof that no other95s run exists. The live serving observation for the exported asset was not read. Separately,07e1f701e explicitly records scorecard10.2s from16square activation; that is not the default1024 request.",
+      "recommended_change": "Keep existing representative-source selection and export. Remove exact-joint-scorecard/sample wording. Bind any sample-specific time/peak to that same retained observation/run and request; if that identity is unavailable, label the image as an example and cite the separate protocol explicitly (101.5s first seed42,95.1s resident new-seed7). Do not transfer95s to seed42/fresh-load by matching only the prompt. Keep16-square activation scorecard evidence distinct from1024-square default and its open quality row. No median/source arithmetic, exporter API, new metadata schema, fixture or measurement framework.",
+      "impact": "Prevents a representative output from being used as proof of a timing/memory pair that may belong to multiple attempts. This affects interpretation of performance evidence, not generated bytes, execution correctness or retained data.",
+      "displaced_surface": "Displace the exact-joint-measurement claim in measuredSampleSelection/mediaReportScope comments and the README's sample introduction. Retain scorecard.Build, FirstOutput.Source selection, observation.Run lookup, healthy activation filtering, content-addressed bytes, failed/cancelled-run filtering, decoding and hash checks. No production executable code, API, option, fixture, error/cancellation path, platform tag or resource-lifetime change; no data-loss/confidentiality change.",
       "expected_benefit": {
-        "outcome": "The existing test fails for missing/wrong-model observations while retaining absent versus measured-zero coverage.",
-        "uncertainty": "Unexecuted candidate parsed only, not package-typechecked. No runtime failure or elapsed/memory saving claimed."
+        "outcome": "Production executable AST and tests unchanged; two affected parsed exporter files remain598+1412=2010 nodes apart from comment wording. No added helper/wrapper, fixture bytes, setup, gate or model execution. No speed or memory saving claimed; this secondary evidence correction does not displace larger reductions.",
+        "uncertainty": "Admitted two/three-attempt counterexamples follow the retained arithmetic contract. Actual published sample/observation equality remains unverified. A source may also be a benchmark fallback; no current media-row failure from that path was established, so this finding does not prescribe a speculative guard."
       },
-      "likely_effort": "One assertion replacement in the existing test.",
-      "plan_references": [
-        "moss-training/heldout"
-      ],
-      "plan_coverage": "Advisory follow-up to completed measured-presence; no dedicated current row. SQA does not change plan.",
+      "likely_effort": "Small evidence/comment correction using existing retained observation identities.",
+      "plan_references": [],
+      "plan_coverage": "The former scorecard-unmeasured-image-gen/do owner landed07e1f701e without correcting this finding; its commit explicitly distinguishes16-square scorecard from default images. Current scorecard-unscored-image-gen/do owns remaining model evaluation, not an inferred adoption of this prose correction. Keep the finding open; no new row or run requested.",
       "closure_criteria": [
-        "Both cases require one correctly attributed observation before sample-count acceptance.",
-        "Missing or wrong-model observation cannot pass; ordinary absence and explicit zero remain distinct.",
-        "Keep the bounded+5-node correction without fixture/helper/setup/suite growth."
+        "Sample documentation distinguishes the representative run from aggregate timing/newest-attempt memory, or cites that run's own retained elapsed/peak values.",
+        "The two-attempt150-versus100 counterexample cannot be described as an exact sample timing. Preserve the existing scorecard median/source and memory tests.",
+        "No extra measurement, framework, metadata schema or export mode is added merely to correct prose."
       ],
-      "comparison": "During normal implementation, use the existing native TestAbsentPeakPublishesNoSample. A temporary empty or wrong-model observation must fail before restoring it; no permanent mutation framework or SQA execution. Nonzero/timing/run-attribution tests retain their independent owners."
-    },
-    {
-      "id": "SQA-280",
-      "status": "open",
-      "severity": "P3",
-      "category": "test-setup-reduction",
-      "classification": "source-confirmed-net-surface-reduction",
-      "title": "Remove the unrelated store from the source inventory cancellation test",
-      "evidence_commit": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
-      "sources": [
-        {
-          "path": "internal/mediacapability/moss_session_windows_test.go",
-          "symbol": "TestMOSSSourceInventoryCancels; answeredContext.Err"
-        },
-        {
-          "path": "internal/mediacapability/capabilities.go",
-          "symbol": "Capability.Resolve"
-        },
-        {
-          "path": "internal/mediacapability/image_source.go",
-          "symbol": "resolveImageSource"
-        },
-        {
-          "path": "internal/mediacapability/prepare.go",
-          "symbol": "Prepare"
-        },
-        {
-          "path": "internal/libraryintake/reuse_test.go",
-          "symbol": "TestDeterministicImportAcrossFamilies"
-        },
-        {
-          "path": "internal/libraryintake/import_test.go",
-          "symbol": "TestComponentImportInspectionRoutes"
-        },
-        {
-          "path": "internal/modelartifact/inventory_context_test.go",
-          "symbol": "TestPipelineInventoryCancellationDuringHashing"
-        }
-      ],
-      "evidence": "TestMOSSSourceInventoryCancels opens a new store, calls only capability.Resolve(stopped, root), then asserts that unrelated store's head is zero. Resolve accepts no store and returns inventory; publication is in Prepare after successful resolution. The head assertion cannot detect publication loss or accidental publication by a changed integration caller. Real Register cancellation/no-publication and retry identity are already retained by TestDeterministicImportAcrossFamilies (including MOSS) and TestComponentImportInspectionRoutes; the lower-level inventory test rejects a publishable partial manifest. The catalog-specific context forwarding and after-cancel retry are distinct and must remain.",
-      "recommended_change": "Remove the store Open/error/defer and store.Head assertion from TestMOSSSourceInventoryCancels, and describe it as hashing cancellation/retry rather than publication proof. Keep the same compact source, third-check cancellation, no-further-check assertion and successful source retry. Retain actual store publication protection in existing Register/validation tests. No new helper, fixture or integration test.",
-      "displaced_surface": "Source-only parsed function181->135AST and file1353->1307(-46); four statements disappear. image_source809 and Prepare360 unchanged; existing reuse_test1158 and inventory_context_test384 unchanged: compared production/test4064->4018(-46). No import removal since the earlier resident-session test still uses overgodb. Removes one temp directory/store open/head read/close; same source extraction and two resolver calls. No unique case moves, no helper/wrapper/migration/schema/config/build-tag/gate addition.",
-      "impact": "Less disk/setup and misleading assertion surface. Product behavior, cancellation forwarding, publication authority, resource cleanup of real stores and confidentiality remain unchanged. This is not evidence that source hashing currently publishes.",
-      "expected_benefit": {
-        "outcome": "46 fewer test AST nodes and one unnecessary store lifecycle per execution.",
-        "uncertainty": "Static deletion candidate parsed only; no wall-time/memory effect measured. Whole-test deletion is not justified."
-      },
-      "likely_effort": "Four-statement deletion in existing test; no new behavior requiring another test.",
-      "plan_references": [
-        "moss-training/heldout"
-      ],
-      "plan_coverage": "Advisory reduction; no new row or suite requested. Batch when this existing test is next changed.",
-      "closure_criteria": [
-        "Inventory test retains the actual catalog cancellation and retry requirements without unrelated store setup.",
-        "Real Register/validation no-publication/activation checks remain in their existing owners.",
-        "Full affected test surface is net smaller; no replacement setup/helper/framework."
-      ],
-      "comparison": "Complete source-only comparison establishes -46AST. During normal affected validation retain TestMOSSSourceInventoryCancels and existing Register tests under their present build contexts; no extra SQA execution."
-    },
-    {
-      "id": "SQA-281",
-      "status": "open",
-      "severity": "P3",
-      "category": "automation-cost-accounting",
-      "classification": "source-confirmed-fixture-cost-omission",
-      "title": "Include root fixtures in the landing's existing cost report",
-      "evidence_commit": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
-      "sources": [
-        {
-          "path": "internal/landing/rules.go",
-          "symbol": "landing.rules -> outsideGo"
-        },
-        {
-          "path": "internal/landing/rules_test.go",
-          "symbol": "TestLandingSaysWhatAChangeAddsOfEachKind"
-        },
-        {
-          "path": "fixtures/moss",
-          "symbol": "adapter-gradients.safetensors; encoder-compact.safetensors; encoder-model.safetensors; training-pictures/green.png,red.png,pictures.tsv"
-        }
-      ],
-      "evidence": "outsideGo filters nonkernel entries exclusively by '/testdata/'. Actual commit ef49817ab adds six root fixtures totaling1,069,979bytes (951460+19184+98872+192+191+80), yet its retained landing footer says fixtures+0files/+0bytes. These are named encoder/gradient goldens and training-picture inputs, not generated kernel output. Existing rules test covers only nested testdata and cannot expose the repository-root fixture omission. This is a source-established reporting defect with retained contradictory output, not a measured speed regression.",
-      "recommended_change": "Extend the existing outsideGo path admission to the repository's root fixtures/ alongside existing nested testdata, reusing its current before/after byte counting and original-path handling. Extend TestLandingSaysWhatAChangeAddsOfEachKind with one two-byte root fixture and its expected total. No new scanner, recurring census, config, policy suite or budget ratchet.",
-      "displaced_surface": "Replace the incomplete fixture-path predicate, retaining one counting owner and one test body. Parsed minimal candidate rules.go2289->2299(+10productionAST), rules_test1316->1323(+7testAST), combined3605->3622(+17). One added2-byte transient fixture.write within the existing temporary repository; zero tracked fixture files, extra repository setups, helper/wrapper or gate additions. Correctness growth, no net reduction.",
-      "impact": "Understates full fixture/maintenance cost and makes a code-growth review look smaller than its commit. Existing production budget enforcement and numerical acceptance need not change. Preserve generated-kernel exclusion, rename/delete accounting, binary byte lengths and all platform behavior.",
-      "expected_benefit": {
-        "outcome": "The existing landing summary accounts for root fixtures it already commits.",
-        "uncertainty": "Source-only candidate parsed, not typechecked/executed. Counts describe the minimal existing-test extension, not a universal fixture discovery system; no elapsed or memory saving."
-      },
-      "likely_effort": "One predicate and one case in the existing rules fixture.",
-      "plan_references": [
-        "moss-training/heldout"
-      ],
-      "plan_coverage": "No new plan step requested; existing landing cost owner is the complete local fix.",
-      "closure_criteria": [
-        "An added root fixture contributes its file count and exact bytes through outsideGo.",
-        "Nested testdata, kernel/generated exclusions and existing before/after accounting remain intact.",
-        "No duplicate census/suite/selector; full proposed surface cost is reported honestly."
-      ],
-      "comparison": "Extend existing TestLandingSaysWhatAChangeAddsOfEachKind: with its current testdata delta+6bytes and one2-byte root file, require fixtures+1file/+8bytes. Retained ef49817ab tree is the counterexample; no new gate or model run for SQA."
+      "comparison": "Smallest deciding comparison: read the existing image's source observation/run and request against its own elapsed/peak; absent that, use the committed resource/parity records above and label their different requests/lifetimes. No new measurement or test. The retained two-attempt scorecard case still proves the general aggregate/source mismatch."
     },
     {
       "id": "SQA-276",
@@ -1966,6 +1887,52 @@
         "Whole affected production/test surface stays below7483 nodes after all migration cost, with no extra fixture/setup/test selection. Retained candidate is7273; no extra validation run solely for SQA."
       ],
       "comparison": "Deciding source comparison is complete:3720+719+3044 ->3696+533+3044. During normal implementation validation use the existing TestProjectionQueryPlanEfficiency, preserving its named case errors and eight operations; no new test or confidence run. This expands stable SQA-253 rather than filing a duplicate."
+    },
+    {
+      "id": "SQA-282",
+      "status": "open",
+      "severity": "P3",
+      "category": "test-execution-consolidation",
+      "classification": "source-confirmed-net-surface-reduction",
+      "title": "Run retained MOSS evidence once through its complete owner",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "sources": [
+        {
+          "path": "internal/evaluation/moss_retained_model_test.go",
+          "symbol": "TestMOSSRetainedEvidence:98-126; checkMOSSComplete:434-478; checkMOSSTraining; checkMOSSParity; checkMOSSResources"
+        },
+        {
+          "path": "docs/MOSS_IMAGE.md",
+          "symbol": "TestMOSSRetainedEvidence whole-test reference"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "time-and-memory/moss-denoiser future throughput selector; completed training/parity/resources/closeout rows pruned"
+        },
+        {
+          "path": "internal/evaluation/reference_store_test.go",
+          "symbol": "retainedReferenceStore"
+        }
+      ],
+      "evidence": "c552ea24f adds /complete, whose existing checkMOSSComplete calls all three training/parity/resources helpers with the same root, roots and store as the three sibling subtests. An ordinary parent/package invocation therefore executes every retained reading twice, once independently and once in complete; complete already establishes all their requirements plus activation, register and page checks. This is actual duplicated caller behavior, not similar ASTs. Pinned whole-tree caller search excluding the reviewer report finds only the documentation's parent name and the future throughput selector; no current configured selector needs the three standalone siblings. Earlier completed-row selectors are historical evidence.",
+      "recommended_change": "Delete only the parent training/parity/resources t.Run blocks and their three t.Parallel calls. Retain /complete unchanged as the single acceptance owner, with its three existing helpers, same read-only store, activation, source identity, numerical, page/register and cleanup requirements. Do not inline/rewrite the helpers, add nesting/aliases/options or copy fixtures. Unneeded behavior: rerunning the same retained checks beside an owner that already runs them.",
+      "displaced_surface": "Actual scratch AST deletion: moss_retained_model_test.go2985->2896(-89testAST); reference_store_test.go32 unchanged; full compared test3017->2928. Production0->0, no helper/wrapper/import/fixture/config/schema/build-tag addition and no case migration. Per whole-parent run each training/parity/resources helper goes2->1 (six calls->three); one store open/close remains because both training and activation consume it. Manifest/sample/oracle/report reads and hashes in those duplicate helper executions disappear; no new setups or gate executions. /complete's existing sequential failure behavior remains. Independent sibling diagnostics/legacy direct selectors disappear: current callers retain parent or /complete; copied historical selectors must use the retained owner, never a silent alias. The planned throughput path remains future work.",
+      "impact": "Reduces repeated retained-data reads, hashing and acceptance maintenance without losing any requirement: the complete owner already calls every helper on the same evidence. Product behavior, data/confidentiality boundaries and exact/approximate arithmetic are unchanged. Full-parent diagnostics become the complete owner's existing fail-fast order; separate sibling failures are no longer collected in parallel. No runtime duration, RSS or device-memory saving measured.",
+      "expected_benefit": {
+        "outcome": "89fewer test AST nodes and one execution per existing retained check on full-test runs.",
+        "uncertainty": "Parsed deletion/caller trace only, not compiled or executed. No full-model work is removed; this removes duplicate retained-evidence checks. Manual external use of historical sibling selectors is not observable."
+      },
+      "likely_effort": "Delete three displaced blocks in one existing file; no new test or fixture.",
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
+      "plan_coverage": "Fits the current reduction owner. This replaces the unpublished19:40 candidate: the new complete check genuinely consumes the store for activation, so moving it solely into training is no longer correct. No prior published finding or implementation-owned field is withdrawn.",
+      "closure_criteria": [
+        "Parent/package run executes each retained helper once through unchanged /complete, preserving all activation, numerical and source requirements.",
+        "No current configured caller is left naming a removed sibling; parent and /complete remain valid.",
+        "Complete source/test/setup cost is negative, with no compatibility wrapper, new fixture or additional gate."
+      ],
+      "comparison": "At implementation's normal affected validation, use the existing parent or /complete selection and retain the same source/manifest/record/image/activation assertions. Source call inventory decides duplicate count2->1; no new model run, mutation framework, selector or extra SQA confidence execution."
     },
     {
       "id": "SQA-269",
@@ -2627,64 +2594,6 @@
         "Whole-file AST decreases after all moved assertions/comments; no new helper, fixture, setup execution or gate. Expected net68-node reduction includes102-node migration."
       ],
       "comparison": "Review the four row identities and unique flags against the two original native tests. If implemented, the existing scorecard package's ordinary affected check is sufficient; this refactor adds no behavior and warrants no new test or SQA run."
-    },
-    {
-      "id": "SQA-221",
-      "status": "open",
-      "severity": "P3",
-      "category": "measurement-provenance",
-      "classification": "confirmed-source-contract-mismatch",
-      "title": "Do not describe a scorecard's representative sample as an exact joint timing and memory measurement",
-      "evidence_commit": "02d710357c9d384dfab2a4e71d290b18e5cea5ec",
-      "sources": [
-        {
-          "path": "cmd/validate/media_selection.go",
-          "symbol": "measuredSampleSelection:90-113; loadMediaSampleSelection; mediaSampleSelection.includes"
-        },
-        {
-          "path": "cmd/validate/media.go",
-          "symbol": "mediaReportScope.MeasuredAttempts comment:28-31; resolveMediaReportScope"
-        },
-        {
-          "path": "cmd/validate/samples.go",
-          "symbol": "exportMediaSamples; visitRecipeSamples; exportRecipeSamples; sampleRef"
-        },
-        {
-          "path": "internal/scorecard/scorecard.go",
-          "symbol": "servingSummary.timed:544-567; firstOutputCell:762; peakMemoryCell:1104"
-        },
-        {
-          "path": "internal/scorecard/scorecard_test.go",
-          "symbol": "TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts:121-268"
-        },
-        {
-          "path": "README.md",
-          "symbol": "Sample outputs introduction and time/peak claims"
-        },
-        {
-          "path": "cmd/validate/image_video_report_contract_test.go",
-          "symbol": "TestImageVideoReportContract measured-scope admission:135"
-        }
-      ],
-      "evidence": "The new selector loads the serving observation named by FirstOutput.Source and exports its exact Run. That is a representative attempt, not necessarily an attempt with the cell's value or the memory cell's source. timed deliberately names the newer of two while returning their midpoint; the retained test explicitly admits 200/100 ms ->150 ms with Source naming the100 ms attempt. For three attempts the central timing may name an older attempt, while peakMemoryCell always names the newest measured one. The selector/media scope comments and README introduction instead assert one sample owns the scorecard time and memory. This is a source-proven mismatch in the stated contract; the eight published samples' individual measurements were not reread, so no particular displayed number is claimed false.",
-      "recommended_change": "Keep the existing representative-source selection and file export. Remove the assertion that FirstOutput.Source identifies an exact joint time/peak measurement. Describe the selected file as the output of the serving attempt named by the first-output cell; when documenting that sample's individual elapsed time and peak, read those fields from that same retained observation/run. Label the row's median and newest-attempt peak separately when quoting scorecard cells. No change to the existing median, memory owner, exporter return type or new reporting abstraction is required.",
-      "impact": "Prevents a representative output from being used as proof of a timing/memory pair that may belong to multiple attempts. This affects interpretation of performance evidence, not generated bytes, execution correctness or retained data.",
-      "displaced_surface": "Displace the exact-joint-measurement claim in measuredSampleSelection/mediaReportScope comments and the README's sample introduction. Retain scorecard.Build, FirstOutput.Source selection, observation.Run lookup, healthy activation filtering, content-addressed bytes, failed/cancelled-run filtering, decoding and hash checks. No production executable code, API, option, fixture, error/cancellation path, platform tag or resource-lifetime change; no data-loss/confidentiality change.",
-      "expected_benefit": {
-        "outcome": "Production executable AST and tests unchanged; two affected parsed exporter files remain598+1412=2010 nodes apart from comment wording. No added helper/wrapper, fixture bytes, setup, gate or model execution. No speed or memory saving claimed; this secondary evidence correction does not displace larger reductions.",
-        "uncertainty": "Admitted two/three-attempt counterexamples follow the retained arithmetic contract. Actual published sample/observation equality remains unverified. A source may also be a benchmark fallback; no current media-row failure from that path was established, so this finding does not prescribe a speculative guard."
-      },
-      "likely_effort": "Small evidence/comment correction using existing retained observation identities.",
-      "plan_references": [
-        "scorecard-unmeasured-image-gen/do"
-      ],
-      "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: scorecard-unmeasured-image-gen/do. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
-      "closure_criteria": [
-        "Sample documentation distinguishes the representative run from aggregate timing/newest-attempt memory, or cites that run's own retained elapsed/peak values.",
-        "The two-attempt150-versus100 counterexample cannot be described as an exact sample timing. Preserve the existing scorecard median/source and memory tests.",
-        "No extra measurement, framework, metadata schema or export mode is added merely to correct prose."
-      ],
-      "comparison": "The smallest deciding comparison is a read of each affected retained sample's FirstOutput.Source observation, its Run/output identity and its own elapsed/peak against the documented values; the already-retained two-attempt scorecard test establishes the general mismatch. No SQA test/model run. Prose-only correction needs no new test."
     },
     {
       "id": "SQA-224",
@@ -5565,164 +5474,250 @@
         "Do not interpret closure as validation of every numerical policy in the replacement;229 remains open."
       ],
       "comparison": "Deciding comparison is the committed deletion and retained comparator call/NaN owner. No new test or SQA confidence run."
-    }
-  ],
-  "gate_test_assessment": {
-      "execution": "No SQA validation/model run. Existing Go caching and cycle/resume/lane separation credited; report-only commit does not run an implementation gate.",
-      "ast_files": [
+    },
+    {
+      "id": "SQA-279",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "test-acceptance-vacuity",
+      "classification": "resolved-test-acceptance-gap",
+      "title": "Require the peak-presence publication test to observe its attempt",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "sources": [
         {
-          "path": "internal/mediacapability/moss_session_windows_test.go",
-          "nodes": 1353
-        },
-        {
-          "path": "internal/mediacapability/image_source.go",
-          "nodes": 809
-        },
-        {
-          "path": "internal/mediacapability/prepare.go",
-          "nodes": 360
-        },
-        {
-          "path": "internal/modelartifact/inventory_context_test.go",
-          "nodes": 384
-        },
-        {
-          "path": "internal/libraryintake/reuse_test.go",
-          "nodes": 1158
-        },
-        {
-          "path": "internal/libraryintake/generation.go",
-          "nodes": 1112
-        },
-        {
-          "path": "internal/libraryintake/generation_windows_test.go",
-          "nodes": 1020
-        },
-        {
-          "path": "internal/latentimage/refinement_verify_windows.go",
-          "nodes": 1823
-        },
-        {
-          "path": "internal/latentimage/refinement_verify_windows_test.go",
-          "nodes": 354
-        },
-        {
-          "path": "internal/latentimage/vae_encoder_windows.go",
-          "nodes": 451
-        },
-        {
-          "path": "internal/latentimage/caption_conditioner_windows.go",
-          "nodes": 558
-        },
-        {
-          "path": "internal/mosstrain/flow.go",
-          "nodes": 518
-        },
-        {
-          "path": "internal/mosstrain/publish.go",
-          "nodes": 368
-        },
-        {
-          "path": "internal/mosstrain/publish_test.go",
-          "nodes": 492
-        },
-        {
-          "path": "cmd/train/route_moss_windows.go",
-          "nodes": 2127
-        },
-        {
-          "path": "cmd/train/route_moss_windows_test.go",
-          "nodes": 1209
-        },
-        {
-          "path": "internal/overgodb/query.go",
-          "nodes": 3720
-        },
-        {
-          "path": "internal/overgodb/query_plan_test.go",
-          "nodes": 719
-        },
-        {
-          "path": "internal/overgodb/blobs.go",
-          "nodes": 1184
-        },
-        {
-          "path": "internal/overgodb/retention.go",
-          "nodes": 1444
+          "path": "internal/server/generation_serving_observation_test.go",
+          "symbol": "TestAbsentPeakPublishesNoSample final loop; storedServingObservations; TestGenerationRunPublishesServingObservation outcome counts; TestGenerationAttemptCitesTheRunItsExecutorMade.attempt count"
         },
         {
           "path": "internal/server/generation_store_workspace.go",
-          "nodes": 1922
+          "symbol": "ExecuteWorkflow -> observe"
         },
         {
-          "path": "internal/server/generation_serving_observation_test.go",
-          "nodes": 1938
+          "path": "internal/capabilityruntime/measured_test.go",
+          "symbol": "TestPeakIsMeasuredOnlyWhereTheMeterAnswers"
+        }
+      ],
+      "evidence": "629aa7c0d replaces the permissive observation loop/model filter with one storedServingObservations result, exactly-one count, model identity and expected Hardware length. The count short-circuits before indexing. Both absent and measured-zero cases remain. Source and retained implementation response agree; SQA did not run the test.",
+      "recommended_change": "Retain the corrected existing assertion and both absence/explicit-zero cases. No new helper, fixture, test body or confidence run.",
+      "displaced_surface": "The permissive loop and conditional model filter are gone. Actual file1938->1943(+5 test AST); generation_store_workspace.go1922 unchanged, pair3860->3865. Same two stores/activations/workflow executions, reader and cleanup; no unique cases moved, no production/fixture/build-tag/gate growth. Necessary assertion growth is not a reduction.",
+      "impact": "Dropping or misattributing the new absence/zero observation can falsely pass this regression. No present production loss, wrong meter implementation or confidentiality defect established.",
+      "expected_benefit": {
+        "outcome": "Missing or wrong-model observation cannot vacuously satisfy the peak-presence publication test.",
+        "uncertainty": "Source and retained implementation gate only; no new SQA execution or runtime saving."
+      },
+      "likely_effort": "One assertion replacement in the existing test.",
+      "plan_references": [],
+      "plan_coverage": "Implemented by629aa7c0d in moss-training/heldout; completed row is pruned from the current committed plan.",
+      "closure_criteria": [
+        "Met: one correctly attributed observation is required before sample-count acceptance.",
+        "Both absent and measured-zero semantics remain in the existing test."
+      ],
+      "comparison": "Closed by committed source and retained normal gate. No extra test or model run needed for this review."
+    },
+    {
+      "id": "SQA-280",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "test-setup-reduction",
+      "classification": "resolved-net-test-surface-reduction",
+      "title": "Remove the unrelated store from the source inventory cancellation test",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "sources": [
+        {
+          "path": "internal/mediacapability/moss_session_windows_test.go",
+          "symbol": "TestMOSSSourceInventoryCancels; answeredContext.Err"
         },
         {
-          "path": "internal/server/webui_browser_background_test.go",
-          "nodes": 1899
+          "path": "internal/mediacapability/capabilities.go",
+          "symbol": "Capability.Resolve"
         },
         {
-          "path": "internal/server/webui_browser_moss_generation_windows_test.go",
-          "nodes": 739
+          "path": "internal/mediacapability/image_source.go",
+          "symbol": "resolveImageSource"
         },
         {
-          "path": "internal/loop/driver.go",
-          "nodes": 1236
+          "path": "internal/mediacapability/prepare.go",
+          "symbol": "Prepare"
         },
         {
-          "path": "internal/loop/dispatch_wait_test.go",
-          "nodes": 104
+          "path": "internal/libraryintake/reuse_test.go",
+          "symbol": "TestDeterministicImportAcrossFamilies"
         },
         {
-          "path": "internal/trainingworkflow/bootstrap_recipe.go",
-          "nodes": 2303
+          "path": "internal/libraryintake/import_test.go",
+          "symbol": "TestComponentImportInspectionRoutes"
         },
         {
-          "path": "internal/trainingworkflow/bootstrap_recipe_test.go",
-          "nodes": 1829
-        },
+          "path": "internal/modelartifact/inventory_context_test.go",
+          "symbol": "TestPipelineInventoryCancellationDuringHashing"
+        }
+      ],
+      "evidence": "629aa7c0d removes the unused overgodb.Open/error/defer and unrelated store.Head assertion from TestMOSSSourceInventoryCancels. The compact source, third-check cancellation, no-further-hashing assertion and successful retry remain. Source-only inventory still accepts no store; existing Register tests own no-publication and retry identity. Fresh AST confirms the proposed deletion exactly.",
+      "recommended_change": "Keep cancellation/retry coverage in TestMOSSSourceInventoryCancels and actual publication protection in the existing Register/inventory owners. No replacement test, helper or store setup.",
+      "displaced_surface": "Actual function181->135 and file1353->1307(-46 test AST). Unchanged image_source809,Prepare360,reuse_test1158,inventory_context_test384 leave complete prior comparison4064->4018(-46). One temporary directory/store open/head read/close removed. Same compact extraction and two resolver calls; earlier resident-session test still needs the overgodb import. No new fixtures, unique-case migration, wrapper, config, build tag or gate.",
+      "impact": "Less disk/setup and misleading assertion surface. Product behavior, cancellation forwarding, publication authority, resource cleanup of real stores and confidentiality remain unchanged. This is not evidence that source hashing currently publishes.",
+      "expected_benefit": {
+        "outcome": "46 fewer test nodes and one disconnected store lifecycle removed.",
+        "uncertainty": "Static counted reduction; no elapsed or memory effect measured."
+      },
+      "likely_effort": "Four-statement deletion in existing test; no new behavior requiring another test.",
+      "plan_references": [],
+      "plan_coverage": "Implemented by629aa7c0d in moss-training/heldout; completed row is pruned from current plan.",
+      "closure_criteria": [
+        "Met: actual catalog cancellation and retry remain without unrelated store setup.",
+        "Existing integration publication owners remain unchanged; total affected test surface is smaller."
+      ],
+      "comparison": "Closed by committed deletion, fresh AST and retained normal gate; no additional SQA execution."
+    },
+    {
+      "id": "SQA-281",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "automation-cost-accounting",
+      "classification": "resolved-fixture-cost-accounting-gap",
+      "title": "Include root fixtures in the landing's existing cost report",
+      "evidence_commit": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "sources": [
         {
           "path": "internal/landing/rules.go",
-          "nodes": 2289
+          "symbol": "landing.rules -> outsideGo"
         },
         {
           "path": "internal/landing/rules_test.go",
-          "nodes": 1316
+          "symbol": "TestLandingSaysWhatAChangeAddsOfEachKind"
         },
         {
-          "path": "internal/latentimage/vae.go",
-          "nodes": 1228
+          "path": "fixtures/moss",
+          "symbol": "adapter-gradients.safetensors; encoder-compact.safetensors; encoder-model.safetensors; training-pictures/green.png,red.png,pictures.tsv"
+        }
+      ],
+      "evidence": "629aa7c0d admits rootFixtures in the existing outsideGo predicate alongside nested testdata, preserving existing kernel and before/after counting. TestLandingSaysWhatAChangeAddsOfEachKind now includes an unchanged one-byte root fixture plus a new two-byte root fixture and expects +1file/+8bytes. This covers the previously omitted repository-root fixtures with the same owner.",
+      "recommended_change": "Retain this single counting owner and existing native rules test. Do not add a fixture scanner, recurring census, budget ratchet or policy suite.",
+      "displaced_surface": "The incomplete path predicate is replaced. Actual rules.go2289->2304(+15 production AST), rules_test1316->1326(+10 test AST), combined3605->3630(+25). This is8nodes above the prior minimal+17 estimate because the implementation names/documents the directory and includes an unchanged root fixture. Three transient fixture bytes within the same temporary repository; no tracked fixtures, extra setup, helpers, wrappers, schemas or gate additions. Correctness growth, not reduction.",
+      "impact": "Understates full fixture/maintenance cost and makes a code-growth review look smaller than its commit. Existing production budget enforcement and numerical acceptance need not change. Preserve generated-kernel exclusion, rename/delete accounting, binary byte lengths and all platform behavior.",
+      "expected_benefit": {
+        "outcome": "Root fixtures contribute exact before/after file and byte deltas to the existing landing summary.",
+        "uncertainty": "Fresh source/AST plus retained gate; no speed or memory saving."
+      },
+      "likely_effort": "One predicate and one case in the existing rules fixture.",
+      "plan_references": [],
+      "plan_coverage": "Implemented by629aa7c0d in moss-training/heldout; completed row is pruned from current plan.",
+      "closure_criteria": [
+        "Met: added root fixture contributes +1file/+2bytes atop existing nested-testdata delta.",
+        "Existing before/after, kernel and generated-kernel behavior is preserved without a new counter."
+      ],
+      "comparison": "Closed using the extended existing rules fixture and retained gate; no new SQA workload."
+    }
+  ],
+  "gate_test_assessment": {
+      "execution": "No SQA production gate, test, model, benchmark, profile, browser/service run or worker contact. Only committed source/Git and standalone AST/type analysis.",
+      "ast_files": [
+        {
+          "path": "internal/evaluation/moss_retained_model_test.go",
+          "nodes": 2985
         },
         {
-          "path": "internal/latentimage/vae_encoder.go",
-          "nodes": 1267
+          "path": "internal/evaluation/reference_store_test.go",
+          "nodes": 32
+        },
+        {
+          "path": "internal/dataroot/dataroot.go",
+          "nodes": 1152
+        },
+        {
+          "path": "internal/dataroot/store_root_test.go",
+          "nodes": 169
+        },
+        {
+          "path": "internal/repoanalysis/store_flags_test.go",
+          "nodes": 448
+        },
+        {
+          "path": "cmd/loop/strategy_config_test.go",
+          "nodes": 487
+        },
+        {
+          "path": "cmd/loop/main.go",
+          "nodes": 2449
+        },
+        {
+          "path": "internal/modeldevice/device_converted_weights.go",
+          "nodes": 408
+        },
+        {
+          "path": "internal/modeldevice/device_converted_weights_test.go",
+          "nodes": 156
+        },
+        {
+          "path": "internal/overgodb/head_bound_delta.go",
+          "nodes": 661
+        },
+        {
+          "path": "internal/overgodb/commit_delta.go",
+          "nodes": 1046
+        },
+        {
+          "path": "internal/overgodb/memory_movement_test.go",
+          "nodes": 397
+        },
+        {
+          "path": "internal/server/one_event_stream_test.go",
+          "nodes": 601
+        },
+        {
+          "path": "internal/server/stream_events.go",
+          "nodes": 66
+        },
+        {
+          "path": "internal/scorecard/record.go",
+          "nodes": 4898
+        },
+        {
+          "path": "internal/server/generation_serving_observation_test.go",
+          "nodes": 1943
+        },
+        {
+          "path": "internal/mediacapability/moss_session_windows_test.go",
+          "nodes": 1307
+        },
+        {
+          "path": "internal/landing/rules.go",
+          "nodes": 2304
+        },
+        {
+          "path": "internal/landing/rules_test.go",
+          "nodes": 1326
+        },
+        {
+          "path": "cmd/evaluate/render.go",
+          "nodes": 2827
+        },
+        {
+          "path": "cmd/evaluate/render_test.go",
+          "nodes": 2482
         }
       ],
       "retained_evidence": [
-        "57973aff2 MOSS efficiency record: first request116.0->101.4s; new-seed106.6->95.4s, prepare11.5->0.0s, uploads38.1->10.3GB; new-prompt106.8->101.0s. Later-request peak17.45->12.97GiB; first baseline approximately13.0GiB. Three compared images byte-identical. These are owner-recorded observations of that workload.",
-        "57973aff2 gate: production+658/test+1851AST; fixtures0, schema0, CUDA source0. Tests3m49; lanes14m54 (13 executed/5 cached). Graphruntime added to the existing device lane. Bonsai scorecard is a separate inference slice, not MOSS held-out evidence.",
-        "345a08a3d store anchor gate: production+134/test+451AST, zero new fixture/schema/CUDA surface. Test2m46.671; lanes14m49.541 (11 executed/7 cached). TestAnOpenNeverStopsShortOfASealedSegment exercises blocked checkpoint after seal, fallback to sequence40, append41 and full replay.",
-        "3cb2d75da request-bounds gate: production+303/test+438AST, zero fixture/schema/CUDA additions. Test3m40.750; lanes2m45.006 (2 executed/16 cached), device skipped; scorecard not reached. Do not relabel skipped/not-reached work as fresh device/model verification.",
-        "a0a58c691 measured-presence: +89production/+531testAST; existing device-session peak assertion and absence table retained. Source repair remains, assertion weakness isSQA-279.",
-        "fb1026793 cancellation: +114production/+737testAST; tests3m30.399, lanes2m46.873 (0CUDAexecuted/18cached,device skipped), explicit verify4.782s. Owner disclosed earlier MOSS resident-test cancellation100th-check had ceased firing and changed it to25th; do not call this a timing proof.",
-        "bd7e3103e browser: productionGo+0/test+88AST plusJS; tests3m38.837,webui2m44.074,device/CUDA skipped. fe2d08554 exact verifier:+61production/+177test; tests3m54.773,lanes2m48.904,1executed/17cached,device skipped.",
-        "ef49817ab training route:+13727production/+3167testAST,+89CUDA lines/+4entries. Lanes20m31.085,19executed/0cached; scorecard inference unavailable because device already reserved, not a quality pass. Git shows6newrootfixtures/1,069,979bytes despite footer0.62cfc48ca repair/serve:+10production/+1378test; cuda51.52s,2executed/17cached.7740c59a7 store-record:+23production/+279test; lanes2m51.248,3executed/16cached,device skipped.",
-        "No new completion-delivery evidence. runRecorder.end remains a record; loop.Run returns ReasonWorkWaiting and configured driver still opens the canonical relative store."
+        "c552ea24f closeout: +0production/+405testAST; host test3m49.109, lanes discovery815ms/device-webui-CUDA skipped, verify8.457s. Adds all-reading/activation/page closure in the retained models test.",
+        "07e1f701e: no code changes; selected MOSS cells fill first-output/load/peak/failure readings. Its commit labels10.2s as16-square activation and default-request measurement as separate work; verify1m3.401s.",
+        "31fd13011 store root: +471production/+621testAST; host tests2m55.216; lanes1h19m46.243, including device1h14m16.055, webui2m49.891, CUDA5m28.953 (14executed/5cached). This is retained elapsed work, not a measured saving. Bonsai slice outputs identical, peak5347.3MiB(+0), first1363ms/throughput56tok/s/load2643ms; not MOSS quality proof.",
+        "629aa7c0d/7f00048bd/d3df09ceb retained evidence from previous unpublished review remains: training32held-out frames/8fixed paths,0.7405->0.7326loss; four full-generation cases/1664boundary records; native1024 request95-101s versus upstream52s,13.0versus27.6GiB device peak. One card/protocol and warm OS cache; no new SQA measurement.",
+        "Resource identity re-read: first seed42=101.4561856s, new-seed7=95.119052s; parity full-english seed42 binds outputcfab6e10.... Native host peak and upstream end working set remain incomparable.",
+        "Previous report publication attempts encountered landing_turn.lock three times over a bounded75-second wait and made no repository changes. No present completed external wakeup/next-dispatch evidence.",
+        "213c45c62 rendered-run repair:+9production/+248testAST, existing one-store test extends bare-run acceptance and conflicting-build refusal. Host tests3m10.093, lanes discovery824ms/device-webui-CUDA skipped, verify1.978s. No new quality measurement in this commit."
       ],
       "test_dispositions": [
-        "SIMPLIFY/REMOVE only disconnected setup in TestMOSSSourceInventoryCancels:181->135function/file1353->1307. Retain third-check cancellation, no further hashing, successful retry and compact extraction. Existing TestDeterministicImportAcrossFamilies and TestComponentImportInspectionRoutes retain actual cancelled-store publication/identity; no unique case moves.",
-        "SIMPLIFY TestAbsentPeakPublishesNoSample: assert one matching observation before hardware length; whole1938->1943(+5). Retain both fresh stores/activations/executions and measured_test absence/error/zero/nonzero owner. No test retired.",
-        "RETAIN TestMOSSImageValidation new verification/activation cancellation cases in existing native fixture; these exercise distinct committed-run lifetimes. RETAIN TestGenerationCancelledAtPublicationRecordsItsRun's deterministic output callback and durable-run assertion. Increased setup is required coverage, not a saving.",
-        "RETAIN TestMOSSVerifierFailsExactBoundaries signed zeros, exact names, equal bits, approximate tolerance and failed repeat; share production acceptance, not a self-comparison. Native model parity remains distinct.",
-        "RETAIN existing browser background/moss-generation journeys for seen disappearance, unseen old snapshot, unsafe/safe integer and verbatim prompt; one controlled browser setup per owner. No extra polling or selector. Inventory refresh remains separate.",
-        "RETAIN TestInterleavedRowsKeepTheProcessorsRange's real processor white/black values and TestPublishServedHoldsOneShardIndex's two-shard merged values; compact end-to-end fixture cannot alone detect real shard layout. RETAIN new bootstrap facts test with existing model fixture; registered metadata conflict is distinct from scratch-store success.",
-        "MERGE/SIMPLIFY existingSQA-253: query.go3720->3696(-24), query_plan_test719->533(-186), supplementary query_test3044 unchanged. Keep five distinct successful planner cases plus catalog/refusal/repeat, same8queries/one store. Existing retained candidate total7483->7273(-210); no fresh runtime saving.",
-        "EXTEND existing TestLandingSaysWhatAChangeAddsOfEachKind with root fixture underSQA-281: +7testAST/2transientbytes, sameone temporary repo. Current fixture omits admitted root path; no newtestbody/framework.",
-        "RETAIN dispatch_wait_test104AST for contention safety; any continuation repair must move its return expectation while retaining stop/budget/failure cases through existing owner. Existing run-beside/quiet resource coverage remains distinct from real delivery.",
-        "No whole sampled test retired. New encoder/training/native numerical tests are not redundant merely because they share source fixtures; no exhaustive training reverse-pass audit or net reduction established there."
+        "REMOVE only three duplicate sibling subtest wrappers under282. RETAIN complete, all three existing helper bodies, activation/source/numerical/page/register assertions, one read-only store and cleanup. Every removed requirement has that established retained owner; no unique case moves.",
+        "RETAIN corrected absent/zero observation test1943AST (+5), simplified inventory cancellation/retry1307AST(-46), and root-fixture rules1326test/+15production growth; fixes279/280/281 remain exactly as committed.",
+        "RETAIN strategy authority test and resolved-store fallback test with existing strategyStore fixture: configured-store precedence, invalid authority, missing-relative-store and prompt identity are distinct.173test nodes were added; no net test reduction established here.",
+        "RETAIN the store-flag check only at its actual static scope:448AST detects nonempty defaults or a package without any dataroot selector. It does not establish per-flag resolution/order and cannot alone prove each train route. No additional general dataflow/census framework recommended; concrete functional driver cases remain authoritative.",
+        "RETAIN TestMemoryMovementTraceReduction's metadata identity and full-payload byte assertions. Half of1MiB rejects reintroducing a whole payload copy; min of3 process-global allocation deltas reduces incidental interference but does not prove performance distributions. No redundant-work deletion established.",
+        "RETAIN TestDeviceConvertedWeightsEncodesStorage's F32 alias mutation and BF16 byte conversion plus generic host-byte owner; existing219 remains the local production reuse,408->364(-44), with237retained test nodes. F16 nearest-ties-even and BF16 rounding/endianness stay distinct.",
+        "MERGE/SIMPLIFY existing252 only as already specified:601-node download stream can reuse existing controlled runtime probe for-127testAST while real HTTP/auth/reconnect stays in the browser owner. Retain whole-percent/file transitions, initial list, admitted/cancelled job and cleanup. No duplicate new finding.",
+        "RETAIN existing scorecard median/source, contract/environment compatibility and history tests. Calibrated9/3/5/8 coefficients are historical decision parameters, not evidence of normality or guaranteed future workload stationarity; numerical acceptance stays separate from wall variability.",
+        "RETAIN the existing render provenance fixture's new absent-commit acceptance and other-commit refusal. Full current files2827production/2482testAST; retained delta+9/+248, no extra store fixture or model setup. Payload digest, request identity and recipe/output/run checks remain. This is necessary correctness growth; no safe further reduction established in the brief concurrent-change sample."
       ],
-      "material_cost": "Fresh32-file AST24719production+14514tests=39233. Hypothetical local edits: SQA-280 -46test;279 +5test;281 +10production/+7test => combined -24AST, but in unrelated owners and not a claim that correctness growth elsewhere is offset. Existing query reduction remains-210 complete comparedAST; loader original1291->1184, now1228 after shared training loader(+44), with newencoder1267featurecost. New trainingroute/serve/record +13760production/+4824tests and sixfixtures1,069,979bytes; no speed/memory measured by SQA."
+      "material_cost": "Fresh21-file sample28144AST.282 full compared test3017->2928(-89), production0->0, zero new fixtures/helpers/setup/gate; whole-parent duplicate helper calls6->3, store1->1. Store-root driver main2478->2449(-29), strategy tests314->487(+173), pair+144; shared resolver1117->1152(+35) and static check448 add costs. Entire store-root gate+471production/+621test, closeout+405test. Existing219(-44production) and252(-127test) are unchanged prior candidates, not newly achieved savings. Concurrent rendered-run repair adds9production/248testAST; no added store setup, separate new fixture or SQA execution."
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
   "implementation_review": {
@@ -6277,15 +6272,17 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "No tests, production gates, model workloads, services, benchmarks, profiles, browser sessions, agents, worker messages or plan/skill changes. Only source/Git inspection and standalone AST/type tooling. Former implementation participation overlaps this review; no independent third-party claim.",
-      "Retained owner gate/measurement records are provenance-labeled, not new SQA results. Prior1024-square MOSS memory/time gains are workload-specific. New training quality is unproven: the first real heldout reading was explicitly voided by the signed-range defect; repaired heldout evaluation remains open. Strata is a comparison, never presumed optimal.",
-      "Necessary correctness work grows source/tests. Newly sampled safe deletion is only SQA-280's46testAST; SQA-279 adds5 and SQA-281 adds17combined. New MOSS training route/serve/record landings add13760production/4824testAST by retained gate counts, plus89CUDA lines/4entries and six root fixtures1,069,979bytes independently counted from Git.",
-      "Root fixtures were omitted by gate cost reporting (SQA-281); do not repeat its zero-fixture footer as total cost. Native Go cache and existing cycle/lane resume are already owners, not new optimization proposals.",
-      "Numeric/geometry bounds were traced only in sampled callers. Signed-unit pixel range comes from ImageProcessor; interleavedRows now preserves it. Training CLI admits square sizes and geometry comes from VAE/Transformer descriptors. No arbitrary rectangular training support or impossible-state branches proposed.",
-      "Eight fixed heldout noise/timestep paths reduce within-example comparison variation but do not prove independence, representative sampling, normality, tail quality or universal superiority. They are per-picture descriptive losses, not a timing-dependent numerical acceptance. InitialAdapter uniform width1/sqrt(input) and zero up factors implement the declared PEFT initialization; no distribution-framework replacement justified.",
-      "Query index choice reads exact current media/schema cardinalities; it does not assume uniform data. Safe integer limits are JS representation bounds. Exact verifier boundaries require bits, while approximate boundaries retain frozen arithmetic tolerance. No blanket literal lint or threshold tuning recommendation.",
-      "Closed source defects are not proof of flawless end-to-end operation. Source inventory test's unused store cannot prove integration publication; retained real Register tests own that requirement. New peak-publication assertion still needs SQA-279. Existing device capacity lower bound is not a universal free-memory guarantee.",
-      "No current external wakeup/next-dispatch delivery or saved-hours claim. Ownership wait still exits; canonical-store mismatch remains. The plan already declares store-root before driver initialization; approval/authority for choosing a driver remains with the existing owner."
+      "Report-only SQA, overlapping earlier implementation participation; not independent review. No tests/gates/model workloads/services/benchmarks/profiles, agents, worker messages or plan/skill edits.",
+      "Retained owner results are not fresh SQA measurements. Source-count/setup proxies do not establish elapsed, heap/RSS or device-memory savings; Strata is only a comparison.",
+      "Store-root repair does not prove configured unattended startup, ownership resumption or external completion delivery. Implicit writable creation remains separately planned; no startup/driver was run by SQA.",
+      "MOSS retired sibling selectors would no longer be available to unobserved manual callers; parent and complete remain. Existing complete failure order remains, while parallel sibling diagnostics disappear. No current configured caller was found for those sibling paths.",
+      "Store-flag analysis uses package-level syntactic dataroot presence, not symbol/dataflow proof for every flag. Full Windows/CUDA/package checking was not performed; the helper deletion was parsed only.",
+      "MOSS losses cover32frames/8fixed paths and do not prove representative sampling, independent observations, perceptual gain or1024training. Four parity cases establish their stated numerical protocol, not general rendered-text/layout quality. No new statistical framework.",
+      "Geometry/protocol claims are request-specific:16-square activation,1024-square first request, resident new seed and2048 largest measured are not interchangeable. Typed storage byte widths, nil/empty borrowed views, alias lifetime and exact journal coordinates were traced in sampled callers only.",
+      "Global TotalAlloc's minimum-of3 can still be inflated by parallel work; the payload-copy regression test is not a heap benchmark. Scorecard coefficients have documented historical calibration; future stationarity/noise is not guaranteed, and no sampled concrete false decision justified changing them.",
+      "README attribution compared committed parity/resource records, not the live serving observation for that exported image. A separate95s seed42 run is not ruled out; it must be cited before presenting its own timing/peak.",
+      "Older unchanged findings keep their original evidence; no recurring full census or all-findings recertification. Critical blob durability/retention and numerical issues remain.",
+      "For a capability run with no CodeCommit, the render manifest is the remaining build attribution; recipe/request/output identity does not independently prove its build.213c45c62 deliberately preserves run identities, and still refuses a recorded conflicting commit. No new model-quality claim is credited."
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
@@ -6854,12 +6851,12 @@
       }
     }
   },
-  "next_finding_number": 282,
+  "next_finding_number": 283,
   "publication_context": {
-      "checked_head": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
-      "assessment": "Report-only reconciliation of twelve closures and three small recommendations, with current automation sequencing and net cost evidence.",
-      "newer_commit_note": "7740c59a7 landed during review; bootstrap source/tests and committed plan rechecked. No later dirty implementation is part of this review.",
-      "publication": "Candidate parsed and implementation-owned fields compared raw-exact before publication. Use existing nonblocking locks and path-limited report commit; preserve unrelated index/worktree."
+      "checked_head": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "assessment": "Reconcile previously blocked closures with new driver-store repair,89-node duplicate-check reduction and existing221 attribution evidence.",
+      "newer_commit_note": "Plan-only3fc49d3b9 and rendered-run repair213c45c62 reconciled; original sample unchanged, two added files reviewed. Worktree clean at immediate recheck; subsequent unrelated edits remain preserved.",
+      "publication": "Re-read current report, parse candidate and compare owner fields raw-exact immediately before writing; path-limited report commit under existing nonblocking locks."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -6881,9 +6878,7 @@
     "SQA-257",
     "SQA-251",
     "SQA-229",
-    "SQA-279",
-    "SQA-280",
-    "SQA-281",
+    "SQA-221",
     "SQA-276",
     "SQA-238",
     "SQA-215",
@@ -6893,6 +6888,7 @@
     "SQA-236",
     "SQA-235",
     "SQA-253",
+    "SQA-282",
     "SQA-269",
     "SQA-270",
     "SQA-216",
@@ -6906,7 +6902,6 @@
     "SQA-188",
     "SQA-174",
     "SQA-222",
-    "SQA-221",
     "SQA-224",
     "SQA-274",
     "SQA-225",
@@ -6935,48 +6930,42 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "Master has concrete improvements: all11 MOSS findings plus navigation finding278 now have source-supported repairs. Six were already prepared but unpublished due to the prior landing lock; this report reconciles them with six later repairs.",
-      "Retain critical open254/272: sealed-anchor recovery does not make loose-blob rename durable on Windows or bind a retention closure to the correct head. Their source remains unchanged.",
-      "Training is new capability, not evidence of net simplification or heldout quality. Known picture-range and sharded-index faults were fixed in62cfc48ca;7740c59a7 reuses PreserveRawFileDescriptors for an already-registered source. No duplicate finding for these fixed defects.",
-      "Sequence existing shared setup repairs before dependent evidence: canonical store resolution -> driver first-start (already declared), then ownership/continuation through the existing loop. Training record preservation now precedes its remaining heldout work. Preserve exact identities, stop/budget/authority and partial results; a recorded end is not delivered continuation.",
-      "New findings are small and concrete: remove one disconnected store setup, strengthen one existing assertion, extend one existing cost predicate/test. None justifies another scheduler or a model rerun.",
-      "Do not certify all seven SQA-232 numerical owners from the plan's single resident-pipeline selector. Retained normal affected gates and actual caller scope must support the full repair.",
-      "Prior implementation overlap disclosed. Owner response objects and per-finding implementation fields are preserved raw-exact; reviewer sqa_response rebuilt."
+      "Master improved startup: strategy and prompt now use one configured-or-resolved read-only store, replacing the wrong relative second open. Correctness/test growth is counted honestly; unattended first-start and ownership waiting are still open.",
+      "279/280/281 source fixes remain closed: actual local combined delta+15production/-31test=-16nodes; no production performance gain claimed. Owner comments preserved.",
+      "New282 removes three obsolete sibling checks because complete repeats their exact helpers.2985->2896testAST and per-helper2->1 executions. The shared store remains justified by two consumers.",
+      "c552ea24f adds405testAST for closeout with no production Go; its complete owner is the retained home for evidence and active image/training checks. Historical standalone verification selectors need no compatibility wrappers after their current callers are gone.",
+      "31fd13011 records+471production/+621testAST across store-path wiring; the driver pair alone is-29production/+173test. One duplicate read-only open disappears, but the full change is not net simplification.",
+      "Existing221 remains open with a concrete new attribution mismatch: README identifies seed42 imagecfab6e10... and95s, while retained protocol's seed42 first request is101.456s and95.119s is resident seed7. Source observation was not reread; correct or qualify the caption using retained evidence, with no new run.",
+      "07e1f701e's10.2s scorecard result is16-square activation, not the1024-square default. README's measured1024 cost and open default-quality evaluation must stay separate. No change to numerical acceptance may be justified by generation timing.",
+      "Existing261 still holds the commit turn through device lanes;271's recording-versus-delivery gap remains. The previous report's turn contention is another observed publication delay, not evidence of failed external wakeup. Preserve native caching and keyed resume; no extra workload.",
+      "Implementation overlap disclosed. Raw-exact owner objects and every implementation-owned/unknown finding field preserved; reviewer response rebuilt.",
+      "Concurrent plan3fc49d3b9 filed judged-run before image-gen quality work;213c45c62 then fixes that shared prerequisite in existing verifyRendered. An absent run commit is admitted while a conflicting recorded commit still refuses, with recipe/request/output binding preserved. Source and retained existing-test extension read; no quality result inferred from this admission repair."
     ],
-  "reviewed_at": "2026-11-01T17:52:31Z",
-  "reviewed_master": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
+  "reviewed_at": "2026-11-01T21:56:12Z",
+  "reviewed_master": "213c45c622d486943d715c1ec2f87fc38403fdc9",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master1e0d76373 at review start; reconciled only the later7740c59a7 bootstrap repair before publication. Committed instruction blob85513241e6f5e4d4a658e4929b0a0f0022b6e177 read first, with committed plan identity. Dirty worker changes excluded until committed; no worker interference.",
-      "Fresh bounded caller sample: source inventory/cancellation and late publication; native verifier exactness; training picture normalization, encoder/conditioning lifetimes, VAE shared reader and publication; query index choice, blob streams and retention head; GUI controls/stream waits; landing cost and driver start/ownership/continuation. Provisional source/AST conclusions recorded before prior report.",
-      "Actual Go parser/AST on32 selected committed files:39233nodes (24719production/14514test),162functions,8534parser-local identifiers. Full-file comments included; embedded JavaScript remains one literal, so Go AST understates browser changes. No recurring census.",
-      "Selected real mossManifest and mossPicture declarations type-checked against standard-library imports:13definitions/58uses, no stubs. Other samples use parser-local resolution/manual caller traces, not whole-package/CUDA type validation. Three hypothetical local corrections parsed without executing tests: -46test,+5test,+10production/+7test.",
-      "Twelve source-supported closures since the last published reviewer report, including six prepared in the prior lock-blocked review. Three narrow new findings: required peak observation, unused inventory store, omitted root-fixture cost. Older unchanged findings retain original evidence dates; not all are freshly recertified."
+      "Started from committed master31fd13011; reconciled plan-only3fc49d3b9 and rendered-run repair213c45c622d486943d715c1ec2f87fc38403fdc9 before publication. Original19sampled Go files are unchanged; two rendered-run files were additionally read/parsed. Unchanged skill.md blob85513241e6f5e4d4a658e4929b0a0f0022b6e177 and committed plan read first. Prior19:40 report was blocked by an active landing.",
+      "Rotated concrete callers: MOSS retained/complete checks; configured strategy/prompt store and CLI resolver; F32/BF16/F16 upload; head-bound metadata/full-payload reads, blob durability and retention; one-workbench download stream; scorecard request/provenance and statistical history; phase/driver/landing continuation. Provisional conclusions recorded before reading current findings/owner responses.",
+      "Actual Go parser/AST on21 selected committed files:28144nodes (15811production/12333test),136functions,6055parser-local bindings. Three baseline driver/resolver files counted separately for before/after. Comments included, no recurring full census.",
+      "Complete stdlib-only store_flags_test.go type-checked:31definitions/153uses, no stubs or execution. Cross-package/device samples use source/caller resolution, not full CUDA/package typing. In-memory AST deletion establishes the MOSS89-node reduction.",
+      "Three previously prepared closures remain valid; new store-root repair partially addresses271. One revised unpublished reduction282, and refreshed existing221 attribution evidence. Older unchanged rows keep original evidence dates; no exhaustive recertification."
     ],
   "sqa_response": {
-      "reviewed_master": "7740c59a779c0817003b124a55d6f5bbd74cfca8",
-      "assessment": "Source-supported repairs close all11MOSS findings and278; new small reduction/acceptance/cost-accounting issues remain. Master has improved correctness and retained MOSS resource use; source reduction and unattended continuity still lag.",
-      "evidence": "32committed Go files/39233AST; selected real manifest declarations typed13defs/58uses; three source-only candidates; retained implementation gates only.",
+      "reviewed_master": "213c45c622d486943d715c1ec2f87fc38403fdc9",
+      "assessment": "Three pending reviewer closures now reconciled; store-root repair materially improves startup but does not establish unattended continuity. Complete MOSS evidence now repeats three sibling checks;89testAST can disappear safely through its established owner. Existing sample-provenance issue has a concrete request/seed mismatch.",
+      "evidence": "21committed files/28144AST; stdlib store-flag file typed31defs/153uses;89-node parsed deletion; retained gate, resource/parity and rendered-run records.",
       "new_findings": [
+        "SQA-282"
+      ],
+      "resolved_findings": [
         "SQA-279",
         "SQA-280",
         "SQA-281"
       ],
-      "resolved_findings": [
-        "SQA-MOSS-004",
-        "SQA-MOSS-005",
-        "SQA-MOSS-007",
-        "SQA-MOSS-010",
-        "SQA-278",
-        "SQA-MOSS-008",
-        "SQA-MOSS-001",
-        "SQA-MOSS-011",
-        "SQA-MOSS-009",
-        "SQA-MOSS-003",
-        "SQA-MOSS-006",
-        "SQA-MOSS-002"
+      "partially_addressed_findings": [
+        "SQA-271"
       ],
-      "partially_addressed_findings": [],
       "reopened_findings": [],
       "plan_adopted_findings": [
         "SQA-254",
@@ -6999,11 +6988,11 @@
       ],
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "fe2d0855456e5618f14d43c700b28af89d8fbed8",
-        "status": "Preserve owner objects and all implementation-owned fields raw-exact. Current source and retained evidence, not title-level triage alone, decide closure."
+        "current_triage_head": "998bc66b220f74a1437128d6526baea66d6d7e55",
+        "status": "279/280/281 implementation comments agree with source.271 store-root prerequisite credited from current source. Owner records and all unknown fields preserved raw-exact."
       },
-      "recommendation": "Prioritize existing durability/reachability and numerical repairs. Use declared store-root prerequisite and existing loop ownership/continuation before claiming unattended reliability. Remove disconnected inventory store; require actual peak observation; account for root fixtures in existing landing summary. Batch reductions with affected work, retaining necessary tests.",
-      "next_action": "Implementation owners keep authority and plan. SQA only publishes this report; no new workload or worker message.",
-      "uncertainty": "No fresh runtime, heldout or full-model result. Twelve closures are source/retained-evidence judgments. Training heldout remains incomplete and previous faulty-range result void. No current delivered-wakeup evidence."
+      "recommendation": "Keep durability/reachability/numerical work first. Use repaired store-root with current first-start/wait/continuation owners and preserve independent host progress. Remove three MOSS sibling repeats via complete; correct sample timing attribution from its own retained run or label the separate protocol.",
+      "next_action": "Publish only this report; implementation owners retain authority. No new SQA run, plan change or worker contact.",
+      "uncertainty": "Source/retained-evidence assessment only. No current delivered wakeup/next-dispatch proof and no quantified duration gain from the test reduction."
     }
 }

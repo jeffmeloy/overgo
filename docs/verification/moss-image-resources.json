@@ -1,0 +1,159 @@
+{
+ "commit": "629aa7c0d622ab265d370a0aeefc0301561fac19",
+ "device": "NVIDIA GeForce RTX 4090 D",
+ "protocol": "One process each, the same requests in the same order: a first picture, a new seed, a new prompt, then a 1024 by 768 rectangle, at 50 steps and guidance 3 with layer 22 skipped on the negative branch, BF16 weights and F32 VAE, noise and Euler. The OS file cache was warm for both, so load is not a cold-disk figure. Native refuses another geometry on a resident generator, so the rectangle loads a new one; its load is the second value measured and is below a second.",
+ "upstream": {
+  "settings": "BF16 text encoder/denoiser; FP32 VAE/noise/CFG/Euler; TF32 disabled; negative branch skips layer 22",
+  "packages": {
+   "torch": "2.12.0+cu126",
+   "transformers": "5.14.1",
+   "diffusers": "0.39.0",
+   "accelerate": "1.14.0",
+   "safetensors": "0.8.0"
+  },
+  "load_seconds": 12.017514700070024,
+  "requests": [
+   {
+    "label": "first",
+    "prompt": "A small red sailboat on a quiet lake at sunrise.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 42,
+    "wall_seconds": 52.50983650004491,
+    "phases_seconds": {
+     "prompt_encoding": 0.36097769998013973,
+     "transformer": 51.81717990105972,
+     "decoder": 0.2815219999756664
+    },
+    "peak_device_bytes": 29678180864,
+    "peak_host_bytes": 2166235136
+   },
+   {
+    "label": "new-seed",
+    "prompt": "A small red sailboat on a quiet lake at sunrise.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 7,
+    "wall_seconds": 52.4061565999873,
+    "phases_seconds": {
+     "prompt_encoding": 0.13340229983441532,
+     "transformer": 52.050811500288546,
+     "decoder": 0.18702610000036657
+    },
+    "peak_device_bytes": 29678180864,
+    "peak_host_bytes": 2166300672
+   },
+   {
+    "label": "new-prompt",
+    "prompt": "A lighthouse on a rocky cliff under a starry sky.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 7,
+    "wall_seconds": 52.44443859998137,
+    "phases_seconds": {
+     "prompt_encoding": 0.13292240002192557,
+     "transformer": 52.09063129965216,
+     "decoder": 0.18719709990546107
+    },
+    "peak_device_bytes": 29678197248,
+    "peak_host_bytes": 2166304768
+   },
+   {
+    "label": "rectangle",
+    "prompt": "一只白猫坐在窗边，窗外是秋天的花园。",
+    "height": 768,
+    "width": 1024,
+    "seed": 42,
+    "wall_seconds": 37.05845829984173,
+    "phases_seconds": {
+     "prompt_encoding": 0.13340650009922683,
+     "transformer": 36.755188500043005,
+     "decoder": 0.14129250007681549
+    },
+    "peak_device_bytes": 29073676800,
+    "peak_host_bytes": 2166693888
+   }
+  ]
+ },
+ "native": {
+  "load_seconds": 0.6445787,
+  "requests": [
+   {
+    "label": "first",
+    "prompt": "A small red sailboat on a quiet lake at sunrise.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 42,
+    "wall_seconds": 101.4561856,
+    "phases_seconds": {
+     "decode": 0.861219,
+     "integrate": 94.187679,
+     "prepare": 6.4072876
+    },
+    "peak_device_bytes": 13930129408,
+    "peak_host_bytes": 1516572672
+   },
+   {
+    "label": "new-seed",
+    "prompt": "A small red sailboat on a quiet lake at sunrise.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 7,
+    "wall_seconds": 95.119052,
+    "phases_seconds": {
+     "decode": 0.8142071,
+     "integrate": 94.3048449,
+     "prepare": 0
+    },
+    "peak_device_bytes": 13930129408,
+    "peak_host_bytes": 1729290240
+   },
+   {
+    "label": "new-prompt",
+    "prompt": "A lighthouse on a rocky cliff under a starry sky.",
+    "height": 1024,
+    "width": 1024,
+    "seed": 7,
+    "wall_seconds": 100.9605205,
+    "phases_seconds": {
+     "decode": 0.7335903,
+     "integrate": 94.4037665,
+     "prepare": 5.8231637
+    },
+    "peak_device_bytes": 13934454784,
+    "peak_host_bytes": 1878708224
+   },
+   {
+    "label": "rectangle",
+    "prompt": "一只白猫坐在窗边，窗外是秋天的花园。",
+    "height": 768,
+    "width": 1024,
+    "seed": 42,
+    "wall_seconds": 72.1660439,
+    "phases_seconds": {
+     "decode": 0.6047308,
+     "integrate": 65.9215946,
+     "prepare": 5.6397185
+    },
+    "peak_device_bytes": 13930129408,
+    "peak_host_bytes": 1999806464
+   }
+  ],
+  "largest": {
+   "label": "largest",
+   "prompt": "A small red sailboat on a quiet lake at sunrise.",
+   "height": 2048,
+   "width": 2048,
+   "seed": 42,
+   "wall_seconds": 552.8071021,
+   "phases_seconds": {
+    "decode": 4.0086676,
+    "integrate": 542.9949019,
+    "prepare": 5.8035326000000005
+   },
+   "peak_device_bytes": 19180687248,
+   "peak_host_bytes": 1662296064
+  }
+ },
+ "scope": "On this one card, native took about 1.9 times upstream's wall per picture and about 0.47 times its peak allocated device memory. Upstream's host figure is its working set when the request ended, native's the process peak. Largest measured: 2048 square natively, 553 s at 17.9 GiB. Native releases each stage's memory between stages; there is no separate resident mode to compare. No statement is made about any smaller card, and no faster setting is compared here."
+}

@@ -942,28 +942,13 @@
           "depends_on": [
             "moss-efficiency/bounded"
           ]
-        }
-      ]
-    },
-    {
-      "id": "moss-evaluation",
-      "title": "Validate the SFT model and publish honest capability evidence",
-      "owner": "overgo_moss",
-      "status": "open",
-      "budget": {
-        "nodes": 300,
-        "reason": "Extend current evaluation protocols and compatibility records; no standalone benchmark service or scorecard."
-      },
-      "steps": [
+        },
         {
-          "id": "resources",
-          "title": "Measure latency and memory on supported hardware",
+          "id": "moss-denoiser",
+          "title": "Find and close the native MOSS denoiser's wall against upstream's",
           "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/resources'",
-          "rationale": "Compare native and pinned upstream runs with equal checkpoint, prompt, image size, guidance, actual step schedule, precision and quality requirements.\nReport cold acquisition/load separately from warm generation; include prompt encoding, transformer time, decoder time, wall-clock latency, peak host/GPU memory and transfer volume.\nMeasure resident and bounded-memory modes at 1024 square and a rectangular case, plus the largest admitted case established by evidence.\nRecord hardware and warmup/repeat protocol before comparing results; do not invent a consumer-GPU fit claim from weight size alone.\nA faster setting that changes precision, step count or image size gets its own quality/performance record.\nServes: measurable capability under realistic memory constraints.\nDisappears: unsupported speed or memory claims through existing benchmark/evaluation records.\nEvidence: one resource comparison record reused by UI guidance, documentation and closeout.\nBatch: cycle-only model evaluation; unchanged execution identities permit evidence reuse without rerunning the landing gate.",
-          "depends_on": [
-            "moss-evaluation/model-parity"
-          ]
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/throughput'",
+          "rationale": "The resource comparison measured native MOSS at 94 s of denoising a 1024 square picture against upstream's 52 s on one card and one protocol, at 0.47 times its peak device memory.\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes.\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
         }
       ]
     },

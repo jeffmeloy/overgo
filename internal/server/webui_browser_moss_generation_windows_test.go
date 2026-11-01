@@ -138,6 +138,21 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
 	check(`document.querySelectorAll('.artifact.msg.media img').length===2`)
 	check(`(() => {mossSend('retry after cancellation');return true;})()`)
 	settle(`document.querySelectorAll('.artifact.msg.media img').length===3 && !document.querySelector('.send-button').disabled`)
+	// A prompt goes as typed, and a seed the browser cannot carry exactly is refused before any request.
+	check(`(() => {mossSend('  spaced prompt\n');return true;})()`)
+	settle(`document.querySelectorAll('.artifact.msg.media img').length===4 && !document.querySelector('.send-button').disabled`)
+	check(`(() => {mossField('seed').value='9007199254740993';mossSend('exact seed');return true;})()`)
+	settle(`document.querySelector('.chat-log').textContent.includes('seed must be a whole number') && !document.querySelector('.send-button').disabled`)
+	check(`document.querySelectorAll('.artifact.msg.media img').length===4`)
+	check(`(() => {mossField('seed').value='9007199254740991';mossSend('exact seed');return true;})()`)
+	settle(`document.querySelectorAll('.artifact.msg.media img').length===5 && !document.querySelector('.send-button').disabled`)
+	inputs = fixture.requests()
+	if last := inputs[len(inputs)-1]; last.Prompt != "exact seed" || last.Seed != 9007199254740991 {
+		t.Fatal("the safe seed changed", last)
+	}
+	if spaced := inputs[len(inputs)-2]; spaced.Prompt != "  spaced prompt\n" {
+		t.Fatalf("the prompt changed on its way: %q", spaced.Prompt)
+	}
 	check(`window.overgo.errors.length===0`)
 	webuilane.Leg(t, "moss-generation", "Empty catalog, local source import, registered candidate, activation, refreshed composer modes, model choice, native defaults, optional controls, layout mode with example and coordinate errors, exact Unicode prompt transport, PNG preview/download, invalid size, resource refusal, cancellation without output and retry pass. Execution and activation use hermetic fixtures; native quality is checked separately.")
 }

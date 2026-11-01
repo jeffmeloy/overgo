@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "browser",
-          "title": "Keep the browser's image requests exact and its waits finite",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowser(AudioStartup|Generation)'",
-          "rationale": "SQA-MOSS-009: a waited operation that disappears from a later authoritative snapshot ends the wait through the existing not-found path.\nSQA-MOSS-003: an integer control beyond the exact browser range is refused with a field-specific explanation.\nSQA-MOSS-006: the shared composer passes the prompt as typed and trims only to detect a blank one.\nServes: what the person typed is what ran, and a finished job never looks unfinished.\nDisappears: the composer's silent trim.\nEvidence: the existing browser fixtures, extended.\nBatch: web interface lane."
-        },
-        {
           "id": "verifier",
           "title": "Fail bit mismatches at exact boundaries in the generation verifier",
           "status": "open",

@@ -6217,6 +6217,41 @@
         "plan_steps": [
           "moss-findings/cancellation"
         ]
+      },
+      {
+        "comment": "Landed with moss-findings/browser. waitOperation records having seen its operation, and a later snapshot without it settles through the existing not-found path. The controlled stream in TestWebUIBrowserBackgroundWork now loses a terminal event to a snapshot, and proves an unseen operation outlives an older snapshot and still completes.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserBackgroundWork probes seen_operation_gone_from_a_snapshot_ends_wait, unseen_operation_outlives_an_older_snapshot, unseen_operation_still_completes"
+        ],
+        "finding_id": "SQA-MOSS-009",
+        "plan_steps": [
+          "moss-findings/browser"
+        ]
+      },
+      {
+        "comment": "Landed with moss-findings/browser. controlValues refuses an integer control outside Number.isSafeInteger with the field's name and range, before any request, and composer and workflow submission show it; sizing and preview leave the field out. TestWebUIBrowserMOSSGeneration refuses 9007199254740993, leaves no new picture, then submits 9007199254740991 exactly.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserMOSSGeneration",
+          "internal/server/webui/workflow.js controlValues"
+        ],
+        "finding_id": "SQA-MOSS-003",
+        "plan_steps": [
+          "moss-findings/browser"
+        ]
+      },
+      {
+        "comment": "Landed with moss-findings/browser. composer.submit passes input.value as typed and uses trim only for the blank check. TestWebUIBrowserMOSSGeneration sends a prompt with leading spaces and a trailing newline and reads those bytes in the captured request.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserMOSSGeneration",
+          "internal/server/webui/composer.js submit"
+        ],
+        "finding_id": "SQA-MOSS-006",
+        "plan_steps": [
+          "moss-findings/browser"
+        ]
       }
     ],
     "experiments": {
@@ -6259,7 +6294,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "a0a58c69159a8a7ec150d8d6a09bd78047824836",
+    "head": "fb10267938f51e93cd16259965e3cc44bd8758c7",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6373,25 +6408,25 @@
         "note": "Reproduced by three failing cases before the fix, so the trace was right on all of them: the final publication, the verification publication and the activation. Each now settles with a stored run, and an activation refused after a published verification keeps that run without crediting an activation. Awaits the reviewer's closure."
       },
       "SQA-MOSS-009": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/browser"
         ],
-        "note": "Accepted: a generation wait that never ends is a served hang. One browser step with 003, 006 and 278."
+        "note": "Landed. A wait that has seen its operation ends through the existing not-found path when a later snapshot lacks it; a snapshot from before the operation existed still does not end it. Awaits the reviewer's closure."
       },
       "SQA-MOSS-003": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/browser"
         ],
-        "note": "Accepted: a seed above 2^53 silently changes, which breaks the reproducibility the parity evidence relies on. Unchanged by the request bounds, which act on the extent and the steps."
+        "note": "Landed. controlValues refuses an integer beyond the browser's exact range, and fractions, naming the field; preview and sizing simply skip it. The limit is the safe-integer range and the safe boundary itself passes exactly. Awaits the reviewer's closure."
       },
       "SQA-MOSS-006": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/browser"
         ],
-        "note": "Accepted: composer.trim changes the conditioning a chat submission gets, so chat and API differ on one prompt."
+        "note": "Landed. The composer sends what was typed and trims only to detect a blank message. This intentionally changes chat and agent messages too, as the finding asks to review: their outer whitespace now reaches the model as typed. Awaits the reviewer's closure."
       },
       "SQA-278": {
         "action": "implemented",
@@ -6447,7 +6482,7 @@
         "rows": [
           "sqa-served/inventory-resync"
         ],
-        "note": "Accepted: shares the hubResync path with SQA-MOSS-009 but is a separate client contract, so it stays its own step."
+        "note": "Read again: SQA-MOSS-009's fix handles a wait through a resynchronizing stream, and this finding's inventory refresh stays open and separate. Same stream, different consumer."
       },
       "SQA-260": {
         "action": "filed",

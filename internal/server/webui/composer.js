@@ -147,10 +147,11 @@
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
     const { capability, fields } = selection;
-    const { input, missing } = overgo.controlValues(fields);
+    const { input, missing, refusal } = overgo.controlValues(fields);
     const textControl = bodyControl(capability.controls);
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
+    if (refusal) { yield { type: "error", message: refusal }; return; }
     let completed;
     try { completed = await run(capability, input, signal, selection.sources, selection.lifecycle); } catch (err) {
       if (err.name === "AbortError") { if (capability.task === 'speech') { yield { type: 'cancelled' }; return; } throw err; }
@@ -830,8 +831,9 @@
       else if (focused === stop && !busy) send.focus();
     }
     async function submit() {
-      const text = input.value.trim();
-      if (!text && !attachments.length) return;
+      // The prompt goes as typed: its outer spaces are part of what a model conditions on. Only a blank one is no message.
+      const text = input.value;
+      if (!text.trim() && !attachments.length) return;
       if (send.disabled) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), selectedMode());
     }

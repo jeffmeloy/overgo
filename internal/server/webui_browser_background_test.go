@@ -333,6 +333,12 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
   const retired=overgo.waitOperation('retired-fixture').catch(error=>error.status);await new Promise(requestAnimationFrame);
   overgo.runtimeEvents.restart();publishStream('operation.snapshot',[]);
   backgroundProbe.reconnect_without_operation_ends_wait=await retired===404;
+  const evicted=overgo.waitOperation('evicted-fixture').catch(error=>error.status);await new Promise(requestAnimationFrame);
+  publishStream('operation',{sequence:3,status:{id:'evicted-fixture',task:'fixture',state:'running'}});publishStream('operation.snapshot',[]);
+  backgroundProbe.seen_operation_gone_from_a_snapshot_ends_wait=await evicted===404;
+  let settled=false;const accepted=overgo.waitOperation('accepted-fixture').then(status=>{settled=true;return status;},error=>{settled=true;return error;});await new Promise(requestAnimationFrame);
+  publishStream('operation.snapshot',[]);await new Promise(requestAnimationFrame);backgroundProbe.unseen_operation_outlives_an_older_snapshot=!settled;
+  publishStream('operation',{sequence:4,status:{id:'accepted-fixture',task:'fixture',state:'completed'}});backgroundProbe.unseen_operation_still_completes=(await accepted).state==='completed';
   backgroundProbe.no_long_poll_beside_the_stream=waits===0;
   overgo.api.events=backgroundEvents;overgo.api.get=backgroundGet;overgo.runtimeEvents.restart();return true;
 })()`)

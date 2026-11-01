@@ -243,18 +243,24 @@
     return el("span", { class: "row presets" }, choose, name, save);
   };
 
-  // controlValues reads the typed inputs back as the request's fields and
-  // names the required ones left empty.
+  // controlValues reads the typed inputs back as the request's fields, names the required ones left empty, and refuses a
+  // whole number the browser cannot carry exactly: past 2^53 a JSON number arrives rounded, so a seed pasted from a run
+  // would silently draw another picture.
   window.overgo.controlValues = function (fields) {
     const input = {};
     const missing = new Set();
+    let refused = "", refusal = "";
     for (const [name, field] of fields) {
       const value = field.input.value;
       if (value === "") { if (field.control.required) missing.add(name); continue; }
+      if (field.control.type === "integer" && !Number.isSafeInteger(Number(value))) {
+        if (!refused) { refused = name; refusal = name + " must be a whole number from " + Number.MIN_SAFE_INTEGER + " to " + Number.MAX_SAFE_INTEGER; }
+        continue;
+      }
       input[name] = field.control.type === "boolean" ? value === "true" :
         (field.control.type === "integer" || field.control.type === "number" ? Number(value) : value);
     }
-    return { input, missing };
+    return { input, missing, refused, refusal };
   };
 
   // liveOperation: the first operation the stream's snapshot holds that
@@ -271,16 +277,17 @@
     });
   }
 
-  // waitOperation follows one operation on the runtime stream to its end: the
-  // server's hub never drops a transition (a stream that falls behind takes
-  // fresh snapshots), and a reconnect's snapshot that no longer holds the
-  // operation means the server retired it.
+  // waitOperation follows one operation on the runtime stream to its end: a
+  // stream that falls behind takes a fresh snapshot in place of what it missed,
+  // terminal transitions included, so a snapshot that no longer holds an
+  // operation means the server retired it: after a reconnect, or once this wait
+  // has seen it. A snapshot from before the wait's operation existed means nothing.
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
-      let unsubscribe = function () {}, finished = false, live = false, reconnected = false;
+      let unsubscribe = function () {}, finished = false, live = false, reconnected = false, seen = false;
       function cleanup() { finished = true; unsubscribe(); if (signal) signal.removeEventListener('abort', abort); }
       function abort() { if (finished) return; cleanup(); reject(new DOMException('aborted', 'AbortError')); }
-      function finish(current) { if (finished) return; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
+      function finish(current) { if (finished) return; seen = true; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
       if (signal && signal.aborted) { abort(); return; }
       unsubscribe = subscribe((name, value) => {
         if (finished) return;
@@ -289,7 +296,7 @@
         if (name === "operation.snapshot") {
           const current = value.find((item) => item.id === id);
           if (current) finish(current);
-          else if (reconnected) { cleanup(); reject(Object.assign(new Error("operation not found"), { status: 404 })); }
+          else if (reconnected || seen) { cleanup(); reject(Object.assign(new Error("operation not found"), { status: 404 })); }
         }
       });
       // The replay of the latest state runs first; a connection opened after it is a reconnect.
@@ -392,8 +399,8 @@
         if (definition.sized) {
           const sized = overgo.read(sizeHost, async (signal) => {
             const capability = selected();
-            const { input, missing } = overgo.controlValues(fields);
-            if (!capability || missing.size) return {};
+            const { input, missing, refusal } = overgo.controlValues(fields);
+            if (!capability || missing.size || refusal) return {};
             return api.post("/" + definition.scope + "/command", { task: capability.task, recipe: capability.recipe, input }, { signal });
           }, (answer) => sizeHost.replaceChildren(...(answer.bytes ? [el("div", { class: "note", role: "status", "aria-label": "output size", text: "Writes " + fmt.bytes(answer.bytes) + " (" + fmt.grouped(answer.bytes) + " bytes)" })] : [])), { loading: "" });
           for (const [source, events] of [[controls, ["input", "change"]], [capabilitySelect, ["change"]]]) for (const name of events) source.addEventListener(name, () => sized());
@@ -444,8 +451,9 @@
         function submission() {
           const capability = selected();
           if (!capability) return null;
-          const { input, missing } = overgo.controlValues(fields);
+          const { input, missing, refused, refusal } = overgo.controlValues(fields);
           if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return null; }
+          if (refusal) { fields.get(refused).input.focus(); status.textContent = refusal; return null; }
           return { capability, input };
         }
         controls.addEventListener("input", () => commands.replaceChildren());

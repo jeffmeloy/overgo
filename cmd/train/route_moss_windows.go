@@ -44,8 +44,6 @@ const (
 	mossDefaultRank = 16
 	// A picture value is [channels, height, width].
 	mossPictureAxes, mossHeightAxis, mossWidthAxis = 3, 1, 2
-	// mossSignedSpan stretches a unit picture to the signed range the encoder reads.
-	mossSignedSpan = 2
 	// mossReportMode is a held-out reading's file, kept beside the run's others.
 	mossReportMode = 0o644
 )
@@ -109,7 +107,7 @@ func mossPrepare(ctx context.Context, root string, profile latentimage.Profile, 
 		if err != nil {
 			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.path, err)
 		}
-		pixels, err := signedUnitRows(example.Values[0], size)
+		pixels, err := interleavedRows(example.Values[0], size)
 		if err != nil {
 			return nil, mosstrain.Geometry{}, fmt.Errorf("picture %s: %w", picture.path, err)
 		}
@@ -139,9 +137,9 @@ func mossPrepare(ctx context.Context, root string, profile latentimage.Profile, 
 	return examples, largest, conditioner.Close(ctx)
 }
 
-// signedUnitRows turns a processor's normalized [3, size, size] picture into the
-// encoder's interleaved rows in the signed unit range.
-func signedUnitRows(value trainingdata.Value, size int) ([]float32, error) {
+// interleavedRows turns a processor's [3, size, size] picture, already in the
+// signed unit range the encoder reads, into the encoder's interleaved rows.
+func interleavedRows(value trainingdata.Value, size int) ([]float32, error) {
 	if len(value.Shape) != mossPictureAxes || value.Shape[mossHeightAxis] != size || value.Shape[mossWidthAxis] != size {
 		return nil, fmt.Errorf("shape %v is not a picture of %d square", value.Shape, size)
 	}
@@ -153,7 +151,7 @@ func signedUnitRows(value trainingdata.Value, size int) ([]float32, error) {
 	rows := make([]float32, len(planar))
 	for position := range plane {
 		for channel := range channels {
-			rows[position*channels+channel] = mossSignedSpan*planar[channel*plane+position] - 1
+			rows[position*channels+channel] = planar[channel*plane+position]
 		}
 	}
 	return rows, nil

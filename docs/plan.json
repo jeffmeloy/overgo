@@ -153,17 +153,10 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 773,
+        "nodes": 763,
         "reason": "The encoder, trainer and route land as one step because only the route reaches them. Measured at the first refusal: 13637 production nodes, about twice the estimate, mostly the hand-written forward and reverse of a joint block; it reuses the optimizer, session, checkpoint and PEFT owners and duplicates none of them."
       },
       "steps": [
-        {
-          "id": "serve",
-          "title": "Serve what a MOSS training run published",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestMOSSTrainedModel'",
-          "rationale": "The trained directory resolves through the same image capability as the base model, under its own recipe and identity, and its pictures differ from the base's on the same request where its weights differ and equal them where its adapter is zero.\nThe workbench shows it as a candidate as other trained models are shown; nothing about it is special-cased in the interface.\nServes: training reaches a person's pictures.\nDisappears: nothing.\nEvidence: the capability test over a compact trained fixture.\nBatch: media and interface lanes."
-        },
         {
           "id": "heldout",
           "title": "Judge a MOSS training run on held-out pictures",

@@ -20,6 +20,7 @@ import (
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
@@ -58,6 +59,35 @@ func mossRouteFixture(t *testing.T) (root, manifest string) {
 		t.Fatal(err)
 	}
 	return root, manifest
+}
+
+// TestInterleavedRowsKeepTheProcessorsRange holds a picture to the signed unit
+// range the encoder reads, which is the processor's own. Stretching it again
+// makes the pictures darker and harsher, and training then learns exactly that
+// while its loss falls.
+func TestInterleavedRowsKeepTheProcessorsRange(t *testing.T) {
+	t.Parallel()
+	picture := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	picture.SetRGBA(0, 0, color.RGBA{255, 255, 255, 255})
+	picture.SetRGBA(1, 1, color.RGBA{0, 0, 0, 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, picture); err != nil {
+		t.Fatal(err)
+	}
+	example, err := trainingdata.ImageProcessor(trainingdata.RoleTarget)(t.Context(), trainingdata.RawRecord{ID: "picture", Group: "picture", Data: encoded.Bytes()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := interleavedRows(example.Values[0], 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const channels = 3
+	for channel := range channels {
+		if white, black := rows[channel], rows[len(rows)-channels+channel]; white != 1 || black != -1 {
+			t.Fatalf("channel %d: white %v, black %v, want 1 and -1", channel, white, black)
+		}
+	}
 }
 
 // mossRouteSize is a compact checkpoint's smallest picture.

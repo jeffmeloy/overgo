@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/fsatomic"
 	"overgo/internal/peft"
@@ -11,6 +12,10 @@ import (
 
 // transformerDirectory is the component a served model replaces.
 const transformerDirectory = "transformer"
+
+// shardIndexSuffix ends a base's shard index, which the merge writes its own of:
+// a directory holding two refuses to open.
+const shardIndexSuffix = ".safetensors.index.json"
 
 // PublishServed writes a model directory that serves adapter merged into base:
 // the transformer's weights merged and its configuration copied, and each other
@@ -40,7 +45,7 @@ func PublishServed(base, target string, adapter peft.Adapter) error {
 		return err
 	}
 	for _, entry := range components {
-		if filepath.Ext(entry.Name()) == ".safetensors" {
+		if filepath.Ext(entry.Name()) == ".safetensors" || strings.HasSuffix(entry.Name(), shardIndexSuffix) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(destination, entry.Name())); err == nil {

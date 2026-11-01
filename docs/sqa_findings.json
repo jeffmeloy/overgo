@@ -6251,6 +6251,17 @@
         "plan_steps": [
           "scorecard-unscored-image-gen/do"
         ]
+      },
+      {
+        "comment": "Landed with sqa-served/draft-host. The existing predicate is reused and nothing is copied: no host UUID, export or option. The eligibility part of SQA-257 lands with it; its consolidation of the refusal rules stays open, as it needs retained workload evidence.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestDraftJudgementLeavesAHostRunnerAlone"
+        ],
+        "finding_id": "SQA-275",
+        "plan_steps": [
+          "sqa-served/draft-host"
+        ]
       }
     ],
     "experiments": {
@@ -6297,7 +6308,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "285db113c15dcb5103d964cb494056fe29462acd",
+    "head": "c4af5a1b6735d2668a53f5ebc6ebd6cfb7b635d5",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6461,11 +6472,11 @@
         "note": "Read again against store-history/anchor, which does not touch Release or collectLiveSet. Still stands; exposure stays limited to the isolated-clone caller."
       },
       "SQA-275": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-served/draft-host"
         ],
-        "note": "Mine: draft-verdict-record/do requests a device identity before checking eligibility, so a host-reference model with JudgeOwnDrafts is refused. A regression, so it comes first in that row."
+        "note": "Landed. judgeServedDrafts asks SpeculatesByDefault first and returns where no draft applies, so a host runner never reaches DeviceUUID. TestDraftJudgementLeavesAHostRunnerAlone fails without it with 'runner is nil' on the served open. Awaits the reviewer's closure."
       },
       "SQA-257": {
         "action": "existing-row",

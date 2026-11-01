@@ -1,12 +1,55 @@
 package modelcli
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
+
+// TestDraftJudgementLeavesAHostRunnerAlone opens a host model as a server does and
+// by an explicit judgement. It cannot draft, so neither open asks for a device
+// identity it has no device to answer with.
+func TestDraftJudgementLeavesAHostRunnerAlone(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	storeRoot, path := filepath.Join(root, "store"), filepath.Join(root, "model.gguf")
+	writeServingFixture(t, path, 0)
+	store, err := overgodb.Create(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, path, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for name, opened := range map[string]func(context.Context) (*inference.Runner, error){
+		"served": func(ctx context.Context) (*inference.Runner, error) {
+			return OpenServedRunner(ctx, storeRoot, path, inference.OpenOptions{})
+		},
+		"judged": func(ctx context.Context) (*inference.Runner, error) {
+			return OpenRunner(ctx, storeRoot, path, inference.OpenOptions{JudgeOwnDrafts: true})
+		},
+	} {
+		runner, err := opened(t.Context())
+		if err != nil {
+			t.Fatalf("%s open: %v", name, err)
+		}
+		if err := runner.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 // TestADraftVerdictIsRecordedPerModelBuildAndCard holds the record of served models' draft verdicts to one verdict a
 // model, build and card: a verdict on another card is kept beside the first, a verdict reached again replaces its own,

@@ -88,6 +88,10 @@ func readDraftVerdicts(ctx context.Context, reader artifact.Reader) draftVerdict
 func judgeServedDrafts(ctx context.Context, repository string, runner *inference.Runner, model artifact.ID, record draftVerdicts) error {
 	judged := processmeasure.Stage(ctx, "draft judgement")
 	defer judged()
+	// A runner that does not draft has nothing to judge, and a host runner no card to name.
+	if !runner.SpeculatesByDefault() {
+		return nil
+	}
 	execution, held := inferencesurface.Execution(reflect.TypeFor[inference.Runner]().PkgPath())
 	device, err := runner.DeviceUUID(ctx)
 	if err != nil {

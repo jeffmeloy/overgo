@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
+        "nodes": 391,
         "reason": "Small corrections inside existing owners, each named by its finding."
       },
       "steps": [
-        {
-          "id": "draft-host",
-          "title": "Check drafting eligibility before asking for a device identity",
-          "status": "open",
-          "verify": "go test ./internal/modelcli -count=1 -run 'Draft'",
-          "rationale": "SQA-275, a regression of draft-verdict-record/do: a host-reference model with JudgeOwnDrafts is refused for want of a device it never needs. The eligibility part of SQA-257 lands with it.\nServes: host serving works again.\nDisappears: the unconditional device identity request.\nEvidence: the native host fixture.\nBatch: serving lane."
-        },
         {
           "id": "durable-blobs",
           "title": "Publish loose blobs through the durable namespace owner",

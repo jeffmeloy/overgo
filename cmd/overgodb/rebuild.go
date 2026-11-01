@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/authoritylock"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/storepolicy"
@@ -30,12 +31,15 @@ import (
 // only once every consumer check passed, and by renaming the whole store, so
 // the superseded store stays beside it and a failed rename restores it.
 func rebuild(flags *flag.FlagSet, args []string) error {
-	repository := flags.String("repo", "overgodb-store", "OvergoDB store directory")
+	repository := flags.String("repo", "", "OvergoDB store directory; empty resolves through the data root")
 	destination := flags.String("destination", "", "fresh directory for the rebuilt store (default: <repo>.candidate)")
 	withoutRetired := flags.Bool("without-retired", false, "leave out the records of the retired families, which nothing writes and nothing reads, keeping the ones a kept record names")
 	checkout := flags.String("checkout", ".", "with -swap: checkout whose committed documents the rebuilt store must satisfy")
 	swap := flags.Bool("swap", false, "put the rebuilt store into service once every consumer check passed, keeping the superseded store beside it")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
 	}
 	*destination = cmp.Or(*destination, filepath.Clean(*repository)+".candidate")

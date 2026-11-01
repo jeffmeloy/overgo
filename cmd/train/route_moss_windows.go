@@ -172,7 +172,7 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	batch := flags.Int("batch", 1, "examples each step accumulates")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the adapter's checkpoint publishes to")
 	adapterOut := flags.String("adapter", "", "optional directory the PEFT adapter is written to")
 	served := flags.String("served", "", "optional model directory the merged transformer publishes to, beside the base's other components")
@@ -180,6 +180,9 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	report := flags.String("report", "", "with -heldout: the file its reading is written to")
 	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

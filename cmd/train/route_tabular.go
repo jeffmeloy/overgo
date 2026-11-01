@@ -17,6 +17,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
@@ -41,11 +42,14 @@ func trainTabular(ctx context.Context, flags *flag.FlagSet, args []string) error
 	model := flags.String("model", "", "TabFM model directory")
 	objectiveAlias := flags.String("objective", "", "registered table-prediction objective alias: train on its training membership, one request JSON per dataset file, and judge on its held-out one")
 	steps := clioptions.IntOverride(flags, "steps", "required decoder update steps")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB holding the objective, and receiving the session observation, verdict and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB holding the objective, and receiving the session observation, verdict and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained decoder's checkpoint publishes to")
 	recipeText := flags.String("recipe", "", "training recipe artifact ID to train under; omitted trains under the objective's own")
 	proof := flags.Bool("proof", false, "re-verify the recipe by the training run alone, judging no head and publishing no held-out verdict")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *model == "" || *objectiveAlias == "" || *out == "" || *steps <= 0 {

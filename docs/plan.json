@@ -153,16 +153,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 166,
-        "reason": "Estimate. A replay rule in the journal's open and one store-root resolution in existing owners; the second step removes more flag text than it adds."
+        "nodes": 9,
+        "reason": "Measured at the first refusal: 471 production nodes. The estimate counted one resolution; each of the 29 store flags needs its own after parsing, and the second step now holds the journal's open."
       },
       "steps": [
         {
-          "id": "store-root",
-          "title": "Resolve every command's store through the data root",
+          "id": "explicit-create",
+          "title": "Refuse a writable open of an absent store",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis ./cmd/loop -count=1 -run '^(TestEveryStoreFlagResolvesThroughTheDataRoot|TestTheDriverOpensTheStoreItResolved)$'",
-          "rationale": "cmd/loop/main.go:238 opens the relative overgodb-store, ignoring both the store resolved at :145 and the configured repository, and that folder does not exist in the checkout, so go run ./cmd/loop cannot start.\ncmd/train/main.go:58 and about twenty other flags default to the same relative path, and a writable open creates an empty store there (internal/overgodb/log.go:187-190). A stray 16-byte store sits at cmd/evaluate/overgodb-store.\nA flag's default is the data root's store (dataroot.StoreRoot); a writable open of an absent store requires an explicit create.\nServes: setup-steps, and no result written where nothing reads it.\nDisappears: gitauthority.CanonicalOvergoDBDirectory as a default.\nEvidence: an analysis test over every flag, and the driver's own test.\nBatch: host lane."
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAWritableOpenOfAnAbsentStoreRefuses$'",
+          "rationale": "internal/overgodb/log.go creates a store wherever a writable open points, so a mistyped path writes a run into an empty store that nothing reads.\nA writable open of a directory that does not exist is refused, and overgodb.Create is the one explicit way to make a store, used by first-run setup and by a candidate rebuild. An existing empty directory stays an open.\nSplit from store-root, which removed the relative defaults that made this common; the tests that open a new path move to Create, which is the larger part of the change.\nServes: setup-steps, and no result written where nothing reads it.\nDisappears: the implicit create in the journal's open.\nEvidence: the store's own test over an absent path.\nBatch: host lane."
         }
       ]
     },

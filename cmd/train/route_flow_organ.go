@@ -46,10 +46,13 @@ func trainFlowOrgan(ctx context.Context, flags *flag.FlagSet, args []string) (er
 	timestep := flags.Float64("timestep", 0.25, "flow timestep in [0,1)")
 	tensorName := flags.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	stimulusPath := flags.String("stimulus", "", "committed stimulus declaration grounding the recipe dataset")
 	out := flags.String("out", "", "directory the trained organ's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	// Each organ trains under the contract of the objective it steps: a flow

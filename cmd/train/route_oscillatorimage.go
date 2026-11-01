@@ -26,10 +26,13 @@ import (
 func trainOscillatorImage(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "oscillator image model directory (config.json + safetensors)")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	stimulus := flags.String("stimulus", "", "committed declaration of the procedural dataset, grounding the recipe dataset")
 	out := flags.String("out", "", "directory the trained bootstrap's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *model == "" || *stimulus == "" || *out == "" || *steps <= 0 {

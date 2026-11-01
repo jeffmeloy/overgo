@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
+	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
@@ -45,7 +46,7 @@ func audioCommand(flags *flag.FlagSet, args []string) error {
 // JSON lines and summary to output.
 func inspectAudio(ctx context.Context, flags *flag.FlagSet, args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
-	repo := flags.String("repo", "", "OvergoDB root")
+	repo := flags.String("repo", "", "OvergoDB root; empty resolves through the data root")
 	input := flags.String("input", "", "read-only WAV, FLAC, or Parquet file")
 	inputArtifact := flags.String("input-artifact", "", "registered file artifact, instead of -input")
 	policyPath := flags.String("policy", "", "explicit AudioInspectionPolicy JSON")
@@ -61,9 +62,12 @@ func inspectAudio(ctx context.Context, flags *flag.FlagSet, args []string, outpu
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *repo == "" || (*input == "") == (*inputArtifact == "") || *policyPath == "" ||
+	if err := dataroot.ResolveStore(repo); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || (*input == "") == (*inputArtifact == "") || *policyPath == "" ||
 		(*column == "" && *limit != 0) || (*column != "" && *limit <= 0) {
-		return fmt.Errorf("usage: %s -repo <store> (-input <file> | -input-artifact <id>) -policy <json> [-column <leaf> -limit <values>] [-expect <json>]", flags.Name())
+		return fmt.Errorf("usage: %s [-repo <store>] (-input <file> | -input-artifact <id>) -policy <json> [-column <leaf> -limit <values>] [-expect <json>]", flags.Name())
 	}
 	var frontend *audiodsp.Frontend
 	var frontendID artifact.ID

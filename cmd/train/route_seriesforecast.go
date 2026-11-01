@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 )
 
 // trainSeriesForecast is the seriesforecast route: training under a
@@ -15,10 +16,13 @@ func trainSeriesForecast(ctx context.Context, flags *flag.FlagSet, args []string
 	modelDir := flags.String("model", "", "forecast model directory (safetensors + config.json)")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storeRoot := flags.String("store", "overgodb-store", "OvergoDB holding the objective, and receiving the session observation, verdict and checkpoint record")
+	storeRoot := flags.String("store", "", "OvergoDB holding the objective, and receiving the session observation, verdict and checkpoint record; empty resolves through the data root")
 	objectiveAlias := flags.String("objective", "", "registered forecast objective alias: train on its training membership, one light-curve JSON per dataset file, and judge on its held-out one")
 	out := flags.String("out", "", "directory the trained model's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storeRoot); err != nil {
 		return err
 	}
 	if *objectiveAlias == "" || *modelDir == "" || *out == "" || *steps <= 0 {

@@ -43,8 +43,11 @@ func trainMixture(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 	seq := clioptions.IntOverride(flags, "seq", "token window; omitted derives from model and dataset extents")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	out := flags.String("out", "", "directory the trained model's checkpoint publishes to")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

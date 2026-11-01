@@ -29,9 +29,12 @@ func trainSeq2Seq(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 	targetField := flags.String("target-field", "", "the JSON field of each record the decoder learns to write")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained model's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

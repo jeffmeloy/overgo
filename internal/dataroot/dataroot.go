@@ -133,6 +133,17 @@ func StoreRoot(flag string) (string, error) {
 	return roots.Store, nil
 }
 
+// ResolveStore replaces a parsed store flag's value with the store it names, so
+// every read of the flag after parsing holds a real root.
+func ResolveStore(flag *string) error {
+	root, err := StoreRoot(*flag)
+	if err != nil {
+		return err
+	}
+	*flag = root
+	return nil
+}
+
 // Resolve returns the data roots for the given working directory. The
 // OVERGO_DATA_ROOT base is itself resolved as a working directory: its own
 // local-models.json, when present, redirects the bulk roots the way a

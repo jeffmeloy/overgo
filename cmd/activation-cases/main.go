@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
@@ -20,10 +21,13 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "overgodb-store", "OvergoDB root")
+	repository := flag.String("repo", "", "OvergoDB root; empty resolves through the data root")
 	matrixPath := flag.String("matrix", "", "publish an activation matrix input JSON document")
 	admitProfile := flag.String("admit", "", "require complete coverage for one activation profile ID")
 	flag.Parse()
+	if err := dataroot.ResolveStore(repository); err != nil {
+		return err
+	}
 	if *matrixPath != "" {
 		data, err := os.ReadFile(*matrixPath)
 		if err != nil {

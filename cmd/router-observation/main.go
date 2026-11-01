@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -27,12 +28,15 @@ func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("router-observation", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	input := flags.String("input", "", "path to a router observation JSON document")
-	storePath := flags.String("store", "", "OvergoDB root")
+	storePath := flags.String("store", "", "OvergoDB root; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *input == "" || *storePath == "" {
-		return errors.New("usage: router-observation -input <observation.json> -store <overgodb>")
+	if flags.NArg() != 0 || *input == "" {
+		return errors.New("usage: router-observation -input <observation.json> [-store <overgodb>]")
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
+		return err
 	}
 	data, err := os.ReadFile(*input)
 	if err != nil {

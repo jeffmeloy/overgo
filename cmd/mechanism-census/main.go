@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -59,7 +60,7 @@ func run(args []string, output io.Writer) error {
 	input := flags.String("input", "", "path to the mechanism census JSON specification")
 	provenanceInput := flags.String("provenance", "", "path to the external provenance JSON specification")
 	evidenceInput := flags.String("evidence", "", "path to one complete typed mechanism-evidence bundle")
-	storePath := flags.String("store", "", "OvergoDB root")
+	storePath := flags.String("store", "", "OvergoDB root; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -69,8 +70,11 @@ func run(args []string, output io.Writer) error {
 			modes++
 		}
 	}
-	if flags.NArg() != 0 || modes != 1 || *storePath == "" {
-		return errors.New("usage: mechanism-census (-input <census.json> | -provenance <source.json> | -evidence <bundle.json>) -store <overgodb>")
+	if flags.NArg() != 0 || modes != 1 {
+		return errors.New("usage: mechanism-census (-input <census.json> | -provenance <source.json> | -evidence <bundle.json>) [-store <overgodb>]")
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
+		return err
 	}
 	path := cmp.Or(*input, *provenanceInput, *evidenceInput)
 	data, err := os.ReadFile(path)

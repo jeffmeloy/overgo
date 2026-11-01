@@ -36,7 +36,7 @@ func main() {
 
 func run() error {
 	listen := flag.String("listen", "127.0.0.1:8080", "proxy listen address")
-	store := flag.String("repo", "overgodb-store", "OvergoDB root the children serve over")
+	store := flag.String("repo", "", "OvergoDB root the children serve over; empty resolves through the data root")
 	binary := flag.String("server", "bin/overgo-server.exe", "built overgo server binary the supervisor launches")
 	idle := flag.Duration("idle", 0, "stop an unreferenced child after this idle time; 0 keeps it resident")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable catalog listing bound")
@@ -44,6 +44,9 @@ func run() error {
 	training := flag.Bool("training", false, "enable the recipe-bound training workspace in every served child")
 	modelBuilder := flag.Bool("model-builder", false, "enable the corpus-derived model builder workspace in every served child")
 	flag.Parse()
+	if err := dataroot.ResolveStore(store); err != nil {
+		return err
+	}
 	// The proxy forwards requests to its children without authenticating
 	// them itself, so it must never listen beyond this host.
 	if err := clioptions.RequireLoopbackWithoutCredential(*listen, ""); err != nil {

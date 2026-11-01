@@ -12,6 +12,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
+	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
 	"overgo/internal/model"
@@ -83,11 +84,14 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	inspect := flags.Bool("inspect", false, "print the artifact census and exit without training")
 	out := flags.String("out", "", "directory the trained stack's checkpoint publishes to")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	lane := flags.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
 	roundTrip := flags.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
 	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *lane != "full-slab" && *lane != "layer-streamed" {

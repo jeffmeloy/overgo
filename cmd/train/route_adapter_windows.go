@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
+	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/overgodb"
 	"overgo/internal/tokenizer"
@@ -43,8 +44,11 @@ func trainAdapter(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 	layer := flags.Uint("layer", 0, "adapter layer")
 	steps := clioptions.IntOverride(flags, "steps", "required update steps")
 	out := flags.String("out", "", "directory the trained adapter's checkpoint publishes to")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *modelPath == "" || *datasetPath == "" || *out == "" || *steps <= 0 || uint64(*layer) > uint64(^uint32(0)) {

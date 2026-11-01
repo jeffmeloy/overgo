@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 )
@@ -17,10 +18,13 @@ import (
 // store cannot apply -- is refused with the reader's own error, since only a
 // sealed backup restores committed history.
 func repair(flags *flag.FlagSet, args []string) error {
-	repo := flags.String("repo", "overgodb-store", "OvergoDB store directory")
+	repo := flags.String("repo", "", "OvergoDB store directory; empty resolves through the data root")
 	apply := flags.Bool("apply", false, "open the store for writing, which truncates a torn journal tail; default replays it read-only")
 	lineage := flags.Bool("lineage", false, "commit the lineage edges committed lifecycle events declare but the store lacks (additive typed-document repair)")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(repo); err != nil {
 		return err
 	}
 	if *lineage {

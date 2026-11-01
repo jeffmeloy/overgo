@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/latentvideo"
 	"overgo/internal/optimizer"
@@ -94,12 +95,15 @@ func trainCodec(ctx context.Context, flags *flag.FlagSet, args []string) (err er
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	cache := flags.String("cache", "", "directory that keeps each picture's tokens between runs")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority, checkpoint record and verdict")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority, checkpoint record and verdict; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained bridge's checkpoint publishes to")
 	pairOut := flags.String("pair-out", "", "optional directory, beside the encoder and the collection, to write the trained bridge to as a pair of its own")
 	recipeText := flags.String("recipe", "", "with -objective, the training recipe artifact ID to train under; omitted trains under the objective's own")
 	proof := flags.Bool("proof", false, "with -objective, re-verify the recipe by the training run alone: it reads tokens for the pictures its steps take and keeps none, so it takes no -cache, judges no bridge and publishes no held-out verdict")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

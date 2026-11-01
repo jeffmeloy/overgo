@@ -16,6 +16,7 @@ import (
 	"overgo/internal/bridgetrain"
 	"overgo/internal/clioptions"
 	"overgo/internal/composition"
+	"overgo/internal/dataroot"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -29,7 +30,7 @@ func run() error {
 	activations := flags.String("activations", "", "paired seam activations JSON path ({source, target})")
 	audit := flags.String("audit", "", "recorded measurements JSON path ({residuals, parities})")
 	enumerate := flags.String("enumerate", "", "target component name: enumerate ranked donor seam candidates from the committed catalog")
-	repoFlag := flags.String("repo", "", "OvergoDB store for -enumerate")
+	repoFlag := flags.String("repo", "", "OvergoDB store for -enumerate; empty resolves through the data root")
 	measured := flags.String("measurements", "", "donor seam measurements JSON path for -enumerate ({measurements})")
 	limit := flags.Int("limit", 16, "shortlist size for -enumerate")
 	realize := flags.String("realize", "", "realization specification JSON path: align-init, train donors-frozen over recorded activations, assemble")
@@ -37,6 +38,9 @@ func run() error {
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
 	if err := flags.Parse(os.Args[1:]); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(repoFlag); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*drive) != "" {

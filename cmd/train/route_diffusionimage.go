@@ -33,9 +33,12 @@ func trainDiffusionImage(ctx context.Context, flags *flag.FlagSet, args []string
 	manifest := flags.String("images", "", "UTF-8 manifest naming one training image per line, relative to the manifest; it grounds the recipe dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained model's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

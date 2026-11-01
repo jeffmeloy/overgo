@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -34,9 +35,12 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "overgodb-store", "OvergoDB store directory")
+	repository := flag.String("repo", "", "OvergoDB store directory; empty resolves through the data root")
 	key := flag.String("key", "", "commit key recording this workflow execution")
 	flag.Parse()
+	if err := dataroot.ResolveStore(repository); err != nil {
+		return err
+	}
 	if flag.NArg() != 1 || strings.TrimSpace(*key) == "" {
 		return errors.New("usage: tool-workflow -key <commit-key> [-repo <store>] <request.json>")
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
@@ -202,7 +203,7 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	scheduleIndex := clioptions.IntOverride(flags, "schedule-index", "required committed schedule index")
 	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	stimulus := flags.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	objectiveAlias := flags.String("objective-alias", "", "registered flow-matching objective alias to train under, publishing no checkpoint; empty bootstraps flow matching from text to video over -stimulus")
 	out := flags.String("out", "", "directory the trained DiT's checkpoint publishes to; required unless -objective-alias")
@@ -211,6 +212,9 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	clipCount := flags.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
 	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	overrides := clioptions.ExplicitOverrides(flags)

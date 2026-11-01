@@ -22,6 +22,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
@@ -75,7 +76,7 @@ func run() error {
 	budget := flag.Duration("budget", evaluationBudget, "wall-clock ceiling on one -all pass, shared as equal slices across the models still to run; a model cut at its slice is recorded budget-exceeded")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
-	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
+	repository := flag.String("repo", "", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all; empty resolves through the data root")
 	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
 	protocol := flag.String("protocol", evaluation.PromptingRawCompletion.Label(), "how each model is asked: raw-completion scores the plain prompt's options by likelihood and stays the recorded anchor; chat-template asks a multiple-choice question through the model's declared chat template for its letter at once; exploratory-reasoning asks it there with thinking on and a long sampled answer, and publishes every question it asks as development evidence")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
@@ -123,6 +124,9 @@ func run() error {
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
+	if err := dataroot.ResolveStore(repository); err != nil {
+		return err
+	}
 	asked, err := evaluation.PromptingNamed(*protocol)
 	if err != nil {
 		return err

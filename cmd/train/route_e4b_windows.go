@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
+	"overgo/internal/dataroot"
 	"overgo/internal/e4btrain"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -34,8 +35,11 @@ func trainE4B(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	seq := clioptions.IntOverride(flags, "seq", "token window; omitted trains on every token of the dataset")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	out := flags.String("out", "", "directory the trained decoder's checkpoint publishes to")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

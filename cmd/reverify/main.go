@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/recipe"
 )
 
@@ -45,10 +46,13 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "overgodb-store", "OvergoDB store directory")
+	repository := flag.String("repo", "", "OvergoDB store directory; empty resolves through the data root")
 	claimsPath := flag.String("claims", "", "claims manifest naming the exact-golden inference evidence")
 	reason := flag.String("reason", "", "activation reason recorded in the decision event")
 	flag.Parse()
+	if err := dataroot.ResolveStore(repository); err != nil {
+		return err
+	}
 	if flag.NArg() != 1 || strings.TrimSpace(*claimsPath) == "" || strings.TrimSpace(*reason) == "" {
 		return errors.New("usage: reverify -claims <manifest.json> -reason <text> [-repo <path>] <model>")
 	}

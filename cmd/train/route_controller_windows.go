@@ -9,6 +9,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/controllertrain"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
@@ -32,9 +33,12 @@ func trainController(ctx context.Context, flags *flag.FlagSet, args []string) er
 	corpusPath := flags.String("corpus", "", "controller corpus: a JSON object of train and holdout records")
 	seed := flags.Int64("seed", 0, "seed the scratch model splits its documents and draws its initial weights with")
 	steps := clioptions.IntOverride(flags, "steps", "required Muon steps")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	out := flags.String("out", "", "directory the trained model's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	name := flags.Name()

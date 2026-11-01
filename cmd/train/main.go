@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
 	"overgo/internal/quietmachine"
@@ -55,7 +56,7 @@ func run() error {
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	storePath := flag.String("store", "overgodb-store", "OvergoDB containing the active training recipe and policies")
+	storePath := flag.String("store", "", "OvergoDB containing the active training recipe and policies; empty resolves through the data root")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish a token-training recipe for the model weights file at this path as a candidate, then exit; the first run under it that succeeds verifies and activates it")
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
@@ -78,6 +79,9 @@ func run() error {
 	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
 	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
+	if err := dataroot.ResolveStore(storePath); err != nil {
+		return err
+	}
 	given := false
 	flag.Visit(func(set *flag.Flag) { given = given || set.Name == keepFlag })
 	if err := keepReason(given, *pilot, *keep); err != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
 	"overgo/internal/optimizer"
@@ -84,11 +85,14 @@ func trainMot(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 	bindingName := flags.String("binding", "", "branch binding name")
 	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	stimulus := flags.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	out := flags.String("out", "", "directory the trained vision fork's checkpoint publishes to")
 	proof := proofFlag(flags)
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *out == "" || *steps <= 0 {

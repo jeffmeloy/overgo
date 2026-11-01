@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
@@ -43,7 +44,7 @@ type receipt struct {
 //   - a passing candidate carries its proof and failed checks leave no proof.
 //   - replacement retains the superseded store and refuses a changed live head.
 func precheckStore(flags *flag.FlagSet, args []string) error {
-	repository := flags.String("repo", "overgodb-store", "OvergoDB store in service")
+	repository := flags.String("repo", "", "OvergoDB store in service; empty resolves through the data root")
 	backup := flags.String("backup", "", "published backup whose seal names the store's current head (default: this command seals one under -backups)")
 	backups := flags.String("backups", "", "directory this command seals its own backup under (default: overgo-backups beside the checkout)")
 	checkout := flags.String("checkout", ".", "checkout whose plan, committed documents and commit messages the candidate must satisfy")
@@ -51,6 +52,9 @@ func precheckStore(flags *flag.FlagSet, args []string) error {
 	swap := flags.Bool("swap", false, "rename the candidate into service when every check passed, keeping the superseded store beside it")
 	leftovers := flags.Bool("leftovers", false, "list the superseded stores and sealed backups earlier operations left and which the newest of each are; removes nothing")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {

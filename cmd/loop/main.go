@@ -53,7 +53,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/dataroot"
-	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
@@ -214,7 +213,7 @@ func run(args []string) error {
 	if loaded.WorkerTimeoutMinutes <= 0 {
 		loaded.WorkerTimeoutMinutes = 90
 	}
-	strategy, err := resolveConfiguredStrategy(loaded)
+	strategy, prompt, err := resolveConfiguredStrategy(loaded, *repoPath)
 	if err != nil {
 		return err
 	}
@@ -235,17 +234,8 @@ func run(args []string) error {
 			_ = os.Unsetenv(processcontrol.CampaignEnvironment)
 		}
 	}()
-	store, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	prompt, found, err := artifact.ReadContent(context.Background(), store, strategy.Prompt)
-	if err != nil || !found {
-		return errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
-	}
 	// An empty plan runs the full scorecard and turns the gaps into the next rows.
-	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
+	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: prompt, campaign: campaign, improvement: improvementFor(*repoPath)}
 	world.improvement.limit = loaded.AutoCycleLandings
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
@@ -265,25 +255,26 @@ func removalFlags(leftovers bool, place, directory, token string) error {
 	return nil
 }
 
-func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
+// resolveConfiguredStrategy reads the configured strategy and its prompt from the
+// store the configuration names, else from the store this command resolved.
+func resolveConfiguredStrategy(loaded config, resolved string) (loop.Strategy, string, error) {
 	if loaded.StrategyID.Kind() != artifact.KindProfile {
-		return loop.Strategy{}, errors.New("config requires an exact strategy_id profile")
+		return loop.Strategy{}, "", errors.New("config requires an exact strategy_id profile")
 	}
-	repository := loaded.Repository
-	repository = cmp.Or(repository, gitauthority.CanonicalOvergoDBDirectory)
-	store, err := overgodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(cmp.Or(loaded.Repository, resolved))
 	if err != nil {
-		return loop.Strategy{}, fmt.Errorf("open strategy repository: %w", err)
+		return loop.Strategy{}, "", fmt.Errorf("open strategy repository: %w", err)
 	}
-	strategy, strategyErr := loop.RequireStrategy(context.Background(), store, loaded.StrategyID)
-	closeErr := store.Close()
-	if strategyErr != nil {
-		return loop.Strategy{}, fmt.Errorf("resolve strategy: %w", strategyErr)
+	defer store.Close()
+	strategy, err := loop.RequireStrategy(context.Background(), store, loaded.StrategyID)
+	if err != nil {
+		return loop.Strategy{}, "", fmt.Errorf("resolve strategy: %w", err)
 	}
-	if closeErr != nil {
-		return loop.Strategy{}, fmt.Errorf("close strategy repository: %w", closeErr)
+	prompt, found, err := artifact.ReadContent(context.Background(), store, strategy.Prompt)
+	if err != nil || !found {
+		return loop.Strategy{}, "", errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
 	}
-	return strategy, nil
+	return strategy, string(prompt.Data), nil
 }
 
 // execWorld adapts the driver to the repository's real owners.

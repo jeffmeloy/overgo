@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/modelbuilder"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
@@ -26,11 +27,14 @@ func main() { clioptions.Main(func() error { return run(os.Args[1:], os.Stdout) 
 func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("model-build", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	repository := flags.String("repo", "overgodb-store", "OvergoDB store")
+	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data root")
 	dataset := flags.String("dataset", "", "JSON string-array corpus")
 	seed := flags.Int64("seed", 1, "construction seed")
 	steps := flags.Int("steps", 1, "training steps")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(repository); err != nil {
 		return err
 	}
 	if *dataset == "" || flags.NArg() != 0 {

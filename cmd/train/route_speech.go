@@ -7,6 +7,7 @@ import (
 	"os"
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -20,11 +21,14 @@ func trainSpeech(ctx context.Context, flags *flag.FlagSet, args []string) error 
 	manifest := flags.String("manifest", "", "speech training manifest with base_recipe, profile, memory_bytes, seed and shuffle")
 	steps := clioptions.IntOverride(flags, "steps", "additional Muon updates; omission reads one dataset pass")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB holding the dataset and training recipe")
+	storePath := flags.String("store", "", "OvergoDB holding the dataset and training recipe; empty resolves through the data root")
 	out := flags.String("out", "", "new checkpoint directory")
 	resume := flags.String("resume", "", "checkpoint whose exact next example and native optimizer state continue")
 	host := flags.Bool("host", false, "use the CPU numerical reference instead of the platform Muon backend")
 	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
 	}
 	if *manifest == "" || *out == "" || *steps < 0 || flags.NArg() != 0 || (*recipeText == "") == (*objectiveAlias == "") {

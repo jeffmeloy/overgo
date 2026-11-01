@@ -917,7 +917,9 @@ func (s *Store) Head() (artifact.CommitID, uint64) {
 }
 
 // Close releases the record log; further calls are no-ops.
-//   - Checkpoint maintenance is best effort and never waits for writer admission.
+//   - Checkpoint maintenance never waits for writer admission, and what it could
+//     not write is reported: the journal holds every commit, so nothing is lost,
+//     but the next open replays it.
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
@@ -927,16 +929,17 @@ func (s *Store) Close() error {
 	if s.closed {
 		return nil
 	}
+	var maintenance error
 	if s.ready(true) == nil {
 		if lock, err := processlock.Acquire(writerLockPath(s.root), storeFileMode); err == nil {
 			defer lock.Close()
 			if s.refreshLocked() == nil && s.sequence-s.anchored > s.tail {
-				_, _ = s.snapshotLocked()
+				_, maintenance = s.snapshotLocked()
 			}
 		}
 	}
 	s.closed = true
-	return s.log.Close()
+	return errors.Join(maintenance, s.log.Close())
 }
 
 func (s *Store) ready(write bool) error {

@@ -135,6 +135,23 @@ func replaySealedSegments(paths []string, apply func(logRecord) error) (replayRe
 	return chain, nil
 }
 
+// anchorBehindSeal reports an anchor older than the newest sealed segment. An
+// anchor addresses the active segment, and a seal empties that file, so such an
+// anchor verifies against an empty log: every generation written at a seal holds
+// the same offset and the digest of no bytes. Stopping there would drop the
+// sealed records after it and give the next commit a number already used.
+func anchorBehindSeal(anchor replayAnchor, paths []string) (bool, error) {
+	if anchor.sequence == 0 || len(paths) == 0 {
+		return false, nil
+	}
+	base := strings.TrimSuffix(filepath.Base(paths[len(paths)-1]), segmentExtension)
+	newest, err := strconv.ParseUint(base, segmentNameRadix, segmentNameBitSize)
+	if err != nil {
+		return false, fmt.Errorf("overgodb: invalid sealed segment name %s", filepath.Base(paths[len(paths)-1]))
+	}
+	return anchor.sequence < newest, nil
+}
+
 // replaySealed replays one immutable segment file, continuing the
 // cross-segment commit chain the caller threads.
 func (l *recordLog) replaySealed(chain replayResult, apply func(logRecord) error) (replayResult, error) {
@@ -164,6 +181,11 @@ func openRecordLog(
 		return nil, replayResult{}, err
 	}
 	chain := replayResult{}
+	if behind, err := anchorBehindSeal(anchor, paths); err != nil {
+		return nil, replayResult{}, err
+	} else if behind {
+		return nil, replayResult{}, ErrSnapshotAnchor
+	}
 	if anchor.sequence == 0 {
 		sealed, err := replaySealedSegments(paths, apply)
 		if err != nil {

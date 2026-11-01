@@ -247,17 +247,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 300,
+        "nodes": 166,
         "reason": "Estimate. A replay rule in the journal's open and one store-root resolution in existing owners; the second step removes more flag text than it adds."
       },
       "steps": [
-        {
-          "id": "anchor",
-          "title": "Refuse a checkpoint older than the newest sealed segment",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenNeverStopsShortOfASealedSegment$'",
-          "rationale": "P1, reproduced on 2026-11-01 with a temporary-folder test. snapshotLocked seals and truncates the log before it writes the checkpoint (internal/overgodb/snapshot.go:58-68), and Close discards the error (internal/overgodb/store.go:934).\nEvery generation's anchor is offset 16 with a digest of zero bytes, so an older generation verifies against the emptied log: an open at 20 after commits through 40, no fallback, the next commit takes sequence 21, and a later full replay refuses the store.\nAn anchor below the newest sealed segment replays the segments after it, or refuses the anchor so the whole journal replays. Close reports what it could not write. Consider writing the generation before the log is truncated.\nThe real store is sound today: newest checkpoint and newest segment are both 69010.\nServes: failure-rate and every scorecard reading, which rest on the store.\nDisappears: the anchor digest that proves nothing after a seal.\nEvidence: a test that blocks the checkpoint write after the seal, and one that kills between the two.\nBatch: store lane."
-        },
         {
           "id": "store-root",
           "title": "Resolve every command's store through the data root",

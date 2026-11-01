@@ -6194,7 +6194,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "57973aff2c52e3ca34b2b85343ff463ca09d118c",
+    "head": "29ef731e09987bb867980228d1f6ef65ef12cbc7",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6347,14 +6347,14 @@
         "rows": [
           "sqa-served/durable-blobs"
         ],
-        "note": "Highest-consequence item outside MOSS: possible committed content loss on power interruption. Small. After the MOSS rows only because no incident is recorded and it is not P1."
+        "note": "Read again against store-history/anchor, which changes Store.Close and the journal's open and leaves blob publication as it was. Still stands, and still the largest remaining durability item after that P1: a sealed journal is safe across a crash now, a loose blob is not yet."
       },
       "SQA-272": {
         "action": "filed",
         "rows": [
           "sqa-served/retention-head"
         ],
-        "note": "Real but production exposure is limited: the one production caller releases an isolated clone. Small fix, batched."
+        "note": "Read again against store-history/anchor, which does not touch Release or collectLiveSet. Still stands; exposure stays limited to the isolated-clone caller."
       },
       "SQA-275": {
         "action": "filed",

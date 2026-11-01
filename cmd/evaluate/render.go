@@ -469,7 +469,9 @@ func verifyRendered(ctx context.Context, store artifact.Reader, directory string
 		return renderedMedia{}, errors.Join(err, errors.New("evaluate: rendered payload differs"))
 	}
 	produced, err := runrecord.RequireRun(ctx, store, held.Run)
-	if err != nil || produced.Outcome != runrecord.OutcomeSucceeded || produced.Recipe != recipeID || produced.CodeCommit != manifest.CodeCommit || !slices.Contains(produced.Inputs, held.Input) || !slices.Contains(produced.Outputs, held.Output) {
+	// A capability run records no commit; one that does names the build that drew it.
+	otherBuild := produced.CodeCommit != "" && produced.CodeCommit != manifest.CodeCommit
+	if err != nil || produced.Outcome != runrecord.OutcomeSucceeded || produced.Recipe != recipeID || otherBuild || !slices.Contains(produced.Inputs, held.Input) || !slices.Contains(produced.Outputs, held.Output) {
 		return renderedMedia{}, errors.Join(err, errors.New("evaluate: producing run does not bind this request and output"))
 	}
 	input, found, err := artifact.ReadContent(ctx, store, held.Input)

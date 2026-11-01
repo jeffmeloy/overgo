@@ -152,14 +152,11 @@
       "title": "Define the held-out evaluation that measures image-gen quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 3,
+        "reason": "One condition in verifyRendered, so a run with no commit can be judged."
+      },
       "steps": [
-        {
-          "id": "judged-run",
-          "title": "Judge a picture whose run records no commit",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1 -run '^TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt$'",
-          "rationale": "verifyRendered requires the producing run's code commit to equal the render manifest's, and a capability run records none: workflowruntime publishes runrecord.NewRun, which carries no commit. So every picture rendered since the check arrived on 2026-10-15 is refused at judging, and the first new render, MOSS's TIFA set, found it.\nA run that records a commit must still match the manifest's; a run that records none is bound by its recipe, its request and its output, which the check already holds.\nServes: held-out-quality for any image or video model rendered from now on.\nDisappears: nothing.\nEvidence: the render test, over a run with no commit and a run with another.\nBatch: host lane."
-        },
         {
           "id": "do",
           "title": "Define the held-out evaluation that measures image-gen quality",

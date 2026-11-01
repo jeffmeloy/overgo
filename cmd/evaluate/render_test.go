@@ -145,7 +145,38 @@ func TestAPictureIsJudgedOnlyWhenTheEvaluatedRecipeDrewIt(t *testing.T) {
 	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, zeroKey.DigestHex()); err != nil {
 		t.Fatalf("omitted numeric zero changed request semantics: %v", err)
 	}
-	manifest.Draws = nil
+	// A capability run records no commit, as the workflow runtime publishes it, and
+	// stays bound by its recipe, request and output; one that records another
+	// commit than the manifest's does not qualify.
+	bare, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{held.Input}, []artifact.ID{held.Output}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bareContent, err := bare.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{Key: "render-fixture/bare", Contents: []artifact.Content{bareContent}}); err != nil {
+		t.Fatal(err)
+	}
+	unstamped := held
+	unstamped.Run = bare.ID
+	manifest.Draws = map[string]renderedMedia{name: unstamped}
+	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err != nil {
+		t.Fatalf("a run that records no commit was refused: %v", err)
+	}
+	drawnAt := manifest.CodeCommit
+	manifest.CodeCommit, manifest.Draws = strings.Repeat("b", len(drawnAt)), map[string]renderedMedia{name: held}
+	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyRendered(t.Context(), store, directory, model, recipeID, name); err == nil {
+		t.Error("a run of another commit was judged")
+	}
+	manifest.CodeCommit, manifest.Draws = drawnAt, nil
 	if err := jsonfile.Write(filepath.Join(directory, renderManifestFile), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -124,7 +124,7 @@ func vqaRunKey(attempt, content, question string, steps int) (string, error) {
 // openVQASession opens the visual-question-answering model at the request's
 // path under its active vqa recipe; its cases ask about images of the media root.
 func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
-	source, err := mediacapability.Catalog[recipe.TaskVQA].Resolve(request.Path)
+	source, err := mediacapability.Catalog[recipe.TaskVQA].Resolve(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no vqa model: %w", request.Path, err)
 	}

@@ -44,7 +44,7 @@ func TestLiveEditRecordsItsOwnDirectory(t *testing.T) {
 		map[string][]float32{"weight": {1}}, map[string][]int{"weight": {1}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	source, err := resolveVideoSource(edit)
+	source, err := resolveVideoSource(t.Context(), edit)
 	if err != nil {
 		t.Fatal(err)
 	}

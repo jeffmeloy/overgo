@@ -31,7 +31,7 @@ func TestTranscriptionCapabilityCompilesTheSpeechRecipe(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			directory := speechCheckpoint(t, modelType)
-			source, err := Catalog[recipe.TaskTranscription].Resolve(directory)
+			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +95,7 @@ func TestWholeClipTranscriptionServesTheResidentRecipe(t *testing.T) {
 		t.Run(modelType, func(t *testing.T) {
 			t.Parallel()
 			directory := speechCheckpoint(t, modelType)
-			source, err := Catalog[recipe.TaskTranscription].Resolve(directory)
+			source, err := Catalog[recipe.TaskTranscription].Resolve(t.Context(), directory)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -70,7 +70,7 @@ func openEmbeddingSession(ctx context.Context, store *overgodb.Store, value mani
 	if request.MediaRoot == "" {
 		return nil, fmt.Errorf("evaluate: %s embeds the pictures of a media root, and the request names none", request.Path)
 	}
-	source, err := mediacapability.Catalog[recipe.TaskImageEmbedding].Resolve(request.Path)
+	source, err := mediacapability.Catalog[recipe.TaskImageEmbedding].Resolve(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no image encoder: %w", request.Path, err)
 	}

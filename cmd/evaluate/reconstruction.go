@@ -95,7 +95,7 @@ func openReconstructionSession(ctx context.Context, store *overgodb.Store, value
 	if request.MediaRoot == "" {
 		return nil, fmt.Errorf("evaluate: %s reconstructs the clips of a media root, and the request names none", request.Path)
 	}
-	source, err := mediacapability.Catalog[recipe.TaskReconstruction].Resolve(request.Path)
+	source, err := mediacapability.Catalog[recipe.TaskReconstruction].Resolve(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no autoencoder: %w", request.Path, err)
 	}

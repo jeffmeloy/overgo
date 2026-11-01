@@ -238,19 +238,23 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 		inputs = append(inputs, request.Descriptor.ID)
 	}
 	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{content.Descriptor.ID}, "")
+	var batch artifact.Batch
+	if err == nil {
+		batch, err = run.Batch(generationRunKeyPrefix + run.ID.String())
+	}
+	if err == nil {
+		if recorded {
+			batch.Contents = append(batch.Contents, request)
+		}
+		batch.Contents = append(batch.Contents, content)
+		_, err = artifact.Publish(ctx, workspace.store, batch)
+	}
 	if err != nil {
-		return operation.Completion{}, err
-	}
-	batch, err := run.Batch(generationRunKeyPrefix + run.ID.String())
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	if recorded {
-		batch.Contents = append(batch.Contents, request)
-	}
-	batch.Contents = append(batch.Contents, content)
-	if _, err := artifact.Publish(ctx, workspace.store, batch); err != nil {
-		return operation.Completion{}, err
+		// A Stop in this window, or any refused publication, ends as a recorded run: the operation's
+		// completion needs one, and no success was stored for it to name.
+		completion, failed := failWorkflow(ctx, workspace.store, recipeID, sources, generationFailure, err)
+		workspace.observe(ctx, capability.Model, recipeID, completion.Run, task, started, end-begin, measured, failed)
+		return completion, failed
 	}
 	workspace.observe(ctx, capability.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()

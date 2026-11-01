@@ -183,7 +183,7 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 	}
 	defer store.Close()
 	capability := mediacapability.Catalog[task]
-	source, err := capability.Resolve(path)
+	source, err := capability.Resolve(ctx, path)
 	if err != nil {
 		return nil, err
 	}

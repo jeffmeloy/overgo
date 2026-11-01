@@ -73,7 +73,7 @@ func TestRAEImageCapabilityGenerates(t *testing.T) {
 	}
 	defer store.Close()
 	capability := Catalog[recipe.TaskImageGen]
-	source, err := capability.Resolve(directory)
+	source, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

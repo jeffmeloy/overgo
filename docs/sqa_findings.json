@@ -6191,6 +6191,32 @@
         "plan_steps": [
           "moss-findings/measured-presence"
         ]
+      },
+      {
+        "comment": "Landed with moss-findings/cancellation. mediacapability.Capability.Resolve takes a context; resolveImageSource, transcription and VQA call FromHFPathContext, Prepare passes its own, and callers and test doubles follow. TestMOSSSourceInventoryCancels stops hashing by a counted context with no timer, proves nothing published, and resolves the same source afterwards.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestMOSSSourceInventoryCancels",
+          "internal/mediacapability/capabilities.go Capability",
+          "internal/mediacapability/image_source.go"
+        ],
+        "finding_id": "SQA-MOSS-001",
+        "plan_steps": [
+          "moss-findings/cancellation"
+        ]
+      },
+      {
+        "comment": "Landed with moss-findings/cancellation. ExecuteWorkflow sends a refused final publication through failWorkflow, so a Stop there leaves a stored cancelled run; validateGeneration sends a refused verification publication through its fail closure, and keeps the published verification's run on a refused activation. TestGenerationCancelledAtPublicationRecordsItsRun and the two new TestMOSSImageValidation modes failed before the fix.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestGenerationCancelledAtPublicationRecordsItsRun",
+          "TestMOSSImageValidation/cancel-at-verification",
+          "TestMOSSImageValidation/cancel-at-activation"
+        ],
+        "finding_id": "SQA-MOSS-011",
+        "plan_steps": [
+          "moss-findings/cancellation"
+        ]
       }
     ],
     "experiments": {
@@ -6233,7 +6259,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "3cb2d75dad43312bf884fb4a45ad3bfb6a3ec77c",
+    "head": "a0a58c69159a8a7ec150d8d6a09bd78047824836",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6333,18 +6359,18 @@
         "note": "Landed before the scorecard rows, as filed. Measured carries whether a meter was read, the server publishes a finish sample only then, and the image session now has a meter, so MOSS's peak cell will hold a real number. Awaits the reviewer's closure."
       },
       "SQA-MOSS-001": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/cancellation"
         ],
-        "note": "Accepted: the Resolve contract carries no context. Fixed with 011 in one cancellation step."
+        "note": "Landed: Capability.Resolve takes the request context, and the HF image, transcription and VQA sources hash under it. Other capabilities take the same contract with sources that do not hash through this path. Awaits the reviewer's closure."
       },
       "SQA-MOSS-011": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/cancellation"
         ],
-        "note": "Accepted on the traced sequence; not reproduced yet, and the step starts from a failing test. Reference moves here from moss-closeout/close because closeout should verify it, not implement it. This commit's schedule cancellation is a separate window, before any device work."
+        "note": "Reproduced by three failing cases before the fix, so the trace was right on all of them: the final publication, the verification publication and the activation. Each now settles with a stored run, and an activation refused after a published verification keeps that run without crediting an activation. Awaits the reviewer's closure."
       },
       "SQA-MOSS-009": {
         "action": "filed",

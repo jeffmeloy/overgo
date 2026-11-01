@@ -32,7 +32,7 @@ import (
 // model path into its inventory and recipe definition; Execute runs the
 // compiled program against the model bytes with a JSON input.
 type Capability struct {
-	Resolve func(string) (Source, error)
+	Resolve func(context.Context, string) (Source, error)
 	Execute capabilityruntime.Executor
 	// ValidationInput derives a bounded functional request from source geometry.
 	// It establishes executable output and repeatability rather than model quality.
@@ -75,7 +75,7 @@ func inventoryCapability(
 	execute capabilityruntime.Executor,
 ) Capability {
 	return Capability{
-		Resolve: func(path string) (Source, error) {
+		Resolve: func(_ context.Context, path string) (Source, error) {
 			resolved, err := inventory(path)
 			return Source{Inventory: resolved}, err
 		},
@@ -106,7 +106,7 @@ func thoughtBankCapability() Capability {
 		thoughtbank.RegisterRuntime,
 	)
 	return Capability{
-		Resolve: func(path string) (Source, error) {
+		Resolve: func(_ context.Context, path string) (Source, error) {
 			inventory, inventoryErr := thoughtBankInventory(path)
 			return definitionSource(inventory, inventoryErr, func(modelID artifact.ID) (recipe.Definition, error) {
 				return modelrecipe.CapabilityDefinition(recipe.TaskGeneration, modelID)
@@ -119,7 +119,7 @@ func thoughtBankCapability() Capability {
 // Projection is the projection capability for one projector file: the model
 // and the projector bind into a projection recipe (no executor).
 func Projection(ctx context.Context, store overgodb.DocumentReader, projectorPath string) Capability {
-	return Capability{Resolve: func(modelPath string) (Source, error) {
+	return Capability{Resolve: func(_ context.Context, modelPath string) (Source, error) {
 		candidate, err := modelintake.PrepareProjectionCandidate(ctx, store, modelPath, projectorPath)
 		if err != nil {
 			return Source{}, err
@@ -189,8 +189,8 @@ var Catalog = map[recipe.Task]Capability{
 // the CPU recipe its streams need.
 func transcriptionCapability() Capability {
 	return Capability{
-		Resolve: func(path string) (Source, error) {
-			inventory, err := modelartifact.FromHFPath(path)
+		Resolve: func(ctx context.Context, path string) (Source, error) {
+			inventory, err := modelartifact.FromHFPathContext(ctx, path)
 			if err != nil {
 				return Source{}, err
 			}

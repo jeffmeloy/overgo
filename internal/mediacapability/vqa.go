@@ -20,8 +20,8 @@ import (
 // page serves the activation the harness proved.
 func vqaCapability() Capability {
 	return Capability{
-		Resolve: func(path string) (Source, error) {
-			inventory, err := modelartifact.FromHFPath(path)
+		Resolve: func(ctx context.Context, path string) (Source, error) {
+			inventory, err := modelartifact.FromHFPathContext(ctx, path)
 			return definitionSource(inventory, err, func(modelID artifact.ID) (recipe.Definition, error) {
 				return modelrecipe.CapabilityDefinition(recipe.TaskVQA, modelID)
 			})

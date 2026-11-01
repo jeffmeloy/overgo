@@ -80,7 +80,7 @@ func pictureServing(t *testing.T, directory, name string) pictureService {
 		}
 	})
 	capability := mediacapability.Catalog[recipe.TaskImageGen]
-	source, err := capability.Resolve(directory)
+	source, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

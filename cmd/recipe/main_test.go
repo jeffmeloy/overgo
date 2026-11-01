@@ -110,7 +110,7 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capability := mediacapability.Capability{Resolve: func(string) (mediacapability.Source, error) {
+	capability := mediacapability.Capability{Resolve: func(context.Context, string) (mediacapability.Source, error) {
 		return mediacapability.Source{Inventory: inventory}, nil
 	}}
 	want, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, inventory.Manifest.ID)
@@ -216,7 +216,7 @@ func TestModelFactsFollowTheModel(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		capability := mediacapability.Capability{Resolve: func(string) (mediacapability.Source, error) {
+		capability := mediacapability.Capability{Resolve: func(context.Context, string) (mediacapability.Source, error) {
 			return mediacapability.Source{Inventory: inventory, Manifests: []artifact.Manifest{group},
 				Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 					definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, modelID)
@@ -335,7 +335,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 			head, sequence := activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, unrelated, test.accepted)
 			var ran []string
 			capability := mediacapability.Capability{
-				Resolve: func(string) (mediacapability.Source, error) {
+				Resolve: func(context.Context, string) (mediacapability.Source, error) {
 					return mediacapability.Source{Inventory: inventory}, nil
 				},
 				Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
@@ -420,7 +420,7 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 			activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, verified)
 			var load time.Duration
 			capability := mediacapability.Capability{
-				Resolve: func(string) (mediacapability.Source, error) {
+				Resolve: func(context.Context, string) (mediacapability.Source, error) {
 					return mediacapability.Source{Inventory: inventory}, nil
 				},
 				Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
@@ -477,7 +477,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	var runs atomic.Int32
 	var terminal error
 	capability := mediacapability.Capability{
-		Resolve: func(string) (mediacapability.Source, error) {
+		Resolve: func(context.Context, string) (mediacapability.Source, error) {
 			return mediacapability.Source{Inventory: inventory}, nil
 		},
 		Execute: capabilityruntime.JSONScalar[[]float32, int, []float32](
@@ -625,7 +625,7 @@ func TestCapabilityMeasurementRecordsDecodeAndOutputTokens(t *testing.T) {
 	// The walls the executor measured, by the node that took them.
 	walls := map[recipe.NodeID]uint64{}
 	capability := mediacapability.Capability{
-		Resolve: func(string) (mediacapability.Source, error) {
+		Resolve: func(context.Context, string) (mediacapability.Source, error) {
 			return mediacapability.Source{Inventory: inventory}, nil
 		},
 		Execute: func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {

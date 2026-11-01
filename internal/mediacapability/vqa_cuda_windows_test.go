@@ -33,7 +33,7 @@ func TestVQAActivation(t *testing.T) {
 		t.Skipf("UNAVAILABLE: RxBrain demo image: %v", err)
 	}
 	capability := vqaCapability()
-	source, err := capability.Resolve(model)
+	source, err := capability.Resolve(t.Context(), model)
 	if err != nil {
 		t.Fatal(err)
 	}

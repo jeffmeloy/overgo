@@ -24,6 +24,9 @@ import (
 type imageValidationReporter struct {
 	completed, total uint64
 	publishing       bool
+	// cancelAt, where cancel is set, cancels the validation as the stage of that progress begins.
+	cancelAt uint64
+	cancel   func()
 }
 
 func (*imageValidationReporter) OperationID() artifact.ID { return artifact.ID{} }
@@ -31,6 +34,9 @@ func (r *imageValidationReporter) Progress(v uint64, total *uint64) {
 	r.completed = v
 	if total != nil {
 		r.total = *total
+	}
+	if r.cancel != nil && v == r.cancelAt {
+		r.cancel()
 	}
 }
 func (*imageValidationReporter) Metric(operation.Metric) {}
@@ -40,7 +46,7 @@ func (r *imageValidationReporter) Publishing()           { r.publishing = true }
 
 func TestMOSSImageValidation(t *testing.T) {
 	cudatest.Require(t)
-	for _, mode := range []string{"success", "different-repeat", "cancel", "unmeasured"} {
+	for _, mode := range []string{"success", "different-repeat", "cancel", "unmeasured", "cancel-at-verification", "cancel-at-activation"} {
 		t.Run(mode, func(t *testing.T) {
 			root := testutil.ExtractTarGzip(t, testutil.FixturePath(t, "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
 			store, err := overgodb.Open(t.TempDir())
@@ -105,6 +111,12 @@ func TestMOSSImageValidation(t *testing.T) {
 				t.Fatal("premature activation", status, err)
 			}
 			reporter := &imageValidationReporter{}
+			switch mode {
+			case "cancel-at-verification":
+				reporter.cancel, reporter.cancelAt = cancel, generationValidationRuns
+			case "cancel-at-activation":
+				reporter.cancel, reporter.cancelAt = cancel, generationValidationRuns+1
+			}
 			completion, executeErr := execute(ctx, reporter)
 			status, present, err = modelrecipe.Status(t.Context(), store, id)
 			if err != nil || !present {
@@ -122,11 +134,21 @@ func TestMOSSImageValidation(t *testing.T) {
 				if err != nil || selection.Program.Definition().ID != id {
 					t.Fatal("activation cannot serve", err)
 				}
+			} else if mode == "cancel-at-activation" {
+				// The verification was published before the Stop: the operation keeps its run,
+				// and nothing is activated on its credit.
+				if !errors.Is(executeErr, context.Canceled) || status == recipe.StatusActive || reporter.publishing || len(completion.Outputs) != 2 {
+					t.Fatal("cancelled activation", executeErr, status, completion)
+				}
+				run, err := runrecord.RequireExactRun(t.Context(), store, completion.Run)
+				if err != nil || run.Outcome != runrecord.OutcomeSucceeded {
+					t.Fatal("published verification lost", run, err)
+				}
 			} else {
 				if executeErr == nil || status == recipe.StatusActive || reporter.publishing || len(completion.Outputs) != 0 {
 					t.Fatal("failed validation became active", executeErr, status, completion)
 				}
-				if mode == "cancel" && !errors.Is(executeErr, context.Canceled) {
+				if (mode == "cancel" || mode == "cancel-at-verification") && !errors.Is(executeErr, context.Canceled) {
 					t.Fatal("cancellation lost", executeErr)
 				}
 				run, err := runrecord.RequireExactRun(t.Context(), store, completion.Run)

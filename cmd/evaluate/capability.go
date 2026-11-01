@@ -203,7 +203,7 @@ var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manif
 // openThoughtBankSession opens the model at path when it is a Fractale
 // generation model, and reports false, opening nothing, when it is not one.
 func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value manifest, path string) (evaluationSession, bool, error) {
-	source, err := mediacapability.Catalog[recipe.TaskGeneration].Resolve(path)
+	source, err := mediacapability.Catalog[recipe.TaskGeneration].Resolve(ctx, path)
 	if err != nil {
 		return nil, false, nil
 	}
@@ -218,7 +218,7 @@ func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value ma
 // seq2seq recipe.
 func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
 	path := request.Path
-	source, err := mediacapability.Catalog[recipe.TaskSeq2Seq].Resolve(path)
+	source, err := mediacapability.Catalog[recipe.TaskSeq2Seq].Resolve(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no seq2seq model: %w", path, err)
 	}
@@ -232,7 +232,7 @@ func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manife
 // forecast recipe.
 func openForecastSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
 	path := request.Path
-	source, err := mediacapability.Catalog[recipe.TaskForecast].Resolve(path)
+	source, err := mediacapability.Catalog[recipe.TaskForecast].Resolve(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no forecast model: %w", path, err)
 	}

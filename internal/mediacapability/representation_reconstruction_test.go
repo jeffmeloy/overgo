@@ -48,7 +48,7 @@ func TestPictureRoundTripsThroughTheRepresentationAutoencoder(t *testing.T) {
 	}
 	testskip.Short(t, "loads the collection's 1.7 GB decoder")
 	capability := Catalog[recipe.TaskReconstruction]
-	source, err := capability.Resolve(directory)
+	source, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

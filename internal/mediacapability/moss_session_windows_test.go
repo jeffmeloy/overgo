@@ -25,7 +25,7 @@ import (
 func TestMOSSResidentSession(t *testing.T) {
 	cudatest.Require(t)
 	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
-	source, err := Catalog[recipe.TaskImageGen].Resolve(root)
+	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,8 +146,9 @@ func TestMOSSResidentSession(t *testing.T) {
 	if snapshot := director.Snapshot(); snapshot.Loads != 1 || snapshot.Active != 0 || snapshot.Entries != 1 {
 		t.Fatal("unbounded or unreleased session", snapshot)
 	}
+	// A prompt met again makes few checks of its context: this is one partway through the denoising.
 	ctx, cancel := context.WithCancel(t.Context())
-	left := 100
+	left := 25
 	_, err = serve(checkedContext{ctx, cancel, &left}, first)
 	cancel()
 	if !errors.Is(err, context.Canceled) || left > 0 {
@@ -174,5 +175,46 @@ func TestMOSSResidentSession(t *testing.T) {
 	}
 	if snapshot := director.Snapshot(); snapshot.Active != 0 || snapshot.Entries != 0 || !snapshot.Closed {
 		t.Fatal("close leaked session", snapshot)
+	}
+}
+
+// answeredContext is cancelled from its limit-th question on, so a test stops
+// source hashing part way through with no timer.
+type answeredContext struct {
+	context.Context
+	asked, limit int
+}
+
+func (c *answeredContext) Err() error {
+	if c.asked++; c.asked >= c.limit {
+		return context.Canceled
+	}
+	return nil
+}
+
+// TestMOSSSourceInventoryCancels holds the shared image source to its request:
+// a registration cancelled while the checkpoint's components are hashed stops
+// there and publishes nothing, and the same source still resolves afterwards.
+func TestMOSSSourceInventoryCancels(t *testing.T) {
+	t.Parallel()
+	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	capability := Catalog[recipe.TaskImageGen]
+	stopped := &answeredContext{Context: t.Context(), limit: 3}
+	if _, err := capability.Resolve(stopped, root); !errors.Is(err, context.Canceled) {
+		t.Fatal("cancellation lost", err)
+	}
+	if stopped.asked != stopped.limit {
+		t.Fatal("hashing went on past its cancellation", stopped.asked)
+	}
+	if _, sequence := store.Head(); sequence != 0 {
+		t.Fatal("a cancelled source published", sequence)
+	}
+	if source, err := capability.Resolve(t.Context(), root); err != nil || len(source.Manifests) != 3 {
+		t.Fatal("the source did not resolve after a cancelled attempt", err)
 	}
 }

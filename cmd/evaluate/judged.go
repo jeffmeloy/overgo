@@ -67,7 +67,7 @@ func openJudgedSession(ctx context.Context, store *overgodb.Store, value manifes
 	if request.Judge == "" || request.Projector == "" || request.MediaRoot == "" {
 		return nil, fmt.Errorf("evaluate: %s is a %s model, which a vision-language model judges, and the request names no judge, projector or media root", request.Path, task)
 	}
-	source, err := mediacapability.Catalog[task].Resolve(request.Path)
+	source, err := mediacapability.Catalog[task].Resolve(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no %s model: %w", request.Path, task, err)
 	}

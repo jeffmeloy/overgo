@@ -37,7 +37,7 @@ func TestImageEmbeddingCapability(t *testing.T) {
 	capability := Catalog[recipe.TaskImageEmbedding]
 	embed := func(t *testing.T, directory string, encoded []byte) ([]float32, error) {
 		t.Helper()
-		source, err := capability.Resolve(directory)
+		source, err := capability.Resolve(t.Context(), directory)
 		if err != nil {
 			t.Fatal(err)
 		}

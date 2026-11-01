@@ -18,7 +18,7 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-func resolveDeclaredVideoSource(path string) (Source, error) {
+func resolveDeclaredVideoSource(ctx context.Context, path string) (Source, error) {
 	identity, err := hfrepo.InspectIdentity(path)
 	if err != nil {
 		return Source{}, err
@@ -57,7 +57,7 @@ func autoencoderInventory(path string) (modelartifact.Inventory, error) {
 // host topology: a bridged pair or a representation autoencoder's collection,
 // by the files rae names it by. Any other directory is read as a Wan
 // release's one autoencoder file, on the device topology.
-func resolveAutoencoder(path string) (Source, error) {
+func resolveAutoencoder(_ context.Context, path string) (Source, error) {
 	inventory, held, err := rae.PairInventory(path)
 	if err != nil {
 		return Source{}, err

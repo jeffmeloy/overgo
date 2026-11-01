@@ -69,7 +69,7 @@ func TestFrozenKreaGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	directory := testutil.ModelArtifactDir(t, "Krea-2-Turbo")
-	source, err := resolveImageSource(directory)
+	source, err := resolveImageSource(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

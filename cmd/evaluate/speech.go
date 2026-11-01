@@ -129,7 +129,7 @@ func openSpeechSession(ctx context.Context, store *overgodb.Store, value manifes
 	if err != nil {
 		return nil, err
 	}
-	source, err := mediacapability.Catalog[recipe.TaskSpeech].Resolve(request.Path)
+	source, err := mediacapability.Catalog[recipe.TaskSpeech].Resolve(ctx, request.Path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no speech model: %w", request.Path, err)
 	}

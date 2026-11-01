@@ -264,3 +264,41 @@ func TestAbsentPeakPublishesNoSample(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerationCancelledAtPublicationRecordsItsRun stops a generation whose
+// image is ready, in the window before its final publication: the operation
+// ends with a stored cancelled run and the cancellation as its cause, where a
+// completion with no run would read as a generic failure.
+func TestGenerationCancelledAtPublicationRecordsItsRun(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	activatedImageModel(t, store)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
+		Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+			return capabilityruntime.Measured{Output: tinyPNG(t)}, nil
+		},
+	}}
+	output := func(value any) (artifact.Content, error) {
+		cancel()
+		return mediacapability.OutputContent(value)
+	}
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, output), 16)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
+	if err != nil || len(capabilities) != 1 {
+		t.Fatalf("capabilities = %+v, %v", capabilities, err)
+	}
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":1}`), &recordingReporter{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("the Stop was lost: %v", err)
+	}
+	run, err := runrecord.RequireExactRun(t.Context(), store, completion.Run)
+	if err != nil || run.Outcome != runrecord.OutcomeCancelled {
+		t.Fatalf("the cancelled run %+v was not stored: %v", run, err)
+	}
+}

@@ -433,7 +433,7 @@ func executeCapability(
 	} else if selection == modelrecipe.SessionSpillover || compatibility.Valid() {
 		return errors.New("recipe: spillover requires an evidence-bound alias")
 	}
-	source, err := capability.Resolve(path)
+	source, err := capability.Resolve(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -521,7 +521,7 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		return err
 	}
 	defer store.Close()
-	source, err := capability.Resolve(path)
+	source, err := capability.Resolve(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -683,7 +683,7 @@ func taskModelInventory(path string, task recipe.Task) (modelartifact.Inventory,
 		return modelartifact.FromHFPath(path)
 	}
 	if capability, known := mediacapability.Catalog[task]; known && capability.Resolve != nil {
-		source, err := capability.Resolve(path)
+		source, err := capability.Resolve(context.Background(), path)
 		if err != nil {
 			return modelartifact.Inventory{}, err
 		}

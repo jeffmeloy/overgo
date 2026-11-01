@@ -101,7 +101,7 @@ func editExecutor(director *editDirector, err error) capabilityruntime.Executor 
 		})
 }
 
-func resolveVideoSource(path string) (Source, error) {
+func resolveVideoSource(ctx context.Context, path string) (Source, error) {
 	if latentvideo.IsLiveEdit(path) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
 		// The edit composite genuinely spans two sibling repositories --
@@ -152,7 +152,7 @@ func resolveVideoSource(path string) (Source, error) {
 			return definition, []artifact.Content{content}, err
 		}}, err
 	}
-	return resolveDeclaredVideoSource(path)
+	return resolveDeclaredVideoSource(ctx, path)
 }
 
 // deviceReconstruction keeps a Wan autoencoder resident on the device and

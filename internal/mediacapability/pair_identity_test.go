@@ -125,7 +125,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	}
 	served := func(directory string) artifact.ID {
 		t.Helper()
-		source, err := Catalog[recipe.TaskReconstruction].Resolve(directory)
+		source, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), directory)
 		if err != nil {
 			t.Fatalf("serving did not resolve %s: %v", directory, err)
 		}
@@ -144,7 +144,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	// records the pair's own directory beside the parent the files share. A
 	// move of the layout that renamed or reordered one would shift the served
 	// and the trained model together, so this holds the served one in place.
-	source, err := Catalog[recipe.TaskReconstruction].Resolve(pairDirectory)
+	source, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), pairDirectory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 
 	// The collection's own pair is still served by its five files, the own
 	// encoder's three among them.
-	collection, err := Catalog[recipe.TaskReconstruction].Resolve(filepath.Join(models, "collection"))
+	collection, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), filepath.Join(models, "collection"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestABridgedPairTrainsUnderTheModelItIsServedAs(t *testing.T) {
 	release := filepath.Join(models, "release")
 	vae := latentvideo.AutoencoderWeights(release)
 	write(torchStateDict(t, "\x00\x00\xa0\x40"), "release", filepath.Base(vae))
-	if other, err := Catalog[recipe.TaskReconstruction].Resolve(release); err != nil ||
+	if other, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), release); err != nil ||
 		!slices.Equal(other.Inventory.Manifest.Components, []artifact.Component{component(artifact.ComponentWeights, 0, "vae/weights", vae)}) {
 		t.Errorf("a directory holding one autoencoder file is served as %+v (%v), want that file alone", other.Inventory.Manifest.Components, err)
 	}

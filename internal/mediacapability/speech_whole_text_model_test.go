@@ -34,7 +34,7 @@ const wholeTextReading = "The tide went out before dawn. A grey heron stood at t
 func TestSpeechReadsWholeText(t *testing.T) {
 	directory := testutil.ModelArtifactDir(t, "pocket-tts")
 	capability := Catalog[recipe.TaskSpeech]
-	source, err := capability.Resolve(directory)
+	source, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

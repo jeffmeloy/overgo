@@ -20,7 +20,7 @@ func Prepare(
 	if err := ctx.Err(); err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	source, err := capability.Resolve(path)
+	source, err := capability.Resolve(ctx, path)
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}

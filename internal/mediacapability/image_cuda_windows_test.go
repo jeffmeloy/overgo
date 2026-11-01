@@ -78,7 +78,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	testutil.WriteImageProfileFixture(t, root)
 	testutil.WriteImageInventoryFixture(t, root)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
-	source, err := imageCapability().Resolve(root)
+	source, err := imageCapability().Resolve(t.Context(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	}
 	writeInventorySafetensor(t, filepath.Join(root, "model.safetensors"), "weight")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-image")
-	source, err := imageCapability().Resolve(root)
+	source, err := imageCapability().Resolve(t.Context(), root)
 	if err != nil {
 		t.Fatal(err)
 	}

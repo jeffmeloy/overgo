@@ -38,7 +38,7 @@ func TestPictureRoundTripsThroughAnInstalledAutoencoder(t *testing.T) {
 	cudatest.Require(t)
 	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	capability := Catalog[recipe.TaskReconstruction]
-	source, err := capability.Resolve(directory)
+	source, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

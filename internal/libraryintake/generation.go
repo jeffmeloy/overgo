@@ -126,11 +126,12 @@ func validateGeneration(ctx context.Context, store *overgodb.Store, reporter ope
 	reporter.Progress(generationValidationRuns, &total)
 	verification, err := modelintake.PublishMeasuredVerification(ctx, store, definition, revision, time.Since(started), device, backend, "functional image validation: two fresh requests decode and retain identical PNG output; model quality is evaluated separately", measured)
 	if err != nil {
-		return operation.Completion{}, err
+		return fail(err)
 	}
 	reporter.Progress(total-1, &total)
 	if err = modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "library functional image generation and repeat validation"); err != nil {
-		return operation.Completion{}, err
+		// The verification stands: the operation names its run, with no activation to its credit.
+		return operation.Completion{Run: verification.Run, Outputs: []artifact.ID{verification.Gate, first.Descriptor.ID}}, err
 	}
 	reporter.Publishing()
 	reporter.Progress(total, &total)

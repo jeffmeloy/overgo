@@ -77,7 +77,7 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 	capability := Catalog[recipe.TaskActivityDetection]
 	detect := func(t *testing.T, directory, policy string) ([]recipecontract.ActivitySegment, error) {
 		t.Helper()
-		source, err := capability.Resolve(directory)
+		source, err := capability.Resolve(t.Context(), directory)
 		if err != nil {
 			t.Fatal(err)
 		}

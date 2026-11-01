@@ -96,7 +96,7 @@ func TestVideoAutoencoderRoundTripMatchesItsOwnCode(t *testing.T) {
 	source, sourceBytes := read(reference.Picture)
 	want, _ := read(reference.Image)
 	capability := Catalog[recipe.TaskReconstruction]
-	resolved, err := capability.Resolve(directory)
+	resolved, err := capability.Resolve(t.Context(), directory)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package mediacapability
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"overgo/internal/routedlm"
 )
 
-func resolveImageSource(path string) (Source, error) {
+func resolveImageSource(ctx context.Context, path string) (Source, error) {
 	collection, held, err := rae.ResolveCollection(path)
 	if err != nil {
 		return Source{}, err
@@ -36,7 +37,7 @@ func resolveImageSource(path string) (Source, error) {
 	var inventory modelartifact.Inventory
 	switch source.Inventory {
 	case modelrecipe.SourceInventoryHF:
-		inventory, err = modelartifact.FromHFPath(path)
+		inventory, err = modelartifact.FromHFPathContext(ctx, path)
 	case modelrecipe.SourceInventoryRootSafetensors:
 		inventory, err = imageGenInventory(path)
 	default:

@@ -28,6 +28,7 @@ func FreshRun(ctx context.Context) context.Context {
 // it gave. Absent measurements stay zero; nothing is invented: a run a
 // resident session served loaded nothing, and a run that recovered its
 // output from the store, or whose output is whole, decoded nothing.
+// PeakMeasured says a session's meter was read, so its zero is a measurement.
 // Input is the request document the runtime recorded for the run (the
 // decoded request under its capability's input schema), so a consumer
 // publishing its own run record cites the one document the store holds.
@@ -37,6 +38,7 @@ type Measured struct {
 	Phases          []workflowruntime.NodeWall `json:"phases,omitempty"`
 	Load            time.Duration              `json:"load_ns,omitzero"`
 	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitzero"`
+	PeakMeasured    bool                       `json:"peak_measured,omitzero"`
 	OutputTokens    uint64                     `json:"output_tokens,omitzero"`
 	Decode          time.Duration              `json:"decode_ns,omitzero"`
 	Input           artifact.Content           `json:"-"`
@@ -77,7 +79,7 @@ func measure[Model any](output any, model Model, result workflowruntime.Result, 
 	measured := Measured{Output: output, Run: result.Run.ID, Phases: result.NodeWalls, Load: load}
 	if meter, ok := any(model).(deviceMeter); ok {
 		if peak, err := meter.PeakDeviceBytes(); err == nil {
-			measured.PeakDeviceBytes = peak
+			measured.PeakDeviceBytes, measured.PeakMeasured = peak, true
 		}
 	}
 	if meter, ok := any(model).(tokenMeter); ok {

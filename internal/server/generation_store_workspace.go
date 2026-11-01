@@ -322,8 +322,9 @@ func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, r
 		Model: model, Recipe: recipeID, Run: run, Task: task, Started: started, Wall: wall,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
 		// The server's process holds other models, so the executor's own peak is the attempt's, and a zero of it is a
-		// measurement only of an attempt that succeeded having loaded its model (cmd/recipe's devicePeak, for one process).
-		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.Load > 0, Cause: cause,
+		// measurement only where the session's meter was read: a model with no meter, a failed read and a stored answer
+		// leave the peak absent, which the scorecard must not read as a model that runs on the host.
+		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.PeakMeasured, Cause: cause,
 	})
 }
 

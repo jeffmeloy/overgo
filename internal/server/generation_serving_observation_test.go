@@ -49,7 +49,7 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 			if raw == `{"class":2}` {
 				return nil, errors.New("the model refused the class")
 			}
-			return capabilityruntime.Measured{Output: tinyPNG(t), PeakDeviceBytes: peak, Load: load, Decode: decode, OutputTokens: outputToken}, nil
+			return capabilityruntime.Measured{Output: tinyPNG(t), PeakDeviceBytes: peak, PeakMeasured: true, Load: load, Decode: decode, OutputTokens: outputToken}, nil
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
@@ -221,4 +221,46 @@ func storedServingObservations(t *testing.T, store *overgodb.Store) []runrecord.
 		t.Fatal(err)
 	}
 	return observations
+}
+
+// TestAbsentPeakPublishesNoSample holds a generation's finish sample to a
+// meter that was read: a run that loaded its model with no meter leaves the
+// peak absent, where a sampled zero would read as a model that runs on the
+// host, and a meter's real zero stays a measurement.
+func TestAbsentPeakPublishesNoSample(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		measured bool
+		samples  int
+	}{{"no meter", false, 0}, {"measured zero", true, 1}} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			store, err := overgodb.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			modelID := activatedImageModel(t, store)
+			catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
+				Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, _ string) (any, error) {
+					return capabilityruntime.Measured{Output: tinyPNG(t), PeakMeasured: test.measured, Load: time.Second}, nil
+				},
+			}}
+			workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
+			capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
+			if err != nil || len(capabilities) != 1 {
+				t.Fatalf("capabilities = %+v, %v", capabilities, err)
+			}
+			if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":1}`), &recordingReporter{}); err != nil {
+				t.Fatal(err)
+			}
+			for _, observation := range storedServingObservations(t, store) {
+				if observation.Model == modelID && len(observation.Hardware) != test.samples {
+					t.Fatalf("%d finish samples, want %d", len(observation.Hardware), test.samples)
+				}
+			}
+		})
+	}
 }

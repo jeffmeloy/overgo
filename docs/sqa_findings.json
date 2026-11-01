@@ -6177,6 +6177,20 @@
         "plan_steps": [
           "moss-findings/request-bounds"
         ]
+      },
+      {
+        "comment": "Landed with moss-findings/measured-presence. capabilityruntime.Measured carries PeakMeasured, set only by a successful meter read and so true of a real zero; the server's attempt uses it in place of load duration, which is what let a missing meter read as a sampled zero and a host model. latentimage.Generator now reports its session's device peak, which it had no meter for at all. TestPeakIsMeasuredOnlyWhereTheMeterAnswers and TestAbsentPeakPublishesNoSample hold the four cases; TestMOSSBoundedResidency holds a real session's reading above zero.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestPeakIsMeasuredOnlyWhereTheMeterAnswers",
+          "TestAbsentPeakPublishesNoSample",
+          "internal/capabilityruntime/measured.go",
+          "internal/server/generation_store_workspace.go observe"
+        ],
+        "finding_id": "SQA-MOSS-008",
+        "plan_steps": [
+          "moss-findings/measured-presence"
+        ]
       }
     ],
     "experiments": {
@@ -6219,7 +6233,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "345a08a3d9f58d045fb489e588fc34c0f9aa9ec5",
+    "head": "3cb2d75dad43312bf884fb4a45ad3bfb6a3ec77c",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6312,11 +6326,11 @@
         "note": "Accepted as written and landed in the row that names it. The training encoder reads the same file through the same call. Awaits the reviewer's closure."
       },
       "SQA-MOSS-008": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/measured-presence"
         ],
-        "note": "Must land before scorecard-unmeasured-image-gen: the MOSS peak-memory cell would otherwise record a false 0 bytes and the row would close on it. Reference moves here from moss-evaluation/resources because the fix precedes that measurement."
+        "note": "Landed before the scorecard rows, as filed. Measured carries whether a meter was read, the server publishes a finish sample only then, and the image session now has a meter, so MOSS's peak cell will hold a real number. Awaits the reviewer's closure."
       },
       "SQA-MOSS-001": {
         "action": "filed",

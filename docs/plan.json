@@ -153,17 +153,10 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 397,
+        "nodes": 308,
         "reason": "Repairs in existing owners; each finding names the owner to extend and refuses a new mechanism."
       },
       "steps": [
-        {
-          "id": "measured-presence",
-          "title": "Keep an absent device measurement distinct from measured zero",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/scorecard ./internal/server -count=1 -run 'Peak'",
-          "rationale": "SQA-MOSS-008: capabilityruntime.Measured carries whether a peak was read, set only by a successful meter, and the server publishes a peak sample only when it was.\nThe image session reports its peak through the same meter, so the scorecard's MOSS cell reads a real number.\nThis lands before scorecard-unmeasured-image-gen, which would otherwise close on a false zero.\nServes: peak-device-memory is true for image models.\nDisappears: load duration standing in for a measurement.\nEvidence: the capability and scorecard tests.\nBatch: serving lane."
-        },
         {
           "id": "cancellation",
           "title": "Honor cancellation through inventory and final publication",

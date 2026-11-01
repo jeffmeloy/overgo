@@ -63,6 +63,9 @@ func TestMOSSBoundedResidency(t *testing.T) {
 		if s := stats(g); s.StaticBytes != 0 || s.Device.CurrentBytes > finishedRequestBytes {
 			t.Fatalf("a finished request left %d bytes of weights and %d bytes on the device", s.StaticBytes, s.Device.CurrentBytes)
 		}
+		if peak, err := g.PeakDeviceBytes(); err != nil || peak == 0 {
+			t.Fatalf("a finished request read a device peak of %d: %v", peak, err)
+		}
 		if g.rotary.conditioned.held > g.rotary.conditioned.limit {
 			t.Fatal("conditioning cache exceeded its limit", g.rotary.conditioned.held)
 		}

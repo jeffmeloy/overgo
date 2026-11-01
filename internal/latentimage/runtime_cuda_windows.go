@@ -375,6 +375,21 @@ func (g *Generator) Close(ctx context.Context) error {
 	return err
 }
 
+// PeakDeviceBytes is the most the session's device allocations have held.
+func (g *Generator) PeakDeviceBytes() (uint64, error) {
+	var session *graphruntime.ResidentSession
+	switch {
+	case g == nil:
+		return 0, errors.New("latent image: resident session is unavailable")
+	case g.rotary != nil:
+		session = g.rotary.runtime
+	case g.pipeline != nil:
+		session = g.pipeline.runtime
+	}
+	stats, err := session.Stats(context.Background())
+	return stats.Device.PeakBytes, err
+}
+
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *Generator) error {
 	if generator == nil || (generator.pipeline == nil && generator.rotary == nil) {
 		return errors.New("latent image: incomplete runtime binding")

@@ -148,6 +148,20 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "moss-merge",
+      "title": "codex/overgo_moss merged into master: MOSS's import, conditioning, denoiser, sampling, decoder, generator and library registration on the trunk",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "codex/overgo_moss merged into master: MOSS's import, conditioning, denoiser, sampling, decoder, generator and library registration on the trunk",
+          "status": "open",
+          "verify": "go test ./internal/latentimage ./internal/hfgguf ./internal/libraryintake ./internal/mediacapability ./internal/server -count=1 -run 'MOSS'"
+        }
+      ]
+    },
+    {
       "id": "moss-import",
       "title": "Mechanize inspection and materialization through existing intake",
       "owner": "overgo_moss",

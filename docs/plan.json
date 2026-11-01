@@ -462,21 +462,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "scorecard-unmeasured-training",
-      "title": "Measure training's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure training's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- Qwen2.5-0.5B load-time: not measured since the previous scorecard, published 2026-10-30T09:44:20Z: the newest attempt its cell reads started 2026-10-11T08:10:55Z\n- Qwen2.5-0.5B peak-device-memory: not measured since the previous scorecard, published 2026-10-30T09:44:20Z: the newest attempt its cell reads started 2026-10-11T08:10:55Z\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261031T144632Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
-        }
-      ]
     }
   ],
   "decisions": [

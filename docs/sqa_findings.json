@@ -1,14 +1,14 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "105 findings remain78 open,3 deferred,24 resolved. Extend232 with two resident-image predicates, no new finding or changed severity. Production tree unchanged.",
-      "priority": "Data/recovery, numerical correctness and supported serving remain first. Existing automation continuation/admission and complete253/276 reductions retain their priority; no new performance claim changes ranking.",
-      "declined_candidates": "No new audio abstraction, duplicate loader/HTTP fixture, query estimator, tolerance mechanism, literal census, scheduler, telemetry, policy suite or confidence run. Similar assertions do not establish test redundancy."
+      "assessment": "105 findings: 78 open, 3 deferred, 24 resolved. No finding churn. Fresh samples establish why seemingly duplicated catalog, restart and stream tests must remain separate.",
+      "priority": "Data/recovery and numerical correctness remain ahead of optional reductions. Rechecked SQA-272 still has a snapshot/head gap; SQA-271 still requires actual continuation evidence. No new measured outcome warrants changing ranking.",
+      "declined_candidates": "No generic catalog fixture, audio cursor wrapper, merged prompt/legacy parser, global literal check, scheduler, notification registry or extra confidence run. Shared surface alone does not establish redundant behavior."
     },
   "committed_plan": {
     "git_blob": "a2d658d11c43f2115c142ad5d20097b0b5f5be55",
     "path": "docs/plan.json",
-    "revision": "d6d17937420e296fad5db3a76607b8e490f14da6",
+    "revision": "d330db1eaba4b86464f6c000f060211c3d1fb122",
     "sha256": "4ae7b51b90b800bee0977385d0200e98d7c9a9419dadee4bcfc66bd2ca94d049",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
@@ -5621,20 +5621,66 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No validation run by SQA. Retained native Go caching, existing gate/lane selection and exact-input cycle/cell resume remain the execution owners.",
+      "execution": "No validation executed. Credit native Go test caching, existing gate/lane ownership and exact-input cycle/cell resume; no extra suite or selector.",
+      "ast_files": [
+        {
+          "path": "internal/densecausal/load.go",
+          "nodes": 1679
+        },
+        {
+          "path": "internal/densecausal/load_facts_test.go",
+          "nodes": 106
+        },
+        {
+          "path": "internal/workflowruntime/audio_stream.go",
+          "nodes": 1390
+        },
+        {
+          "path": "internal/workflowruntime/audio_stream_test.go",
+          "nodes": 2229
+        },
+        {
+          "path": "internal/overgodb/retention.go",
+          "nodes": 1444
+        },
+        {
+          "path": "internal/overgodb/profile_catalog_retention_test.go",
+          "nodes": 175
+        },
+        {
+          "path": "internal/overgodb/dataset_catalog_retention_test.go",
+          "nodes": 385
+        },
+        {
+          "path": "internal/inference/chat_reasoning_stream.go",
+          "nodes": 590
+        },
+        {
+          "path": "internal/inference/chat_reasoning_stream_test.go",
+          "nodes": 1419
+        },
+        {
+          "path": "internal/plan/dispatch.go",
+          "nodes": 1354
+        },
+        {
+          "path": "internal/plan/dispatch_priority_test.go",
+          "nodes": 235
+        }
+      ],
       "retained_evidence": [
-        "No source/test/plan commit since ddf213036 MOSS merge; its recorded16 executed/1 cached selected lane results remain historical evidence. The prior report's explicit large feature/test and30-file MOSS fixture costs are not reclassified as savings.",
-        "Retained .overgo-runtime/measurement_run.json names6f923752, began2026-10-31T01:55:25.337-04:00, ended11:00:43.052-04:00,9 rows. Preflight/lanes/publication/fill passed; cells did not. This is the same previously reported record, not a new run, delivery or progress event."
+        "Production/tests/plan are unchanged since the ddf213036 MOSS merge; retained merge and Flash/E4B outcomes keep their original identities. This review does not reproduce them.",
+        "The same .overgo-runtime/measurement_run.json names 6f923752, began 2026-10-31T01:55:25.337-04:00 and ended 11:00:43.052-04:00 with nine rows filed. Preflight/lanes/publication/fill passed; cells did not. It supplies no wakeup delivery or next-dispatch evidence."
       ],
       "test_dispositions": [
-        "RETAIN audio stream RestartAndFinalization, BackpressureCancellationAndLeaseLifetime, FailurePreservesCheckpoint, AdmissionAndZeroValue, PanicReleasesLease and ConcurrentCloseAndCompletion. Shared audioSessionFixture already owns setup; distinct error/cancel/sequence/final/lease transitions must not be merged away.",
-        "MERGE253 only the five successful planner query/assertion bodies into their retained local table; preserve catalog fallback, RequireIndex refusal, zero-match and same-head repeat. Separate query/cursor/projection/recovery tests stay retained. Eight Query executions and one store/commit remain eight/one.",
-        "RETAIN TestStreamingTranscriptionAcceptance: unauthenticated refusal, exact source/output/admission/checkpoint identities, first partial before final, disconnect/resume, out-of-order refusal and lease-driven cleanup. Its HTTP behavior is not duplicated by audio-session unit tests; numerical transcript acceptance remains exact and timing has no speed threshold.",
-        "RETAIN TestARunRecordsItsEnd: failure reporting/phase identity, partial publication, second-run ETA from prior wall and9-row record distinction belong to recording. Driver/hook fixtures retain their separate continuation/rendering requirements.",
-        "SIMPLIFY/CORRECT232 TestResidentImagePipelineRetainsTextAndLatentOnDevice's two bounds only:1291->1295(+4). RETAIN synthetic file-loading, actual retained device latent, host denoising oracle, HWC/planar pixel mapping, Close/conditioning release and two exact selected-hidden bridge order/prefix tests.",
-        "REMOVE no newly sampled test. Existing253 displaces only the forwarding wrapper and duplicated assertion bodies after all cases move; no new fixture, setup, helper, schema or gate selector."
+        "RETAIN TestResolvedModelFactsRejectMissingConfig and TestDecoderTensorSelection (106 AST): missing top-level/nested facts and exact decoder inclusion/exclusion remain independent of large training/device fixtures. No new full model load.",
+        "RETAIN all six AudioStream tests and audioCursorFixture (2229 AST): overlap/new span, discontinuity, finalization, initial empty flush, unchanged progress after invalid work, uint64 overflow, exact policy/source/extra-lineage refusal and live/restored segment boundaries. No cases move; store setup remains one per owning test, six total.",
+        "RETAIN TestProfileCatalogReleaseRetainsArchitectureAuthority and TestDatasetCatalogCompactionRetainsAuthorityAndLocation (175 + 385 AST): each has a distinct publication/inspection oracle. Keep two stores/two releases and the existing one-byte dataset file; no common fixture abstraction.",
+        "RETAIN TestChatReasoningStreamPromptState (1419 AST): 12 partition-table cases plus native control delivery, public tool byte boundaries, prepared-token/tool-template selection and progress-before-finish. Literal expected outputs and tool identities provide independent failure signals. Keep separate legacy complete-output tests because their EOF/error contract differs.",
+        "RETAIN TestDispatchVisitsPrerequisitesFirst (235 AST): prerequisite ordering, first selection and explicit blocked request. Existing dependency validation/cycle/pruned-step tests and driver continuation tests retain their distinct contracts.",
+        "MERGE/SIMPLIFY/REMOVE: none newly justified. Existing SQA-239's exact delta-slice simplification remains separate from the prompt-channel test; SQA-272 needs one bounded existing-fixture interleaving case, with its honest growth estimate, not catalog-test retirement."
       ],
-      "material_cost": "Fresh changed recommendation: production0,test+4 AST,fixtures/setup/gate0. The complete232 affected test estimate9579->9605(+26) combines unchanged retained six-file counts and the freshly parsed seventh. Existing253 remains production-24/test-186=-210 total and unchanged eight queries/one store;276 remains-164 test/one fewer store-memo setup. No runtime saving measured."
+      "material_cost": "No fresh change proposed: 6457 -> 6457 production AST; 4549 -> 4549 test AST. Helpers, wrappers, fixture files, setup executions and gate entries unchanged. No measured elapsed/memory effect. The +26 test AST correction retained under SQA-232 and established SQA-253/276 reductions keep their existing bounds."
     },
   "hygiene_assessment": "Secondary; no repository scratch, cleanup finding, dependency, framework, selector, telemetry or policy suite.",
   "implementation_review": {
@@ -6007,13 +6053,13 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "No test, production gate, browser, model workload, benchmark, profile, service, worker message or new automation ran. Only Git/file reads and standalone Go parsing/type analysis executed.",
-      "No new measured latency/memory improvement or implementation progress since the previous report. Earlier merge/Flash/E4B measurements retain their original identities and protocols; reusing those facts is not an independent reproduction.",
-      "The new232 pixel counterexample is hypothetical faulty output, not observed hardware NaN. Its5e-3 tolerance and synthetic1x1 grid/2x2 patch establish this fixture only, not all geometries or distributions. No literal lint or tolerance change is proposed.",
-      "Audio16kHz/mono, eight-sample chunks and two-sample overlap are test policy values; production validates typed format/spans and actual decoded length. The32-iteration concurrent-close case is bounded stress, not proof of all schedules or a calibrated probability. No safe deletion established.",
-      "Query index sizes are exact current-head counts, not assumptions of uniformity or stationary selectivity. Preserve cursor/head/contract identity, sorted IDs, zero-match, alias/lineage and projection authority.",
-      "The retained run record's prior-phase duration predicts an ETA only. A completed record with9 filed rows proves neither a delivered wakeup nor current worker idleness; actual supervised continuation and partial/failure outcomes remain distinct.",
-      "No new safe total production/test reduction proved in fresh audio, stream or resident-pipeline samples. Existing253/276 reductions remain actionable; new232 coverage correction adds4 AST. Unknown implementation-owned fields and both owner objects are preserved raw-exact."
+      "No tests, gates, browser sessions, model workloads, benchmarks, profiles, services, worker messages or new automations were run. Only file/Git inspection and standalone Go AST/type analysis executed.",
+      "No safe new net production/test reduction was established. The selected production and tests remain 6457/4549 AST; no displaced code, helper, fixture or setup is proposed. Existing separately quantified reductions remain available at their own evidence revisions.",
+      "Source establishes direct safetensors loading for the selected training route, not universal native support for every text model or removal of all GGUF code. HF split-half q/k and GGUF interleaved layouts must keep their existing transformation and validation owners.",
+      "Geometry audit traced audio bounds to stored policy in samples per channel, uint64 sequence overflow to checked.Add64, and overlap to segment start/end; 16000 Hz, mono, eight samples and two overlap samples are fixture inputs, not universal calibration. Dense attention dimensions derive from tensor shapes/config with head/KV divisibility and bias-triple checks.",
+      "Reasoning markers are declared wire syntax; UTF-8 sizes come from the standard library. Exhaustive byte/two-piece splits in tiny fixed strings prove those partitions, not all output distributions. No normality, independence, stationarity or broad performance claim is inferred.",
+      "GUI coverage is the Go reasoning-stream/server path; no rendered browser or frontend execution. Retention/source lifetime was inspected, not fault-injected. Unchanged historical run records establish neither current worker idleness nor delivered notification.",
+      "Every implementation-owned/unknown field and both owner objects remain raw-exact. Findings outside this rotated sample retain their stated historical evidence and limits; unchanged source is not a new runtime validation."
     ],
   "master_lead_triage": {
     "at": "2026-09-24",
@@ -6085,11 +6131,11 @@
   },
   "next_finding_number": 279,
   "publication_context": {
-      "checked_head": "d6d17937420e296fad5db3a76607b8e490f14da6",
+      "checked_head": "d330db1eaba4b86464f6c000f060211c3d1fb122",
       "committed_plan_git_blob": "a2d658d11c43f2115c142ad5d20097b0b5f5be55",
-      "assessment": "Additional concrete232 affected caller/test and full cost, rotated audio/query/stream/automation coverage; no timestamp-only finding churn.",
-      "newer_commit_note": "Initial review saw a clean tree at the prior report-only commit; production and plan unchanged. Recheck current owner/report fields and Git state immediately before publication.",
-      "publication": "Parse replacement, preserve both owner objects and every unknown implementation-owned field raw-exact, use existing nonblocking publication locks and commit only docs/sqa_findings.json."
+      "assessment": "Fresh AST/type evidence and explicit retained test/caller distinctions replace the previous sample. No timestamp-only finding edits.",
+      "newer_commit_note": "Initially clean master at the prior report-only commit. Re-read current report, owner fields and Git state immediately before publication.",
+      "publication": "Parse replacement; preserve implementation-owned fields raw-exact; existing nonblocking publication locks; path-limited report-only commit."
     },
   "ranked_active_finding_ids": [
     "SQA-254",
@@ -6174,29 +6220,26 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "No new IDs, closures, priority changes or new implementation commits. Consolidate the additional resident-image acceptance evidence into232; preserve existing stable IDs.",
-      "232 now names the resident image test's final pixel comparison, which accepts NaN because delta>5e-3 is false. Replace the existing two predicates with positive ordered acceptance; keep host/device and HWC/planar comparisons and exact bridge cases. Parsed whole test1291->1295.",
-      "Primary reduction check:253's existing queryIndexPlan owns actual cardinality for Query and visitDescriptorCandidates; descriptorCandidateCount still only forwards its result. The five planner assertions retain separate cases but can share the already-proposed native table. Its earlier complete7483->7273(-210) comparison remains unchanged; no new abstraction or run.",
-      "Audio lifecycle already reuses idempotent director/SpeechLease release and one bounded chunk at a time. Admission failure, execution failure, unpublished output, cancelled close, panic, finalized restart and concurrent completion have different observable requirements. No duplicate fixture removal established.",
-      "Native transcription intentionally rechecks activation after waiting for a lease and records admission/output/checkpoint before SSE delivery. HTTP inspection and backend format/length checks have different trust and resource contracts; do not delete either just because both read the waveform. No new transport or buffer wrapper is justified by this sample.",
-      "Record/recovery review reconfirms271: runRecorder.end persists Ended; actual dispatch belongs to loop.Run. Existing preflight->lanes->cells->publication, exact-input credit, partial results and failure stops remain retained. No new polling, scheduler, wake registry or all-model preflight is proposed.",
-      "Prior merged MOSS/Flash/E4B conclusions are unchanged: MOSS quality/resources/closeout and six current E4B quality outcomes remain open. The earlier Flash guard recovery and setup gains remain credited; no revalidation workload is requested."
+      "Native loading already reuses safetensors.Source.MaterializeF32 -> ReadF32; Load defers source.Close and NewMixtureModel adopts the resulting slabs. loadTrainableModel selects directory versus GGUF loading without converting the directory first. GGUF-specific q/k row unpermutation remains a representation requirement.",
+      "Cursor Prepare and Complete deliberately repeat admission: Complete rejects a stale/altered invocation before advancing progress. The fixture is already shared; equality against a separately persisted/restored cursor is a recovery oracle, not a vacuous self-comparison.",
+      "Both catalog tests call Release and the external package's releaseEverything, but profile publication/registry identity differs from dataset inventory/manifest/location availability. The internal test package's same-named helper cannot be reused without another exported/shared layer; no total saving demonstrated.",
+      "Prompt-aware streaming permits unfinished thought at token-budget EOF and preserves prepared-prompt state; legacy complete-output parsing rejects unterminated blocks. Their overlapping literals do not make the acceptance contracts interchangeable.",
+      "Dispatch priority uses the existing ReadyFrontier/role/stop owners. One-shot recording still does not supervise another action. Keep the configured loop.Run path for authorized unattended continuation and explicit terminal outcomes for stop, budget, ownership wait or cycle failure."
     ],
-  "reviewed_at": "2026-11-01T09:42:52Z",
-  "reviewed_master": "d6d17937420e296fad5db3a76607b8e490f14da6",
+  "reviewed_at": "2026-11-01T11:40:45Z",
+  "reviewed_master": "d330db1eaba4b86464f6c000f060211c3d1fb122",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master d6d17937420e296fad5db3a76607b8e490f14da6. Repository instructions and committed plan identity read before source review; plan blob a2d658d11c43f2115c142ad5d20097b0b5f5be55. Production, tests and plan are unchanged since the previous review; the intervening commit changed only this report.",
-      "Rotated sample: capabilityruntime audio stream/lease and tests; OvergoDB query/planner tests; native HTTP transcription stream/tests; loop phase/run recording; resident image pipeline and its parity/bridge tests. Supplemental callers cover speech component admission/backend execution, blob read lifetime, retention snapshot/head authority, shared SSE emitter and supervised loop dispatch.",
-      "Actual Go AST on10 committed files:19005 nodes=12676 production+6329 test;95 functions/3767 parser-local identifier bindings. Files: internal/capabilityruntime/audio_stream{,_test}.go; internal/overgodb/{query.go,query_plan_test.go}; internal/server/streaming_transcriptions{,_test}.go; cmd/loop/{improve.go,run_record_test.go}; internal/latentimage/{resident_pipeline_cuda_windows.go,resident_pipeline_windows_test.go}. Counts include comments; no whole-repository census.",
-      "go/types checked original MeasurementRun, MeasurementPhase and Wall with the real standard time package:40 uses/21 definitions, no stubs. No full application/package typecheck. Parsed two resident-image test predicate changes1291->1295(+4); no proposed production/test code installed or executed.",
-      "Before prior-report reconciliation, provisional conclusions retained audio restart/cancel/finalization, distinct stream admission/publication, exact-head query cardinalities and record-versus-continuation distinctions; identified the resident-image NaN acceptance as an extension of232, not a new algorithm incident.",
-      "Reconciled current implementation responses raw-exact. Six earlier232 test files have unchanged blobs;253 query files match their retained counts and shared-owner recommendation;271 retained completion record still carries no dispatch/delivery evidence. Other findings retain their existing evidence revisions and status."
+      "Pinned master d330db1eaba4b86464f6c000f060211c3d1fb122; instructions and committed plan read first. Plan blob a2d658d11c43f2115c142ad5d20097b0b5f5be55. No production, test or plan change since the previous reviewed revision; the latest commit updated only this report.",
+      "Rotated source/caller sample: native densecausal weight loading and trainable-input dispatch; audio cursor geometry/restart; OvergoDB retention with profile/dataset catalog consumers; prompt-aware reasoning streaming through server protocol emission; plan prerequisite dispatch and cycle continuation. Prior conclusions were recorded before reading this report.",
+      "Actual Go AST on 11 committed files: 11006 nodes = 6457 production + 4549 test, 51 functions and 2215 parser-local identifier bindings. Detailed file counts are in gate_test_assessment. Comment nodes are included; no recurring census.",
+      "Type-checked the unchanged reasoningChannelStream implementation together with the real reasoningMarkers and chatReasoningMarkers declarations: 288 uses/44 definitions, real errors/strings/unicode/utf8 imports, no stubs. This establishes selected symbol types, not application-wide, native-device or browser correctness.",
+      "Reconciled existing findings and implementation responses after provisional conclusions. SQA-272's detached snapshot/head read remains present; SQA-271's record/continuation distinction remains; SQA-MOSS-010's retained final-slab owner is also used by densecausal.Load. No new issue, resolution, severity or priority change."
     ],
   "sqa_response": {
-      "reviewed_master": "d6d17937420e296fad5db3a76607b8e490f14da6",
-      "assessment": "78 open,3 deferred,24 resolved; no new/resolved finding or priority change. Extended232 to resident image latent/pixel parity; source and plan otherwise unchanged.",
-      "evidence": "Fresh10-file19005 AST sample(12676 production/6329 test),95 functions/3767 local bindings. Original run record types/Wall checked with actual time import:40 uses/21 definitions. Parsed resident test1291->1295; six prior232 files unchanged.",
+      "reviewed_master": "d330db1eaba4b86464f6c000f060211c3d1fb122",
+      "assessment": "No new findings, closures or priority changes. Rotated review retains distinct native-loading, audio recovery, catalog-release and prompt-stream contracts; no safe new net reduction established.",
+      "evidence": "11 committed files/11006 AST, 51 functions/2215 local bindings; selected real reasoning implementation type-checked with 288 uses/44 definitions. No production/test/plan delta and no new workload evidence.",
       "new_findings": [],
       "resolved_findings": [],
       "partially_addressed_findings": [],
@@ -6208,8 +6251,8 @@
         "plan_git_blob": "a22ca7b01f13c6ab65ca38a35415348a4d9d0421",
         "status": "Both owner objects and every implementation-owned finding field preserved raw-exact; current source/retained evidence assessed separately."
       },
-      "recommendation": "Apply positive ordered acceptance in the existing numerical test owners, retain distinct audio/HTTP/recovery coverage, and use the already-established253/276 consolidation opportunities. Actual continuation remains the configured loop's responsibility; completion timestamps alone do not establish delivery.",
-      "next_action": "Implementation owner can adopt the existing bounded recommendations. This report update changes no plan, production code, test or worker state.",
-      "uncertainty": "No runtime failure or new timing/memory result established. Other findings remain scoped to their original retained evidence; new232 counterexample is source-based."
+      "recommendation": "Keep the existing test owners and native loading paths. Address SQA-272 through the current snapshot/publication owner and SQA-271 through the existing supervised driver when the real launch boundary is established. Preserve numerical/data-loss checks; do not invent another scheduler or test framework.",
+      "next_action": "Implementation owner can use the existing ranked recommendations. This SQA turn updates only review evidence and test dispositions.",
+      "uncertainty": "No runtime incident, new timing/memory improvement or unattended delivery was established. Retained findings remain bounded by their original evidence."
     }
 }

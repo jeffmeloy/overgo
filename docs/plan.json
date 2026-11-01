@@ -158,6 +158,13 @@
       },
       "steps": [
         {
+          "id": "record",
+          "title": "Record a pipeline a store already holds",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestBootstrapKeepsRecordedFileFacts$'",
+          "rationale": "A store can already hold this pipeline, recorded when it was registered, with a source file typed by an earlier reading of it: identity is the bytes, the media type is a fact, and the training route committed its own and was refused on the real store. PreserveRawFileDescriptors already keeps a recorded fact of that kind; recording a run's weights goes through it.\nServes: MOSS trains against the store its model is registered in.\nDisappears: nothing.\nEvidence: the bootstrap test over a store holding the file under another text type.\nBatch: training lane."
+        },
+        {
           "id": "heldout",
           "title": "Judge a MOSS training run on held-out pictures",
           "status": "open",

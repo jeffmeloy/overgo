@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -39,6 +41,8 @@ const (
 	// mossParityPasses is the generations each case compares, the second holding
 	// the first to repeatability.
 	mossParityPasses = 2
+	// mossPage is the page that states all of it for a person.
+	mossPage = "docs/MOSS_IMAGE.md"
 )
 
 // mossManifest pins one picture manifest under the data root's datasets.
@@ -114,6 +118,10 @@ func TestMOSSRetainedEvidence(t *testing.T) {
 	t.Run("resources", func(t *testing.T) {
 		t.Parallel()
 		checkMOSSResources(t, t.Context(), root)
+	})
+	t.Run("complete", func(t *testing.T) {
+		t.Parallel()
+		checkMOSSComplete(t, root, roots, store)
 	})
 }
 
@@ -416,5 +424,57 @@ func checkMOSSResources(t *testing.T, ctx context.Context, root string) {
 	measured(record.Native.Largest)
 	if largest := record.Native.Largest; largest.Height*largest.Width <= record.Native.Requests[0].Height*record.Native.Requests[0].Width {
 		t.Fatalf("the largest picture measured is %dx%d", largest.Width, largest.Height)
+	}
+}
+
+// checkMOSSComplete holds the campaign's end: every retained reading stands, the
+// model is active for pictures and for training in the store, the review has
+// closed every finding it filed against MOSS, and the page a person reads states
+// the figures the records hold.
+func checkMOSSComplete(t *testing.T, root string, roots dataroot.Roots, store *overgodb.Store) {
+	t.Helper()
+	ctx := t.Context()
+	checkMOSSTraining(t, root, roots, store)
+	checkMOSSParity(t, ctx, root, roots)
+	checkMOSSResources(t, ctx, root)
+	var training mossTrainingReading
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mossTrainingRecord), &training); err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range []recipe.Task{recipe.TaskImageGen, recipe.TaskTraining} {
+		if _, active, err := modelrecipe.ActiveRecord(ctx, store, training.Model, task); err != nil || !active {
+			t.Fatalf("%s is not active: %v", task, err)
+		}
+	}
+	var register struct {
+		Findings []struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"findings"`
+	}
+	if err := jsonfile.Decode(filepath.Join(root, "docs", "sqa_findings.json"), &register); err != nil {
+		t.Fatal(err)
+	}
+	for _, finding := range register.Findings {
+		if strings.HasPrefix(finding.ID, "SQA-MOSS-") && finding.Status != "resolved" {
+			t.Fatalf("%s is %s", finding.ID, finding.Status)
+		}
+	}
+	var resources mossResourceRecord
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mossResourceRecordPath), &resources); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(mossPage)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	figures := []string{fmt.Sprintf("%.4f", training.BaseMean), fmt.Sprintf("%.4f", training.TrainedMean), fmt.Sprintf("%.1f s", resources.Native.Largest.WallSeconds)}
+	for index, native := range resources.Native.Requests {
+		figures = append(figures, fmt.Sprintf("%.1f s", native.WallSeconds), fmt.Sprintf("%.1f s", resources.Upstream.Requests[index].WallSeconds))
+	}
+	for _, figure := range figures {
+		if !strings.Contains(string(page), figure) {
+			t.Fatalf("%s does not state %s", mossPage, figure)
+		}
 	}
 }

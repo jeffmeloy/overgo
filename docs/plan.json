@@ -953,28 +953,6 @@
       ]
     },
     {
-      "id": "moss-closeout",
-      "title": "Reconcile support, documentation and remaining limitations",
-      "owner": "overgo_moss",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Closeout changes records and documentation, with no production growth."
-      },
-      "steps": [
-        {
-          "id": "close",
-          "title": "Publish verified support and retire campaign-only doctrine",
-          "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/complete' \u0026\u0026 go run ./cmd/validate -claims",
-          "rationale": "Check the full request-to-image journey, the ModelScope SFT checkpoint receipt, independent parity, deterministic cross-family import, resource measurements, cancellation and rollback against the earlier acceptance contracts.\nRegenerate compatibility/API/media documentation through existing generators and retain all source, license and environment identities.\nDocument supported controls, measured hardware limits and intentionally unsupported training/editing/SLG features.\nAudit added versus removed production mechanisms and keep the shared importer only where both real consumers demonstrate its value.\nRemove obsolete temporary artifacts and campaign-only doctrine when its work ends; retain evidence under the existing data lifecycle.\nImplementation lands through the repository gate.\nPush requires a separate owner request.\nServes: a complete, maintainable image capability and repeatable onboarding path.\nDisappears: stale campaign rules and displaced import mechanisms; preserve durable reference/evaluation evidence.\nEvidence: complete campaign record consumed by capability claims and documentation; incomplete required cells prevent closure.\nBatch: claims/documentation and any generated-contract lanes; no new execution-surface change is expected at closeout.\n\nOwner, 2026-11-01: all of the work for MOSS to fully implement image inference and training. Training is no longer an intentionally unsupported feature here: closeout documents the supported training the moss-training row establishes, and runs after it. Editing and SLG stay as written. The findings the moss-findings row owns are verified here, not implemented here.",
-          "depends_on": [
-            "moss-evaluation/resources"
-          ]
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-image-gen",
       "title": "Measure image-gen's unmeasured cells",
       "owner": "master-lead",

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
 
@@ -23,6 +24,44 @@ import (
 // bootstrapping a recipe from a weights file records that file's location
 // for the identified model, so every bootstrapped activation resolves to
 // its bytes without a separate intake; the rerun keeps the recorded fact.
+// TestBootstrapKeepsRecordedFileFacts records a pipeline in a store that already
+// holds its source file as plain text. A file's identity is its bytes and its
+// media type a fact the store keeps, so the run goes on and the fact stands.
+func TestBootstrapKeepsRecordedFileFacts(t *testing.T) {
+	t.Parallel()
+	root := testutil.ExtractTarGzip(t, filepath.Join("..", "..", "fixtures", "moss", "generator-compact.tar.gz"), "150c4263057d72476ef4399a442c2b7dbadcb955670232fc2ea869c71f07c5db")
+	if err := os.Remove(filepath.Join(root, "reference.safetensors")); err != nil {
+		t.Fatal(err)
+	}
+	source := []byte("class MOSSImagePipeline:\n    pass\n")
+	if err := os.WriteFile(filepath.Join(root, "pipeline_moss_image.py"), source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id, err := artifact.IdentifyBytes(artifact.KindFile, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const recorded = "text/plain"
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "registered", Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(source)), MediaType: recorded}}}); err != nil {
+		t.Fatal(err)
+	}
+	model, err := identifyAndRecordWeights(t.Context(), store, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := store.Manifest(t.Context(), model); err != nil || !found {
+		t.Fatalf("the pipeline was not recorded: %v", err)
+	}
+	if descriptor, _, err := store.Artifact(t.Context(), id); err != nil || descriptor.MediaType != recorded {
+		t.Fatalf("source file fact %+v, %v", descriptor, err)
+	}
+}
+
 func TestBootstrapRecordsModelLocation(t *testing.T) {
 	root := t.TempDir()
 	modelPath := filepath.Join(root, "model.safetensors")

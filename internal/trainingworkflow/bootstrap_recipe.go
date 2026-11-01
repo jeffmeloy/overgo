@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -204,7 +205,11 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 	batch.Key = "training/bootstrap/location/" + modelID.String() + "/" + location.Value
 	if len(batch.Manifests) != 0 {
 		// Registration already recorded these manifests and locations when it
-		// holds the model: nothing to add, and the run goes on.
+		// holds the model: nothing to add, and the run goes on. A source file
+		// it recorded under another text type keeps that fact.
+		if err := modelartifact.PreserveRawFileDescriptors(ctx, store, &batch); err != nil {
+			return artifact.ID{}, err
+		}
 		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			return artifact.ID{}, err
 		}

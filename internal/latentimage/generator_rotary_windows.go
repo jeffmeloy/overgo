@@ -80,14 +80,17 @@ func loadRotaryGenerator(ctx context.Context, root string, profile Profile, requ
 		return nil, errors.Join(errors.New("rotary image: conditioning cache limit overflows"), runtime.Close(context.WithoutCancel(ctx)))
 	}
 	g := &Generator{profile: profile, modelDir: root, shape: LatentShape{ZDim: channels, Height: height, Width: width}, rotary: &rotaryGeneration{runtime: runtime, conditioner: conditioner, conditioned: conditioningCache{limit: limit}, transformer: spec, decoder: vae}}
-	if err = g.configureRotary(request); err != nil {
+	if err = g.configureRotary(ctx, request); err == nil {
+		err = admitPicture(ctx, runtime, height*width, spec.Hidden)
+	}
+	if err != nil {
 		err = errors.Join(err, runtime.Close(context.WithoutCancel(ctx)))
 		return nil, err
 	}
 	return g, nil
 }
 
-func (g *Generator) configureRotary(request Request) error {
+func (g *Generator) configureRotary(ctx context.Context, request Request) error {
 	if err := ValidateRequest(request); err != nil {
 		return err
 	}
@@ -98,7 +101,7 @@ func (g *Generator) configureRotary(request Request) error {
 		request.Steps = g.profile.Sampling.DefaultSteps
 	}
 	request.NumTrainTimesteps = g.profile.Sampling.TrainTimesteps
-	schedule, err := compileNearestGridFlowSchedule(request.Steps, request.NumTrainTimesteps, g.profile.Rotary.Shift, g.profile.Rotary.TrainingShift)
+	schedule, err := compileNearestGridFlowSchedule(ctx, request.Steps, request.NumTrainTimesteps, g.profile.Rotary.Shift, g.profile.Rotary.TrainingShift)
 	if err != nil {
 		return err
 	}
@@ -122,7 +125,7 @@ func (g *Generator) resetRotary(ctx context.Context, request Request) error {
 	if request.Width != g.request.Width || request.Height != g.request.Height {
 		return errors.New("rotary image: request requires another resident geometry")
 	}
-	if err := g.configureRotary(request); err != nil {
+	if err := g.configureRotary(ctx, request); err != nil {
 		return err
 	}
 	g.prepared, g.integrated, g.completed = false, false, false

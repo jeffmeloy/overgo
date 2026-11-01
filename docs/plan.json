@@ -153,17 +153,10 @@
       "owner": "overgo_moss",
       "status": "open",
       "budget": {
-        "nodes": 700,
+        "nodes": 397,
         "reason": "Repairs in existing owners; each finding names the owner to extend and refuses a new mechanism."
       },
       "steps": [
-        {
-          "id": "request-bounds",
-          "title": "Refuse an unrepresentable picture and cancel a long schedule",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^(TestCompileVAEProgramRefusesUnrepresentableExtents|TestNearestGridScheduleHonorsCancellation|TestMOSSGeneratorLifecycle)$'",
-          "rationale": "SQA-MOSS-007: CompileVAEProgram takes checked shapes, and an overflowing extent fails its one operation instead of ending the server.\nSQA-MOSS-004: the request context reaches compileNearestGridFlowSchedule through configureRotary, checked inside its loops, with no partial schedule installed.\nNo canvas ceiling, MOSS-only validator or panic recovery.\nServes: an admitted request cannot take the server down or hold the image session past its cancellation.\nDisappears: two panicking MustShape calls on request-derived extents.\nEvidence: host tests that allocate nothing at those extents.\nBatch: media lane."
-        },
         {
           "id": "measured-presence",
           "title": "Keep an absent device measurement distinct from measured zero",

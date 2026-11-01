@@ -46,7 +46,7 @@ func samplingFixture(t *testing.T) (*safetensors.Source, []samplingCase) {
 
 func samplingSettings(t *testing.T, c samplingCase) rotarySamplingSpec {
 	t.Helper()
-	schedule, e := compileNearestGridFlowSchedule(c.Steps, 1000, 5, 1)
+	schedule, e := compileNearestGridFlowSchedule(t.Context(), c.Steps, 1000, 5, 1)
 	if e != nil {
 		t.Fatal(e)
 	}

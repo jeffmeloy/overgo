@@ -207,3 +207,32 @@ func (p *VAEProgram) DecodeGraph(run graphruntime.Runner, mean, std []float32, z
 	}
 	return chw, p.OutH, p.OutW, nil
 }
+
+// TestCompileVAEProgramRefusesUnrepresentableExtents holds the picture programs
+// to an error, not a panic, for extents whose shapes overflow, plain and packed:
+// such an extent reaches them from a request, on a goroutine nothing recovers.
+func TestCompileVAEProgramRefusesUnrepresentableExtents(t *testing.T) {
+	t.Parallel()
+	const huge = 1 << 30
+	plain := syntheticVAEDecoder(t)
+	if _, err := CompileVAEProgram(plain, huge, huge, dtype.F32); err == nil {
+		t.Fatal("plain decoder compiled an unrepresentable extent")
+	}
+	packed := *plain
+	packed.patch = tensor.PairedExtent
+	width, err := media.PatchVectorWidth(plain.ZDim, packed.patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packed.LatentsMean, packed.latentVariance = make([]float32, width), make([]float32, width)
+	if _, err := CompileVAEProgram(&packed, huge, huge, dtype.F32); err == nil {
+		t.Fatal("packed decoder compiled an unrepresentable extent")
+	}
+	const hugeGrid = 1 << 31
+	if _, err := compileRotaryDenoiserProgram(denoiserSpec(), syntheticEpsilon, hugeGrid, hugeGrid, tensor.SingletonExtent, nil, dtype.F32); err == nil {
+		t.Fatal("rotary denoiser compiled an unrepresentable extent")
+	}
+	if _, err := CompileDenoiserProgram(syntheticSpec(), syntheticEpsilon, []bool{true}, hugeGrid, hugeGrid, dtype.F32); err == nil {
+		t.Fatal("denoiser compiled an unrepresentable extent")
+	}
+}

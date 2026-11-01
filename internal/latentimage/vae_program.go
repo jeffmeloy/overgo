@@ -95,7 +95,11 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 	// Latent feed: denormalized HWC columns [ZDim, h*w] (DecodeGraph prepares the
 	// z*std+mean affine + CHW->HWC transpose, exactly as vae.go denorms before
 	// the op loop).
-	p.Latent = b.Input("vae_latent", dtype.F32, tensor.MustShape(uint64(d.ZDim), uint64(inputPlane)))
+	latentShape, err := tensor.NewShape(uint64(d.ZDim), uint64(inputPlane))
+	if err != nil {
+		return nil, fmt.Errorf("vae program: latent extent %dx%d: %w", w, h, err)
+	}
+	p.Latent = b.Input("vae_latent", dtype.F32, latentShape)
 
 	x := p.Latent
 	c, ch, cw := d.ZDim, h, w
@@ -123,7 +127,11 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 		if !ok {
 			return nil, fmt.Errorf("vae program: unpacked plane overflows")
 		}
-		p.Latent = b.Input("vae_packed_latent", dtype.F32, tensor.MustShape(uint64(inputPlane), uint64(packed)))
+		packedShape, err := tensor.NewShape(uint64(inputPlane), uint64(packed))
+		if err != nil {
+			return nil, fmt.Errorf("vae program: packed latent extent %dx%d: %w", w, h, err)
+		}
+		p.Latent = b.Input("vae_packed_latent", dtype.F32, packedShape)
 		std := make([]float32, packed)
 		for i, v := range d.latentVariance {
 			std[i] = float32(math.Sqrt(float64(v + d.batchEpsilon)))

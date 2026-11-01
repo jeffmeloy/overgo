@@ -47,13 +47,17 @@ func compileRotaryDenoiserProgram(t TransformerSpec, epsilon float32, height, wi
 			return nil, fmt.Errorf("rotary denoiser: skipped block %d outside %d layers", index, t.Layers)
 		}
 	}
+	latentShape, err := tensor.NewShape(uint64(image), uint64(t.InChannels))
+	if err != nil {
+		return nil, fmt.Errorf("rotary denoiser: latent extent %dx%d: %w", width, height, err)
+	}
 	p := &rotaryDenoiserProgram{spec: t, height: height, width: width, text: text, boundaries: map[string]*tensor.Tensor{}}
 	g, err := newRotaryGraph(t, epsilon, total, storage, &p.weightInputs)
 	if err != nil {
 		return nil, err
 	}
 	b := g.b
-	p.latent = b.Input("latent", dtype.F32, tensor.MustShape(uint64(image), uint64(t.InChannels)))
+	p.latent = b.Input("latent", dtype.F32, latentShape)
 	p.context = b.Input("context", dtype.F32, tensor.MustShape(uint64(t.TextHidden), uint64(text)))
 	p.embedding = b.Input("timestep_embedding", dtype.F32, tensor.MustShape(uint64(t.TimestepEmbed), tensor.SingletonExtent))
 	p.unit = b.Input("unit", dtype.F32, tensor.MustShape(g.width))

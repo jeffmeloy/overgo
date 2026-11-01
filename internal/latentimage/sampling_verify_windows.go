@@ -57,7 +57,7 @@ func verifyMOSSTrajectory(ctx context.Context, runtime *graphruntime.ResidentSes
 	if e != nil {
 		return e
 	}
-	schedule, e := compileNearestGridFlowSchedule(steps, scheduler.Total, scheduler.Shift, scheduler.Training)
+	schedule, e := compileNearestGridFlowSchedule(ctx, steps, scheduler.Total, scheduler.Shift, scheduler.Training)
 	if e != nil {
 		return e
 	}

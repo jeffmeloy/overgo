@@ -92,6 +92,24 @@ func TestMOSSGeneratorComposition(t *testing.T) {
 	}
 }
 
+// TestMOSSGeneratorRefusesPicturesBeyondTheCard holds an admitted request to a
+// failed operation where its shapes overflow or its activations exceed the
+// card, before any host allocation of its extent.
+func TestMOSSGeneratorRefusesPicturesBeyondTheCard(t *testing.T) {
+	cudatest.Require(t)
+	root, _ := compactGeneratorFixture(t)
+	profile, err := ResolveProfile(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, extent := range []int{1 << 34, 1 << 24} {
+		request := Request{Prompt: "blue cube", Width: extent, Height: extent, Steps: 1}
+		if _, err := LoadGenerator(t.Context(), root, profile, request); err == nil {
+			t.Fatal("picture beyond the card admitted", extent)
+		}
+	}
+}
+
 func TestMOSSGeneratorLifecycle(t *testing.T) {
 	cudatest.Require(t)
 	root, _ := compactGeneratorFixture(t)

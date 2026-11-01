@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
+	"overgo/internal/graphruntime"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
@@ -20,6 +21,9 @@ import (
 	"overgo/internal/torchrng"
 	"overgo/internal/workflowruntime"
 )
+
+// activationBytes is the storage of one F32 activation.
+const activationBytes = 4
 
 type Request struct {
 	Prompt            string     `json:"prompt"`
@@ -49,6 +53,26 @@ type Generator struct {
 	prepared   bool
 	integrated bool
 	completed  bool
+}
+
+// admitPicture refuses a picture whose token activations alone exceed the card.
+// Every token holds a row of hidden values on the device through each block, so
+// this is the least such a picture needs, read from the card rather than a
+// ceiling on the canvas. It runs before the host allocates the picture's noise
+// and rotary tables, each as long as the picture: an allocation that fails ends
+// the process, where this ends the request.
+func admitPicture(ctx context.Context, session *graphruntime.ResidentSession, tokens, hidden int) error {
+	return session.Do(ctx, func(state *device.State) error {
+		_, total, err := state.Driver.MemInfo()
+		if err != nil {
+			return err
+		}
+		bytes, ok := checked.Bytes(uint64(tokens), uint64(hidden)*activationBytes)
+		if !ok || bytes > total {
+			return fmt.Errorf("latent image: a picture of %d tokens needs more than the %d bytes of this card", tokens, total)
+		}
+		return nil
+	})
 }
 
 func ValidateRequest(request Request) error {
@@ -129,6 +153,9 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	pipeline, err := NewResidentImagePipeline(ctx, prompt.encoder, prompt.fusion, prompt.denoiser, vae, timestepEncoding, modelDir, tensor.FirstOffset)
 	if err != nil {
 		return nil, err
+	}
+	if err := admitPicture(ctx, pipeline.runtime, gridH*gridW, spec.Transformer.Hidden); err != nil {
+		return nil, errors.Join(err, pipeline.Close(context.WithoutCancel(ctx)))
 	}
 	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)
 	if err != nil {

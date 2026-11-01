@@ -1,10 +1,39 @@
 package latentimage
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"testing"
 )
+
+// countedContext is cancelled from its limit-th question on, so a test cancels
+// a loop part way through with no timer.
+type countedContext struct {
+	context.Context
+	asked, limit int
+}
+
+func (c *countedContext) Err() error {
+	if c.asked++; c.asked >= c.limit {
+		return context.Canceled
+	}
+	return nil
+}
+
+// TestNearestGridScheduleHonorsCancellation holds the schedule's loop to the
+// request's context: a billion-step request cancelled part way through stops
+// there, in far fewer than a billion steps, and yields no schedule.
+func TestNearestGridScheduleHonorsCancellation(t *testing.T) {
+	t.Parallel()
+	const limit = 3
+	ctx := &countedContext{Context: t.Context(), limit: limit}
+	schedule, err := compileNearestGridFlowSchedule(ctx, 1_000_000_000, 1000, 5, 1)
+	if !errors.Is(err, context.Canceled) || schedule.Steps != 0 || ctx.asked != limit {
+		t.Fatal("cancellation lost", err, schedule.Steps, ctx.asked)
+	}
+}
 
 func TestMOSSNearestGridScheduleReference(t *testing.T) {
 	t.Parallel()
@@ -18,7 +47,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 	}
 	for _, steps := range []int{1, 2, 50, 1001} {
 		t.Run(fmt.Sprint(steps), func(t *testing.T) {
-			schedule, err := compileNearestGridFlowSchedule(steps, 1000, 5, 1)
+			schedule, err := compileNearestGridFlowSchedule(t.Context(), steps, 1000, 5, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,7 +89,7 @@ func TestMOSSNearestGridScheduleReference(t *testing.T) {
 		steps, total    int
 		shift, training float64
 	}{{0, 1000, 5, 1}, {1, 0, 5, 1}, {1, 1000, 0, 1}, {1, 1000, 5, -1}, {1, 1000, math.Inf(1), 1}, {1, 1000, math.NaN(), 1}} {
-		if _, err := compileNearestGridFlowSchedule(settings.steps, settings.total, settings.shift, settings.training); err == nil {
+		if _, err := compileNearestGridFlowSchedule(t.Context(), settings.steps, settings.total, settings.shift, settings.training); err == nil {
 			t.Fatal("invalid schedule accepted")
 		}
 	}

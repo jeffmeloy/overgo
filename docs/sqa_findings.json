@@ -6152,6 +6152,31 @@
         "plan_steps": [
           "moss-efficiency/bounded"
         ]
+      },
+      {
+        "comment": "Landed with moss-findings/request-bounds. CompileVAEProgram builds its two request-derived shapes with tensor.NewShape and returns a contextual error, and CompileDenoiserProgram and compileRotaryDenoiserProgram do the same, with their grid and sequence products checked. Beyond the finding: admitPicture refuses, from the card's total memory, a picture whose token activations alone cannot fit, before the host allocates noise and rotary tables of that extent. TestCompileVAEProgramRefusesUnrepresentableExtents and TestMOSSGeneratorRefusesPicturesBeyondTheCard hold both, allocating nothing of those sizes.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestCompileVAEProgramRefusesUnrepresentableExtents",
+          "TestMOSSGeneratorRefusesPicturesBeyondTheCard",
+          "internal/latentimage/runtime_cuda_windows.go admitPicture"
+        ],
+        "finding_id": "SQA-MOSS-007",
+        "plan_steps": [
+          "moss-findings/request-bounds"
+        ]
+      },
+      {
+        "comment": "Landed with moss-findings/request-bounds. compileNearestGridFlowSchedule takes the request context and checks it each requested step; configureRotary passes it on load and reset and installs nothing on an error. TestNearestGridScheduleHonorsCancellation cancels a billion-step request by a counted context, with no timer.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestNearestGridScheduleHonorsCancellation",
+          "internal/latentimage/nearest_schedule.go"
+        ],
+        "finding_id": "SQA-MOSS-004",
+        "plan_steps": [
+          "moss-findings/request-bounds"
+        ]
       }
     ],
     "experiments": {
@@ -6194,7 +6219,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "29ef731e09987bb867980228d1f6ef65ef12cbc7",
+    "head": "345a08a3d9f58d045fb489e588fc34c0f9aa9ec5",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6259,25 +6284,25 @@
         "note": "Confirmed: no production caller of the seq2seq Trainer; the row also extends the unconsumed-surface finder to private islands."
       },
       "SQA-MOSS-007": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/request-bounds"
         ],
-        "note": "Confirmed by reading CompileVAEProgram: two request-derived MustShape calls panic on a shape that overflows, on the serving goroutine. The most serious of the MOSS set, since one absurd request can end the server. First fix."
+        "note": "Landed, and taken further than the finding. Both VAE shapes and the two denoiser programs' latent shapes refuse with an error. Reading the path showed a second crash the finding does not name: an extent whose shapes fit, such as 16 million pixels a side, passed compilation and then allocated its noise and rotary tables on the host, where a failed allocation ends the process. admitPicture refuses it from the card's own memory before any such allocation, which is no canvas ceiling: it reads the card. Awaits the reviewer's closure."
       },
       "SQA-MOSS-004": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "moss-findings/request-bounds"
         ],
-        "note": "Confirmed: compileNearestGridFlowSchedule takes no context and loops over the requested steps. Fixed with 007 since both bound what an admitted request can cost before any device work."
+        "note": "Landed: the schedule's step loop answers to the request context on both load and reset, and an interrupted configuration installs nothing. Awaits the reviewer's closure."
       },
       "SQA-MOSS-005": {
         "action": "implemented",
         "rows": [
           "moss-efficiency/bounded"
         ],
-        "note": "Confirmed by reading Release, and landed in the row that names it: trailing released records leave the list. Awaits the reviewer's closure."
+        "note": "Landed in 57973aff2. Read again here: the request-bounds change leaves Release as it was. Awaits the reviewer's closure."
       },
       "SQA-MOSS-010": {
         "action": "implemented",
@@ -6305,7 +6330,7 @@
         "rows": [
           "moss-findings/cancellation"
         ],
-        "note": "Accepted on the traced sequence; not reproduced yet, and the step starts from a failing test. Reference moves here from moss-closeout/close because closeout should verify it, not implement it."
+        "note": "Accepted on the traced sequence; not reproduced yet, and the step starts from a failing test. Reference moves here from moss-closeout/close because closeout should verify it, not implement it. This commit's schedule cancellation is a separate window, before any device work."
       },
       "SQA-MOSS-009": {
         "action": "filed",
@@ -6319,7 +6344,7 @@
         "rows": [
           "moss-findings/browser"
         ],
-        "note": "Accepted: a seed above 2^53 silently changes, which breaks the reproducibility the parity evidence relies on."
+        "note": "Accepted: a seed above 2^53 silently changes, which breaks the reproducibility the parity evidence relies on. Unchanged by the request bounds, which act on the extent and the steps."
       },
       "SQA-MOSS-006": {
         "action": "filed",

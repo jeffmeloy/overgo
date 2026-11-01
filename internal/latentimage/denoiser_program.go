@@ -71,8 +71,18 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	kvDim := kvHeads * headDim
 	inter := uint64(t.Intermediate)
 	inCh := uint64(t.InChannels)
-	imgSeq := gh * gw
-	seq := textSeq + imgSeq
+	imgSeq, ok := checked.MulInt(gh, gw)
+	if !ok {
+		return nil, fmt.Errorf("denoiser program: image grid %dx%d overflows", gw, gh)
+	}
+	seq, ok := checked.AddInt(textSeq, imgSeq)
+	if !ok {
+		return nil, fmt.Errorf("denoiser program: sequence of %d image tokens overflows", imgSeq)
+	}
+	latentShape, err := tensor.NewShape(inCh, uint64(imgSeq))
+	if err != nil {
+		return nil, fmt.Errorf("denoiser program: latent extent %dx%d: %w", gw, gh, err)
+	}
 
 	p := &DenoiserProgram{
 		T: t, Eps: eps, TextSeq: textSeq, GH: gh, GW: gw, ImgSeq: imgSeq, Seq: seq,
@@ -82,7 +92,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	setBuilderMatmulCompute(b, matmulType)
 	bind := tensor.WeightInputs{Builder: b, Bindings: &p.weightInputs, MatrixType: matmulType}
 
-	p.InLatent = b.Input("latent_patches", dtype.F32, tensor.MustShape(inCh, uint64(imgSeq)))
+	p.InLatent = b.Input("latent_patches", dtype.F32, latentShape)
 	p.InText = b.Input("text_conditioning", dtype.F32, tensor.MustShape(h, uint64(textSeq)))
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
 	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))

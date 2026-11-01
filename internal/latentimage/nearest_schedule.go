@@ -1,6 +1,7 @@
 package latentimage
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"overgo/internal/checked"
@@ -13,7 +14,9 @@ const nearestGridHalves = 2
 
 // compileNearestGridFlowSchedule snaps shifted float32 knots onto a training grid.
 // Ties select the lower sigma and consecutive duplicates collapse before the terminal zero.
-func compileNearestGridFlowSchedule(steps, total int, shift, trainingShift float64) (FlowSchedule, error) {
+// Steps are the request's and the work grows with them though the schedule does not, so
+// each one answers to the request's context.
+func compileNearestGridFlowSchedule(ctx context.Context, steps, total int, shift, trainingShift float64) (FlowSchedule, error) {
 	if !checked.PositiveInts(steps, total) || !checked.PositiveFinite64(shift) || !checked.PositiveFinite64(trainingShift) || !checked.PositiveFinite32(float32(shift)) || !checked.PositiveFinite32(float32(trainingShift)) {
 		return FlowSchedule{}, fmt.Errorf("nearest-grid flow: positive finite extents and shifts required, got %d/%d/%g/%g", steps, total, shift, trainingShift)
 	}
@@ -23,6 +26,9 @@ func compileNearestGridFlowSchedule(steps, total int, shift, trainingShift float
 	}
 	sigmas := make([]float64, 0, min(steps, total))
 	for i := range steps {
+		if err := ctx.Err(); err != nil {
+			return FlowSchedule{}, err
+		}
 		sigma := nearestGridSigma(i, steps, total, shift)
 		upper := min(sort.Search(len(train), func(j int) bool { return train[j] >= sigma }), len(train)-1)
 		lower := max(upper-1, 0)

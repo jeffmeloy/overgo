@@ -19,9 +19,12 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAcceptedE4BModalities reads the frozen evidence selection only. It never
-// launches inference or promotes a partial or fixture-only model result.
-func TestAcceptedE4BModalities(t *testing.T) {
+// TestAcceptedE4BModalitiesNameTheServedDefinition reads the frozen evidence selection only. It never launches
+// inference or promotes a partial or fixture-only model result. The protocol and resource cells and the mask name the
+// definition E4B serves and its promoted projection, re-run on it (e4b-tensor-cores); the dataset-quality cells name the
+// definition and commit their external adapter measured, the tensor-core prompt attention between the two held to the
+// F32 paths by TestPromptTensorCoresHoldHeldOut.
+func TestAcceptedE4BModalitiesNameTheServedDefinition(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
@@ -48,31 +51,37 @@ func TestAcceptedE4BModalities(t *testing.T) {
 	if err := checkModelValidation(t.Context(), store, spec, e4bValidationCells()); err != nil {
 		t.Fatal(err)
 	}
-	// The validation's text cells bind to the inference recipe it activated, superseded since E4B serves the definition
-	// its gemma4 profile with the tensor-core prompt attention derives (prompt-attention-precision/activate); the
-	// tensor-core path is held to the F32 paths by TestPromptTensorCoresHoldHeldOut, and e4b-tensor-cores re-runs the
-	// validation on it.
-	validatedID, err := artifact.ParseID("recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e")
-	if err != nil {
-		t.Fatal(err)
+	served, active, err := modelrecipe.ActiveRecord(t.Context(), store, spec.Model, recipe.TaskInference)
+	if err != nil || !active {
+		t.Fatalf("E4B's inference binding is not promoted: %v", err)
 	}
-	validated, err := recipe.RequireDefinition(t.Context(), store, validatedID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if validated.Model != spec.Model || validated.Task != recipe.TaskInference {
-		t.Fatal("the validated inference recipe is not E4B's")
-	}
-	definition, bound := validated.PrimaryDependency(recipe.DependencyDefinition)
+	definition, bound := served.Definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !bound {
 		t.Fatal("E4B inference definition is absent")
+	}
+	// The dataset-quality cells' adapter ran under the inference recipe the validation first activated.
+	measuredID, err := artifact.ParseID("recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	measured, err := recipe.RequireDefinition(t.Context(), store, measuredID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	measuredDefinition, bound := measured.PrimaryDependency(recipe.DependencyDefinition)
+	if measured.Model != spec.Model || measured.Task != recipe.TaskInference || !bound {
+		t.Fatal("the quality cells' inference recipe is not E4B's")
 	}
 	projection, active, err := modelrecipe.ActiveRecord(t.Context(), store, spec.Model, recipe.TaskProjection)
 	if err != nil || !active {
 		t.Fatalf("E4B complete projection binding is not promoted: %v", err)
 	}
 	for _, cell := range spec.Cells {
-		if cell.ModelDefinition != definition || !strings.Contains(cell.Name, "/text/") && cell.Recipe != projection.Definition.ID {
+		want, commit := definition, spec.CodeCommit
+		if strings.HasPrefix(cell.Name, "quality/") {
+			want, commit = measuredDefinition, cell.CodeCommit
+		}
+		if cell.ModelDefinition != want || commit == "" || !strings.Contains(cell.Name, "/text/") && cell.Recipe != projection.Definition.ID {
 			t.Fatalf("%s does not name the promoted binding", cell.Name)
 		}
 	}

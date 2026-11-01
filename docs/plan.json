@@ -464,21 +464,6 @@
       ]
     },
     {
-      "id": "e4b-tensor-cores",
-      "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "gemma-4-E4B-it's modality validation re-runs on the tensor-core definition it serves",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test ./cmd/validate -count=1 -run '^TestAcceptedE4BModalitiesNameTheServedDefinition$'",
-          "rationale": "Measured on 2026-10-31: gemma-4-E4B-it over the gemma4 profile that admits the tensor-core prompt attention read its 4096-token prompt at 458 ms and its 16384-token one at 2178 ms, from 573 and 2577 ms, and the paired held-out comparison held (BBH 2 lost to 1 gained, IFEval 0 to 1, MMLU-Pro raw 1 to 0, chat 0 to 4). Its accepted modality validation (docs/verification/e4b-validation.json, 30 cells across text, audio, image and video, 5b5f36e49) is bound to its earlier definition, and its projection recipe with it, so the admission waits on that validation re-run under the new definition, its inference and projection recipes activated together. The regression rows scorecard-regressed-cdbb3debaad4e309 and scorecard-regressed-d730a46b2d9a307f close with it. Serves: first-output at length on gemma-4-E4B-it, held-out-quality held.\n\nRe-scoped on 2026-10-31: gemma4 stays admitted and E4B serves the tensor-core definition, its long-prompt rows closed; the accepted 30 cells bind to the recipe the validation activated (TestAcceptedE4BModalities) until this step re-runs them on the served definition, inference and projection, so the acceptance again names the active binding. Its check is then the acceptance in that form."
-        }
-      ]
-    },
-    {
       "id": "executor-setup",
       "title": "Load and resolve only the kernels a model's graphs launch, so a first request pays for its own",
       "owner": "master-lead",

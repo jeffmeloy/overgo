@@ -163,7 +163,7 @@
           "Proofs": [
             "modality-verification/retained-model-bundles"
           ],
-          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open. Recorded on its earlier inference recipe (recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e) on the F32 prompt attention; this recipe, derived over the gemma4 profile that admits the tensor-core prompt attention, re-validated its exact continuations 5 of 5 on 2026-10-31, and TestPromptTensorCoresHoldHeldOut holds the kernel to the F32 paths' held-out answers; e4b-tensor-cores re-runs the cells on it."
+          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open. The protocol and resource cells and the mask causality re-ran on this recipe's definition, derived over the gemma4 profile that admits the tensor-core prompt attention, at f0d63464a on 2026-10-31 (e4b-tensor-cores); the six quality cells stay as their external adapter measured them on the earlier inference recipe (recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e, the F32 prompt attention), and TestPromptTensorCoresHoldHeldOut holds the kernel to the F32 paths' held-out answers."
         },
         {
           "Task": "projection",
@@ -306,7 +306,7 @@
     }
   ],
   "Inputs": {
-    "docs/verification/e4b-validation.json": "f5389b9111485ba8afcea713073251fe760f4f9de63a89e6eaef809a6b1eab6f",
+    "docs/verification/e4b-validation.json": "d460e6ca237b879d4cb7b0b370e3273976a1aca73570f22a2c77558ec818559f",
     "docs/verification/gemma-twelve-bf16-retained.json": "2d6d1b194f026768c0d56b7bc0d4cde6029552422b449a299de72ab0a9de8be8",
     "docs/verification/gemma-twelve-native-retained.json": "c0f7366ebf23ba4addf9d54d4ba34ebd4afbc78eda8ff4b8920541d050feab41",
     "docs/verification/qwen-twentyseven-retained.json": "96722949f2dc376aa3fd16e2ca3974ba82f6eb758336bff2dc589e294d220253",

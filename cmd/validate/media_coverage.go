@@ -508,7 +508,7 @@ func collectModalityProtocols(ctx context.Context, reader artifact.Reader, data 
 			if len(parts) != 3 {
 				return errors.New("coverage: invalid modality protocol name")
 			}
-			value := modalityProtocolProjection{Name: cell.Name, InputMode: parts[1], Source: spec.CodeCommit, Recipe: cell.Recipe, Plan: cell.Plan, Evidence: []artifact.ID{cell.Evidence}}
+			value := modalityProtocolProjection{Name: cell.Name, InputMode: parts[1], Source: cmp.Or(cell.CodeCommit, spec.CodeCommit), Recipe: cell.Recipe, Plan: cell.Plan, Evidence: []artifact.ID{cell.Evidence}}
 			if strings.HasPrefix(cell.Name, "protocol/") {
 				if err := checkProtocolValidationCell(ctx, reader, spec, cell); err != nil {
 					return err
@@ -792,6 +792,9 @@ type modelValidationCell struct {
 	Shards          []artifact.ID          `json:"shards"`
 	Cases           []string               `json:"cases,omitempty"`
 	Bounds          []modelValidationBound `json:"bounds"`
+	// CodeCommit is the commit the cell was measured at where its selection was re-run at another: a quality cell an
+	// external adapter measured, kept beside the cells re-run on a later definition.
+	CodeCommit string `json:"code_commit,omitzero"`
 }
 
 type modelValidationBound struct {

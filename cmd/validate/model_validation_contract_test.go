@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -95,7 +96,7 @@ func checkModelValidationCell(spec modelValidationSpecification, cell modelValid
 		return errors.New("model validation: exact-output evidence cannot replace observed media recovery")
 	}
 	if value.Plan != cell.Plan || value.ModelDefinition != cell.ModelDefinition || value.Recipe != cell.Recipe ||
-		value.Dataset != cell.Dataset || value.Split != cell.Split || value.Environment != cell.Environment || value.CodeCommit != spec.CodeCommit ||
+		value.Dataset != cell.Dataset || value.Split != cell.Split || value.Environment != cell.Environment || value.CodeCommit != cmp.Or(cell.CodeCommit, spec.CodeCommit) ||
 		len(cell.Shards) == 0 || len(cell.Bounds) == 0 || len(cell.Shards) != len(value.Shards) {
 		return fmt.Errorf("model validation %s: source, authority or case denominator differs", cell.Name)
 	}
@@ -165,7 +166,7 @@ func checkTranscriptionValidationCell(ctx context.Context, store artifact.Reader
 	if err := json.Unmarshal(content.Data, &authorities); err != nil {
 		return err
 	}
-	if authorities.ModelDefinition != cell.ModelDefinition || authorities.Recipe != cell.Recipe || authorities.Environment != cell.Environment || authorities.CodeCommit != spec.CodeCommit {
+	if authorities.ModelDefinition != cell.ModelDefinition || authorities.Recipe != cell.Recipe || authorities.Environment != cell.Environment || authorities.CodeCommit != cmp.Or(cell.CodeCommit, spec.CodeCommit) {
 		return errors.New("model validation: transcription execution authority differs")
 	}
 	expected := slices.Clone(cell.Cases)

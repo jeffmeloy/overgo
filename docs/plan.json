@@ -161,7 +161,7 @@
           "id": "cancellation",
           "title": "Honor cancellation through inventory and final publication",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability ./internal/libraryintake ./internal/modelrecipe ./internal/server -count=1 -run 'Cancel'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability ./internal/libraryintake ./internal/server -count=1 -run '^(TestMOSSSourceInventoryCancels|TestMOSSResidentSession|TestMOSSImageValidation|TestGenerationCancelledAtPublicationRecordsItsRun)$'",
           "rationale": "SQA-MOSS-001: Capability.Resolve takes the request context and the shared image source hashes under it.\nSQA-MOSS-011: a cancellation in the final publication window records a durable cancelled run instead of a generic failure with no run; start from a failing test, since the sequence was traced and not observed.\nServes: Stop means stop, and says so, from import to the last write.\nDisappears: a context.Background in the source path.\nEvidence: deterministic cancellation tests with no timers.\nBatch: serving and intake lanes."
         },
         {

@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 391,
+        "nodes": 356,
         "reason": "Small corrections inside existing owners, each named by its finding."
       },
       "steps": [
-        {
-          "id": "durable-blobs",
-          "title": "Publish loose blobs through the durable namespace owner",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/fsatomic -count=1 -run 'Blob|Replace'",
-          "rationale": "SQA-254: blobStore.prepare publishes through fsatomic.Replace; the separate rename and no-op directory sync go.\nServes: committed content survives a power loss.\nDisappears: a second publication path.\nEvidence: the existing blob commit tests with the retry path reconciled.\nBatch: store lane."
-        },
         {
           "id": "retention-head",
           "title": "Bind retention releases to the head of their snapshot",

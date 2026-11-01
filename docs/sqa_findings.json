@@ -6262,6 +6262,18 @@
         "plan_steps": [
           "sqa-served/draft-host"
         ]
+      },
+      {
+        "comment": "Landed with sqa-served/durable-blobs. The separate rename and the no-op directory sync are gone, and the staging write, its Sync and Close, hashing, the conflicting-size refusal and cleanup are unchanged. An existing loose blob now persists its name after verifying, so a retry after a namespace-persistence failure no longer treats readable bytes as durable naming. Packed content keeps its verified pack owner.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestBlobRetryPersistsTheNameItFinds",
+          "TestBlobStorePublicationContract"
+        ],
+        "finding_id": "SQA-254",
+        "plan_steps": [
+          "sqa-served/durable-blobs"
+        ]
       }
     ],
     "experiments": {
@@ -6308,7 +6320,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "c4af5a1b6735d2668a53f5ebc6ebd6cfb7b635d5",
+    "head": "715fb7ab122651edfe27a1091940d6192cc8334f",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6458,11 +6470,11 @@
         "note": "Landed. The generation and sampling verifiers judge a boundary through mossBoundaryAccepted, so a bit difference at an exact boundary fails though its distance is zero, and a boundary with a frozen tolerance keeps it. Whether the real goldens hold at this stricter bar is read at moss-evaluation/model-parity. Awaits the reviewer's closure."
       },
       "SQA-254": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-served/durable-blobs"
         ],
-        "note": "Read again against store-history/anchor, which changes Store.Close and the journal's open and leaves blob publication as it was. Still stands, and still the largest remaining durability item after that P1: a sealed journal is safe across a crash now, a loose blob is not yet."
+        "note": "Landed. blobStore.prepare publishes through fsatomic.Replace, and the retry path persists the name it finds through SyncFile and SyncDirectory after verifying. The lost-blob outcome stays a hypothesis: this was not reproduced with a power cut. Awaits the reviewer's closure."
       },
       "SQA-272": {
         "action": "filed",

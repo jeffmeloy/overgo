@@ -51,8 +51,10 @@ func (b blobStore) path(id artifact.ID) (string, error) {
 }
 
 // prepare makes the payload durable under its identity. An existing
-// blob makes preparation an idempotent verify; a payload whose digest
-// differs from the claimed identity refuses before any bytes land.
+// blob makes preparation an idempotent verify that persists the name it
+// found, since readable bytes do not prove an earlier publication reached
+// the disk; a payload whose digest differs from the claimed identity
+// refuses before any bytes land.
 func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 	digest := sha256.Sum256(payload)
 	if hex.EncodeToString(digest[:]) != id.DigestHex() {
@@ -66,7 +68,13 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		if info.Size() != int64(len(payload)) {
 			return fmt.Errorf("overgodb: blob %s exists with conflicting size", id)
 		}
-		return b.verify(context.Background(), id)
+		if err := b.verify(context.Background(), id); err != nil {
+			return err
+		}
+		if err := fsatomic.SyncFile(destination); err != nil {
+			return fmt.Errorf("overgodb: persist blob: %w", err)
+		}
+		return fsatomic.SyncDirectory(filepath.Dir(destination))
 	}
 	if _, _, found := b.packed(id); found {
 		return b.verify(context.Background(), id)
@@ -94,11 +102,11 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: close blob: %w", err)
 	}
-	if err := os.Rename(stagingPath, destination); err != nil {
+	if err := fsatomic.Replace(stagingPath, destination); err != nil {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: publish blob: %w", err)
 	}
-	return fsatomic.SyncDirectory(directory)
+	return nil
 }
 
 // open returns the blob's bytes stream after a size check against the

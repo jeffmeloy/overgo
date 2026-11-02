@@ -1,21 +1,21 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "One implemented reduction closes 291. One new safe test-only reduction, 292, removes repeated parsing with an established startup owner. The MOSS sequencing repair 293 adds a small amount of code and should be counted as early-failure behavior, not a source reduction.",
-      "priority": "Store durability 288 remains first; retain existing correctness/recovery and continuation priorities. Move cheap MOSS checks before device preparation through the current route. Take 292 with ordinary native test compaction.",
+      "assessment": "Two implemented improvements close292/293, with growth counted separately from reductions. New294 reuses two concrete tests' identical fresh-store/catalog/Qwen directory setup while retaining distinct validation-recipe and runtime-model checks. No other safe net production reduction established.",
+      "priority": "Durability288 remains first; retain recovery and continuation priorities.293 is resolved at the later committed pin.294 belongs to ordinary native test consolidation.",
       "declined_candidates": [
-        "Do not merge prompt-cache host/device or stopped-generation requirements: the shared assertion already serves both backends, and cold-versus-warm logits are a genuine independent execution oracle with existing numerical tolerance.",
-        "Do not replace shape validation with another duplicated table: RotaryWeightShapes already derives from the graph used by inference. No net-saving replacement for its distinct matrix/flat contracts established.",
-        "Keep backup writer release, cancellation/resume and segmented read-only refresh coverage; shared setup alone does not erase their different captured-head and lifetime requirements. Existing 241 owns only redundant failure cleanup, and 253 owns repeated query-plan accounting.",
-        "Keep authenticated transcription, out-of-order refusal and disconnect/resume through the existing session/lease owner. No timer polling, new fixture or browser duplication recommended.",
-        "Do not treat new target synthetic tests as proof of verdict-producing unattended training. The committed judged-proof step already owns the missing deciding run; SQA starts none."
+        "Keep the checkpoint-copy test: file listing/no-weight-copy and missing tokenizer protect newly repaired behavior across dense and mixture callers. Existing hfrepo.CompanionFiles and export.CopyFiles already own listing and durable copying; no new wrapper proposed.",
+        "Keep the trained benchmark fixture's fresh versus already-admitted cases: avoiding revalidation protects goldens, and both paths require benchmark-before-guard. Keep exact accepted-denominator assertions for census and smoke, which have different catalog types.",
+        "Retain the improvement record and its consistency test as bounded evidence rather than replace them with another real training run. Its519-node/4034-byte cost is explicit; it does not prove a scheduler or justify automatic promotion.",
+        "Retain inference mixed storage/adapted/rank/overflow cases, typed retention roots/missing pins/store-local authority refusal, segmented checkpoint repair and stale-head refusal. Similar setup is not proof that these failure cases are redundant.",
+        "Retain runtime stream initial/admit/cancel and progress coalescing coverage. Existing252 owns download-test setup sharing; do not file it again."
       ]
     },
   "committed_plan": {
-    "git_blob": "83583078fe931386290961bf6243c71b0ef78eb5",
+    "git_blob": "1e97a69d33fd11a0599dfd1490ba589dbd78c76c",
     "path": "docs/plan.json",
-    "revision": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-    "sha256": "36bd37f310e8fa1586b95372089802ebd435f119b4da1eb00370543bdcfb18a9",
+    "revision": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+    "sha256": "18bf1fa4bc0a4082f9279fda6da1506da30d62884c1b8cb748475009a7daa104",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -517,64 +517,6 @@
       "raised_by": "Review session e8549e3e at the owner's request, 2026-10-31 (owner: \"there is fundamental problem with this system to re-do testing over, and over, and over and over, and never finish\"; \"don't run the whole scorecard until code is fixed\")"
     },
     {
-      "id": "SQA-293",
-      "status": "open",
-      "severity": "P2",
-      "category": "automation-sequencing",
-      "classification": "source-established-late-prerequisite-admission",
-      "title": "Check MOSS grid and held-out disjointness before preparing pictures on the device",
-      "evidence_commit": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-      "sources": [
-        {
-          "path": "cmd/train/route_moss_windows.go",
-          "symbol": "trainMOSS: ResolveProfile -> mossPrepare -> refuseTrainedHeldOut -> mosstrain.New/Reserve -> CheckTrainingGrid; mossPrepare"
-        },
-        {
-          "path": "internal/mosstrain/flow.go",
-          "symbol": "CheckTrainingGrid"
-        },
-        {
-          "path": "internal/latentimage/nearest_schedule.go",
-          "symbol": "TrainingGrid; compileNearestGridFlowSchedule"
-        },
-        {
-          "path": "internal/latentimage/profile.go",
-          "symbol": "Profile.Validate: positive finite training shift and timestep count"
-        },
-        {
-          "path": "cmd/train/route_moss_heldout_windows_test.go",
-          "symbol": "TestAPictureIsHeldOutByItsBytes"
-        },
-        {
-          "path": "cmd/train/route_moss_windows_test.go",
-          "symbol": "mossRouteFixture; TestMOSSRoute"
-        },
-        {
-          "path": "internal/mosstrain/flow_test.go",
-          "symbol": "TestATrainingDrawStandsOnTheSourceGrid"
-        }
-      ],
-      "evidence": "The new checks exist but their prerequisites are already known earlier. After ResolveProfile, trainMOSS first calls mossPrepare for every training picture (picture encoder and caption conditioner); only then parses/checks held-out bytes. It later prepares held-out pictures, opens transformer weights, constructs and reserves the trainer, and finally calls CheckTrainingGrid. An otherwise valid profile with positive finite shift3 is admitted by Profile.Validate and deterministically rejected by CheckTrainingGrid; a held-out copy is deterministically rejected by the byte check. Both can consume device preparation before the already-decidable refusal. This is source-established ordering, not an observed production delay or a measured amount of wasted work.",
-      "recommended_change": "Keep existing openSessionAs/settle ownership, then immediately after successful ResolveProfile run the existing timesteps/CheckTrainingGrid block and parse/check the optional held-out manifest. Carry the held slice to its existing later preparation block. Delete the displaced late checks; reuse CheckTrainingGrid, refuseTrainedHeldOut and mossManifest without a new preflight helper, scheduler, selector or admission registry. Keep all current shape validation and actual preparation error handling.",
-      "displaced_surface": "Actual parsed route rearrangement2329->2341 (+12 production AST), including outer held slice and split optional branch; flow.go587 and nearest_schedule.go494 unchanged, affected production3410->3422. Existing route test1205+held-out test211+flow test69=1485; one small table extension in the existing route fixture estimated+150..300 ->1635..1785. Complete compared4895->5057..5207 (+162..312), correctness/sequencing growth, not a net reduction. No static fixture/helper/wrapper/new export/config/gate leg. Valid inputs retain the same byte hashes/grid allocation/device setup; rejected inputs skip all later encoder/conditioner/trainer setup. Two bounded rejected-input route calls may be added to the retained fixture; no extra successful training/model run.",
-      "impact": "Known bad grid or copied held-out inputs fail before expensive model preparation, improving automation failure locality and avoiding device occupancy. No saved milliseconds/bytes claimed. Preserve recorded session failure, cancellation propagation, encoded-byte identity and exact float32 grid acceptance. Error precedence changes deliberately: these prerequisites win before later model-load errors. No security/data-loss boundary is relaxed.",
-      "expected_benefit": {
-        "outcome": "Avoids deterministic unnecessary image/text encoding and trainer allocation for inputs the route already refuses.",
-        "uncertainty": "Shift3/copied-input counterexamples are traced, not executed. Normal-run performance is unchanged; invalid-input savings are unquantified. Test growth remains an estimate."
-      },
-      "likely_effort": "Small move within trainMOSS and a bounded extension of the existing native route fixture.",
-      "plan_references": [
-        "moss-early-refusals/do"
-      ],
-      "plan_coverage": "Residual sequencing issue after completed moss-training-repairs steps; no live row claims it. Related271/258 concern actual continuation, not this pre-compute admission order; no duplicate finding.",
-      "closure_criteria": [
-        "Both existing grid and held-out byte checks precede the first mossPrepare call.",
-        "Accepted input preparation and numerical/lifetime behavior remain unchanged; session failure recording is retained.",
-        "Existing fixture can distinguish prerequisite refusal from deliberately unavailable encoder/load failure without a successful additional device run; complete growth counted."
-      ],
-      "comparison": "During implementation extend the existing compact route fixture with shift3 and copied-held-out cases while its encoder is deliberately unavailable, requiring the specific prerequisite error rather than the later load error. Retain the current valid/cancelled route and pure helper cases. Use one native fixture/table, no new hooks or instrumentation; SQA runs nothing."
-    },
-    {
       "id": "SQA-257",
       "status": "open",
       "severity": "P2",
@@ -758,6 +700,48 @@
       "comparison": "The actual in-memory AST migration is decisive for reduction; existing native server package validation during implementation can verify behavior. No new test or extra SQA confidence run."
     },
     {
+      "id": "SQA-294",
+      "status": "open",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-and-in-memory-ast-established-net-reduction",
+      "title": "Merge viewed-directory validation into the existing registration identity fixture",
+      "evidence_commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "sources": [
+        {
+          "path": "internal/libraryintake/import_test.go",
+          "symbol": "TestAViewedDirectoryValidatesAsItRegisters; TestARegisteredDirectoryRunsUnderItsRegisteredIdentity"
+        },
+        {
+          "path": "internal/libraryintake/intake.go",
+          "symbol": "validationAt; Register"
+        },
+        {
+          "path": "internal/testutil/qwen35_directory.go",
+          "symbol": "Qwen35Directory"
+        }
+      ],
+      "evidence": "Two concrete tests independently create the same fresh store, publish the same architecture catalog, write the same tiny Qwen35Directory and call Register. The older test then resolves runtime identity; the new one first prepares validation and compares its recipe with registration. validationAt prepares a candidate and closure without executing generation or committing it, so it can remain before the existing Register on that same fresh fixture. Both identity checks then observe the same registration. Repository search finds no current external selector for the removed test; its landing step is completed.",
+      "recommended_change": "Move the validationAt call and nil/error refusal before Register in TestARegisteredDirectoryRunsUnderItsRegisteredIdentity; add the request.Recipe/receipt[recipe] equality immediately after Register. Retain loaded.Identity/receipt[model] and both resource defers, extend the existing comment, and delete TestAViewedDirectoryValidatesAsItRegisters with its repeated setup. No new helper, wrapper, table, fixture or test.",
+      "displaced_surface": "Actual complete parsed import_test.go672->568(-104); intake.go2795 unchanged, compared3467->3363. Common Qwen35Directory helper and embedded fixture unchanged and cancel out of both sides; no migration/helper/wrapper cost. Two tested identity functions become one; stores/catalog publications/tiny model-directory writes/Register executions each2->1; validation preparation and runtime resolution each remain1. Imports/build tags unchanged; no static fixture bytes or gate legs added; same native package remains cached when unchanged.",
+      "impact": "Reduces duplicate filesystem/store setup and maintenance while preserving validation before registration, exact recipe/model identities, errors and close order. No production behavior, cancellation, numerical policy, platform contract, data-loss protection or confidentiality boundary changes. The validation closure stays unexecuted as in the original test; this merge does not claim inference validation coverage.",
+      "expected_benefit": {
+        "outcome": "104 fewer test AST nodes and one fewer store/catalog/tiny-directory/registration setup.",
+        "uncertainty": "Candidate parsed only, not typechecked as the complete package or executed; elapsed/allocation savings unmeasured. Keep validation before Register or the fresh-store requirement would weaken."
+      },
+      "likely_effort": "Move the two unique validation checks into the existing test and delete the duplicate body.",
+      "plan_references": [
+        "compact-tests/fatal-check"
+      ],
+      "plan_coverage": "Existing native test-compaction work; no new plan row or selector needed.",
+      "closure_criteria": [
+        "Fresh-store validation preparation and non-nil executor check precede the retained Register.",
+        "Both exact recipe equality and runtime model equality remain with their error/close handling.",
+        "Duplicate test/setup disappears; whole file/setup surface is smaller with no new abstraction or fixture."
+      ],
+      "comparison": "The complete in-memory candidate parses at568 versus672 nodes. During implementation use ordinary package validation and existing fixture; retain the validation-routing regression's failure signal. No new SQA workload or separate confidence suite."
+    },
+    {
       "id": "SQA-287",
       "status": "open",
       "severity": "P3",
@@ -794,44 +778,6 @@
         "Whole test/helper/fixture/setup surface is smaller; no displaced code reappears in a helper or extra gate."
       ],
       "comparison": "The retained concrete in-memory344->308 AST migration establishes size/setup reduction. During implementation use existing native generator-package validation; no new test, benchmark or SQA confidence run is necessary."
-    },
-    {
-      "id": "SQA-292",
-      "status": "open",
-      "severity": "P3",
-      "category": "native-go-test-surface",
-      "classification": "source-and-in-memory-ast-established-net-reduction",
-      "title": "Remove the repeated committed-target parse already required at package startup",
-      "evidence_commit": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-      "sources": [
-        {
-          "path": "internal/scorecard/training_targets.go",
-          "symbol": "trainingTargetsJSON; declaredTargets initializer; parseTargets"
-        },
-        {
-          "path": "internal/scorecard/training_targets_test.go",
-          "symbol": "TestTheDeclaredTrainingTargetsAreWhole: first parseTargets(trainingTargetsJSON) block"
-        }
-      ],
-      "evidence": "Two concrete callers invoke the same parser on the same embedded bytes: declaredTargets' mandatory package initializer and the test's first block. The initializer panics on any parse error before a test body can run. Repository search shows no mutation of trainingTargetsJSON and no alternate initializer. The test's repeat therefore cannot catch malformed committed input that startup did not already reject. Its later synthetic valid/duplicate/zero-gain cases exercise different inputs and remain necessary.",
-      "recommended_change": "Delete only the first parseTargets(trainingTargetsJSON)/t.Fatal block from TestTheDeclaredTrainingTargetsAreWhole and adjust its existing comment. Retain parseTargets and the production initializer as the committed-file acceptance owner, and retain every synthetic validation case. No replacement helper, fixture, abstraction or extra test.",
-      "displaced_surface": "Complete parsed test file580->563 (-17); production training_targets.go567 unchanged; compared1147->1130 (-17). Both test functions remain, imports unchanged, wrappers/helper/migration cost0. Embedded-target parse and its seen-map construction2->1 per package test startup; no fixture bytes/store/model/device setup/gate leg added. The synthetic parses and malformed-input tests remain.",
-      "impact": "Removes duplicate work and an assertion with no distinct failure signal. Startup remains the authoritative rejection of malformed committed targets. No user-visible behavior, error policy, cancellation, platform/build-tag, numeric or resource-lifetime change; no data/confidentiality safeguard removed.",
-      "expected_benefit": {
-        "outcome": "17 fewer test AST nodes and one fewer embedded-document parse/map construction.",
-        "uncertainty": "Complete candidate parsed but not executed; no elapsed or memory saving measured. This depends on retaining the mandatory initializer, not on AST similarity alone."
-      },
-      "likely_effort": "Delete three lines and update the existing comment.",
-      "plan_references": [
-        "training-gaps/target-order"
-      ],
-      "plan_coverage": "Fits current test-compaction work; no new row or policy suite.",
-      "closure_criteria": [
-        "Only the redundant committed-input parse is removed.",
-        "Initializer still parses exact embedded target bytes before package tests run.",
-        "Synthetic valid, duplicate and zero-gain checks remain; whole test/setup surface falls."
-      ],
-      "comparison": "The in-memory whole-file parse establishes580->563. During implementation rely on ordinary native package validation and its mandatory initialization; no additional fixture, model workload or SQA confidence run."
     },
     {
       "id": "SQA-215",
@@ -3020,6 +2966,98 @@
         "Retain shared native fixture, tensor/header/padding and directory-open coverage with no new setup or suite."
       ],
       "comparison": "The in-memory full-file replacement already counts all imports, caller messages and deleted helper:433->367. Exact-declaration go/types confirms the original helper uses only standard byte equality and length/index operations. Ordinary implementation validation suffices; no new SQA test or benchmark."
+    },
+    {
+      "id": "SQA-292",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-and-retained-gate-resolved",
+      "title": "Repeated committed-target parsing removed; order validation retained",
+      "evidence_commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "sources": [
+        {
+          "path": "internal/scorecard/training_targets.go",
+          "symbol": "declaredTargets initializer; parseTargets"
+        },
+        {
+          "path": "internal/scorecard/training_targets_test.go",
+          "symbol": "TestATrainingTargetARunCouldNotStartFromIsRefused"
+        }
+      ],
+      "evidence": "3556f6ce removes the repeated parseTargets(trainingTargetsJSON) block. Mandatory package initialization still parses exact embedded bytes and fails before tests if malformed. Synthetic valid/duplicate/zero-gain checks remain, with a new zero-order refusal and seeded command assertion. Retained native package/gate evidence passed; SQA did not execute tests.",
+      "recommended_change": "No remaining deletion requested. Keep the initializer as embedded-file acceptance owner and the synthetic input validation in the renamed native test.",
+      "displaced_surface": "17 test AST removed and one fewer embedded parse/map construction. Whole test580->598(+18) and production567->582(+15);35 test nodes added for separate order behavior. Full landing+33, not a net reduction. No helper/wrapper/static fixture/model setup added for the deletion; target input adds19bytes for Order.",
+      "impact": "Removes duplicate work and an assertion with no distinct failure signal. Startup remains the authoritative rejection of malformed committed targets. No user-visible behavior, error policy, cancellation, platform/build-tag, numeric or resource-lifetime change; no data/confidentiality safeguard removed.",
+      "expected_benefit": {
+        "outcome": "Redundant parse removed while retaining validation. Complete separate feature growth explicitly counted.",
+        "uncertainty": "No independent runtime/allocation measurement or mutation run by SQA."
+      },
+      "likely_effort": "Completed.",
+      "plan_references": [],
+      "plan_coverage": "Implemented with training-gaps/target-order, now pruned. Master triage retained raw-exact.",
+      "closure_criteria": [
+        "Repeated committed-file parse gone; mandatory initializer retained.",
+        "Existing synthetic validation retained and order refusal added for new behavior.",
+        "17-node deletion verified separately from the landing's33-node net growth."
+      ],
+      "comparison": "Committed whole-file AST and source satisfy the deletion; retained target-order gate provides implementation validation. No SQA test run."
+    },
+    {
+      "id": "SQA-293",
+      "status": "resolved",
+      "severity": "P2",
+      "category": "automation-sequencing",
+      "classification": "source-and-retained-refusal-test-resolved",
+      "title": "MOSS grid and held-out disjointness are checked before device preparation",
+      "evidence_commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "sources": [
+        {
+          "path": "cmd/train/route_moss_windows.go",
+          "symbol": "trainMOSS: ResolveProfile -> mossPrepare -> refuseTrainedHeldOut -> mosstrain.New/Reserve -> CheckTrainingGrid; mossPrepare"
+        },
+        {
+          "path": "internal/mosstrain/flow.go",
+          "symbol": "CheckTrainingGrid"
+        },
+        {
+          "path": "internal/latentimage/nearest_schedule.go",
+          "symbol": "TrainingGrid; compileNearestGridFlowSchedule"
+        },
+        {
+          "path": "internal/latentimage/profile.go",
+          "symbol": "Profile.Validate: positive finite training shift and timestep count"
+        },
+        {
+          "path": "cmd/train/route_moss_heldout_windows_test.go",
+          "symbol": "TestAPictureIsHeldOutByItsBytes"
+        },
+        {
+          "path": "cmd/train/route_moss_windows_test.go",
+          "symbol": "mossRouteFixture; TestMOSSRoute"
+        },
+        {
+          "path": "internal/mosstrain/flow_test.go",
+          "symbol": "TestATrainingDrawStandsOnTheSourceGrid"
+        }
+      ],
+      "evidence": "9f3f440a8 moves CheckTrainingGrid and optional held-out manifest/byte-disjointness checks immediately after ResolveProfile, before first mossPrepare, weight opening and trainer reservation. Check implementations are unchanged. TestAMOSSRunIsRefusedBeforeItsFirstPicture reuses the compact fixture with an undecodable trained picture, requiring copied-heldout and shifted-grid errors first; the retained commit reports failure with the previous order and passing native gate. SQA executed neither route nor test.",
+      "recommended_change": "No remaining ordering repair requested. Retain the early checks, original session failure/close ownership, unchanged numerical contract and refusal-order coverage.",
+      "displaced_surface": "Actual route2329->2341(+12); held-out test211->507(+296), including regexp import and local write/route helpers. Unchanged flow587 and nearest494 give production3410->3422; unchanged route test1205 and flow test69 give tests1485->1781. Complete4895->5203(+308), growth rather than a reduction. Existing compact archive fixture reused once, two rejected-input/store calls added, no new static fixture or successful training run; ordinary affected native/CUDA gate evidence retained.",
+      "impact": "Known-invalid grid or copied held-out data fail before image/text encoding and trainer allocation. Valid numerical results and preparation order remain. Error precedence intentionally changes; existing recorded session failure and cleanup remain. No elapsed/memory saving measured.",
+      "expected_benefit": {
+        "outcome": "Deterministic unnecessary device preparation removed for inputs already refused.",
+        "uncertainty": "Source ordering and retained failure-signal evidence; no quantified milliseconds/bytes or independent SQA runtime check."
+      },
+      "likely_effort": "Completed.",
+      "plan_references": [],
+      "plan_coverage": "Implemented at moss-early-refusals/do and pruned from the current committed plan. Owner response preserved raw-exact.",
+      "closure_criteria": [
+        "Both checks precede first mossPrepare at the committed revision.",
+        "Existing error/numerical/session/resource owners remain unchanged.",
+        "Retained refusal-order test distinguishes prerequisite refusal from preparation failure; full308-node growth counted."
+      ],
+      "comparison": "Source reorder matches the prior parsed+12 estimate. Actual test growth296 is within the prior150..300 estimate. Retained native check/gate establishes the intended early error signal; SQA ran no new workload."
     },
     {
       "id": "SQA-291",
@@ -6112,114 +6150,114 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA validation runs. Credit native Go caching, existing lane selection, cell/phase credit and resume.",
+      "execution": "No SQA validation workloads. Credit native Go caching, existing selected lanes, retained cell/phase credit, trained-model measured marks and synchronous command ownership.",
       "sample_cost": {
-        "parser_local_bindings": 10787,
-        "production_ast_after": 42118,
-        "revision": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-        "production_ast_delta": 1180,
-        "test_ast_before": 8453,
-        "test_ast_delta": 1162,
-        "total_ast_after": 51733,
-        "comparison_revision": "b22bad7ff31a807f7aceebdb12b421f5d1ebdf08",
-        "files": 29,
-        "functions": 272,
-        "scope": "23 previously existing files plus six new files. Whole selected files; not a repository census.",
-        "test_ast_after": 9615,
-        "production_ast_before": 40938
+        "revision": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+        "comparison_revision": "c18242ac9fb23341a0dfa1c447a0bd58b92a5405",
+        "files": 32,
+        "functions": 197,
+        "parser_local_bindings": 8803,
+        "production_ast_before": 29574,
+        "production_ast_after": 30050,
+        "production_ast_delta": 476,
+        "test_ast_before": 10331,
+        "test_ast_after": 11820,
+        "test_ast_delta": 1489,
+        "total_ast_after": 41870,
+        "scope": "22 changed Go files including two new test files, plus10 rotated production/test files.30-file first sample plus2-file concurrent landing reconciliation; whole-file AST, bounded source inspection."
       },
-      "complete_change_cost": "Five retained gates: tensor-shapes +234 production/+181 test; held-out-bytes +113/+214; training-draw +114/+69; training-target +658/+453; trained-tie +61/+245. Total +1180/+1162 = +2342 Go AST, including the -127 test removal under 291. Target test adds580 while that removal saves127. Trained-tie adds245 test nodes for61 production nodes; its two directional identity assertions retain a demonstrated refusal/retirement requirement, so no deletion is established. Gate-reported static fixture/schema/CUDA additions zero; embedded training_targets.json and serialized summary/cell fields remain real production/maintenance surface.",
-      "completed_reductions": "291 implemented exactly: quality_level_test852->724 (-128), reference_test1511->1512 (+1), total2363->2236 (-127). The extra explanatory comment is in the existing comment group. Five fewer synthetic records; both tests retained. Unrelated record.go growth +21 belongs to training-target, not this deletion.",
+      "complete_change_cost": "trained-admission +126production/+340test; trained-benchmark +323/+316; target-order +15/+18; judged-proof +0/+519; moss-early-refusals +12/+296. Total+476/+1489=+1965 Go AST. Separate retained evidence file40lines/4034bytes; target JSON399->418bytes. No new CUDA/schema files reported by gates. Serialized Order input and companion files are real product surface; checkpoint companions reportedly add under11MB and preserve serving behavior.",
+      "completed_reductions": "292 removes the17-node repeated parse and one embedded-document map construction. Whole target test580->598(+18) and production567->582(+15):35 added test nodes for order/refusal/comment changes offset the17-node reduction. Complete landing grows33 nodes, not a net source reduction.",
       "sampled_tests": [
         {
+          "classification": "merge",
+          "tests": "TestAViewedDirectoryValidatesAsItRegisters into TestARegisteredDirectoryRunsUnderItsRegisteredIdentity",
+          "retained_owner": "Existing registration/runtime identity test in internal/libraryintake/import_test.go",
+          "unique_cases": "Validation on the fresh store before Register; non-nil executor; request recipe equals registration recipe; loaded runtime model equals registered model; both resource closes retained.",
+          "cost": "294: test672->568(-104); intake.go2795 unchanged; compared3467->3363. Store/catalog/Qwen directory creation2->1, registration2->1, validation1 and runtime resolution1 retained; no new fixture/helper/gate."
+        },
+        {
           "classification": "simplify",
-          "tests": "TestTheDeclaredTrainingTargetsAreWhole",
-          "retained_owner": "parseTargets plus mandatory declaredTargets package initializer",
-          "unique_cases": "Remove only repeated parsing of embedded bytes. Keep synthetic valid target, duplicate-key refusal and zero-gain refusal; initializer remains committed-file acceptance owner.",
-          "cost": "SQA-292: test580->563 (-17); production training_targets.go567 unchanged; one duplicate parse/map build removed, no fixture/helper/gate."
+          "tests": "Former TestTheDeclaredTrainingTargetsAreWhole, now TestATrainingTargetARunCouldNotStartFromIsRefused",
+          "retained_owner": "Mandatory declaredTargets initializer and synthetic parseTargets cases",
+          "unique_cases": "Duplicate embedded-file parse removed; synthetic valid,duplicate,zero-gain and new zero-order refusals remain.",
+          "cost": "292 completed17-node removal; whole file grows18 for new order behavior. No static fixture or device setup."
         },
         {
           "classification": "retain",
-          "tests": "TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt",
-          "retained_owner": "trainingGaps/met and existing scorecard target test",
-          "unique_cases": "No verdict, insufficient gain, unsupported gain, wrong objective, successful supported gain, non-training row and different-model key remain. Existing test covers policy, not live training.",
-          "cost": "Contained in580-node test file; no stores/models. Full target landing+658 production/+453 net tests."
-        },
-        {
-          "classification": "remove",
-          "tests": "Displaced timing-only tail of TestAPerfectZeroIsAQualitysLevel",
-          "retained_owner": "TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence",
-          "unique_cases": "Zero plus four positive earlier readings must remain Unknown; headline/secondary zero-quality/source identity remain in quality test.",
-          "cost": "Completed291 removes127 test AST and five synthetic records, no new setup."
+          "tests": "TestACheckpointKeepsWhatServesItsModel",
+          "retained_owner": "CopyModelFiles -> hfrepo.CompanionFiles -> export.CopyFiles",
+          "unique_cases": "Config/tokenizer/template/generation files kept, model weights excluded, missing tokenizer refused. Shared caller paths are dense publishCheckpoint and trainMixture.",
+          "cost": "183 test nodes; existing temporary directories only. Companion bytes retained are correctness growth, not memory savings."
         },
         {
           "classification": "retain",
-          "tests": "TestATensorOfAnotherShapeIsRefused; TestATrainingDrawStandsOnTheSourceGrid",
-          "retained_owner": "Graph-derived shape map and shared TrainingGrid",
-          "unique_cases": "Exact matrix axes, transposition, flat element counts, unread weights; source shift1 and other shift3. Refusal is independent of timing variability.",
-          "cost": "181+69 test AST; no model/device fixture. Production shape105/flow587/nearest494 counted."
+          "tests": "TestATrainedModelHasItsBenchmarkBeforeItsGuard; TestATrainedModelOwesNoAcceptedDenominator",
+          "retained_owner": "Existing onboarding fixture, onboarding.ready/benchmark, censusModels and declaredEntries",
+          "unique_cases": "Fresh and already-admitted models both get benchmark; only fresh gets validation. Trained entries excluded from two separately typed accepted catalogs.",
+          "cost": "onboard_test.go2526 total; trained-benchmark landing+323production/+316test, zero added static fixtures. Reuses existing fixture."
         },
         {
           "classification": "retain",
-          "tests": "TestAPictureIsHeldOutByItsBytes; TestMOSSRoute",
-          "retained_owner": "Existing pure byte fixture and compact end-to-end route fixture",
-          "unique_cases": "Copied encoded bytes under another name, unreadable held file and distinct bytes; route merge/checkpoint/factor movement, fixed-pixel held-out plumbing and cancelled publication. Add only one small early-admission case under293 using existing fixture ownership.",
-          "cost": "211+1205 AST; no new static fixture. 293 extension estimated150..300 nodes, using two bounded rejected-input calls with unavailable encoder; valid route's normal device run stays its existing owner."
+          "tests": "TestTheSmallestModelsImprovementRecordIsComplete",
+          "retained_owner": "Committed improvement record and existing scorecard.Gaps",
+          "unique_cases": "Recorded identity kinds, target model/gap and command suffix, arithmetic gain/support/gap consistency, one measurement. No training re-execution.",
+          "cost": "519 test nodes plus4034-byte40-line record for zero production nodes. Local identity/number helpers serve multiple fields; full authenticity and session linkage are not asserted."
         },
         {
           "classification": "retain",
-          "tests": "TestPromptCacheReuseAfterDecodeTokensHost; device counterpart; retained-decoded-token continuation cases",
-          "retained_owner": "assertPromptCacheAfterDecode and existing shared decoded-token assertion",
-          "unique_cases": "Capacities1/2, equal/extended/diverged/shorter prompt, cancellation, exact IDs, cold logits, cache accounting and pending last token. Host/device paths preserve their distinct transfer/lifetime behavior.",
-          "cost": "1174-node shared test file; host/device fixtures already share helpers. Same-backend2e-4 tolerance and NaN rejection retained, no new setup."
+          "tests": "TestNativeExpertBankTensors",
+          "retained_owner": "nativeExpertBankTensors and splitExpertResidency",
+          "unique_cases": "Fused/separate/mixed storage, adapted whole layer refusal, quantized/BF16/F32 eligibility, F16/flat exclusions, exact fit/one byte short and uint64 overflow.",
+          "cost": "531 test nodes; runner_weights474/expert_residency208 unchanged. Synthetic descriptors, no device/model setup."
         },
         {
           "classification": "retain",
-          "tests": "TestBackupWriterReleaseAcceptance; TestSegmentedBackupAndReadOnlyRefresh",
-          "retained_owner": "Existing backupBlobBoundary and scale corpus",
-          "unique_cases": "Metadata pin then writer freedom during blob copy, captured identity, cancellation/resume, post-capture exclusion, segmented anchors/query equality and read-only refresh.",
-          "cost": "982+647 test AST. Existing241's four cleanup statements remain a separate known simplification; do not duplicate it or remove deferred drain."
+          "tests": "TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias; TestSegmentedRetentionPreservesAuthorityClosure",
+          "retained_owner": "collectLiveSet/releaseLive and existing retention fixtures",
+          "unique_cases": "Typed versus textual references, absent pins counted, store-local refusal without chain advance, blob removal after release, alias survival and corrupted checkpoint replacement. Existing TestReleaseRefusesACommitAfterItsSnapshot retains concurrent-head refusal.",
+          "cost": "retention_test1101+segmented591; retention.go1512 unchanged. Necessary recovery cases retained; no new copy or crash run."
         },
         {
           "classification": "retain",
-          "tests": "TestStreamingTranscriptionAcceptance",
-          "retained_owner": "Existing speechrecognitiontest.PublishNative and session lease",
-          "unique_cases": "Authentication before input, exact transcript/chunk/source/output/checkpoint/admission, disconnect then lease-mediated cleanup/resume, out-of-order refusal. Time fields describe delivery order, not numerical quality acceptance.",
-          "cost": "1484 test/971 production AST. Existing native HTTP fixture, no SQA server or audio/model workload."
+          "tests": "TestOneWorkbenchEventStream",
+          "retained_owner": "downloadRegistry.observe/admit/cancel and runtimeActivityStream",
+          "unique_cases": "File/whole-percent progress publishes recorded values; initial state, admitted download and cancellation reach the one stream. Transfers retain their slot until unwind; resync and unsubscribe remain.",
+          "cost": "601 test nodes; runtime_activity1276/hub_workspace3137 unchanged. Existing252 owns fixture consolidation; no duplicate finding or SQA server."
         },
         {
-          "cost": "inventory_test.go601->846 (+245); inventory.go1072->1123 (+51), main.go2314->2324 (+10). New case uses in-memory cells and artifact IDs, no extra filesystem/model/device setup or static fixture. Same package gate. Two directional assertions are distinct; no safe net test reduction established.",
-          "retained_owner": "buildInventory and registeredCells; existing inventory test file",
-          "unique_cases": "Base and converted model keep content ties; trained weights sharing the same config bind only by location, in both directions. Prevent false activation and retirement of a base conversion. Existing inventory test retains stale/current activation, unregistered directories, selected-store commands and directory discovery.",
-          "tests": "TestModelInventory; TestATrainedModelIsTiedByWhereItIs",
-          "classification": "retain"
+          "classification": "retain",
+          "tests": "TestAMOSSRunIsRefusedBeforeItsFirstPicture; TestAPictureIsHeldOutByItsBytes",
+          "retained_owner": "Existing mossRouteFixture, trainMOSS and unchanged CheckTrainingGrid/refuseTrainedHeldOut",
+          "unique_cases": "Copied bytes and shifted grid must win before preparation of an undecodable picture. Retain pure copied-byte/missing-file checks and existing valid/cancelled route checks. Test is Windows-only, like the route.",
+          "cost": "293: route2329->2341(+12); held-out test211->507(+296), including regexp import and two local helpers. One existing compact archive extraction and two rejected-input route/store setups; no new static fixture or successful training/device run. Complete affected comparison4895->5203(+308), necessary sequencing coverage growth."
         }
       ],
       "retained_results": [
         {
-          "commit": "e1006146bd1bac2574ad808d09d9b92e51010a10",
-          "result": "Test4m12.162s; lanes2m54.601s, webui/CUDA passed (4 CUDA packages executed/15 cached), device skipped. Retained real checkpoint462 consumed tensors agree; one unconsumed tensor ignored."
+          "commit": "e0e4799b3f5e3aa879f2e8d137c9eb3e5a902c9d",
+          "result": "test1m44.723s; lanes12m21.332s, device/webui/CUDA passed (CUDA1executed18cached). Bonsai outputs identical and peak5347.3MiB unchanged; no new performance win established."
         },
         {
-          "commit": "45d88c9e305f7fb595ce4e61258d6a24bbd68eb6",
-          "result": "Test1m45.515s; lanes50.154s, CUDA1 executed/18 cached, device/webui skipped. Copied-byte regression reportedly fails when restored to path comparison; no recorded production32-frame result shown contaminated."
+          "commit": "d3ef70e8a16b3995c0f9b4ba2a6b12e25d7bfbac",
+          "result": "test2m25.004s; lanes3m27.159s, device/webui/CUDA passed (4executed15cached). Retained prior checkpoint passed5cells after a manually published benchmark, so this record alone is not a no-handoff proof. Existing Qwen3.5-4B MMLU chat-template failure disclosed."
         },
         {
-          "commit": "42aaf620b8fd6bdc1db8a26b5b191c9cf6e54d10",
-          "result": "Test4m15.797s; lanes2m55.77s, CUDA4 executed/15 cached, webui passed/device skipped. Retained rank16/400-step/288-frame run: P^-0.6 rate2.87e-5 held-out loss0.7405->0.7326 (32/32 improve); P^-0.5 rate1.64e-4 ->0.7352 (31/32), one run each. Route rate and draw unchanged."
+          "commit": "3556f6ce05b8bf38af61c70bc2b80dc69a045386",
+          "result": "test2m3.846s; lanes853ms device/webui/CUDA skipped. File-order gain0.00796 did not meet0.01; seed1 experiment0.01740 near older0.01751. Target fixed untried training seed25 before next run; retained failure not hidden."
         },
         {
-          "commit": "a66e8d96d98cf802786e20c4405691e0a8f5f9e9",
-          "result": "Test2m50.38s; lanes3m7.785s, webui/CUDA passed (4 executed/15 cached), device skipped. Bonsai output identical to526e5a48a, peak5347.3MiB unchanged; first1358.8588ms, throughput55.8238tokens/s, load2607.722ms. No measured target run has filed its row yet, per commit."
+          "commit": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
+          "result": "test3m56.122s; lanes829ms device/webui/CUDA skipped. Retained one-command seed25run642s, supported objective gain0.016534 on24cases,5measuredcells; next validate-trained no work. MMLU/serving regressions disclosed; base activation unchanged. No SQA run."
         },
         {
-          "result": "Test1m46.242s (7 packages ran, including cmd/validate28s); lanes845ms, device/webui/CUDA skipped; verify17.56s; scorecard not reached. Commit reports its new inventory test failed when either protection was removed. Real validate -trained initially refused admission as the base model; successful measurement follows the commit and is not observed here.",
-          "commit": "c2b56e13484cd800659d3216f1a23d84f8bacef9"
+          "commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+          "result": "test1m47.905s; lanes55.418s CUDA passed (1executed18cached), device/webui skipped. verify2.653s. Commit reports refusal-order test fails when old order restored. No timing or memory benefit measured."
         }
       ],
-      "automation_sequence": "MOSS currently resolves profile, computes all training latents/text, validates/encodes held-out data, constructs/reserves trainer, then checks the already-known grid. Source-established early-admission gap293 moves the existing grid and byte-disjointness checks before first mossPrepare; no observed elapsed waste quantified. Target Gaps -> scorecard.Supported -> improvement.Propose uses the existing authority lock, stable key/dedup and scorecard-gap verifier. Its declared 10-minute/step/sequence limits remain inputs; no new dispatch owner. Phase completion/filed records and retained gates are not proof of a delivered wakeup or next training action. Later trained-tie reconciliation: registeredCells preserves Trained/Measured for inactive catalog entries; buildInventory no longer equates trained and base weights through their inherited config. The commit records the original refusal and retained native test, not a completed measurement or delivered continuation."
+      "automation_sequence": "main runs quietmachine.Workload(train), releases its lifetime, then measureTrained synchronously waits on exec.Command(...validate -trained). admitTrained finds unmeasured catalog entries; onboarding.ready skips revalidation of admitted models and benchmarks both paths before cell execution. measuredCells marks only fully acquired owed inference cells; failed/incomplete runs remain eligible. Reuse these owners and native credit. Retained end-to-end command establishes internal sequencing, not an autonomous gap launcher, detached-process final-exit delivery or next dispatch; driver.Run still returns ReasonWorkWaiting at initial ownership contention. Later MOSS landing moves both existing deterministic checks immediately after ResolveProfile and before mossPrepare/weights/trainer. It preserves session failure recording and changes only error precedence for already-refused inputs."
     },
-  "hygiene_assessment": "Only docs/sqa_findings.json may change. Preserve concurrent model-file/mixture and plan work; analysis files remain outside the repository.",
+  "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
@@ -7014,13 +7052,13 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "This chat previously implemented changes; no claim of independent third-party review.",
-      "No tests, gates, model workloads, services, benchmarks, profiles, agents or worker messages started. Scratch Go analysis and report construction stay outside the repository.",
-      "AST and setup counts are proxies. Whole-program/imported device resolution was not performed; the actual CheckShape file alone passed go/types with its standard imports. No SQA runtime or memory effects measured.",
-      "Candidate 292 is parsed, not run. Candidate 293 moves both existing checks with +12 production AST; its bounded route-test extension is estimated, not implemented. No timing or GPU-byte saving is quantified.",
-      "Retained gates and MOSS experiments are implementation evidence. Adjacent Bonsai timings and unchanged peak do not establish a new controlled speed/memory win.",
-      "Do not infer semantic image novelty from byte inequality: the compact route fixture appends a trailing byte to retain its exact pixel oracle; it tests the pipeline, not scientific held-out generalization. Current guard explicitly promises encoded-byte identity.",
-      "Older findings retain their evidence revisions and are not all freshly reproduced. External SQA-288 crash simulations were not rerun. No completion notification or unattended end-to-end target run was observed."
+      "This chat previously implemented changes; no independent third-party claim.",
+      "No production tests, gates, models, services, benchmarks, profiles, agents or worker messages. Only scratch Go parsing/type analysis and report construction ran outside the repository.",
+      "AST/setup counts are proxies, not measured elapsed or memory savings. No whole-program imported-device type resolution; stdlib-only export file typechecked, other files use parser bindings plus traced callers.",
+      "294 is parsed only. Its validation call must remain before Register on the fresh store; moving it after registration would weaken the prerequisite case.",
+      "The new record test checks static document consistency and command suffix, not live store provenance, all process exits, actual session/measurement-record linkage or completion delivery. Its successful run claim is retained implementation evidence, not independently rerun.",
+      "642s spans training through measurement; -max-wall10m is the existing projected-wall guard passed as MaxProjectedWall to training, not an end-to-end hard deadline. No claim of generalization or population optimum from one model/run or repeated held-out cases.",
+      "No new crash reproduction or power-cut evidence. No blanket literal audit, additional selector, framework, telemetry, confidence run or recurring census."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7665,12 +7703,12 @@
       }
     }
   },
-  "next_finding_number": 294,
+  "next_finding_number": 295,
   "publication_context": {
-      "checked_head": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-      "assessment": "Pinned source and committed plan reviewed. Immediately reread report before writing; preserve owner objects and unknown/implementation-owned fields raw-exact.",
-      "newer_commit_note": "Five implementation landings reconciled, including the later trained-directory identity fix; no production run or worker disturbance.",
-      "publication": "Explicitly authorized report-only path-limited commit through existing locks/hooks; no plan edit, branch switch, reset, stash, push or gate."
+      "checked_head": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "assessment": "Pinned source/committed plan assessed; reread report immediately before replacement and preserve both owner objects plus unknown/implementation-owned finding fields raw-exact.",
+      "newer_commit_note": "Five implementation landings reconciled, including committed MOSS early refusal after the initial review sample.",
+      "publication": "Explicit report-only path-limited Git commit under existing locks/hooks; no gate, branch switch, reset, stash, push or plan change."
     },
   "ranked_active_finding_ids": [
     "SQA-288",
@@ -7681,11 +7719,10 @@
     "SQA-258",
     "SQA-284",
     "SQA-266",
-    "SQA-293",
     "SQA-257",
     "SQA-285",
+    "SQA-294",
     "SQA-287",
-    "SQA-292",
     "SQA-215",
     "SQA-276",
     "SQA-223",
@@ -7733,44 +7770,45 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "120 stable findings: 56 open, 4 deferred, 60 resolved. Close SQA-291 with its actual 127-node test reduction. Add SQA-292 for 17 fewer test nodes by deleting a repeated startup parse and SQA-293 for checking known MOSS prerequisites before device preparation.",
-      "Master improves shape and data validation, shares the inference training grid, supplies a declared training target and prevents a trained directory from borrowing its base identity or retiring the base conversion. Five complete landings grow production 1180 and tests 1162 AST nodes. Target JSON adds a 14-line product input, not a test fixture; Supported/Objective serialized fields remain production cost despite the gate reporting zero new schemas.",
-      "Keep SQA-288 store durability first: its seal, cutover and repair source is unchanged. Current cache/backup/transcription samples establish no new production reduction; preserve their ownership and recovery cases.",
-      "MOSS grid total is validated positive by Profile.Validate; shift 3 is an admitted positive finite profile rejected by the trainer's grid contract. Safetensors.TensorBytes checks overflow before CheckShape receives stored descriptors. No extra guards for impossible parsed states proposed.",
-      "The route's 1e-6 sigma tolerance bounds float32 agreement on a unit-scale grid; nearestGridHalves preserves the reference linspace order. The 400-step rate comparison has one model and one run per rate, 32 held-out pictures and eight fixed noise paths: not a population optimum or independent-trial guarantee. The target's gain 0.01, 128 steps, sequence 512 and 10-minute budget are declared inputs drawn from retained experiments, not newly measured universal thresholds.",
-      "A filed target or recorded phase end is not a supervised training completion or delivered wakeup. training-gaps/judged-proof remains open. The trained-tie commit records a real admission refusal and fixes its identity cause; the successful trained measurement was still prospective in that retained record. Existing 271/258 and exact-credit/resume owners retain the continuation obligation; no new scheduler."
+      "121 stable findings:55 open,4 deferred,62 resolved. Close292 after removal of duplicate embedded-target parsing and293 after committed early MOSS admission. Add294 to merge directory validation identity into its existing registration/runtime identity fixture, saving104 test AST and one store/catalog/tiny-model setup.",
+      "Master now retains checkpoint companions, admits viewed text directories, supplies the benchmark before the guard, isolates trained models from accepted denominators, declares target order and refuses bad MOSS grid/copied held-out inputs before preparation. Five landings add476 production and1489 test AST, including the17-node removal under292. The519-node record test and4034-byte retained record add maintenance surface; the gate's zero static-fixture count does not make that cost disappear.",
+      "The retained seed25 command trained, judged and measured five cells in642s and a second validate -trained found nothing to reacquire. This is bounded end-to-end progress within one invoked command. It does not establish unattended gap dispatch, completion delivery or next-loop ownership;271/258 remain open.",
+      "Objective gain0.016534 exceeds the declared0.01 with reported detectable0.004384 on24 cases. The same held-out inputs had already been read by24 corpus runs in another store. A new seed is a different training draw, not a new held-out sample; support is within-case noise evidence, not protection against selection across those reads.",
+      "The same retained run worsens MMLU-Pro0.1696->0.1447, BBH0.3206->0.3033 and IFEval0.2989->0.2299, with inference321.3 versus505.7tokens/s and3.15 versus1.6s load. The record attributes slower serving to F32 checkpoint weights versus F16 base; that is not an isolated precision experiment. The base activation did not move. Existing close-the-loop/promote and time-and-memory/trained-precision own the implications; no duplicate finding or new SQA run.",
+      "Keep288 store durability first: its seal/cutover/repair source is unchanged. The concurrent9f3f440a8 landing closes293 with the existing checks moved before preparation and a retained refusal-order regression.283 retains exact recipe-state and remaining directory/media obligations despite newly fixed viewed-directory validation.",
+      "Rank3 expert banks derive from [inner,rows,experts]; the residency test's48/47bytes come from32-byteBF16bank+8-byteF32dense+8-byteconvertedvector. Checked sums and dtype geometry remain. Retention bisects by actual transactionFits rather than an arbitrary batch size; GUI whole-percent updates are a display unit and lifecycle events still publish independently."
     ],
-  "reviewed_at": "2026-11-02T20:03:23Z",
-  "reviewed_master": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
+  "reviewed_at": "2026-11-02T22:03:45Z",
+  "reviewed_master": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master c2b56e13484cd800659d3216f1a23d84f8bacef9; committed plan blob 83583078fe931386290961bf6243c71b0ef78eb5; unchanged skill.md blob 0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
-      "Fresh source/caller conclusions for the rotated 26-file sample preceded reading the current report. Reviewed four implementation landings since b22bad7ff, then reconciled owner responses and the later trained-tie commit with three more committed files. Concurrent model-file/mixture and plan work remains excluded.",
-      "Rotated scope: MOSS shape/grid/held-out admission and device preparation; declared training targets and verdict propagation; prompt-cache identity, transfers and release; backup metadata/blob capture and bounded query; authenticated live transcription and durable resume; cycle proposal/phase/dispatch ownership. Later reconciliation follows validation inventory, registeredCells and trained-directory identity.",
-      "Actual Go parser analysis of 29 committed files, 272 functions and 10787 parser-local bindings. Full selected-file AST counts include comments; source reading focused on named boundaries, not every declaration. Actual CheckShape source typechecked with standard-library imports: 12 definitions and 31 uses; no stubs.",
-      "Compared complete in-memory candidates for duplicate target parsing and earlier MOSS admission. Neither candidate executes production behavior. Current 118 findings read only after provisional conclusions; both implementation-owned objects and unknown fields retained."
+      "Pinned committed master 9f3f440a831a42ad0239bc391a4481ead21eaf2d; committed plan blob 1e97a69d33fd11a0599dfd1490ba589dbd78c76c; unchanged skill.md blob 0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
+      "Fresh provisional conclusions for the30-file rotated sample preceded reading the current report. Four implementation landings since c18242ac9 reviewed, then the concurrent MOSS early-refusal landing reconciled from committed code and retained results; two more committed files parsed.",
+      "Rotated source/caller scope: trained checkpoint companion ownership, directory registration/validation, benchmark-before-guard admission, accepted catalog denominators and one-measurement recovery; target order and retained real improvement record. Beyond these landings: inference native expert/converted weight placement and teardown, database retention/blob release/head-conflict and segmented recovery, GUI download progress and runtime stream resynchronization.",
+      "Actual Go parser analysis of32 committed files:197 functions,8803 parser-local bindings, whole-file counts including comments. Detailed reading is bounded to named functions, callers and tests, not every declaration in large files. Full actual internal/export/files.go typechecked through standard-library imports:16 definitions,94 uses,3 method selections; no stubs.",
+      "One complete in-memory test consolidation parsed, not executed: import_test.go672->568. Prior findings and both current owner objects read after provisional conclusions. Old findings retain original evidence revisions unless explicitly rechecked; this is not a recurring full census."
     ],
   "sqa_response": {
-      "reviewed_master": "c2b56e13484cd800659d3216f1a23d84f8bacef9",
-      "assessment": "Accept291's completed127-node test reduction. Add292 (-17 test AST) and293 (known MOSS prerequisites checked after costly preparation). Keep288 first and avoid duplicate continuation findings.",
+      "reviewed_master": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "assessment": "Accept292's removal while counting target-order growth honestly. Close293 after the concurrent committed early-refusal repair and retained test. Add294 for104 fewer test nodes and one fewer directory/store setup. Credit the real trained-command chain while preserving288/271/258/283 priorities.",
       "new_findings": [
-        "SQA-292",
-        "SQA-293"
+        "SQA-294"
       ],
       "resolved_findings": [
-        "SQA-291"
+        "SQA-292",
+        "SQA-293"
       ],
       "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "Fresh26-file AST/caller sample before reading prior findings, then three additional validation files for the concurrent trained-tie landing; actual CheckShape typecheck, two complete parsed candidates, five retained gate records; no validation workload.",
+      "evidence": "30 committed Go files parsed before report reconciliation, then2 additional MOSS files at the later pin; stdlib export source typechecked, complete test-merge candidate parsed, five retained gate records and4034-byte real-run record read. No new validation workload.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "42aaf620b8fd6bdc1db8a26b5b191c9cf6e54d10",
-        "status": "Accept the owner's291 implementation statement after source/AST check. Both owner objects and all implementation-owned fields remain raw-exact. Existing283/266/271/258 conclusions are not closed by a new target input."
+        "current_triage_head": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
+        "status": "Preserve both owner objects exactly. Reviewer source checks accept292 and293 after the later committed MOSS landing;294 is a new consolidation recommendation."
       },
-      "recommendation": "Preserve correctness/recovery coverage and existing dispatch/resume. Remove repeated parsing and move deterministic admission earlier using current owners. No new scheduler, suite, selector or telemetry.",
-      "uncertainty": "No new timing/memory measurements, power cut, successful target-to-verdict unattended run or wakeup evidence. Retained trained-tie admission refusal has a source fix; its subsequent measurement is unobserved. 293 test growth is estimated."
+      "recommendation": "Merge validation identity coverage into its existing fixture. Keep exact evidence identities, held-out limitations, recovery and stop/budget contracts. Use current benchmark/dispatch/resume owners; no framework, selector, telemetry or additional run.",
+      "uncertainty": "No measured speed/memory saving from294; one retained training run is not an unattended scheduler proof or independent generalization evidence."
     }
 }

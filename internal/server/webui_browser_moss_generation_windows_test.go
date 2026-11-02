@@ -71,7 +71,7 @@ func TestWebUIBrowserMOSSGeneration(t *testing.T) {
   [...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==='Refresh catalog').click();
   return true;
 })()`)
-	settle(`document.querySelector('#panel-library').textContent.includes('1 model is ready to serve')`)
+	settle(`document.querySelector('#panel-library').textContent.includes('models are here, 1 verified')`)
 	check(`(() => { location.hash='chat'; return true; })()`)
 	settle(`!!document.querySelector('.composer select[aria-label="mode"] option[value="image-gen"]')`)
 	check(`(() => { const mode=document.querySelector('.composer select[aria-label="mode"]'); mode.value='image-gen'; mode.dispatchEvent(new Event('change',{bubbles:true})); return true; })()`)

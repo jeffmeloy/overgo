@@ -19,7 +19,7 @@ import (
 // -failure finding: a model whose activation cannot be trusted becomes a
 // STALE entry naming its defect, and discovery keeps enumerating -- one
 // broken activation must not blind the catalog to every healthy model. The
-// stale entry is reported, never served.
+// stale entry is reported and never measured.
 func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -96,9 +96,8 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		t.Fatalf("local weights = %+v, want healthy then the complete split model without duplicate shard bytes", sized)
 	}
 
-	// Drifting the healthy recipe's runtime-policy alias makes the
-	// loader refuse it, so the servable listing must report the entry
-	// stale exactly as the capability catalog does.
+	// Drifting the healthy recipe's runtime-policy alias takes it off the
+	// measured surface, exactly as the capability catalog reports it.
 	truePolicy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = (%t, %v)", supported, err)
@@ -118,8 +117,8 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range drifted {
-		if entry.Model == healthy && !strings.Contains(entry.Stale, "not servable") {
-			t.Fatalf("drifted entry = %+v, want the loader's refusal reported stale", entry)
+		if entry.Model == healthy && !strings.Contains(entry.Stale, "not measured") {
+			t.Fatalf("drifted entry = %+v, want it reported stale", entry)
 		}
 	}
 }
@@ -226,5 +225,71 @@ func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID ar
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestEveryPresentModelListsWithItsState: the catalog a person reads names a model nothing activated, with its state,
+// beside an activated one, and leaves out what is not here and a hosted model with no activation; the measured surface
+// still holds only what was activated.
+func TestEveryPresentModelListsWithItsState(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	register := func(name string, kind artifact.LocationKind, present bool) artifact.ID {
+		payload := []byte("catalog-weights-" + name)
+		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
+		location := filepath.Join(t.TempDir(), name+".gguf")
+		if kind == artifact.LocationRemote {
+			location = "remote://retired/" + name
+		}
+		if present {
+			if err := os.WriteFile(location, payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{
+			{Role: artifact.ComponentWeights, Name: "weights", Artifact: component},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, artifact.Batch{
+			Key:       "fixture/discovery/states/" + name,
+			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
+			Locations: []artifact.LocationEvent{{Location: artifact.Location{
+				Artifact: component, Kind: kind, Value: location,
+			}, Action: artifact.LocationAdd}},
+			Manifests: []artifact.Manifest{manifest},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return manifest.ID
+	}
+	verified := register("verified", artifact.LocationFile, true)
+	publishVerifiedActivation(t, store, verified, "states")
+	unverified := register("unverified", artifact.LocationFile, true)
+	register("elsewhere", artifact.LocationFile, false)
+	register("retired", artifact.LocationRemote, false)
+	entries, truncated, err := ModelCatalog(ctx, store, nil)
+	if err != nil || truncated {
+		t.Fatalf("catalog = %v, truncated %t", err, truncated)
+	}
+	states := map[artifact.ID]modelrecipe.VerificationState{}
+	for _, entry := range entries {
+		states[entry.Model] = entry.State.Verification
+	}
+	if len(states) != 2 || states[unverified] != modelrecipe.StateNotVerified || states[verified] == modelrecipe.StateNotVerified || states[verified] == "" {
+		t.Fatalf("states = %v", states)
+	}
+	measured, err := Servable(ctx, store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(measured) != 1 || measured[0].Model != verified {
+		t.Fatalf("the measured surface holds %+v, want only the activated model", measured)
 	}
 }

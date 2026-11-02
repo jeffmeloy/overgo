@@ -46,8 +46,11 @@ func ReadModelState(ctx context.Context, store artifact.Reader, modelID artifact
 	case !active:
 		return Activation{}, ModelState{Verification: StateNotVerified}, nil
 	}
+	// Only a recipe bound to a model definition binds an architecture profile: an audio contract or a media source is a
+	// profile of its own kind, which no build compiles.
 	profile, bound := activation.Definition.PrimaryDependency(recipe.DependencyProfile)
-	if !bound {
+	_, defined := activation.Definition.PrimaryDependency(recipe.DependencyDefinition)
+	if !bound || !defined {
 		return activation, ModelState{Verification: StateVerified}, nil
 	}
 	compiled, err := compiledProfiles()

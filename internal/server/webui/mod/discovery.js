@@ -16,19 +16,22 @@
         overgo.clear(catalogBody);
         const models = catalog.models || [];
         const { profiles = {}, datasets = {} } = catalog.coverage || {};
-        const parts = [models.length && models.length + (models.length === 1 ? " model is ready to serve" : " models are ready to serve"),
+        const verified = models.filter((entry) => entry.verification === "verified").length;
+        const parts = [models.length && models.length + (models.length === 1 ? " model is here, " : " models are here, ") + verified + " verified",
           profiles.registered && profiles.published + " of " + profiles.registered + " architecture profiles published",
           datasets.registered && datasets.available + " of " + datasets.registered + " datasets on disk", catalog.truncated && "the listing is truncated, so not every model is shown"].filter(Boolean);
         catalogNote.textContent = parts.length ? parts.join(" · ") :
-          "No model is ready to serve yet. Search Hugging Face or add a model from disk below, then validate it.";
-        // Verified is the norm the listing states once; a tag names only a state that differs from it.
+          "No model is here yet. Search Hugging Face or add a model from disk below.";
+        // Verified is what the listing counts once; a tag names only a state that differs from it, and every model listed runs.
         const standing = (capability) => {
           if (capability.stale) return " · stale";
           return capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "";
         };
         const names = overgo.modelNames(models);
         for (const entry of models) {
-          const capabilities = el("span", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+          const state = entry.verification === "verified" ? [] : [el("span", {
+            class: "tag mr-s1", title: entry.verification_reason || "It runs from its own files, and nothing has measured it.", text: entry.verification })];
+          const capabilities = el("span", {}, ...state, ...(entry.capabilities || []).map((capability) => el("span", {
             class: "tag mr-s1", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
           // A hosted model retires from its row with the section's reason; the catalog relists without it.
           const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "Retire", onclick: async () => {

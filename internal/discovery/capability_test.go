@@ -172,18 +172,20 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	if len(entry.Capabilities) != 1 {
 		t.Fatalf("capabilities = %+v, want the single forecast activation", entry.Capabilities)
 	}
+	if entry.State.Verification == modelrecipe.StateNotVerified {
+		t.Fatalf("a model verified for forecasting reads %+v", entry.State)
+	}
 	capability := entry.Capabilities[0]
 	if capability.Task != recipe.TaskForecast || capability.Recipe != definition.ID ||
 		capability.Tier != recipe.EvidenceVerified || capability.Stale != "" {
 		t.Fatalf("capability = %+v, want a trusted forecast activation at its activated tier", capability)
 	}
 
-	// An inference activation is gated by the runtime policy the loader
-	// requires: a broken or absent binding (recipes activated before
-	// policies existed, or a drifted alias) reports the entry stale (not
-	// servable) instead of listing it as launchable, and restoring the
-	// binding clears it. Forecast above stays trusted throughout --
-	// tasks outside the policy catalog carry no policy requirement.
+	// A measurement holds to the policy its recipe binds: a broken or absent
+	// binding (a recipe activated before policies existed, or a drifted alias)
+	// reports the entry stale, though it runs on the catalog's policy, and
+	// restoring the binding clears it. Forecast above stays trusted throughout
+	// -- tasks outside the policy catalog carry no policy requirement.
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "capability-inference-profile")
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "capability-inference-definition")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -238,9 +240,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	if stale := findInference(trusted).Stale; stale != "" {
 		t.Fatalf("policy-bound inference stale = %q, want trusted", stale)
 	}
-	// Point the recipe's policy alias at an artifact the store does not
-	// hold -- the loader would refuse this recipe, so the catalog must
-	// report it instead of listing the model as launchable.
+	// Point the recipe's policy alias at an artifact the store does not hold.
 	policyAlias := "runtime-policy/v2/" + inference.ID.String()
 	truePolicy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
@@ -258,8 +258,8 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stale := findInference(drifted).Stale; !strings.Contains(stale, "not servable") {
-		t.Fatalf("drifted inference stale = %q, want the not-servable report", stale)
+	if stale := findInference(drifted).Stale; !strings.Contains(stale, "not measured") {
+		t.Fatalf("drifted inference stale = %q, want the not-measured report", stale)
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:     "fixture/discovery/capability/policy-restore",

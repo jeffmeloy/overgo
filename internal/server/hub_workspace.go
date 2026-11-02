@@ -39,9 +39,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, truncated, err := discovery.CapabilityCatalog(
-		request.Context(), h.config.Repository, h.config.MaxStoredResponses, h.catalogMemo,
-	)
+	entries, truncated, err := discovery.ModelCatalog(request.Context(), h.config.Repository, h.catalogMemo)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
@@ -63,6 +61,7 @@ func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.Eviden
 	for _, entry := range entries {
 		model := catalogModel{
 			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present, KeyEnvironment: entry.KeyEnvironment,
+			Verification: string(entry.State.Verification), VerificationReason: entry.State.Reason,
 		}
 		if summary, measured := evidence.BenchmarksByLocation[entry.Location]; measured {
 			model.Benchmark = &summary
@@ -124,6 +123,9 @@ type catalogModel struct {
 	Location string `json:"location"`
 	Present  bool   `json:"present"`
 	Stale    string `json:"stale,omitzero"`
+	// Verification is the model's state, what the store records of it, and VerificationReason what stands in its way.
+	Verification       string `json:"verification"`
+	VerificationReason string `json:"verification_reason,omitzero"`
 	// KeyEnvironment names the variable a hosted model's provider key
 	// lives in, so the page can take the key when the entry is refused.
 	KeyEnvironment string              `json:"key_environment,omitzero"`

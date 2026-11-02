@@ -6601,7 +6601,7 @@
         ]
       },
       {
-        "comment": "Progress at run-from-files/catalog-states. The measured surface is deliberately unchanged: Servable and CapabilityCatalog still hold only what was activated, because they set what validation, evaluation and the scorecard run, and listing every present model there would run every unverified model through them unasked. The person's catalog is ModelCatalog. That catalog lists 82 models on the real store: 28 verified, 11 evidence out of date, 43 not verified. It includes pipeline components registered as models, such as a text encoder and a VAE: they are listed truthfully and a run of one refuses with its reason.",
+        "comment": "Progress at run-from-files/catalog-states. The measured surface is deliberately unchanged: Servable and CapabilityCatalog still hold only what was activated, because they set what validation, evaluation and the scorecard run, and listing every present model there would run every unverified model through them unasked. The person's catalog is ModelCatalog. That catalog lists 82 models on the real store: 34 verified, 5 evidence out of date, 43 not verified. It includes pipeline components registered as models, such as a text encoder and a VAE: they are listed truthfully and a run of one refuses with its reason.",
         "disposition": "progress",
         "evidence": [
           "TestEveryPresentModelListsWithItsState"

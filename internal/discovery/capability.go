@@ -16,7 +16,7 @@ import (
 
 // Capability reports one task activation on a catalogued model. Stale
 // carries the activation defect when the record cannot be trusted; a
-// stale capability is reported, never served.
+// stale capability is reported and never measured, and it runs when asked.
 type Capability struct {
 	Task   recipe.Task
 	Recipe artifact.ID
@@ -31,6 +31,9 @@ type CatalogEntry struct {
 	Location     string
 	Present      bool
 	Capabilities []Capability
+	// State is the model's verification as the store records it: for inference, or where it has no inference recipe for
+	// the task it is activated for. It stays off the capability census's published wire.
+	State modelrecipe.ModelState `json:"-"`
 	// KeyEnvironment names the variable a hosted model's provider key
 	// lives in (empty for a local model), so a page can take the key when
 	// the entry is refused for its absence.
@@ -64,6 +67,20 @@ func RememberedCapabilityCatalog(ctx context.Context, store *overgodb.Store, lim
 		return nil, false, err
 	}
 	return entries, truncated, nil
+}
+
+// ModelCatalog is the catalog a person reads and picks from: every model whose bytes are here, activated or not, and every
+// activated model present or not, each with its state; a hosted model with no activation was retired, and is gone. A
+// model nothing verifies is listed and runs when asked; the measured surface stays Servable and CapabilityCatalog, so
+// none is measured unasked.
+func ModelCatalog(ctx context.Context, store *overgodb.Store, memo *Memo) ([]CatalogEntry, bool, error) {
+	entries, truncated, err := RegisteredCatalog(ctx, store, CatalogBound, memo)
+	if err != nil {
+		return nil, truncated, err
+	}
+	return slices.DeleteFunc(entries, func(entry CatalogEntry) bool {
+		return len(entry.Capabilities) == 0 && (!entry.Present || remoteprovider.IsRemoteLocation(entry.Location))
+	}), truncated, nil
 }
 
 // RegisteredCatalog includes every registered model identity, even without an
@@ -146,7 +163,7 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
-		entry := CatalogEntry{Model: model}
+		entry := CatalogEntry{Model: model, State: modelrecipe.ModelState{Verification: modelrecipe.StateNotVerified}}
 		manifest, found, err := store.Manifest(ctx, model)
 		if err != nil {
 			return nil, false, err
@@ -165,25 +182,30 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		slices.Sort(tasks)
 		for _, task := range tasks {
 			capability := Capability{Task: task, Recipe: tasksByModel[model][task]}
-			activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, task)
-			switch {
-			case err != nil:
-				capability.Stale = fmt.Sprintf("activation cannot be trusted: %v", err)
-			case !active:
+			activation, state, err := modelrecipe.ReadModelState(ctx, store, model, task)
+			if err != nil {
+				return nil, false, err
+			}
+			if task == recipe.TaskInference || entry.State.Verification == modelrecipe.StateNotVerified {
+				entry.State = state
+			}
+			switch state.Verification {
+			case modelrecipe.StateBroken:
+				capability.Stale = fmt.Sprintf("activation cannot be trusted: %s", state.Reason)
+			case modelrecipe.StateNotVerified:
 				capability.Stale = "declared activation is absent"
 			default:
 				capability.Recipe, capability.Tier = activation.Definition.ID, activation.Tier
-				// Servability is the serving stack's own gate: for tasks the
-				// policy catalog supports, loading refuses a recipe without a
-				// bound runtime policy, so the catalog must report it stale
-				// rather than list it as launchable. Tasks outside the policy
-				// catalog carry no policy requirement -- the same optional
-				// resolution the capability selector performs, no policy copy.
+				// A measurement holds to the policy its recipe binds: a recipe with
+				// none runs on the catalog's and is reported, so the measured
+				// surface leaves it out. Tasks outside the policy catalog carry no
+				// policy requirement -- the same optional resolution the capability
+				// selector performs, no policy copy.
 				if _, supported, err := modelrecipe.CatalogRuntimePolicy(task); err != nil {
 					capability.Stale = fmt.Sprintf("runtime policy catalog cannot be read: %v", err)
 				} else if supported {
-					if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
-						capability.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
+					if _, err := modelrecipe.BoundRuntimePolicy(ctx, store, activation.Definition); err != nil {
+						capability.Stale = fmt.Sprintf("not measured: %v (recipe policy <model> binds it)", err)
 					}
 				}
 				// A remote model's inference lists with its provider's

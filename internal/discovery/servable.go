@@ -39,8 +39,9 @@ type Entry struct {
 	// State is the model's verification as the store records it.
 	State modelrecipe.ModelState
 	// Stale carries the activation defect when the active recipe cannot be
-	// trusted. A stale entry is reported, never served: one broken
-	// activation must not blind discovery to every healthy model.
+	// trusted. A stale entry is reported and never measured, and it runs when
+	// asked: one broken activation must not blind discovery to every healthy
+	// model.
 	Stale string
 }
 
@@ -109,12 +110,11 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
 			Location: location, Present: present, State: state,
 		}
-		// The loader refuses an inference recipe without its runtime
-		// policy, so the servable listing must report it stale exactly as
-		// the capability catalog does -- eval and swap targets derived
-		// from this listing never include a model the loader refuses.
-		if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
-			entry.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
+		// A measurement holds to the policy its recipe binds, so the listing
+		// reports a recipe without one stale exactly as the capability catalog
+		// does -- eval targets derived from this listing never include it.
+		if _, err := modelrecipe.BoundRuntimePolicy(ctx, store, activation.Definition); err != nil {
+			entry.Stale = fmt.Sprintf("not measured: %v (recipe policy <model> binds it)", err)
 		}
 		// A remote model lists with its provider's refusal: the key its
 		// declaration names is absent from the environment.
@@ -211,14 +211,11 @@ func presence(
 		if found == "" && componentRecorded != "" {
 			found = moved(componentRecorded, descriptor, identities, memo)
 		}
-		// A component with no file is a model served from its own files: present
-		// where the directory it reads from serves its bytes (identifyDirectory).
+		// A component with no file names the directory recorded for it, which the
+		// first pass found not serving its bytes.
 		for _, location := range locations {
 			if found == "" && componentRecorded == "" && location.Kind == artifact.LocationDirectory {
 				recorded = cmp.Or(recorded, location.Value)
-				if holds(location.Value, descriptor, identities, memo) {
-					found = location.Value
-				}
 			}
 		}
 		if found == "" {

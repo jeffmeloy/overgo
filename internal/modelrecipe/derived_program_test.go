@@ -7,6 +7,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/testutil"
 )
 
 // TestAGGUFNothingRecordsResolvesFromItsFile: a model no trusted recipe names resolves from its own file and the
@@ -95,6 +96,24 @@ func TestAGGUFNothingRecordsResolvesFromItsFile(t *testing.T) {
 		}
 		if _, state, _ := resolve(t, store); state.Verification != StateBroken || state.Reason == "" {
 			t.Fatalf("state %+v", state)
+		}
+	})
+	t.Run("a recipe whose policy cannot be read", func(t *testing.T) {
+		t.Parallel()
+		store := open(t)
+		facts, resolved := publishProgramFacts(t, store, path)
+		definition := definitionRecipe(t, facts, resolved)
+		activateProgram(t, store, definition)
+		bogus := testutil.ArtifactID(t, artifact.KindProfile, "a policy the store does not hold")
+		if _, err := store.Commit(t.Context(), artifact.Batch{
+			Key: "fixture/derived/policy", Artifacts: []artifact.Descriptor{{ID: bogus}},
+			Aliases: []artifact.AliasBinding{{Name: runtimePolicyAlias(definition.ID), Target: bogus, Previous: &catalog.ID}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		identity, state, policy := resolve(t, store)
+		if state.Verification != StateVerified || identity.Recipe != definition.ID || policy.Serving.OutputTokens != catalog.Serving.OutputTokens {
+			t.Fatalf("state %+v, recipe %v, policy %+v", state, identity.Recipe, policy.Serving)
 		}
 	})
 	t.Run("a recipe that stands", func(t *testing.T) {

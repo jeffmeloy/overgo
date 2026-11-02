@@ -122,7 +122,7 @@ func (r *CatalogResolver) SetKey(ctx context.Context, reference, key string) err
 	return err
 }
 
-// Catalog lists the store's activations for the idle shell's picker. The
+// Catalog lists every model present and every activation for the idle shell's picker. The
 // retained view refreshes so declarations made by other processes appear.
 func (r *CatalogResolver) Catalog(ctx context.Context) ([]discovery.CatalogEntry, bool, error) {
 	defer r.acquire()()
@@ -130,7 +130,7 @@ func (r *CatalogResolver) Catalog(ctx context.Context) ([]discovery.CatalogEntry
 		return nil, false, err
 	}
 	defer r.begin("catalog")()
-	return discovery.CapabilityCatalog(ctx, r.Store, r.Limit, r.memo)
+	return discovery.ModelCatalog(ctx, r.Store, r.memo)
 }
 
 // Resolve maps one requested name to a launchable servable. A name the
@@ -141,7 +141,7 @@ func (r *CatalogResolver) Resolve(ctx context.Context, name string) (Servable, b
 		return Servable{}, false, err
 	}
 	end := r.begin("catalog")
-	entries, truncated, err := discovery.CapabilityCatalog(ctx, r.Store, r.Limit, r.memo)
+	entries, truncated, err := discovery.ModelCatalog(ctx, r.Store, r.memo)
 	end()
 	if err != nil {
 		return Servable{}, false, err

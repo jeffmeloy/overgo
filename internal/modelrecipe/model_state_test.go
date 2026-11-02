@@ -88,6 +88,23 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 			t.Fatalf("state = %+v, activation of %v", state, activation.Definition.ID)
 		}
 	})
+	t.Run("an activation whose profile is no architecture's", func(t *testing.T) {
+		t.Parallel()
+		store := open(t)
+		inventory, _ := publishProgramFacts(t, store, path)
+		contract := testutil.ArtifactID(t, artifact.KindProfile, "a contract no build compiles")
+		testutil.PublishArtifact(t, store, contract)
+		definition, err := inference([]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: inventory.Manifest.ID}, {Role: recipe.DependencyProfile, Artifact: contract},
+		}, recipe.PlacementHybrid, DecodeSessionCapacity, recipe.ResidencyHybridNative)
+		if err != nil {
+			t.Fatal(err)
+		}
+		activateProgram(t, store, definition)
+		if _, state := read(t, store, inventory.Manifest.ID); state.Verification != StateVerified {
+			t.Fatalf("state = %+v", state)
+		}
+	})
 	t.Run("an activation with no evidence behind it", func(t *testing.T) {
 		t.Parallel()
 		store := open(t)

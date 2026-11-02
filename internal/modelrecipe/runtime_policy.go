@@ -146,8 +146,28 @@ func EnsureRuntimePolicy(ctx context.Context, store artifact.Repository, definit
 	return err
 }
 
-// ResolveRuntimePolicy loads the exact policy bound to a recipe.
+// ResolveRuntimePolicy loads the policy bound to a recipe, or the catalog's for its task where none can be read: a recipe
+// runs on the shared defaults until one is bound.
 func ResolveRuntimePolicy(ctx context.Context, store artifact.Reader, definition recipe.Definition) (RuntimePolicy, error) {
+	policy, err := BoundRuntimePolicy(ctx, store, definition)
+	if err == nil {
+		return policy, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return RuntimePolicy{}, err
+	}
+	catalog, supported, err := CatalogRuntimePolicy(definition.Task)
+	if err != nil {
+		return RuntimePolicy{}, err
+	}
+	if !supported {
+		return RuntimePolicy{}, fmt.Errorf("model recipe: no runtime policy covers task %q", definition.Task)
+	}
+	return catalog, nil
+}
+
+// BoundRuntimePolicy loads the exact policy bound to a recipe, which a measurement of it holds to.
+func BoundRuntimePolicy(ctx context.Context, store artifact.Reader, definition recipe.Definition) (RuntimePolicy, error) {
 	policy, found, err := runtimePolicyCodec.Resolve(ctx, store, runtimePolicyAlias(definition.ID))
 	if err != nil || !found {
 		return RuntimePolicy{}, errors.Join(errors.New("model recipe: active recipe has no runtime policy"), err)

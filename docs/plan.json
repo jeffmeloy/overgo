@@ -177,13 +177,6 @@
       },
       "steps": [
         {
-          "id": "ordinal-guard",
-          "title": "Pin every profile enum's number to its name",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1 -run '^TestEveryProfileOrdinalKeepsItsName$'",
-          "rationale": "internal/model/architecture_profiles.json holds raw numbers, ArchitectureProfile has no tags or marshal hooks (architecture.go:333), and the enums are iota lists, about 90 lines in 22 files. A reorder gives old numbers new meanings with identities unchanged, so old evidence still appears valid; the digests in internal/modelrecipe/profile_test.go:19-21,120-127 cannot see it.\nNames in the JSON would republish every model's definition, so pin an ordinal-to-name table in a test instead. Walk the nested types (DenseStages, Experts, Validation), or a new enum slips past. It costs no production code.\nServes: held-out-quality; no silent model change.\nDisappears: nothing.\nEvidence: a reorder fails the test.\nBatch: host lane."
-        },
-        {
           "id": "sampling-identity",
           "title": "Bring declared sampling into what a run records",
           "status": "open",

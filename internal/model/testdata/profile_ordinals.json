@@ -1,0 +1,545 @@
+{
+  "ArchitectureCapability": [
+    "architectureNonCausal",
+    "architectureRoPEDisabled",
+    "architectureMoE",
+    "architectureRecurrent",
+    "architectureEncoderOnly",
+    "architectureDiffusion",
+    "architectureMultimodal",
+    "architectureLatentYaRNQuery",
+    "architectureSparseLatent",
+    "architectureLatent",
+    "architectureReservedGEGLU",
+    "architecturePostNorm",
+    "architecturePostOnlyNorm",
+    "architectureNormalRoPE",
+    "architectureParallelResidual",
+    "architectureSequentialGELU",
+    "architectureFusedGateUp",
+    "architectureLongRoPE",
+    "architectureGELU",
+    "architectureSquaredReLU",
+    "architectureGatedDelta",
+    "architectureShortConvolution",
+    "architectureMultiAxisPositions",
+    "architectureRequiresOutput",
+    "architectureClassifierHead",
+    "architectureBiasFreeProjections",
+    "architectureFusedQKV",
+    "architectureRequiresFusedQKV",
+    "architectureRequiresFusedQKVBias",
+    "architectureRejectsOrphanFusedQKVBias",
+    "architectureSharedKV",
+    "architectureReservedAltUp",
+    "architecturePerLayerEmbeddings",
+    "architectureEmbeddingSkip",
+    "architectureOutputLayerNormLayout",
+    "architectureLatentKVLayout"
+  ],
+  "AttentionBlockPolicy": [
+    "AttentionBlocksNone",
+    "AttentionBlocksUncached"
+  ],
+  "AttentionPolicy": [
+    "attentionStandard",
+    "attentionLatent",
+    "AttentionSparseLatent",
+    "AttentionGatedDelta",
+    "attentionShortConvolution"
+  ],
+  "AttentionTemperaturePolicy": [
+    "AttentionTemperatureNone",
+    "AttentionTemperatureConfigured",
+    "attentionTemperatureNoRoPE"
+  ],
+  "AttentionValidationPolicy": [
+    "attentionValidationNone",
+    "attentionValidationQKNormEpsilon",
+    "attentionValidationMatchingAttentionKVHeads",
+    "attentionValidationPerLayerAttentionAndFeedForward",
+    "attentionValidationPerLayerSlidingAttention",
+    "attentionValidationSparseLayerAttention",
+    "attentionValidationScaledSlidingAttention",
+    "attentionValidationSharedKVAlternatingState",
+    "attentionValidationPerLayerDualRotaryAttention",
+    "attentionValidationTargetHiddenDualRotaryAttention",
+    "attentionValidationRequiredSlidingFrequency",
+    "attentionValidationOptionalSlidingFrequency",
+    "attentionValidationRequiredSlidingRotary",
+    "attentionValidationRequiredSlidingRotaryExperts",
+    "attentionValidationPeriodicExperts",
+    "attentionValidationPartialRotaryRequired",
+    "attentionValidationPartialRotaryFixed",
+    "attentionValidationScaledPartialRotary",
+    "attentionValidationFullScaledRotary",
+    "attentionValidationFullHeadSlidingRotary",
+    "attentionValidationSlidingRotaryEmbeddingProjection",
+    "attentionValidationFullRotary",
+    "attentionValidationFullScaledRotaryXIELU",
+    "attentionValidationOptionalRotaryBase",
+    "attentionValidationHalvedFeedForward",
+    "attentionValidationMultiAxisAttention",
+    "attentionValidationVisualExpertAttention",
+    "attentionValidationLayerwiseQKNorm",
+    "attentionValidationOptionalRopeSections",
+    "attentionValidationOptionalRopeSectionsExperts",
+    "attentionValidationSharedKVAttention",
+    "attentionValidationOptionalRotaryBaseGQA",
+    "attentionValidationOptionalExperts"
+  ],
+  "AuxiliaryFlow": [
+    "AuxiliaryNone",
+    "auxiliaryRecurrentValue",
+    "AuxiliarySparseTopK"
+  ],
+  "BaseRotaryValidationPolicy": [
+    "baseRotaryValidationDefault",
+    "baseRotaryValidationPaired"
+  ],
+  "CacheFallbackPolicy": [
+    "cacheFallbackNone",
+    "cacheFallbackFeedForward",
+    "cacheFallbackMissingKV"
+  ],
+  "CachePolicy": [
+    "cacheAttention",
+    "cacheSentinel",
+    "cacheSelectiveScan",
+    "cacheGroupedSelectiveScan",
+    "cacheDoubleTokenShiftRecurrence",
+    "cacheSingleTokenShiftRecurrence",
+    "cacheVariableTokenShiftRecurrence",
+    "cacheKeyedDelta",
+    "cacheGatedDelta",
+    "cacheShortConvolution",
+    "cacheHybridAttentionScan",
+    "CacheCrossAttention",
+    "CacheCompressedAttention"
+  ],
+  "DeepstackPolicy": [
+    "deepstackNone",
+    "deepstackMappedBefore",
+    "deepstackSequentialAfter"
+  ],
+  "DraftKind": [
+    "draftNone",
+    "draftSingleCatalog",
+    "draftAppendedMultiCarry",
+    "draftAppendedMulti",
+    "DraftAppendedSingle",
+    "draftOptionalSingleCatalog"
+  ],
+  "EmbeddingOverridePolicy": [
+    "embeddingOverrideStandard",
+    "EmbeddingOverrideVisualSpan",
+    "EmbeddingOverrideRawScaled",
+    "EmbeddingOverrideMappedBase"
+  ],
+  "EmbeddingScalePolicy": [
+    "embeddingScaleIdentity",
+    "embeddingScaleSqrtWidth"
+  ],
+  "EncoderOperatorPolicy": [
+    "encoderOperatorNone",
+    "encoderOperatorPostNormAbsolute",
+    "encoderOperatorPostNormALiBi",
+    "encoderOperatorPreNormRoPEExperts",
+    "encoderOperatorPreNormRoPEGated",
+    "encoderOperatorPreNormRoPEGatedExperts",
+    "encoderOperatorFusedQKVSliding",
+    "encoderOperatorQKNormProjection",
+    "encoderOperatorRelativeEncoderDecoder",
+    "encoderOperatorRelativeEncoder"
+  ],
+  "EncoderValidationPolicy": [
+    "encoderValidationNone",
+    "encoderValidationTokenTypesMatchingHeads",
+    "encoderValidationTokenTypesALiBi",
+    "encoderValidationRotaryOptionalExperts",
+    "encoderValidationFullRotary",
+    "encoderValidationRotary",
+    "encoderValidationRotaryPeriodicExperts"
+  ],
+  "ExpertMetadataPolicy": [
+    "expertMetadataNone",
+    "expertMetadataRequired",
+    "expertMetadataWhenDeclared"
+  ],
+  "FeedForwardNormLayoutPolicy": [
+    "feedForwardNormLayoutStandard",
+    "feedForwardNormLayoutBare",
+    "feedForwardNormLayoutAttentionOutput",
+    "feedForwardNormLayoutAttentionPost",
+    "feedForwardNormLayoutPostAttention"
+  ],
+  "FeedForwardPolicy": [
+    "feedForwardSwiGLU",
+    "feedForwardSequentialGELU",
+    "feedForwardFusedGateUp",
+    "feedForwardGELU",
+    "feedForwardSquaredReLU",
+    "feedForwardXIELU",
+    "feedForwardGEGLU",
+    "FeedForwardReLU"
+  ],
+  "ForwardOperation": [
+    "ForwardOperationCached",
+    "ForwardOperationBidirectional",
+    "ForwardOperationAudioTokens",
+    "ForwardOperationEncoder",
+    "ForwardOperationSession",
+    "ForwardOperationDiffusion",
+    "forwardOperationCount"
+  ],
+  "ForwardSession": [
+    "forwardSessionNone",
+    "ForwardSessionPairedFeatures",
+    "ForwardSessionFeatureDraft",
+    "ForwardSessionPairedProjection",
+    "ForwardSessionEncoderDecoder",
+    "forwardSessionCount"
+  ],
+  "HybridValidationPolicy": [
+    "hybridValidationNone",
+    "hybridValidationAlternatingGatedDelta",
+    "hybridValidationAlternatingGatedDeltaHybrid",
+    "hybridValidationAlternatingGatedDeltaExperts",
+    "hybridValidationSharedExperts",
+    "hybridValidationSparseSharedExperts",
+    "hybridValidationSigmoidExperts",
+    "hybridValidationCompressedHyperDraft",
+    "hybridValidationNonCausalExperts",
+    "hybridValidationNormalizedSharedExperts",
+    "hybridValidationRoutedExperts",
+    "hybridValidationProductSharedExperts",
+    "hybridValidationProductExperts",
+    "hybridValidationScaledDense",
+    "hybridValidationScaledExperts",
+    "hybridValidationScaledStateSpace",
+    "hybridValidationModelFeedForwardExperts",
+    "hybridValidationSharedExpertNorm",
+    "hybridValidationRequiredExpertFeedForward",
+    "hybridValidationSharedExpertProduct",
+    "hybridValidationMultiHeadDraft",
+    "hybridValidationFullRotaryVision",
+    "hybridValidationDualExpertProduct",
+    "hybridValidationWeightedExpertProduct",
+    "hybridValidationScaledSigmoidExperts",
+    "hybridValidationScaledSharedExperts",
+    "hybridValidationFullHeadExperts",
+    "hybridValidationOptionalExperts",
+    "hybridValidationExtendedRotary",
+    "hybridValidationChunkedExperts",
+    "hybridValidationSelectedSoftmaxExperts",
+    "hybridValidationBasicScaledExperts",
+    "hybridValidationPerLayerYaRNExperts",
+    "hybridValidationSlidingSigmoidExperts",
+    "hybridValidationSlidingSharedExperts",
+    "hybridValidationAlternatingShortConvolution",
+    "hybridValidationAlternatingShortConvolutionExperts"
+  ],
+  "LayerTopologyPolicy": [
+    "layerTopologyPlannedDecoder",
+    "layerTopologyBidirectionalEncoder",
+    "layerTopologyBidirectionalFusedQKV",
+    "layerTopologyBidirectionalQKNorm",
+    "LayerTopologyCausalPostQKNormSkip",
+    "layerTopologySharedKVAdapter",
+    "layerTopologySplitProjection",
+    "layerTopologyDynamicWKV6",
+    "layerTopologyAffineWKV6",
+    "layerTopologyDynamicWKV7",
+    "layerTopologyKeyedDeltaHybrid",
+    "layerTopologyCompressedHyper",
+    "layerTopologyGatedHyper"
+  ],
+  "LogitScalePolicy": [
+    "logitScaleReciprocal",
+    "logitScaleDirect"
+  ],
+  "MLAValidationPolicy": [
+    "mlaValidationNone",
+    "mlaValidationSparseLatentIndexer",
+    "mlaValidationCompressedHyper",
+    "mlaValidationHybridLinearAttention",
+    "mlaValidationOptionalExpertsLatent",
+    "mlaValidationScaledLatent"
+  ],
+  "MetadataReadPolicy": [
+    "metadataReadJaisScale",
+    "metadataReadGPTJRotary",
+    "metadataReadCommandRLogits",
+    "metadataReadBaichuanBlocks",
+    "metadataReadVisualSections",
+    "metadataReadQwen3VLDeepstack",
+    "metadataReadSmolLM3NoRoPE",
+    "metadataReadOLMoClamp",
+    "metadataReadGLMDSAGating",
+    "metadataReadALiBi",
+    "metadataReadZeroALiBiDefault"
+  ],
+  "NormalizationBiasPolicy": [
+    "normalizationBiasAutomatic",
+    "normalizationBiasNever",
+    "normalizationBiasAlways"
+  ],
+  "NormalizationPlacementPolicy": [
+    "normalizationPlacementCapabilities",
+    "normalizationPlacementPostOnly"
+  ],
+  "NormalizationPolicy": [
+    "NormalizationRMS",
+    "normalizationLayer",
+    "NormalizationUnweightedLayer",
+    "NormalizationUnweightedRMS",
+    "normalizationWeightOnlyLayer",
+    "NormalizationMAD"
+  ],
+  "OutputNormPolicy": [
+    "outputNormModel",
+    "OutputNormAbsent",
+    "outputNormEncoder",
+    "outputNormDecoder",
+    "outputNormTokenEmbedding"
+  ],
+  "PositionPolicy": [
+    "positionNeoX",
+    "PositionNormal",
+    "PositionLearnedAbsolute"
+  ],
+  "PostNormLayoutPolicy": [
+    "postNormLayoutStandard",
+    "postNormLayoutOutputLayer",
+    "postNormLayoutGrok"
+  ],
+  "RecurrentMixerPolicy": [
+    "recurrentMixerNone",
+    "recurrentMixerSelectiveScan",
+    "recurrentMixerWeightedSelectiveScan",
+    "recurrentMixerGroupedSelectiveScan",
+    "recurrentMixerScaledGroupedSelectiveScan",
+    "recurrentMixerAttentionGroupedSelectiveScan",
+    "recurrentMixerNormalizedSelectiveScan",
+    "recurrentMixerSparseGroupedSelectiveScan",
+    "recurrentMixerGatedDelta",
+    "recurrentMixerShortConvolution",
+    "recurrentMixerDynamicWKV6",
+    "recurrentMixerAffineWKV6",
+    "recurrentMixerDynamicWKV7",
+    "recurrentMixerKeyedDelta"
+  ],
+  "RecurrentValidationPolicy": [
+    "recurrentValidationNone",
+    "recurrentValidationAudioDecoder",
+    "recurrentValidationTargetLayerBlock",
+    "recurrentValidationSingleBlockTarget",
+    "recurrentValidationUngroupedStateSpace",
+    "recurrentValidationGroupedStateSpace",
+    "recurrentValidationGroupedStateSpaceAttention",
+    "recurrentValidationTimeMixV6",
+    "recurrentValidationTimeMixV6SharedKV",
+    "recurrentValidationTimeMixV7Gated",
+    "recurrentValidationTimeMixV7",
+    "recurrentValidationStateSpaceAttentionExperts",
+    "recurrentValidationGroupedStateSpaceOptionalExperts",
+    "recurrentValidationUngroupedScheduledStateSpace",
+    "recurrentValidationScheduledStateSpaceDense",
+    "recurrentValidationScheduledStateSpaceExperts"
+  ],
+  "ResidualPolicy": [
+    "ResidualSequential",
+    "residualParallel"
+  ],
+  "RopeDimensionDefaultPolicy": [
+    "ropeDimensionDefaultNone",
+    "ropeDimensionDefaultKeyLength",
+    "ropeDimensionDefaultKeyLengthOverride"
+  ],
+  "RotaryUsagePolicy": [
+    "rotaryUsageStandard",
+    "rotaryUsageSlidingMetadata",
+    "rotaryUsageDensePrefixOrSliding",
+    "rotaryUsagePeriodicZeroBased",
+    "rotaryUsageSlidingOnly"
+  ],
+  "SharedExpertDefaultPolicy": [
+    "sharedExpertDefaultNone",
+    "sharedExpertDefaultModelFeedForward",
+    "sharedExpertDefaultExpertFeedForward",
+    "sharedExpertDefaultExpertProduct"
+  ],
+  "WeightCatalogPolicy": [
+    "weightCatalogLayered",
+    "weightCatalogCompressedHyper",
+    "weightCatalogTargetFeatures",
+    "weightCatalogHiddenFusion",
+    "weightCatalogPairedProjection",
+    "weightCatalogEncoder",
+    "weightCatalogAudioDecoder",
+    "weightCatalogEncoderDecoder"
+  ],
+  "attentionGateKind": [
+    "attentionGateNone",
+    "attentionGateSoftplus",
+    "attentionGateSigmoid"
+  ],
+  "denseBiasCatalogPolicy": [
+    "denseBiasCatalogStandard",
+    "denseBiasCatalogGPTJ",
+    "denseBiasCatalogJais2",
+    "denseBiasCatalogJais"
+  ],
+  "expertBiasCatalogPolicy": [
+    "expertBiasCatalogNone",
+    "expertBiasCatalogOptionalF32",
+    "expertBiasCatalogOptionalF32Bare",
+    "expertBiasCatalogRequired",
+    "expertBiasCatalogRequiredF32"
+  ],
+  "expertCatalogPolicy": [
+    "expertCatalogNone",
+    "expertCatalogAlways",
+    "expertCatalogWithExperts",
+    "expertCatalogWithRouter",
+    "expertCatalogAfterDense",
+    "expertCatalogInterleaved",
+    "expertCatalogAfterDenseExceptDraft"
+  ],
+  "expertCompositionCondition": [
+    "expertCompositionAlways",
+    "expertCompositionWithShared",
+    "expertCompositionWithExpertsAndShared",
+    "expertCompositionUnlessSigmoidWithoutShared"
+  ],
+  "expertCompositionKind": [
+    "expertRoutedOnly",
+    "expertSharedAdd",
+    "expertSharedAverage",
+    "expertSharedLimited",
+    "expertSharedGated",
+    "expertGrouped",
+    "expertDenseRoutedPostNorm",
+    "expertDenseRoutedSeparateNorm"
+  ],
+  "expertNormalizationPolicy": [
+    "expertNormalizeAlways",
+    "expertNormalizeMetadata",
+    "expertNormalizeNever"
+  ],
+  "expertRoutingPolicy": [
+    "expertRouteMetadata",
+    "expertRouteSigmoid",
+    "expertRouteSelectedSoftmax"
+  ],
+  "expertSupplementalCatalog": [
+    "expertSupplementScaledSandwichNorm",
+    "expertSupplementRequiredProjectionBiases",
+    "expertSupplementChunkExperts",
+    "expertSupplementOptionalDenseGEGLU",
+    "expertSupplementExpertInputNorm",
+    "expertSupplementDenseBranch",
+    "expertSupplementLatentProjection"
+  ],
+  "gatedDeltaPolicy": [
+    "gatedDeltaNone",
+    "gatedDeltaSeparateProjections",
+    "gatedDeltaInterleavedProjections",
+    "gatedDeltaSeparateSigmoid"
+  ],
+  "latentAttentionPolicy": [
+    "latentAttentionDefault",
+    "latentAttentionSplitProjection",
+    "latentAttentionNeoXResidualScale",
+    "latentAttentionSparseNeoXIndexer",
+    "latentAttentionNoRoPE"
+  ],
+  "metadataCardinality": [
+    "metadataScalar",
+    "metadataLayer",
+    "metadataLayerCompatible",
+    "metadataFixedOne",
+    "metadataFixedZero",
+    "metadataMirrorHeads",
+    "metadataMirrorHeadsOptional",
+    "metadataHybridLayers"
+  ],
+  "moeCadence": [
+    "moeCadenceNone",
+    "moeCadenceOffsetOne",
+    "moeCadenceEvery",
+    "moeCadenceAfterDense"
+  ],
+  "multiAxisRotaryPolicy": [
+    "multiAxisRotaryNone",
+    "multiAxisRotaryAlways",
+    "multiAxisRotaryWithSections",
+    "multiAxisRotaryInterleaved"
+  ],
+  "positionEmbeddingCatalogPolicy": [
+    "positionEmbeddingAbsent",
+    "positionEmbeddingRequired",
+    "positionEmbeddingOptional"
+  ],
+  "qkNormKind": [
+    "qkNormNone",
+    "qkNormWeighted",
+    "qkNormOptionalWeighted",
+    "qkNormConfigured",
+    "qkNormConfiguredNoBias",
+    "qkNormAffine",
+    "qkNormLayer",
+    "qkNormRMS"
+  ],
+  "queryScalePolicy": [
+    "queryScalePolicyScores",
+    "queryScalePolicyTemperatureWithoutRoPE",
+    "queryScalePolicyConfiguredTemperature",
+    "queryScalePolicyPreDot",
+    "queryScalePolicyEmbeddingHead"
+  ],
+  "recurrentCadence": [
+    "recurrentCadenceExplicit",
+    "recurrentCadenceAttentionInterval"
+  ],
+  "residualStageKind": [
+    "residualSequential",
+    "residualShared",
+    "residualFeedForwardNormalized",
+    "residualOriginalNorm",
+    "residualStable",
+    "residualGPTOSS"
+  ],
+  "rotaryPolicyKind": [
+    "rotaryPolicyDefault",
+    "rotaryPolicyLaguna",
+    "rotaryPolicyNeoXYaRNDense",
+    "rotaryPolicyNormalYaRN",
+    "rotaryPolicyNormal",
+    "rotaryPolicySlidingLinearReset"
+  ],
+  "sequenceResidualOperator": [
+    "sequenceResidualConvolution",
+    "sequenceResidualAttention",
+    "sequenceResidualNormalization",
+    "sequenceResidualOperatorCount"
+  ],
+  "sharedExpertCatalogPolicy": [
+    "sharedExpertCatalogNone",
+    "sharedExpertCatalogAlways",
+    "sharedExpertCatalogWithWidth",
+    "sharedExpertCatalogGated",
+    "sharedExpertCatalogUngated"
+  ],
+  "slidingCadence": [
+    "slidingCadenceNone",
+    "slidingCadenceNonRecurrent",
+    "slidingCadenceExceptFirst",
+    "slidingCadenceExceptLast"
+  ],
+  "tokenNormCatalogPolicy": [
+    "tokenNormAbsent",
+    "tokenNormWeight",
+    "tokenNormAffine"
+  ]
+}

@@ -88,7 +88,7 @@ func Open(directory string) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
-	companions, err := companionFiles(absolute)
+	companions, err := CompanionFiles(absolute)
 	if err != nil {
 		_ = source.Close()
 		return nil, err
@@ -159,7 +159,9 @@ func decodeOptional(values map[string]json.RawMessage, key string, destination a
 	return nil
 }
 
-func companionFiles(directory string) ([]string, error) {
+// CompanionFiles lists the files beside a checkpoint's weights that describe how it is tokenized and generated from, those
+// directory holds, sorted.
+func CompanionFiles(directory string) ([]string, error) {
 	files := make([]string, 0, len(companionNames))
 	for _, name := range companionNames {
 		info, err := os.Stat(filepath.Join(directory, name))

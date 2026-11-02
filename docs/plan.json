@@ -172,8 +172,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 59,
-        "reason": "the real run found two things the estimate did not hold: a trained directory read as its base (61) and a target whose command read the data in file order, about 40 more."
+        "nodes": 54,
+        "reason": "the real run went on to refuse every viewed text directory at validation and to find a checkpoint without its template: 126 for that, about 50 for the target's data order."
       },
       "steps": [
         {

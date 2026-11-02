@@ -11,7 +11,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
-	"overgo/internal/export"
 	"overgo/internal/hfbpe"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -172,7 +171,7 @@ func trainMixture(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 				if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, nil); err != nil {
 					return err
 				}
-				return export.CopyFiles(directory, stage, []string{"config.json", "tokenizer.json"})
+				return trainingworkflow.CopyModelFiles(directory, stage)
 			})
 			return err
 		},

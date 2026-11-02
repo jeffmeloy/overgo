@@ -16,6 +16,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/evaluation"
 	artifactexport "overgo/internal/export"
+	"overgo/internal/hfrepo"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
@@ -538,10 +539,26 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 	return result, state, err
 }
 
+// CopyModelFiles copies what serves a safetensors model beside its weights: the config and tokenizer it cannot run without,
+// and the companions source holds, whose chat template and generation settings a trained model keeps from its base.
+func CopyModelFiles(source, stage string) error {
+	companions, err := hfrepo.CompanionFiles(source)
+	if err != nil {
+		return err
+	}
+	names := []string{"config.json", "tokenizer.json"}
+	for _, companion := range companions {
+		if !slices.Contains(names, companion) {
+			names = append(names, companion)
+		}
+	}
+	return artifactexport.CopyFiles(source, stage, names)
+}
+
 // publishCheckpoint publishes the trained model in its source's layout
 // with the checkpoint that resumes it: a GGUF source's trained GGUF, which
 // the server opens and whose untrained tensors store may already hold, or
-// a safetensors directory with its config and tokenizer. Each companion, when
+// a safetensors directory with the files that serve it. Each companion, when
 // not nil, writes more files into the staged directory before it publishes.
 // A proof's checkpoint is identified and nothing of it is kept at target.
 func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState, proof bool, companions ...func(stage string) error) (trainingprogram.Checkpoint, error) {
@@ -558,7 +575,7 @@ func publishCheckpoint(ctx context.Context, store artifact.Reader, source, targe
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {
 			return err
 		}
-		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
+		return CopyModelFiles(source, stage)
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
 		if err := writeModel(stage); err != nil {

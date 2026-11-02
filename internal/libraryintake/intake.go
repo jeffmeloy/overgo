@@ -267,6 +267,12 @@ func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPa
 	if err != nil {
 		return operation.Request{}, nil, refusal{err}
 	}
+	return validationAt(ctx, repository, path, projectorPath, revision, policy)
+}
+
+// validationAt prepares functional validation under revision. A directory the view serves has no generation source and
+// validates as it registers, as a GGUF does.
+func validationAt(ctx context.Context, repository *overgodb.Store, path, projectorPath, revision string, policy validationPolicy) (operation.Request, operation.Executor, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return operation.Request{}, nil, refusal{err}
@@ -280,10 +286,12 @@ func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPa
 			return operation.Request{}, nil, refusal{err}
 		}
 		source, err := modelrecipe.ResolveGenerationSource("", identity)
-		if err != nil {
+		if err != nil && (!errors.Is(err, modelrecipe.ErrGenerationSourceAbsent) || !hfconvert.Viewed(path)) {
 			return operation.Request{}, nil, refusal{err}
 		}
-		return prepareGenerationValidation(ctx, repository, path, source.Task, mediacapability.Catalog[source.Task], revision, policy.ImagePrompt)
+		if err == nil {
+			return prepareGenerationValidation(ctx, repository, path, source.Task, mediacapability.Catalog[source.Task], revision, policy.ImagePrompt)
+		}
 	}
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {

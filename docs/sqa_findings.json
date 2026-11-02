@@ -563,7 +563,9 @@
         "uncertainty": "Shift3/copied-input counterexamples are traced, not executed. Normal-run performance is unchanged; invalid-input savings are unquantified. Test growth remains an estimate."
       },
       "likely_effort": "Small move within trainMOSS and a bounded extension of the existing native route fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "moss-early-refusals/do"
+      ],
       "plan_coverage": "Residual sequencing issue after completed moss-training-repairs steps; no live row claims it. Related271/258 concern actual continuation, not this pre-compute admission order; no duplicate finding.",
       "closure_criteria": [
         "Both existing grid and held-out byte checks precede the first mossPrepare call.",
@@ -821,7 +823,7 @@
       },
       "likely_effort": "Delete three lines and update the existing comment.",
       "plan_references": [
-        "compact-tests/fatal-check"
+        "training-gaps/target-order"
       ],
       "plan_coverage": "Fits current test-compaction work; no new row or policy suite.",
       "closure_criteria": [
@@ -7022,7 +7024,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "42aaf620b8fd6bdc1db8a26b5b191c9cf6e54d10",
+    "head": "d3ef70e8a16b3995c0f9b4ba2a6b12e25d7bfbac",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7646,6 +7648,20 @@
           "training-gaps/training-target"
         ],
         "note": "The timing fixture in TestAPerfectZeroIsAQualitysLevel is deleted, since its assertion passed with the fault in or out. The eligibility case in reference_test now holds a zero before its four readings, and still requires Unknown: a zero admitted there would make the fifth reading that judges the cell."
+      },
+      "SQA-292": {
+        "action": "implemented",
+        "rows": [
+          "training-gaps/target-order"
+        ],
+        "note": "The test's repeated parse of the committed bytes is gone: the package initializer already refuses a malformed file before a test can run. The synthetic cases stay, with a target of no order added."
+      },
+      "SQA-293": {
+        "action": "planned",
+        "rows": [
+          "moss-early-refusals/do"
+        ],
+        "note": "Accepted. Both refusals are decidable before the first picture is prepared on the device, and moving them costs one call each. Filed as a row of its own, after the proof."
       }
     }
   },

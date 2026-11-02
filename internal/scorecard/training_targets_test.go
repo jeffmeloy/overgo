@@ -20,7 +20,7 @@ func TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt(t *testing.T) {
 	objective := testutil.ArtifactID(t, artifact.KindEvidence, "objective")
 	target := TrainingTarget{
 		Model: model, Name: "small", Alias: "objective.registered.text", Objective: objective,
-		Steps: 128, Sequence: 512, MaxWall: "10m", Gain: 0.01,
+		Steps: 128, Sequence: 512, Order: 25, MaxWall: "10m", Gain: 0.01,
 	}
 	base := 0.5
 	row := func(cell Cell) Row {
@@ -41,7 +41,7 @@ func TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt(t *testing.T) {
 	} {
 		gaps := Record{Rows: []Row{row(cell)}}.trainingGaps([]TrainingTarget{target})
 		if len(gaps) != 1 || !KnownGapKey(gaps[0].Key) || !strings.Contains(gaps[0].Title, "Train small") ||
-			!strings.Contains(gaps[0].Detail, "-objective objective.registered.text") || !strings.Contains(gaps[0].Detail, "-steps 128 -seq 512") {
+			!strings.Contains(gaps[0].Detail, "-objective objective.registered.text") || !strings.Contains(gaps[0].Detail, "-steps 128 -seq 512 -order-seed 25") {
 			t.Errorf("%s: the target files %+v, want its row", name, gaps)
 		}
 	}
@@ -60,15 +60,13 @@ func TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt(t *testing.T) {
 	}
 }
 
-// TestTheDeclaredTrainingTargetsAreWhole: the committed targets parse, and a target a run could not start from is refused.
-func TestTheDeclaredTrainingTargetsAreWhole(t *testing.T) {
+// TestATrainingTargetARunCouldNotStartFromIsRefused: a repeated target, one of no gain, and one whose bounded run names no
+// order, which would read only the first articles of its data.
+func TestATrainingTargetARunCouldNotStartFromIsRefused(t *testing.T) {
 	t.Parallel()
-	if _, err := parseTargets(trainingTargetsJSON); err != nil {
-		t.Fatal(err)
-	}
 	model := testutil.ArtifactID(t, artifact.KindModel, "trained")
 	objective := testutil.ArtifactID(t, artifact.KindEvidence, "objective")
-	whole := `{"model":"` + model.String() + `","name":"n","alias":"a","objective":"` + objective.String() + `","steps":1,"sequence":1,"max_wall":"1m","gain":0.1}`
+	whole := `{"model":"` + model.String() + `","name":"n","alias":"a","objective":"` + objective.String() + `","steps":1,"sequence":1,"order":1,"max_wall":"1m","gain":0.1}`
 	if _, err := parseTargets([]byte(`{"targets":[` + whole + `]}`)); err != nil {
 		t.Fatalf("a whole target: %v", err)
 	}
@@ -77,5 +75,8 @@ func TestTheDeclaredTrainingTargetsAreWhole(t *testing.T) {
 	}
 	if _, err := parseTargets([]byte(strings.Replace(`{"targets":[`+whole+`]}`, `"gain":0.1`, `"gain":0`, 1))); err == nil {
 		t.Error("a target of no gain parses")
+	}
+	if _, err := parseTargets([]byte(strings.Replace(`{"targets":[`+whole+`]}`, `"order":1`, `"order":0`, 1))); err == nil {
+		t.Error("a target with no order parses")
 	}
 }

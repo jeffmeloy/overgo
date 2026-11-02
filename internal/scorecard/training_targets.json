@@ -7,6 +7,7 @@
       "objective": "profile:sha256:7b7ed5dec1e127562609801d3c4542255e82d40054f96dadd2b6e6a490962665",
       "steps": 128,
       "sequence": 512,
+      "order": 25,
       "max_wall": "10m",
       "gain": 0.01
     }

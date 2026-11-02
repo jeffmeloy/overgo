@@ -148,6 +148,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "moss-early-refusals",
+      "title": "A MOSS run that will be refused is refused before its first picture",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "A MOSS run that will be refused is refused before its first picture",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestAMOSSRunIsRefusedBeforeItsFirstPicture$'",
+          "rationale": "SQA-293: trainMOSS prepares every training picture on the device before it reads the held-out bytes, and opens the weights and reserves the trainer before CheckTrainingGrid. Both refusals are decidable from the profile and the files alone, so a run that will be refused spends device preparation first. Source-established ordering, no measured delay.\nMove both checks before the first preparation.\nServes: a refused run costs no device time.\nDisappears: preparation spent on a run already refused.\nEvidence: a test that the refusal comes before preparation.\nBatch: host."
+        }
+      ]
+    },
+    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",
@@ -172,7 +187,7 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 67,
+        "nodes": 52,
         "reason": "the first trained model reached every check of the live catalog: the benchmark and the denominators measure 323; about 60 for the target's data order."
       },
       "steps": [

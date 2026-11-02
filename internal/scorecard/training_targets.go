@@ -24,6 +24,8 @@ var trainingTargetsJSON []byte
 
 // TrainingTarget is one declared goal: the model, the held-out objective a run judges it on, the run that is to reach it,
 // bounded by Steps, Sequence and MaxWall, and the gain, in the objective's own direction, a supported verdict must show.
+// Order is the seed the run draws its data by: a bounded run reads only its first windows, which in membership order are the
+// first few articles, and that run gains less than any drawn run a target's gain is read from.
 type TrainingTarget struct {
 	Model     artifact.ID `json:"model"`
 	Name      string      `json:"name"`
@@ -31,6 +33,7 @@ type TrainingTarget struct {
 	Objective artifact.ID `json:"objective"`
 	Steps     int         `json:"steps"`
 	Sequence  int         `json:"sequence"`
+	Order     uint64      `json:"order"`
 	MaxWall   string      `json:"max_wall"`
 	Gain      float64     `json:"gain"`
 }
@@ -69,7 +72,7 @@ func parseTargets(data []byte) ([]TrainingTarget, error) {
 	for _, target := range document.Targets {
 		wall, err := time.ParseDuration(target.MaxWall)
 		if target.Model.Kind() != artifact.KindModel || !target.Objective.Valid() || strings.TrimSpace(target.Name) == "" || strings.TrimSpace(target.Alias) == "" ||
-			target.Steps <= 0 || target.Sequence <= 0 || err != nil || wall <= 0 || !(target.Gain > 0) || math.IsInf(target.Gain, 0) || seen[target.key()] {
+			target.Steps <= 0 || target.Sequence <= 0 || target.Order == 0 || err != nil || wall <= 0 || !(target.Gain > 0) || math.IsInf(target.Gain, 0) || seen[target.key()] {
 			return nil, fmt.Errorf("scorecard: the training target of %q on %s is repeated or incomplete", target.Name, target.Alias)
 		}
 		seen[target.key()] = true
@@ -102,8 +105,8 @@ func (record Record) trainingGaps(targets []TrainingTarget) []Gap {
 			gaps = append(gaps, Gap{
 				Key: target.key(), kind: gapTraining,
 				Title: fmt.Sprintf("Train %s on %s to a supported gain of %g", target.Name, target.Alias, target.Gain),
-				Detail: fmt.Sprintf("- go run ./cmd/train -objective %s -model <its directory> -out <a new directory> -steps %d -seq %d -freeze-lexical -max-wall %s\n"+
-					"- the row closes when a supported held-out verdict on that objective gains %g\n", target.Alias, target.Steps, target.Sequence, target.MaxWall, target.Gain),
+				Detail: fmt.Sprintf("- go run ./cmd/train -objective %s -model <its directory> -out <a new directory> -steps %d -seq %d -order-seed %d -freeze-lexical -max-wall %s\n"+
+					"- the row closes when a supported held-out verdict on that objective gains %g\n", target.Alias, target.Steps, target.Sequence, target.Order, target.MaxWall, target.Gain),
 			})
 		}
 	}

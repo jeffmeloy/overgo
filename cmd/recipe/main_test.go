@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -55,7 +56,7 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
+		loaded, err := modelrecipe.ResolveCandidateGGUF(ctx, store, path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -726,4 +727,62 @@ func activateMeasured(t *testing.T, directory string, task recipe.Task, inventor
 		t.Fatal(err)
 	}
 	return head, sequence
+}
+
+// TestAPolicyEditLeavesPublishedRecipesServable: a candidate is verified under the policy the store binds to it, the one it
+// serves, where the catalog may since have moved on.
+func TestAPolicyEditLeavesPublishedRecipesServable(t *testing.T) {
+	path := testutil.HermeticLlamaGGUF(t, 32)
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := t.Context()
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := modelrecipe.BoundRuntimePolicy(ctx, store, candidate.Definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := bound
+	edited.Interactive.OutputTokens++
+	encoded, err := json.Marshal(edited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := artifact.DocumentContract{Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.runtime-policy+json", Schema: "overgo/runtime-policy/v2"}
+	if edited.ID, err = contract.Identify(encoded); err != nil {
+		t.Fatal(err)
+	}
+	content, err := edited.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("fixture/policy-edit", []artifact.Content{content}, nil, []artifact.AliasBinding{{
+		Name: "runtime-policy/v2/" + candidate.Definition.ID.String(), Target: edited.ID, Previous: &bound.ID,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := modelrecipe.ResolveCandidateGGUF(ctx, store, path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	verified, err := loaded.RuntimePolicy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if verified.ID != edited.ID {
+		t.Fatalf("the candidate is verified under %v, and the store binds it %v", verified.ID, edited.ID)
+	}
 }

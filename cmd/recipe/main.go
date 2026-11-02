@@ -70,7 +70,7 @@ func run() error {
 	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
-	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
+	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate), or why a recipe's runtime policy moves (policy)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
 	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|projection|forecast|tabular|seq2seq|speech|transcription|image-gen|video-gen|vqa)")
@@ -241,7 +241,7 @@ func run() error {
 	case "status":
 		return status(repository, path, selectedTask)
 	case "policy":
-		return ensurePolicy(repository, path, selectedTask)
+		return ensurePolicy(repository, path, selectedTask, strings.TrimSpace(*reason))
 	case "retire-orphan":
 		if strings.TrimSpace(*reason) == "" {
 			return errors.New("retire-orphan requires -reason: the refusal records why")
@@ -676,13 +676,14 @@ func retire(
 	return nil
 }
 
-// ensurePolicy republishes the catalog runtime policy for a model's
-// ACTIVE recipe -- the migration repair for activations that predate
-// the runtime-policy schema, whose golden suites may no longer be
-// local for a full reverify. It touches nothing but the policy alias:
-// the recipe, its evidence, and its activation stay exactly as
-// committed.
-func ensurePolicy(repository, path string, task recipe.Task) error {
+// ensurePolicy binds the catalog runtime policy to a model's ACTIVE
+// recipe: the repair for activations that predate the runtime-policy
+// schema, whose golden suites may no longer be local for a full
+// reverify, and the way a catalog edit reaches a recipe already
+// published, which moves it and records reason. It touches nothing but
+// the policy alias: the recipe, its evidence, and its activation stay
+// exactly as committed.
+func ensurePolicy(repository, path string, task recipe.Task, reason string) error {
 	ctx := context.Background()
 	inventory, err := taskModelInventory(path, task)
 	if err != nil {
@@ -700,7 +701,7 @@ func ensurePolicy(repository, path string, task recipe.Task) error {
 	if !active {
 		return fmt.Errorf("recipe: %s has no active %s recipe to bind a policy to", path, task)
 	}
-	if err := modelrecipe.EnsureRuntimePolicy(ctx, store, activation.Definition); err != nil {
+	if err := modelrecipe.MoveRuntimePolicy(ctx, store, activation.Definition, reason); err != nil {
 		return err
 	}
 	policy, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition)

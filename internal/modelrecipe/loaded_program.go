@@ -155,16 +155,18 @@ func (l *LoadedProgram) declarePolicy(ctx context.Context, store artifact.Reader
 	return err
 }
 
-// ResolveCandidateGGUF verifies one explicit candidate before promotion.
-// Shards the claimer knows are claimed as ResolveClaimedGGUF claims them: not
-// hashed here, and proved by whoever takes the program.
+// ResolveCandidateGGUF verifies one explicit candidate before promotion, under the policy the store binds to it, which is
+// the one it will serve. Shards the claimer knows are claimed as ResolveClaimedGGUF claims them: not hashed here, and
+// proved by whoever takes the program.
 func ResolveCandidateGGUF(
+	ctx context.Context,
+	store artifact.Reader,
 	path string,
 	definition recipe.Definition,
 	resolved ResolvedModelDefinition,
 	claimer modelartifact.Claimer,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(context.Background(), path, claimer)
+	loaded, err := loadGGUFFacts(ctx, path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -183,14 +185,9 @@ func ResolveCandidateGGUF(
 		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
 	}
 	loaded.state.State = ModelState{Verification: StateNotVerified, Reason: "a candidate under verification"}
-	policy, found, err := CatalogRuntimePolicy(definition.Task)
-	if err != nil {
+	if loaded.state.Policy, err = ResolveRuntimePolicy(ctx, store, definition); err != nil {
 		return fail(err)
 	}
-	if !found {
-		return fail(errors.New("model recipe: candidate runtime policy is absent"))
-	}
-	loaded.state.Policy = policy
 	if err := loaded.bindResolved(definition, resolved); err != nil {
 		return fail(err)
 	}

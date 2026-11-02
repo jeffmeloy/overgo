@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -120,21 +121,70 @@ func runtimePolicyBinding(definition recipe.Definition) (artifact.Content, artif
 	return content, artifact.AliasBinding{Name: runtimePolicyAlias(definition.ID), Target: policy.ID}, true, nil
 }
 
-// EnsureRuntimePolicy publishes the policy selected by a recipe task.
-func EnsureRuntimePolicy(ctx context.Context, store artifact.Repository, definition recipe.Definition) error {
+// runtimePolicyMove records why a recipe left the policy it held for the catalog's.
+type runtimePolicyMove struct {
+	Version uint16      `json:"version"`
+	ID      artifact.ID `json:"-"`
+	Recipe  artifact.ID `json:"recipe"`
+	From    artifact.ID `json:"from"`
+	To      artifact.ID `json:"to"`
+	Reason  string      `json:"reason"`
+}
+
+var runtimePolicyMoveCodec = artifact.JSONDocumentCodec(
+	"runtime policy move", artifact.KindEvidence,
+	"application/vnd.overgo.runtime-policy-move+json", "overgo/runtime-policy-move/v1",
+	func(move *runtimePolicyMove) error {
+		if move == nil || !move.Recipe.Valid() || !move.From.Valid() || !move.To.Valid() || strings.TrimSpace(move.Reason) == "" {
+			return errors.New("model recipe: invalid runtime policy move")
+		}
+		return nil
+	},
+	func(move runtimePolicyMove) artifact.ID { return move.ID },
+	func(move *runtimePolicyMove, id artifact.ID) { move.ID = id },
+)
+
+// MoveRuntimePolicy takes a recipe to the policy the catalog selects for its task and records why, which is how a catalog
+// edit reaches a recipe already published. It needs a reason only when it moves one: a recipe that holds that policy, or
+// none, is bound as EnsureRuntimePolicy binds it.
+func MoveRuntimePolicy(ctx context.Context, store artifact.Repository, definition recipe.Definition, reason string) error {
 	content, binding, found, err := runtimePolicyBinding(definition)
 	if err != nil || !found {
 		return err
 	}
 	current, bound, err := artifact.ResolveAlias(ctx, store, binding.Name)
+	if err != nil || bound && current == binding.Target {
+		return err
+	}
+	if !bound {
+		return EnsureRuntimePolicy(ctx, store, definition)
+	}
+	move, err := runtimePolicyMoveCodec.NewInitial(runtimePolicyMove{Recipe: definition.ID, From: current, To: binding.Target, Reason: reason})
 	if err != nil {
 		return err
 	}
-	if bound {
-		if current != binding.Target {
-			return errors.New("model recipe: runtime policy binding differs")
-		}
-		return nil
+	record, err := runtimePolicyMoveCodec.Content(move)
+	if err != nil {
+		return err
+	}
+	binding.Previous = &current
+	batch, err := artifact.NewDocumentBatch("runtime-policy/move/"+move.ID.String(), []artifact.Content{content, record}, nil, []artifact.AliasBinding{binding})
+	if err != nil {
+		return err
+	}
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
+}
+
+// EnsureRuntimePolicy binds the policy the catalog selects to a recipe that has none. A bound policy stays: a verification
+// of the recipe read it and serving reads it, so an edit of the catalog refuses nothing already published.
+func EnsureRuntimePolicy(ctx context.Context, store artifact.Repository, definition recipe.Definition) error {
+	content, binding, found, err := runtimePolicyBinding(definition)
+	if err != nil || !found {
+		return err
+	}
+	if _, bound, err := artifact.ResolveAlias(ctx, store, binding.Name); err != nil || bound {
+		return err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"runtime-policy/ensure/"+definition.ID.String(), []artifact.Content{content}, nil, []artifact.AliasBinding{binding},

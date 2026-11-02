@@ -64,7 +64,7 @@ func TestProjectionExecutionE4B(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
-		runner, err := openExactCandidate(ctx, paths[0], language)
+		runner, err := openExactCandidate(ctx, store, paths[0], language)
 		if err != nil {
 			return nil, err
 		}

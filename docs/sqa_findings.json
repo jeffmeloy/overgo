@@ -731,7 +731,7 @@
       },
       "likely_effort": "Move the two unique validation checks into the existing test and delete the duplicate body.",
       "plan_references": [
-        "compact-tests/fatal-check"
+        "recipe-repairs/policy-moves"
       ],
       "plan_coverage": "Existing native test-compaction work; no new plan row or selector needed.",
       "closure_criteria": [
@@ -7062,7 +7062,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
+    "head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7700,6 +7700,13 @@
           "moss-early-refusals/do"
         ],
         "note": "Both checks now run before the first picture is prepared. The test's trained picture cannot decode, so the old order stops at the device's encoder and the new one on the refusal."
+      },
+      "SQA-294": {
+        "action": "implemented",
+        "rows": [
+          "recipe-repairs/policy-moves"
+        ],
+        "note": "The validation check now sits in the existing registration fixture, before its Register, and the separate test is gone. It still fails if a viewed directory stops validating."
       }
     }
   },

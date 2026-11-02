@@ -69,7 +69,7 @@ func verifyInference(
 		return err
 	}
 	open := func(ctx context.Context) (exactRuntime, error) {
-		return openExactCandidate(ctx, path, candidate)
+		return openExactCandidate(ctx, store, path, candidate)
 	}
 	if protocol {
 		_, err = acceptProtocol(ctx, store, candidate.Definition, candidate.Resolved.Document.ID, revision, input, open)
@@ -92,8 +92,8 @@ func prepareExactCandidate(ctx context.Context, store *overgodb.Store, path stri
 	return candidate, nil
 }
 
-func openExactCandidate(ctx context.Context, path string, candidate modelintake.Candidate) (*inference.Runner, error) {
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
+func openExactCandidate(ctx context.Context, store artifact.Reader, path string, candidate modelintake.Candidate) (*inference.Runner, error) {
+	loaded, err := modelrecipe.ResolveCandidateGGUF(ctx, store, path, candidate.Definition, candidate.Resolved, candidate.Inventory.Claim)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func verifyProjection(repository, path, projectorPath, input string,
 		return errors.Join(err, projection.Close())
 	}
 	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
-		runner, err := openExactCandidate(ctx, path, candidate)
+		runner, err := openExactCandidate(ctx, store, path, candidate)
 		if err != nil {
 			return nil, err
 		}

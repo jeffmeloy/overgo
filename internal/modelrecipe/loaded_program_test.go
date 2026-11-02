@@ -164,7 +164,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	inventory, resolved := publishProgramFacts(t, store, path)
 	definition := definitionRecipe(t, inventory, resolved)
 
-	loaded, err := ResolveCandidateGGUF(path, definition, resolved, nil)
+	loaded, err := ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	}
 	// The candidate's own inventory claims its shard: the program carries the
 	// claim for the open to prove.
-	claimed, err := ResolveCandidateGGUF(path, definition, resolved, inventory.Claim)
+	claimed, err := ResolveCandidateGGUF(t.Context(), store, path, definition, resolved, inventory.Claim)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,10 +188,10 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	writeServingDefinitionGGUF(t, otherPath, true)
 	otherInventory, otherResolved := publishProgramFacts(t, store, otherPath)
 	otherDefinition := definitionRecipe(t, otherInventory, otherResolved)
-	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved, nil)
+	_, err = ResolveCandidateGGUF(t.Context(), store, path, otherDefinition, otherResolved, nil)
 	assertProgramError(t, err, "does not name the loaded inference model")
 	// Another candidate's inventory claims nothing for this file, which is hashed.
-	_, err = ResolveCandidateGGUF(path, otherDefinition, otherResolved, otherInventory.Claim)
+	_, err = ResolveCandidateGGUF(t.Context(), store, path, otherDefinition, otherResolved, otherInventory.Claim)
 	assertProgramError(t, err, "does not name the loaded inference model")
 }
 

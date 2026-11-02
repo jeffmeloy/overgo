@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 300,
-        "reason": "Estimate. Corrections inside internal/modelrecipe; the ordinal guard is test code."
+        "nodes": 201,
+        "reason": "policy-moves measures 339: a recorded move with its own document, and a store parameter through the verification path; the estimate held no record. About 200 for the three steps left."
       },
       "steps": [
-        {
-          "id": "policy-moves",
-          "title": "Let a runtime policy change reach published recipes",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./cmd/recipe -count=1 -run '^TestAPolicyEditLeavesPublishedRecipesServable$'",
-          "rationale": "EnsureRuntimePolicy refuses when the alias differs (internal/modelrecipe/runtime_policy.go:133-136); activation calls it (lifecycle.go:114) and so does the recipe policy repair (cmd/recipe/main.go:668). A catalog edit refuses any recipe published before it and passes one published after (measured). Tasks outside runtime_policies.json:4 never reach the check, and rollback bypasses it (rollback.go:76). The catalog last changed on 2026-08-26.\nA trained model is registered as an inactive inference candidate, which binds the alias to that binary's catalog (workflow.go:324, lifecycle.go:46-56), so a catalog edit between training and activation refuses it. The refusal corrupts nothing, but close-the-loop needs this repaired.\nVerification reads the catalog while serving reads the alias (loaded_program.go:79,157), so it can prove a policy nothing serves. Since run-from-files a not-verified model serves from the catalog (derived_program.go:83), and ResolveCandidateGGUF has no store and three callers (loaded_program.go:131-136).\nThe repair moves the alias with a recorded reason, and verification reads the alias.\nServes: failure-rate, and proof of what is served.\nDisappears: a second policy source in verification.\nEvidence: a fixture catalog edit that binds a different policy.\nBatch: host lane."
-        },
         {
           "id": "ordinal-guard",
           "title": "Pin every profile enum's number to its name",

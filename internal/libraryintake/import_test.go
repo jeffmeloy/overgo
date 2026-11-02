@@ -62,39 +62,9 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 }
 
 // TestARegisteredDirectoryRunsUnderItsRegisteredIdentity: a directory the view serves is the one model whether it is
-// registered or run, so the catalog lists it once.
+// registered, validated or run, so the catalog lists it once. It has no generation source, and validates under the recipe
+// it registers by, as a trained model's directory must to have its measurement.
 func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
-	t.Parallel()
-	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
-		t.Fatal(err)
-	}
-	directory := testutil.Qwen35Directory(t)
-	receipt, err := Register(t.Context(), store, directory, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer loaded.Close()
-	identity, err := loaded.Identity()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if identity.Model != receipt["model"] {
-		t.Fatalf("ran as %v, registered as %v", identity.Model, receipt["model"])
-	}
-}
-
-// TestAViewedDirectoryValidatesAsItRegisters: a directory the view serves has no generation source, and validates under
-// the recipe it registers by, as a trained model's directory must to have its measurement.
-func TestAViewedDirectoryValidatesAsItRegisters(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
@@ -115,5 +85,17 @@ func TestAViewedDirectoryValidatesAsItRegisters(t *testing.T) {
 	}
 	if request.Recipe != receipt["recipe"] {
 		t.Fatalf("validates under %v, registers under %v", request.Recipe, receipt["recipe"])
+	}
+	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	identity, err := loaded.Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.Model != receipt["model"] {
+		t.Fatalf("ran as %v, registered as %v", identity.Model, receipt["model"])
 	}
 }

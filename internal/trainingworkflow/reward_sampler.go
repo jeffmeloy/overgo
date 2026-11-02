@@ -72,7 +72,7 @@ func (sampler *rewardSampler) generator() (evaluation.Generator, error) {
 			return nil, err
 		}
 	}
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, definition, candidate.Resolved, candidate.Inventory.Claim)
+	loaded, err := modelrecipe.ResolveCandidateGGUF(session.ctx, session.request.Repository, path, definition, candidate.Resolved, candidate.Inventory.Claim)
 	if err != nil {
 		return nil, err
 	}

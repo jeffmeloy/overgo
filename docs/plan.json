@@ -153,10 +153,31 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1759,
+        "nodes": 2019,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
+        {
+          "id": "draft-trunk",
+          "title": "Verify a draft only over a verified trunk",
+          "status": "open",
+          "verify": "go test ./internal/libraryintake -count=1 -run '^TestADraftVerifiesOnlyOverAVerifiedTrunk$'",
+          "rationale": "validateDraft relied on the loader's refusal, which is gone: it resolves an unverified trunk (internal/libraryintake/intake.go:320) and can activate the speculation recipe at recipe.EvidenceVerified (:363), reachable through cmd/validate/draft.go:26, and ActivateCapability never looks at the trunk (internal/modelrecipe/lifecycle.go:94-148). Refuse on the loaded program's state before the runner opens, so the test needs no device.\nServes: the verified tier means what it says.\nDisappears: nothing.\nEvidence: its test.\nBatch: recipe lane."
+        },
+        {
+          "id": "keep-recipe",
+          "title": "Run a broken model on the recipe its alias names",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestABrokenVerificationKeepsItsRecipe$'",
+          "rationale": "Where evidence fails, the loader drops a readable tuned recipe for the default one (internal/modelrecipe/loaded_program.go:71-76, reproduced), though the row says a recipe that stands wins. Tuned paths such as Flash-Next lose most. Keep the recipe the alias names whenever it can be read; derive only when it cannot.\nDecided by recommendation: a failed store read says nothing about verification, so it refuses. ReadModelState maps every non-cancel error to a state (model_state.go:44-45), and an injected read failure turned a verified standing recipe into 'verification broken' and swapped the program (reproduced).\nServes: first-output, throughput and memory for tuned models.\nDisappears: nothing.\nEvidence: a tuned recipe with broken evidence runs as itself, state shown, and an unreadable store refuses.\nBatch: recipe lane."
+        },
+        {
+          "id": "record-identity",
+          "title": "Record a run of a model the store does not hold",
+          "status": "open",
+          "verify": "go test ./internal/modelcli -count=1 -run '^TestAServedOpenRegistersWhatItsRecordsNeed$'",
+          "rationale": "A derived run of a model the store lacks leaves no record: runrecord.PublishServingObservation answers 'lineage parent is unknown' (reproduced; internal/runrecord/serving_observation.go:147-148, internal/overgodb/facets.go:322-323), because bindDerived publishes nothing (internal/modelrecipe/derived_program.go:15-17). The server counts the failure and returns an empty id with no event (internal/server/serving_observation.go:79-85), so the attempt, its failure-rate count and the finding a failed attempt parks all vanish. cmd/evaluate refuses with the same raw store error before asking a case (internal/evaluation/multiple_choice.go:243), which is not one of the refusals SQA-283 keeps. So this row's closure, a run record that states 'not verified', cannot pass until this lands.\nDecided by recommendation: where a derived program's recipe is absent, register its facts and candidate after a successful open through modelintake.RegisterCandidate, as a candidate only, taking the writer then and best-effort as publishDraftVerdict does (internal/modelcli/draft_verdict.go:111), and add its memo row so the next open claims instead of hashing. Nothing records the identity today, so 'hashes on its first open' is every open, and cmd/server hashes an unknown file twice at start (cmd/server/main.go:255,297).\nServes: failure-rate and setup-steps for models that run from their files.\nDisappears: the repeated hash of a known file.\nEvidence: its test, an attempt recorded on a file the store had never seen.\nBatch: recipe lane, before catalog-states."
+        },
         {
           "id": "run-carries-state",
           "title": "Carry a model's state on the chat response and the run record",
@@ -165,25 +186,46 @@
           "rationale": "SQA-283 (3) and its first closure criterion: the state reaches the chat response and the run record, beside the evidence tier. Runner.ModelState holds it from derive-gguf; nothing past the standard error reads it yet.\nServes: a client and a later reader know what they are reading came from a model nothing verified.\nDisappears: nothing.\nEvidence: its test over one chat response and its record.\nBatch: serving lane."
         },
         {
+          "id": "record-state",
+          "title": "Carry a model's state on every record of its run",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestAnAttemptCarriesItsModelsState$'",
+          "rationale": "Runner.ModelState() reaches stderr alone (internal/modelcli/model.go:207). The evidence tier catalog-states names is in no response or record: Runner.EvidenceTier() has only a test consumer. Add an omitzero state to ServingObservation so old identities hold, and set it from the server, cmd/evaluate's campaign and cmd/benchmark. A derived recipe is the same artifact as the default candidate (reproduced), so every record keyed by recipe cannot otherwise tell an unverified run from a verified one.\nServes: every cell, which can then say what it measured.\nDisappears: Runner.EvidenceTier.\nEvidence: its test.\nBatch: serving lane, with catalog-states."
+        },
+        {
           "id": "training-opens",
           "title": "Open training on a derived recipe and record the state on its run",
           "status": "open",
           "verify": "go test ./internal/server -count=1 -run '^TestTrainingOpensOnADerivedRecipe$'",
-          "rationale": "SQA-283 (5): the server's training workspace opens the way the loader now does; cmd/train's -bootstrap-recipe already does this for one case, so read it first and fold it in rather than beside it.\nServes: a model on disk trains without a recipe published first.\nDisappears: the active-recipe requirement of the training workspace.\nEvidence: its test.\nBatch: training lane."
+          "rationale": "SQA-283 (5): the server's training workspace opens the way the loader now does; cmd/train's -bootstrap-recipe already does this for one case, so read it first and fold it in rather than beside it.\nServes: a model on disk trains without a recipe published first.\nDisappears: the active-recipe requirement of the training workspace.\nEvidence: its test.\nBatch: training lane.\n\nRead at 73b2d1401: cmd/train already bootstraps a recipe at each route's start, and the server's conversation fine-tuning trains with none. What is left is that a server started with -training on a model with no active training recipe exits at startup, and that no run records the model's state."
         },
         {
           "id": "named-refusals",
           "title": "Refuse a run only for what it cannot run without, and name it",
           "status": "open",
           "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOnlyMissingPartsRefuseARun$'",
-          "rationale": "SQA-283 (6): the refusals left are weights missing or not matching their recorded hash, an architecture with no prototype, and an absent remote key, each naming what is missing. Verification and activation stay; neither gates a run.\nServes: a refusal says what to fix.\nDisappears: whatever refusal remains that the owner's rule does not keep.\nEvidence: its test over each refusal, and a broken verification running.\nBatch: recipe lane."
+          "rationale": "SQA-283 (6): the refusals left are weights missing or not matching their recorded hash, an architecture with no prototype, and an absent remote key, each naming what is missing. Verification and activation stay; neither gates a run.\nDecided by recommendation: refuse only where an activation's own location now holds other bytes, naming both digests, and run a merely remembered path with a reason. internal/modelcli/open_claimed_test.go:188-198 asserts replaced bytes run, against this step, and changes with it. Only llama, qwen2 and qwen3_5 map from a directory, 3 of 137 prototypes, so a closure of 'an architecture with no prototype' must also name a prototype with no directory mapping; funding more mappings, and media tasks, which still need an active recipe, are rows of their own. Pass the context to loadGGUFFacts (internal/modelrecipe/loaded_program.go:203,212), since the loader's hash ignores cancellation. Delete the dead check at derived_program.go:71-74.\nServes: a refusal says what to fix.\nDisappears: whatever refusal remains that the owner's rule does not keep.\nEvidence: its test over each refusal, and a broken verification running.\nBatch: recipe lane."
+        },
+        {
+          "id": "refusal-reason",
+          "title": "Say why a model reads not verified",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestARefusedRecipeSaysWhyItIsNotVerified$'",
+          "rationale": "A recipe the store refused, for example 'kernel parity failed', reads 'not verified' with no reason and is the program that runs (reproduced). Read RecipeEligibility (internal/modelrecipe/lifecycle.go:825-854) on the derived recipe in bindDerived and carry the refusal as the state's reason.\nServes: a person sees a recorded failure before trusting the output.\nDisappears: nothing.\nEvidence: its test.\nBatch: recipe lane."
+        },
+        {
+          "id": "directory-identity",
+          "title": "Give a directory one identity",
+          "status": "open",
+          "verify": "go test ./internal/libraryintake -count=1 -run '^TestARegisteredDirectoryRunsUnderItsRegisteredIdentity$'",
+          "rationale": "Library registration publishes the HF inventory (internal/libraryintake/intake.go:177-184) and the run identifies the view (internal/modelartifact/inventory.go:221-255), and they differ for all three types (reproduced). A directory registered from the library therefore runs as a model the store has never seen, and catalog-states would list it twice. For a directory hfconvert.Viewed reads, register through PrepareInferenceCandidate, as a GGUF does.\nServes: setup-steps; a registered model keeps its identity at run.\nDisappears: the structural-only branch for viewed directories.\nEvidence: its test.\nBatch: recipe lane."
         },
         {
           "id": "scorecard-label",
           "title": "Label a scorecard reading from a model that is not verified",
           "status": "open",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestAReadingFromAnUnverifiedModelSaysSo$'",
-          "rationale": "SQA-283, closure: a reading from a model that is not verified says so, so opening the door does not soften what the scorecard claims.\nServes: the scorecard stays truthful about what was measured.\nDisappears: nothing.\nEvidence: its test.\nBatch: scorecard lane."
+          "rationale": "A model nothing verified has no row, so the reading this step first named does not exist there (internal/scorecard/scorecard.go:311-317, reproduced). Two routes carry an unverified reading into a verified row, both reproduced: an attempt made while a candidate becomes that row's first output once the recipe activates, since serving is keyed by recipe (:370,803), and a row whose activation is stale, which Build never reads. Held-out readings take the same path: results land in EvaluationsByRecipe (:375), and a verdict's base reading is credited to every served recipe of the model (:1092-1094).\nRead the state from record-state, keep an attempt out of a verified row's cells unless it was verified when it ran, and show capability.Stale on the row. Whether never-verified models get rows is catalog-states'.\nServes: the scorecard stays truthful about what was measured.\nDisappears: nothing.\nEvidence: the three cases as a table.\nBatch: scorecard lane."
         },
         {
           "id": "do",
@@ -209,28 +251,28 @@
           "title": "Render any line ending without locking up the tab",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserMarkdownLineEnds'",
-          "rationale": "Reproduced on 2026-11-01 with the real md.js in Node. For '# Title\\r' the heading pattern does not match (.* refuses a carriage return, internal/server/webui/md.js:166) but the paragraph guard does (md.js:190-191), so the position never advances: 2.3 million nodes in 1.5 seconds. A code fence and U+2028 do the same.\nmd() normalizes CR, CRLF, U+2028 and U+2029 at its top, and the paragraph branch always advances at least one line.\nServes: failure-rate as a person meets it; a reload repeats the lock-up today.\nDisappears: nothing.\nEvidence: browser cases for each line ending.\nBatch: web interface lane."
+          "rationale": "Reproduced again at 675d61b80 with the real md.js in Node. A line that opens a heading or fence and holds CR, U+2028 or U+2029 after the marker matches no pattern (internal/server/webui/md.js:149,166), while the paragraph guard accepts it (md.js:190-191), so the position never advances: 5 million nodes in 1.5 seconds. Plain CRLF text, lists and tables are safe. The only md() caller is composer.js:237 and a restore reaches it through mod/chat.js:1069, so a reload repeats the lock-up.\nmd() normalizes CR, CRLF, U+2028 and U+2029 at its top, and the paragraph branch always advances at least one line.\nWhile the file is open, stop an unclosed [ costing quadratic time (md.js:62,70): 160,000 of them took 7.2 s against a stub DOM, 40,000 about 0.5 s, and a model stuck repeating is a realistic source.\nServes: failure-rate as a person meets it; a reload repeats the lock-up today.\nDisappears: nothing.\nEvidence: browser cases for each line ending and for a long unclosed bracket.\nBatch: web interface lane."
         },
         {
           "id": "agent-history",
           "title": "Keep each agent's history under that agent",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserAgentSwitchMidTurn'",
-          "rationale": "selected is read before the await and again after it (internal/server/webui/mod/agent.js:131,145), and the same happens with agentPicker.value (mod/chat.js:993,998). Switching agents before a reply saves A's transcript as B's, and it goes out with B's next turn.\nCapture the agent once in a constant before the request.\nServes: correct conversations.\nDisappears: the second read.\nEvidence: a browser test that switches mid-reply.\nBatch: web interface lane."
+          "rationale": "selected is read before the await and again after it (internal/server/webui/mod/agent.js:131,145), and the same happens with agentPicker.value (mod/chat.js:993,998). Open has no busy guard (agent.js:93), so switching agents before a reply saves A's transcript as B's, and it goes out with B's next turn.\nCapture the agent once in a constant before the request.\nThe same switch hides Stop: renderChat calls setBusy(!active) during a turn (agent.js:155, composer.js:829), so Send shows and a send returns silently at agent.js:129. Keep the busy state across a switch.\nAfter a reload the picked agent's stored thread is not restored (mod/chat.js:145-150,771), so a second agent answers with no memory while the store holds its turns. Restore on a pick.\nServes: correct conversations.\nDisappears: the second read.\nEvidence: a browser test that switches mid-reply and keeps Stop.\nBatch: web interface lane."
         },
         {
           "id": "shown-errors",
           "title": "Show every error a person's action produced",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserShowsActionErrors'",
-          "rationale": "A Cancel that returns an error leaves a disabled button and no message (internal/server/webui/workflow.js:404-409), invalid tool arguments throw outside the try (composer.js:949), and a manifest read error on a Chat click shows nothing (boot.js:899,1364).\nboot.js:41 turns a non-JSON 200 into null, and boot.js:257 reports any TypeError as an unreachable server.\nServes: a person can tell what went wrong.\nDisappears: nothing.\nEvidence: the existing stubs extended to workflow Cancel.\nBatch: web interface lane."
+          "rationale": "A Cancel that returns an error leaves a disabled button until the operation ends and no message (internal/server/webui/workflow.js:417-422,454), and evaluation Cancel has the same fault with no try (mod/evaluations.js:114-116). Invalid tool arguments throw outside the try (composer.js:928,951,955), Execute and Approve have no catch (composer.js:970-971), and a manifest read error on a Chat click shows nothing (boot.js:904,1371,939,1384).\nboot.js:41 turns a non-JSON 200 into null, and boot.js:257 reports any TypeError as an unreachable server, including a bug in the page's own code (reproduced with the real readJSON and friendlyError).\nMark fetch failures once in tracked (boot.js:57-60) rather than reading err.name at :257, since browsers word that TypeError differently. readJSON keeps an empty body as null.\nServes: a person can tell what went wrong.\nDisappears: nothing.\nEvidence: the existing stubs extended to workflow and evaluation Cancel.\nBatch: web interface lane."
         },
         {
           "id": "render-cost",
           "title": "Bound what a long session costs the browser",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserLongSessionStaysBounded'",
-          "rationale": "Reported by the review, unmeasured: tool output grows through textContent += with a scroll per piece (composer.js:306-307), restore renders each message twice (mod/chat.js:1069,1073), the chat DOM has no cap, and each operation event aborts the previous detail read (operations_shell.js:242,315) where mod/inbox.js:60-64 keeps one read and one queued.\nMeasure first on a long conversation, then append nodes, render once, cap the live DOM and reuse the inbox's pattern.\nServes: browser memory and responsiveness in long sessions.\nDisappears: the double render.\nEvidence: DOM node count and heap before and after, one long-conversation fixture.\nBatch: web interface lane."
+          "rationale": "Reported by the review, unmeasured: tool output grows through textContent += with a scroll per piece (composer.js:307-308), restore renders each message twice (mod/chat.js:1069,1073), the chat DOM has no cap, and each operation event aborts the previous detail read (operations_shell.js:242,309,315) where mod/inbox.js:60-64 keeps one read and one queued.\nTool output is bounded at 64 MiB (internal/artifact/content.go:11), and only mod/chat.js:768 passes subscribe, so the Agent tab never streams it.\nMeasure first on a long conversation. Then use scrollSoon (composer.js:229), which fixed this class for tokens, set the response fields before the first render so the second goes (chat.js:1073 exists to draw the head), cap the live DOM and reuse the inbox's pattern.\nServes: browser memory and responsiveness in long sessions.\nDisappears: the double render.\nEvidence: DOM node count and heap before and after, one long-conversation fixture.\nBatch: web interface lane."
         }
       ]
     },
@@ -240,8 +282,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
-        "reason": "Estimate. Corrections inside existing owners; one shared address list replaces two."
+        "nodes": 800,
+        "reason": "Estimate after the 675d61b80 recheck: agent-attempts 120, child-exit 220, provider-listing 150, one-address-list 110, public-routes 50, session-list 150. The row's filed 500 did not hold the wider fixes."
       },
       "steps": [
         {
@@ -249,85 +291,111 @@
           "title": "Notice a model server that exited",
           "status": "open",
           "verify": "go test ./internal/modelswap -count=1 -run '^(TestAnExitedChildIsLaunchedAgain|TestStatusAnswersDuringALoad)$'",
-          "rationale": "Process has no liveness (internal/modelswap/supervisor.go:25-32), and an exited child stays current (:147-149), so the proxy answers 502 until a different model is requested. Acquire also holds s.mu through Launch and Ready (:123,179-189), so Status waits for a whole load.\nThe launcher already holds the exit channel (launcher.go:153-180). Expose it, drop an exited child, and move the load outside the lock.\nServes: failure-rate and load-time.\nDisappears: a restart by hand after a device fault.\nEvidence: a fake process that exits, and one that loads slowly.\nBatch: serving lane."
+          "rationale": "Process has no liveness (internal/modelswap/supervisor.go:25-32), and an exited child stays current (:147-149), so the proxy answers 502 until a different model is requested, or until the idle timer if -idle is set (default 0, cmd/swap/main.go:41). Acquire also holds s.mu through Launch and Ready (:123,179-189), so Status waits for a whole load. Both reproduced.\nThe launcher holds the exit channel (launcher.go:153-180), which carries one value then closes and has two readers (:196,233). Expose it, drop an exited child, and move the load outside the lock.\nThe plain fix alone is wrong: with the load outside the lock Status answers false during a load, routeServable returns errNothingServes (proxy.go:249-255), and a model-less request reaches the idle shell (proxy.go:126-130) instead of queuing. Status reports the loading servable. Close stops a child that finishes after it, and a second Acquire queues rather than launches.\nServes: failure-rate and load-time.\nDisappears: a restart by hand after a device fault.\nEvidence: a fake process that exits, one that loads slowly, and a request during the load.\nBatch: serving lane."
         },
         {
           "id": "agent-attempts",
-          "title": "Let an agent step be attempted again after an error",
+          "title": "Let an agent step be attempted again after an error or a restart",
           "status": "open",
-          "verify": "go test ./internal/agentloop -count=1 -run '^(TestAToolErrorLeavesTheSessionUsable|TestACancelledMutationClosesItsReceipt)$'",
-          "rationale": "Steps advances only on success (internal/agentloop/coordinator.go:214-221), so the next try reuses callID (:150) with attempt fixed at the first ordinal (:549-550) and a moved head (:528), and internal/runrecord/attempt_stimulus.go:85-89 refuses it. One tool error stops the session, across restarts.\nGive each attempt its own ordinal.\nReceipts close on the request context (coordinator.go:209,217) and the store refuses a cancelled one (internal/overgodb/store.go:596), so a disconnect leaves a finished mutation marked running. Use WithoutCancel, as :199 already does.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: a tool that returns an error, then succeeds.\nBatch: serving lane."
+          "verify": "go test ./internal/agentloop ./internal/server -count=1 -run '^(TestAToolErrorLeavesTheSessionUsable|TestACancelledMutationClosesItsReceipt|TestAMutationAfterARestartRuns)$'",
+          "rationale": "Three ways stop a session for good, and two are reproduced at 675d61b80.\nA mutation after a restart: agent_workspace.go:126 runs ApproveMutation before :137 sets session.Ceiling, and RestoreSession restores none (internal/agentloop/coordinator.go:241), so :552 writes the serving recipe and :404 compares the agent definition. Inspect, restart or swap, then approve: 'preflight binds different action facts', then 'attempt stimulus boundary already differs' for good. Set the ceiling first, inside the session lock, since :137 is also written outside it against the read at coordinator.go:558.\nA tool error: Steps advances only on success (coordinator.go:214-221), so the next try reuses callID (:150) at a fixed ordinal and a moved head (:528), and internal/runrecord/attempt_stimulus.go:85-89 refuses it. The ordinal is fixed at five sites (coordinator.go:394,477,549,584,615). A restored session must find its next ordinal from the store, since a counter on Session is lost.\nA refused approved step: coordinator.go:347 publishes before :130 refuses, since ApproveMutation has no manuals check, so a mutation outside the agent's manuals takes the ordinal. The page's list prevents this, the API does not.\nReceipts close on the request context (coordinator.go:192,209,217) and the store refuses a cancelled one (internal/overgodb/store.go:628), so a disconnect leaves a finished mutation marked running. Use WithoutCancel, as :199 already does.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: a tool that returns an error then succeeds, a restored session approving a mutation, and a cancelled request.\nBatch: serving lane."
         },
         {
           "id": "provider-listing",
-          "title": "Send provider keys only to the provider that declared them",
+          "title": "Send a provider key only to the endpoint it was declared for",
           "status": "open",
-          "verify": "go test ./internal/server ./internal/providerintake -count=1 -run 'ProviderListing'",
-          "rationale": "GET /library/providers/models takes a caller's endpoint and environment variable name (internal/server/library_workspace.go:295-304) and sends the value as a bearer token (internal/remoterelay/listing.go:47) with no check (internal/providerintake/intake.go:51-52). A local client or key holder can send OVERGO_HF_TOKEN anywhere.\nA listing names a declared provider, or carries the new key in its body.\nServes: keys stay with their provider.\nDisappears: arbitrary environment reads.\nEvidence: a refused undeclared pair.\nBatch: serving lane."
+          "verify": "go test ./internal/server -count=1 -run '^TestAProviderKeyGoesOnlyToItsDeclaredEndpoint$'",
+          "rationale": "GET /library/providers/models takes a caller's endpoint and environment variable name (internal/server/library_workspace.go:295-304) and sends the value as a bearer token (internal/remoterelay/listing.go:47). A cross-site request is refused (library_workspace.go:291), so what remains is a local client or a key holder sending OVERGO_HF_TOKEN anywhere.\nChecking only the listing does not close this: /library/register with kind provider takes the same caller-chosen pair (mod/discovery.js:197, library_workspace.go:236), canonicalize requires only a non-empty name (remoteprovider/provider.go:75), and the relay then sends the value (remoterelay/generator.go:152).\nBind a variable to one endpoint at declaration, and refuse the server's own secrets, on both routes. The page lists before declaring (discovery.js:203-206), so a new key goes in a POST body with a field on the page. Four tests use undeclared pairs and change (library_listing_test.go:17, idle_shell_test.go:218, library_provider_models_cross_site_test.go:28,35).\nServes: keys stay with their provider.\nDisappears: arbitrary environment reads.\nEvidence: a refused undeclared pair on both routes.\nBatch: serving lane."
         },
         {
           "id": "one-address-list",
           "title": "Keep one list of refused addresses and a bounded tool environment",
           "status": "open",
-          "verify": "go test ./internal/agenttool ./internal/server -count=1 -run 'Address|ToolEnvironment'",
-          "rationale": "internal/agenttool/security.go:26-29 lacks 100.64/10, 198.18/15, 0/8 and 64:ff9b::/96, which internal/server/media_policy.go:372-385 refuses. One list serves both.\nArgv tools inherit the whole environment (internal/agenttool/transport.go:197-202), provider keys included. The manual names what a tool receives.\nServes: the agent boundary README states.\nDisappears: privateAddress and its copy of the rule.\nEvidence: one table over both callers.\nBatch: serving lane."
+          "verify": "go test ./internal/agenttool -count=1 -run '^(TestOneRefusedAddressList|TestAToolReceivesOnlyWhatItsManualNames)$'",
+          "rationale": "internal/agenttool/security.go:26-29 admits 13 of the 23 prefixes internal/server/media_policy.go:372-385 refuses (measured), not the 4 first listed: 100.64/10, 198.18/15, 0/8, 64:ff9b::/96, 192.0.0/24, 192.0.2/24, 198.51.100/24, 203.0.113/24, 240/4, 100::/64, 2001::/23, 2001:db8::/32 and ff00::/8. 224.0.1.1, 239.1.1.1 and 255.255.255.255 are admitted too. One list serves both, and README.md:280-281 grows with it.\nArgv tools inherit the whole environment (internal/agenttool/transport.go:197-202, Env nil at processcontrol/supervisor.go:80,93), provider keys included. The manual names what a tool receives, over a base of named constants, since Windows programs likely need SystemRoot and PATH (hypothesis, settled by an argv tool test). A Manual field takes omitzero so existing identities hold.\nServes: the agent boundary README states.\nDisappears: privateAddress and its copy of the rule.\nEvidence: one table over both callers.\nBatch: serving lane."
         },
         {
           "id": "public-routes",
           "title": "Make the catalog route match SECURITY.md",
           "status": "open",
           "verify": "go test ./internal/server -count=1 -run '^TestCatalogTakesTheKeyAndWritesNothing$'",
-          "rationale": "SECURITY.md says every API request carries the key once one is set, yet /v1/models and /catalog/models are public (internal/server/routes.go:136), and the catalog shows disk paths and writes to the store on a GET (hub_workspace.go:51,65). A configured key also skips the shared admission (server.go:887).\nThe catalog takes the key, the memo is written off the request path, and SECURITY.md names what stays public.\nServes: a stated boundary that holds.\nDisappears: a store write on a GET.\nEvidence: the route table test.\nBatch: serving lane."
+          "rationale": "SECURITY.md says every API request carries the key once one is set, yet /v1/models and /models and /catalog/models are public (internal/server/routes.go:42,43,136), and the catalog shows disk paths and writes to the store on a GET (hub_workspace.go:51,65, discovery/memo_evidence.go:121). GET /scorecard writes the same memo (cmd/server/scorecard.go:15, scorecard.go:317). A configured key also skips the shared admission (server.go:887), though SECURITY.md:10 says one rule admits a credential-less request.\nThe catalog takes the key, the memo is written off the request path on both routes, and SECURITY.md names what stays public, the idle shell's catalog included (idle_shell.go:51). State which part of the admission applies to a keyed server, which may bind non-loopback.\ninternal/server/workspace_manifest_test.go:29-31 pins the opposite and changes here. The page already turns a 401 into a refusal under the pill (boot.js:1055).\nServes: a stated boundary that holds.\nDisappears: a store write on a GET.\nEvidence: the route table test.\nBatch: serving lane."
         },
         {
-          "id": "session-bound",
-          "title": "Bound the resident agent sessions",
+          "id": "session-list",
+          "title": "List agent sessions without restoring every one",
           "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAgentSessionsAreBounded$'",
-          "rationale": "agentSessions.get only ever adds to its map (internal/server/agent_workspace.go:36-51), though RestoreSession rebuilds a session from the store. Evict the least recently used idle session.\nServes: host memory in a long-lived server.\nDisappears: unbounded growth.\nEvidence: a count at the bound and a restored session answering after eviction.\nBatch: serving lane."
+          "verify": "go test ./internal/server -count=1 -run '^TestListingAgentSessionsRestoresNone$'",
+          "rationale": "The first GET /agents/sessions after a start restores every stored session, one at a time under the map lock (internal/server/agent_workspace.go:37,45,248-249): O(sessions times steps) store reads, and agent steps wait on that lock between restores. Read the list from the store without building sessions.\nServes: load-time of the workbench on a long-lived store.\nDisappears: the restore on a list.\nEvidence: a count of restores during a list.\nBatch: serving lane."
         }
       ]
     },
     {
-      "id": "device-numerics",
-      "title": "Report invalid numbers on the device instead of hiding them",
+      "id": "dispatch-truth",
+      "title": "Make a decision's answer govern the rows it names",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "Estimate. Kernel source is reported and not counted; Go adds a refusal and fixtures. Output bits for finite input do not move."
+        "nodes": 120,
+        "reason": "About 60 for decision answers and 60 for a failing row, an estimate."
       },
       "steps": [
         {
-          "id": "bf16-nan",
-          "title": "Keep NaN through the BF16 pack",
+          "id": "decision-answers",
+          "title": "Run a decision's rows only under the answer they were written for",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestBF16PackKeepsNaN$'",
-          "rationale": "f32_to_bf16 has no guard (kernels/cuda/ops_f32.cu:156-158), unlike bf16_round_f32 (:430) and the host (internal/tensor/dtype/bfloat16.go:8). The GPU's default NaN 0x7FFFFFFF packs to 0x8000, which is minus zero, so a fault becomes a plausible value. strata_prompt_gr.cuh:21-25 holds the same code.\nServes: held-out-quality, by making numeric faults visible.\nDisappears: the unguarded copy, through one shared pack.\nEvidence: NaN and signalling-NaN cases on the device.\nBatch: kernel lanes, with the other kernel steps of this row in one landing."
+          "verify": "go test ./internal/plan -count=1 -run '^(TestARowRunsOnlyUnderTheAnswerItWasWrittenFor|TestADoctrineDecisionIsNeverTakenByRecommendation|TestPromptAndNextAgreeOnAnAwaitingRow)$'",
+          "rationale": "Measured on the real plan at 675d61b80. awaitingDecision tests only that an answer exists (internal/plan/dispatch.go:273), so answering 'Keep activation by hand' still dispatched the promotion row. With no answer, once no other row is ready byRecommendation takes the option (:234,258-262), the note is left out of a worker's prompt (cmd/plan/main.go:587-600), and landing and plan.Advance read no decisions (internal/landing/landing.go:400-449, internal/plan/plan.go:487-533). skill.md:118 tells the row to go on, so the recommended path rewrites 'never a promotion' with no answer given.\nA decision that changes a standing rule is never taken by recommendation: add a field for that, set it on gated-promotion, and let dispatch report the row as waiting. A row whose decision was answered another way is passed over until it is rewritten or retired. Also: plan -prompt says not ready for a row plan -next dispatches (dispatch.go:226-228 before :234), and one row reports every decision as taken, including ones that do not block it (:239,258-262).\nServes: the owner's answer and doctrine hold.\nDisappears: nothing.\nEvidence: a table of answered, unanswered and doctrine decisions.\nBatch: host lane."
         },
         {
-          "id": "attention-nan",
-          "title": "Give attention one rule for NaN",
+          "id": "failing-row",
+          "title": "Pass over a row that keeps failing",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAttentionWritesEveryRowOnNaN$'",
-          "rationale": "BF16 attention writes a row only if sum_row \u003e 0 (ops_f32.cu:7111,12458), so a NaN sum leaves the buffer's previous contents; attention_tiled_f32 writes NaN and strata_attn_merge writes 0.\nEvery path writes the row and keeps the NaN.\nServes: no stale values reaching the output.\nDisappears: two of three policies.\nEvidence: one planted NaN channel per path.\nBatch: kernel lanes."
+          "verify": "go test ./internal/loop -count=1 -run '^TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt$'",
+          "rationale": "Dispatch has no parked state: a ready row that keeps failing parks and ends the run (internal/loop/driver.go:201-209), and the next start dispatches it again (internal/plan/dispatch.go:219-225), so nothing behind it runs. Of 67 open steps, 61 stood ahead of the rows awaiting decisions, so the rows that serve the system's purpose can starve. Record a parked row in state a commit clears, and report it once.\nServes: unattended runtime.\nDisappears: nothing.\nEvidence: a world with one failing row and one ready row behind it.\nBatch: loop lane."
+        }
+      ]
+    },
+    {
+      "id": "commit-rules",
+      "title": "Make the commit rules hold for every harness and spend fewer commits",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
+      },
+      "steps": [
+        {
+          "id": "merge-exemption",
+          "title": "Remove the raw commit exemption during a merge",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestARawCommitDuringAMergeIsRefused$'",
+          "rationale": "internal/guard/guard.go:278 allows raw git commit while MERGE_HEAD exists, and its comment (:327-330) says a merge cannot go through the gate. Merges do (skill.md:117, internal/landing/landing.go:302-325). The first check, TestGuardCorpus, passes today, so it proved nothing.\nThe guard's Bash rule names only git commit (:60): cherry-pick, merge --no-edit, revert, rebase and update-ref pass with no merge in progress (measured); commit-rules/git-hook closes those. OVERGO_COMMIT_GATE has no production writer, so its branch is dead (guard.go:31-33,278).\nServes: no unchecked commit.\nDisappears: mergeInProgress, about 36 lines, and GateEnv.\nEvidence: the corpus case reversed.\nBatch: host lane."
         },
         {
-          "id": "round-sampling",
-          "title": "Refuse what the device sampler cannot honor",
+          "id": "git-hook",
+          "title": "Refuse a raw move of the trunk in Git itself",
           "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestStrataSamplingRefusesWhatItCannotHonor$'",
-          "rationale": "Extends sqa-served/sampler-chain, which owns chain order. strata_sampler.cuh:153-157 ignores min_keep, top_p of 0 disables the filter where the host keeps one token (internal/inference/strata_round_generate.go:85-87), and typical_p of 0 passes (:67). Each goes to the host path.\nA NaN or infinite row must return an error as the host does (internal/sampling/sampler.go:385-388); the device returns a token and the loop never checks (strata_round_generate.go:321-332). Read a finite flag from the kernel's own top-k maximum, so no new per-token read is needed.\nServes: a request gets the distribution it declared.\nDisappears: nothing.\nEvidence: a host table and one device row of NaN.\nBatch: serving and kernel lanes.",
+          "verify": "go test ./internal/landing -count=1 -run '^TestOnlyALandingMovesTheTrunkInGit$'",
+          "rationale": "The guard is a Claude Code hook, and a non-Claude worker has only convention (cmd/loop/main.go:1-5,366-375). Since 2026-10-15 first-parent history holds 122 commits outside it, all touching only docs/sqa_findings.json, and 62 more with code came on codex/overgo_moss through the gated merge ddf213036: the row's own case.\nA pre-commit hook is too weak. In a scratch repository on git 2.51.0, core.hooksPath pre-commit stopped plain git commit alone: --no-verify, merge --no-ff, cherry-pick, revert, rebase, update-ref and am all moved HEAD (measured). A reference-transaction hook refused all of them on main with exit 128, --no-verify included, passed a marked landing and passed other branches (measured). Use that, and let it pass register-only commits. Landings use commit-tree (internal/landing/landing.go:751).\n.gitattributes holds no LFS filter, so core.hooksPath costs nothing there. Nothing in a checkout sets it and a fixture cannot prove the live repository has it, so a landing checks the setting.\nServes: the gate as the one code path, for any worker.\nDisappears: nothing.\nEvidence: a fixture repository, each verb refused.\nBatch: host lane."
+        },
+        {
+          "id": "terms-visible",
+          "title": "Show every change to a row's check or count",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAChangedCheckOrCountIsWrittenInTheCommit$'",
+          "rationale": "A plan-only commit runs only the check (internal/landing/landing.go:216-218) and is judged by the plan it carries (:410), so acceptance is frozen for one commit. A change can raise its own count (landing.go:468, rules.go:61), which contradicts skill.md:39,149.\nA landing writes each old and new check and count as trailers, and the doctrine says what the count is: a declared estimate, reported, not a limit.\nServes: an honest record; bold changes stay allowed.\nDisappears: a sentence of doctrine that does not hold.\nEvidence: a planted weakened check appears in the message.\nBatch: host lane."
+        },
+        {
+          "id": "row-with-work",
+          "title": "Let a new row land with its own work",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestANewRowLandsWithItsWork$'",
+          "rationale": "Of the last 600 master commits, 235 touch Go and 258 change only the plan, 43 percent, because a row must exist before its work (internal/landing/landing.go:441) and each count raise is a commit.\nA row new in the change lands with it, judged by its own check, which must fail on the commit it builds on. That keeps the proof a frozen check gave.\nPredicted: plan-only commits under 20 percent.\nServes: development velocity.\nDisappears: carrier commits and the patch-aside recipe.\nEvidence: the share over the next 200 commits.\nBatch: host lane.",
           "depends_on": [
-            "sqa-served/sampler-chain"
+            "commit-rules/terms-visible"
           ]
-        },
-        {
-          "id": "aligned-read",
-          "title": "Stop reading past a tensor, and read an aligned word once",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestQuantizedReadsStayInsideTheirTensor$'",
-          "rationale": "load_i32_unaligned always loads aligned[1] (ops_f32.cu:67-73; the compiled code holds both loads), so at a tensor's last word it reads 4 bytes past. Q4_K [4096, 16384] is exactly 36 MiB, and a device fault needs only an unmapped next address.\nLoad the second word only when the address is unaligned, or use an aligned load where the offset is known aligned.\nDecode reads are this code's main cost, so time the product kernels in a fixture before and after: hypothesis, half the loads where the input is aligned.\nServes: throughput, and no read outside an allocation.\nDisappears: one load per word on aligned input.\nEvidence: a tensor ending at an allocation boundary, and the fixture's rate at unchanged bits.\nBatch: kernel lanes."
         }
       ]
     },
@@ -346,21 +414,64 @@
           "title": "Derive kernel source dependencies from the includes",
           "status": "open",
           "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestEveryIncludedKernelSourceIsPinned$'",
-          "rationale": "strata_prompt_gr.cuh is included at kernels/cuda/strata_qsa.cu:1680 and absent from kernels/manifest.json, so editing it leaves TestKernelManifestIsCurrent green on stale compiled code. Dependencies are hand-listed (cmd/kernel-manifest/main.go:138-159).\nServes: a kernel change cannot pass unbuilt.\nDisappears: the hand-kept list.\nEvidence: a planted include missing from the manifest.\nBatch: host lane."
+          "rationale": "strata_prompt_gr.cuh is included at kernels/cuda/strata_qsa.cu:1680 and absent from kernels/manifest.json, the only one of 16 project headers missing, so editing it leaves TestKernelManifestIsCurrent green on stale compiled code. Dependencies are hand-listed (cmd/kernel-manifest/main.go:138-159). SBOM.cdx.json reads the manifest and misses it too, so the landing regenerates it.\nServes: a kernel change cannot pass unbuilt.\nDisappears: the hand-kept list.\nEvidence: a planted include missing from the manifest.\nBatch: host lane; before every kernel step."
         },
         {
           "id": "toolchain-pin",
           "title": "Compare the recorded toolchain with the compiled code",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest ./cmd/build-kernels -count=1 -run 'Toolchain'",
+          "verify": "go test ./cmd/kernel-manifest ./cmd/build-kernels -count=1 -run '^(TestRecordedToolchainMatchesCompiledCode|TestBuildFlagsMatchTheManifest)$'",
           "rationale": "cudaToolkit, nvcc and compilerFlags are parsed and never compared (cmd/kernel-manifest/main.go:31-34), and -update hashes whatever PTX it finds (:132-134). Line 5 of each PTX names its compiler. Compare it, and compare build-kernels' flag table with the manifest.\nkernels/README.md:46-50 contradicts README:9 on who writes the pins; correct it.\nServes: reproducible builds.\nDisappears: a record nothing reads.\nEvidence: a PTX header naming another release.\nBatch: host lane."
         },
         {
           "id": "launch-widths",
           "title": "Check argument widths, not only counts",
           "status": "open",
-          "verify": "go test ./cmd/kernel-bindings ./internal/cuda/executor -count=1 -run 'ArgumentWidth'",
-          "rationale": "Bindings keep parameter counts (cmd/kernel-bindings/main.go:189) and launches take any (internal/cuda/executor/fallback.go:93-104), so a *uint32 at a .u64 slot passes; seven launch paths skip even counts. An audit of 191 launch sites found no live mismatch, so this is prevention, ranked after the repairs.\nServes: an ABI slip is found at test time.\nDisappears: the seven unchecked paths.\nEvidence: a planted wrong width.\nBatch: host lane."
+          "verify": "go test ./cmd/kernel-bindings ./internal/cuda/executor -count=1 -run '^(TestBindingsRecordArgumentWidths|TestAWrongArgumentWidthIsRefused)$'",
+          "rationale": "Bindings keep parameter counts (cmd/kernel-bindings/main.go:189) and launches take any (internal/cuda/executor/fallback.go:93-104, count check :168), so a *uint32 at a .u64 slot passes. Seven paths skip even counts (vector_add.go:91, cuda_scope_windows.go:296, gated_delta_net_cuda_windows.go:91, layer_resident_ops_cuda_windows.go:143, vae_session.go:217, newton_schulz_cuda_windows.go:167, stream_cuda_windows.go:76).\nThose paths take []unsafe.Pointer, so a width is invisible there: closing them retypes about 51 call sites, MOSS's trainer included, and touches device lanes. An audit of 191 launch sites found no live mismatch, so this is prevention. Take the host check first; retype the seven paths only as their files open for other work.\nServes: an ABI slip is found at test time.\nDisappears: the seven unchecked paths, over time.\nEvidence: a planted wrong width.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "device-numerics",
+      "title": "Report invalid numbers on the device instead of hiding them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Estimate. Kernel source is reported and not counted; Go adds a refusal and fixtures. Output bits for finite input do not move."
+      },
+      "steps": [
+        {
+          "id": "bf16-nan",
+          "title": "Keep NaN through the BF16 pack",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestBF16PackKeepsNaN$'",
+          "rationale": "f32_to_bf16 has no guard (kernels/cuda/ops_f32.cu:156-158), unlike bf16_round_f32 (:430). The GPU's default NaN 0x7FFFFFFF packs to 0x8000, which is minus zero, and 0xFFFFFFFF to 0x0000, so a fault becomes a plausible value. strata_prompt_gr.cuh:21-25 holds the same code.\nDo not copy the host's guard: Float32ToBF16 packs 0x7F800001, 0x7F80FFFF and 0xFF800001 to an infinity (internal/tensor/dtype/bfloat16.go:8-11, measured). The pack must force a mantissa bit, on the device and on the host.\ncmd/kernel-manifest/main.go:143-146 refuses a dependency listed under two modules, and ops_f32.cu and strata_qsa.cu are separate modules, so one shared header needs that rule changed; otherwise keep one pack a module with a test that holds them equal. Land after kernel-proof/include-scan, because strata_prompt_gr.cuh is pinned by nothing until then.\nServes: held-out-quality, by making numeric faults visible.\nDisappears: the unguarded copy.\nEvidence: NaN and signalling-NaN cases on the device and the host.\nBatch: kernel lanes, with the other kernel steps of this row in one landing.",
+          "depends_on": [
+            "kernel-proof/include-scan"
+          ]
+        },
+        {
+          "id": "attention-nan",
+          "title": "Give attention one rule for NaN",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAttentionWritesEveryRowOnNaN$'",
+          "rationale": "A NaN sum meets five behaviours, not three. Skip, leaving the buffer's contents: attention_native_bf16_f32 and attention_tiled_bf16_f32 (ops_f32.cu:7200,12547; compiled setp.leu at ops_f32.ptx:68898,218646). Write NaN: attention_tiled_f32 (:6879), attention_fast_f32 (:6728). Write 0: attention_decode_combine_f32 (:6293), strata_attn_merge (strata_qsa.cu:1119). Multiply by an inverse of 0: attention_flash (:7464), strata_prompt_attn (strata_qsa.cu:1398). Leave the undivided accumulator: attention_online_finalize_f32 (:6574).\nEvery path writes the row and keeps the NaN, and a zero sum keeps its zero-division guard. ops_f32 is built with fast math, so the test reads bits, as strata_round_elementwise.cuh:241 says. Whether an output buffer is zero-filled before launch was not checked.\nServes: no stale values reaching the output.\nDisappears: four of five behaviours.\nEvidence: one planted NaN channel for every kernel listed.\nBatch: kernel lanes."
+        },
+        {
+          "id": "round-sampling",
+          "title": "Refuse what the device sampler cannot honor",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^(TestStrataSamplingRefusesWhatItCannotHonor|TestANonFiniteRowEndsTheRound)$'",
+          "rationale": "strata_sampler.cuh:153-157 ignores min_keep: MinP 0.1 with MinKeep 5 stays on the round, where the host keeps 5 (internal/sampling/sampler.go:834-835). top_p and typical_p of 0 pass on a named chain and differ from the host: 1 token against all 8 over 400 seeds, since internal/sampling/order.go:73-75 idles the stage on an unnamed chain, and serving always names one (runtime_policies.json:36,86, internal/server/server.go:983). The table needs both cases, and each goes to the host path (internal/inference/strata_round_generate.go:67,73-76).\nA NaN or infinite row must return an error as the host does (sampler.go:386,1180; -Inf is a legal ban there, but the device has no bias path, so a flagged -Inf is a fault). The device returns a token today, and greedy gives token 0 when every logit is NaN (strata_round_elementwise.cuh:235).\nThe check already runs and is thrown away. Each window runs strata_logits_nonfinite on bits (internal/cuda/executor/strata_round_window.go:589) into a mapped buffer (strata_round.go:223), and nothing reads r.nonfinite. Read it after the sync (strata_round_run.go:286-293). That covers greedy and sampled rows with no kernel edit and no new device read. Do not take a flag from the top-k maximum: a NaN never enters that list (strata_sampler.cuh:312-313), so a row with one NaN has a finite maximum.\nServes: a request gets the distribution it declared, and a numeric fault ends as an error.\nDisappears: an unread buffer's waste.\nEvidence: a host table and one device row of NaN.\nBatch: serving lane; no kernel change."
+        },
+        {
+          "id": "aligned-read",
+          "title": "Stop reading past a tensor, and read an aligned word once",
+          "status": "open",
+          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestAnAlignedWordLoadsOnce$'",
+          "rationale": "load_i32_unaligned always loads aligned[1] (ops_f32.cu:67-73, 14 callers from :7619 to :9729; both loads are in the compiled code, ptx:91866-91868), so at a tensor's last word it reads 4 bytes past. Each weight is its own exact-size allocation (internal/modeldevice/device_load.go:266,292), so a tensor end can be an allocation end, and Q4_K [4096, 16384] is exactly 36 MiB.\nLoad the second word only when the address is unaligned, as strata_mtp.cuh:72 does. A device test cannot force an unmapped neighbour (internal/cuda/driver has no address-reserve binding) and would pass on the unfixed kernel, so the check reads the compiled code. A device fault here is still a hypothesis.\nDecode reads are this code's main cost, so time the product kernels in a fixture before and after: hypothesis, half the loads on aligned input. Q8_0 words are aligned in odd blocks only (offset 2, stride 34).\nSQA-246 joins this step: launch_strata_native_mmvq.go:99-107 has no bound on the flattened size, the one open P3 on a production arithmetic path.\nServes: throughput, and no read outside an allocation.\nDisappears: one load per word on aligned input.\nEvidence: the compiled check, and the fixture's rate at unchanged bits.\nBatch: kernel lanes."
         }
       ]
     },
@@ -370,56 +481,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Licence records only."
+        "nodes": 60,
+        "reason": "Kernel licences in the bill are hard-coded (cmd/sbom/main.go:104-108), so naming a source needs a few lines of code."
       },
       "steps": [
         {
           "id": "notices",
           "title": "Add the notices the answer requires",
           "status": "open",
-          "verify": "go run ./cmd/sbom -check",
-          "rationale": "kernels/cuda/ops_f32.cu:1495,6490 and ops_native.cu:64 cite Torch 7661cd9c and CUTLASS da5e086d; licenses/ and SBOM.cdx.json hold no notice for either. If code was copied, BSD terms require one. The answer belongs to decision kernel-provenance.\nServes: a clean release.\nDisappears: nothing.\nEvidence: the notice files and the regenerated bill of materials.\nBatch: claims lane."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-truth",
-      "title": "Make scorecard readings say what a user would see",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 350,
-        "reason": "Estimate. Extends Reference and the serving summary; no second judge."
-      },
-      "steps": [
-        {
-          "id": "quality-level",
-          "title": "Judge a quality decline against the level the model held",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestASlowQualityDeclineIsFiledAgainstItsLevel$'",
-          "rationale": "Quality is outside repeated (internal/scorecard/record.go:278), so it is compared only with the newest reading. With no offsetting gains, five lost cases give a tail of 0.031 against pairedTail 0.0228, and Propose only prints it (cmd/loop/improve.go:292-295). The next run compares with the lower value, so a slow decline never files. Timings already guard against this (record.go:150-153).\nCompare with the best recent level and pair the cases of that reading.\nReplay the recorded scorecards first to count what it would have filed, and whether the 0.0228 test across every cell needs a family correction.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the replay and a table of slow declines.\nBatch: host lane."
-        },
-        {
-          "id": "failure-window",
-          "title": "Count failures over a window of attempts",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestFailureRateCountsTheAttemptsOfItsWindow$'",
-          "rationale": "Counting stops at the newest success (internal/scorecard/scorecard.go:808-824), so a recipe broken 9 times in 10 whose newest attempt worked reads 0. A fixed window of newest attempts shows recurrence; the size is derived from the readings a run makes.\nServes: failure-rate.\nDisappears: nothing.\nEvidence: a table of attempt histories; diff validate -scorecard before and after.\nBatch: host lane."
-        },
-        {
-          "id": "stale-quality",
-          "title": "Mark a quality reading that this run did not measure",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityCellNotMeasuredThisRunSaysSo$'",
-          "rationale": "Newest is set only on serving cells (internal/scorecard/scorecard.go:106-110), so Unmeasured (record.go:112-113) never reaches quality, and after a broken evaluation the older value reads as holding.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a record whose evaluation did not run.\nBatch: host lane."
-        },
-        {
-          "id": "video-user-size",
-          "title": "Time a video request of the size a person asks for",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./internal/scorecard -count=1 -run '^TestVideoCellsTimeAUserSizeRequest$'",
-          "rationale": "Video cells time 21 frames at 32 by 16; a person's request is 81 frames at 832 by 480, about 6 minutes, and is untimed and its device memory unrecorded (README Sample outputs).\nAdd one user-size reading per run beside the small one, as Row.Lengths does for prompts.\nServes: first-output and peak-device-memory as a video user meets them.\nDisappears: a measure that hid two days of codec work.\nEvidence: one published reading.\nBatch: validate lane; the reading runs in the cycle."
+          "verify": "go test ./cmd/sbom -count=1 -run '^TestEveryCitedKernelSourceHasANotice$'",
+          "rationale": "kernels/cuda/ops_f32.cu:1584,6579 and ops_native.cu:64 cite Torch 7661cd9c and CUTLASS da5e086d, ops_f32.cu:2366 names 'pinned Torch CUDA owners', and torch_cuda_randn.cu:1 reads 'Ported verbatim from adaptive_new'. licenses/ and SBOM.cdx.json hold no notice for either project. If code was copied, BSD terms require one. The answer belongs to decision kernel-provenance.\ngo run ./cmd/sbom -check exits 0 today (measured), so it proves nothing here; the new test reads the cited sources. Rewording a comment changes source hashes, so the manifest and bill update with it.\nServes: a clean release.\nDisappears: nothing.\nEvidence: the notice files and the regenerated bill of materials.\nBatch: claims lane."
         }
       ]
     },
@@ -429,8 +500,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
-        "reason": "Estimate. Reuses tensorstats.ExactPairedBinary and the existing charge-before-read owner."
+        "nodes": 700,
+        "reason": "Moving ConfirmOnPool and poolVerdict alone is 279 production nodes (measured with the gate's count), above the filed 250. About 700 with a reader and wiring, an estimate."
       },
       "steps": [
         {
@@ -438,210 +509,54 @@
           "title": "Require a gain the cases support",
           "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestAVerdictNeedsAGainItsCasesSupport$'",
-          "rationale": "Any strict gain passes (internal/evaluation/heldout_verdict.go:645-650), and one such verdict can approve an objective (internal/trainingworkflow/objective_promotion.go:118-132). The README's recorded gains (0.508 against 0.500, 0.729 against 0.724) cannot be told from noise this way.\nPass only on the exact paired test over cases, with a declared detectable gain, and keep the reading either way.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a gain of one case does not pass.\nBatch: evaluation lane."
+          "rationale": "Any strict gain passes (internal/evaluation/heldout_verdict.go:645-650), and one such verdict can approve an objective (internal/trainingworkflow/objective_promotion.go:119-132). README.md:154-155 records gains of 0.508 against 0.500 and 0.729 against 0.724. The records can tell these from noise: a run's gain has noise 0.0025 (docs/verification/change-proposal-qwen25-05b.txt:16), so 0.008 is about 3 noise units, and 24 of 24 runs gained 0.0100 or more (change-corpus-qwen25-05b.txt:20).\nPassed is recomputed in canonicalization from the two values at document version 2 (heldout_verdict.go:637,645-650), so a test over cases cannot live there and stored verdicts must still read. Add a separate reading, ReadHeldoutVerdict already gives record scores, or step the version. An exact binary test does not fit token accuracy, which is numeric per record, and text and preference plans keep no record scores (:152-155), so keep them. Declare the detectable gain and keep the reading either way.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a gain of one case does not pass, and a supported gain does.\nBatch: evaluation lane."
         },
         {
           "id": "charge-objective",
           "title": "Charge every held-out read",
           "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/trainingworkflow -count=1 -run 'ChargesExposure'",
-          "rationale": "Exposure is charged only through ConfirmInstruction from the pilot (internal/trainingworkflow/instruction_pilot_run.go:261). ConfirmOnPool lives in a test, train -objective charges nothing (heldout_run.go:150-209), and many changes of one base are judged on the same inputs. A set read that often stops being held out.\nThe existing owner charges before the read (internal/evaluation/heldout_confirmation.go:195-251).\nServes: held-out-quality that can be believed.\nDisappears: the test-only path.\nEvidence: a second candidate refused or charged on a spent set.\nBatch: evaluation lane."
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAnObjectiveRunChargesExposureBeforeItReads$'",
+          "rationale": "Exposure is charged only through ConfirmInstruction from the pilot (internal/trainingworkflow/instruction_pilot_run.go:261). ConfirmOnPool and poolVerdict live in a test (heldout_confirmation_test.go:227-246,254-268), and train -objective charges nothing (heldout_run.go:150-209): it reads the objective's split partner (:247-260) and holds no acceptance. No production code reads a pool's documents (heldout_pool.go:188,251 only set Sequence). The 24 records were read 24 times in an experiment copy (docs/verification/change-corpus-qwen25-05b.txt:6-9), which the real store's charges do not know.\nThe existing owner charges before the read: confirmOnPart (internal/evaluation/heldout_confirmation.go:115-220, charge :196, read :203).\nServes: held-out-quality that can be believed.\nDisappears: the test-only path.\nEvidence: a second candidate refused or charged on a spent set.\nBatch: evaluation lane."
         }
       ]
     },
     {
-      "id": "close-the-loop",
-      "title": "Let a model's own training reach what is served",
+      "id": "scorecard-truth",
+      "title": "Make scorecard readings say what a user would see",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 600,
-        "reason": "Estimate. Wires existing owners: train -objective, the verdict, ActivateCapability and rollback. No new trainer."
+        "nodes": 450,
+        "reason": "Estimate after the 675d61b80 recheck: video about 150 to 200, the other three about 60 to 120 each."
       },
       "steps": [
         {
-          "id": "training-gap",
-          "title": "File a training row where a model has a route and no verdict",
+          "id": "quality-level",
+          "title": "Judge a quality decline against the level the model held",
           "status": "open",
-          "verify": "go test ./internal/scorecard ./cmd/loop -count=1 -run '^TestAModelWithARouteAndNoVerdictBecomesATrainingRow$'",
-          "rationale": "Gaps today are declines, unmeasured cells and missing evaluations (internal/scorecard/record.go:576-584); no gap asks for training, so the loop's train arc is never taken. Cycle training is a proof of 1 to 3 steps with no verdict (cmd/validate/training_proof.go:23-36).\nA row's budget is bounded GPU-hours estimated from one measured step.\nServes: purpose: the system improves models through its own training.\nDisappears: nothing.\nEvidence: a filed row from a fixture scorecard.\nBatch: host lane."
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestASlowQualityDeclineIsFiledAgainstItsLevel$'",
+          "rationale": "Quality is outside repeated (internal/scorecard/record.go:278), so it is compared only with the newest reading (:325-343). With no offsetting gains, five lost cases give a tail of 0.03125 against pairedTail 0.02275 (record.go:832,859; six lost cases file), and Propose only prints it (cmd/loop/improve.go:292-295). The next run compares with the lower value, so a slow decline never files. Timings already guard against this (record.go:150-153,264-270).\nCompare with the best recent level and pair the cases of that reading. Non-headline qualities in row.Heldout take the same path (record.go:344-351,453), so the level covers them too, or a slow decline in a second suite still escapes.\nReplay the recorded scorecards first to count what it would have filed, and whether the 0.0228 test across every cell needs a family correction.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the replay and a table of slow declines.\nBatch: host lane."
         },
         {
-          "id": "promote",
-          "title": "Activate a trained candidate that wins on a charged set",
+          "id": "failure-window",
+          "title": "Count failures over a window of attempts",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow -count=1 -run '^TestOnlyAChargedPassingVerdictMovesTheServedModel$'",
-          "rationale": "No caller of ActivateCapability reads a verdict; a person runs recipe activate (internal/modelrecipe/lifecycle.go:94). skill.md forbids promotion, so this step needs decision gated-promotion.\nThe rule is executable: a passing, charged verdict at the served model's commit moves the alias, the predecessor stays for rollback, and the next run's cells judge it. Observer.Verify activating a training recipe on any finished run (internal/trainingworkflow/session_observation.go:323,352) stays a statement about the route, not the model.\nServes: held-out-quality improves without a person.\nDisappears: the hand activate.\nEvidence: passing, failing and uncharged verdicts.\nBatch: host lane.",
-          "depends_on": [
-            "heldout-verdict/verdict-noise",
-            "heldout-verdict/charge-objective"
-          ]
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestFailureRateCountsTheAttemptsOfItsWindow$'",
+          "rationale": "Counting stops at the newest success (internal/scorecard/scorecard.go:808-824), so a recipe broken 9 times in 10 whose newest attempt worked reads 0. A fixed window of newest attempts shows recurrence; the size is derived from the readings a run makes.\nThe present rule has a reason (:769-773): a fix closes the cell with its first success. With a window, scorecard-failing rows stay open (record.go:779, cmd/validate/scorecard.go:153-155) until failures age out, at about one attempt a cycle, and a fix could not land by its own check. So failures before the fix's commit leave the count once it passes.\nServes: failure-rate.\nDisappears: nothing.\nEvidence: a table of attempt histories, a fix closing its row, and a diff of validate -scorecard before and after.\nBatch: host lane."
         },
         {
-          "id": "first-proof",
-          "title": "Prove the whole arc on the smallest model",
+          "id": "stale-quality",
+          "title": "Mark a quality reading that this run did not measure",
           "status": "open",
-          "verify": "go test -tags modeltest,integration ./cmd/loop -count=1 -run '^TestImprovementLoopServesATrainedModel$'",
-          "rationale": "Run gap, train, verdict, activation and rollback once on Qwen2.5-0.5B, smallest first, with an expected outcome of no gain being a valid record.\nServes: evidence that the loop closes.\nDisappears: the claim that rests on separate parts.\nEvidence: one retained record.\nBatch: cycle-only model evaluation.",
-          "depends_on": [
-            "close-the-loop/promote",
-            "close-the-loop/training-gap"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "vision-bridge",
-      "title": "Test one composite model: give Qwen3.5-9B vision through a trained bridge",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 700,
-        "reason": "Estimate. Wires existing owners: representation, bridgegraph, bridgetrain, the encoder-bridge route and the ProductionComposition prototypes. No new trainer or graph. A loss removes what the row added."
-      },
-      "steps": [
-        {
-          "id": "terms",
-          "title": "Freeze the comparison before any training",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeAcceptanceIsFrozenBeforeTraining$'",
-          "rationale": "The experiment asks one question: does a small host encoder plus a trained projector give Qwen3.5-9B useful vision at far less card memory than a native vision model? Qwen3.5-9B peaks at 9.0 GiB, Qwen3.8-27B at 22.3 GiB.\nFix before training: the suite, the required gain, the split, and the limits on card memory and first output.\nNo download is needed: VidGen clips, captions and frames are on disk, and evaluate -build-caption-matching takes a seed and a case count. Held-out clips and their source videos stay out of training.\nConfirm that RxBrain's 0.63 and Qwen3.8-27B's 0.92 rest on this suite; if not, read both on it. At 64 cases one reading's standard error is about 0.06, so build a larger suite if the required gain is smaller than that can detect.\nInclude a floor (a constant answer) and a ceiling (27B).\nServes: held-out-quality and peak-device-memory.\nDisappears: nothing.\nEvidence: an acceptance record published before the first training step.\nBatch: evaluation lane."
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityCellNotMeasuredThisRunSaysSo$'",
+          "rationale": "Newest is set only on serving cells (internal/scorecard/scorecard.go:106-110,672,1263), so Unmeasured (record.go:112-113, called from cmd/validate/scorecard.go:65) never reaches quality, and after a broken evaluation the older value reads as holding.\nKey it to a failed evaluation (MeasurementPhase.Failed, cmd/loop/improve.go:93-96), not to age. An older quality reading is normal: a run reruns only stale validations (improve.go:40-41) and carries results (scorecard.go:1178), so a time test would gap every unchanged cell.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a record whose evaluation did not run.\nBatch: host lane."
         },
         {
-          "id": "seam",
-          "title": "Score the seam from measured representations",
+          "id": "video-user-size",
+          "title": "Time a video request of the size a person asks for",
           "status": "open",
-          "verify": "go test ./cmd/seam-align -count=1 -run '^TestSeamScoreComesFromMeasuredRepresentations$'",
-          "rationale": "The Score function in cmd/seam-align returns the value in its input file (cmd/seam-align/main.go:224-229), so a recorded score proves nothing about the two models.\nCapture real encoder outputs and real text embeddings over the training split, then rank DINO's pooled and patch outputs and the bridge operators by alignment residual (internal/composition/alignment_residual.go:24) before GPU-hours are spent.\nA residual is a cheap estimate: AlignmentResidualBiasAudit holds it to measured parity once bridges are trained.\nServes: GPU-hours go only to likely connections.\nDisappears: the hand-supplied score.\nEvidence: residuals from captured tensors, and a planted unrelated pair that scores badly.\nBatch: host lane."
-        },
-        {
-          "id": "wire",
-          "title": "Serve a composition through a recipe",
-          "status": "open",
-          "verify": "go test ./internal/inference ./internal/repoanalysis -count=1 -run '^(TestACompositionServesThroughARecipe|TestEveryProcessDeclarationIsReachedByACommand)$'",
-          "rationale": "ProductionComposition holds capture, transform and inject (internal/inference/representation_bridge.go:260-343), but no command reaches it: it is listed as prototype in internal/repoanalysis/testdata/unreached_declarations.txt.\nReach it from a recipe, injecting at the image placeholder through the existing projector path in internal/projector, with no second injection path. The recipe names encoder, bridge and text model by identity, and both models stay frozen.\nServes: a composite is a servable capability rather than a test object.\nDisappears: its entries in the unreached list.\nEvidence: a small composite answering through a recipe on the host.\nBatch: serving lane."
-        },
-        {
-          "id": "train",
-          "title": "Train the projector through the encoder-bridge route",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -count=1 -run '^TestEncoderBridgeTrainsACaptionProjector$'",
-          "rationale": "Extend the encoder-bridge route (cmd/train/routes.go:30). internal/bridgetrain already trains only the bridge and proves both models unchanged.\nThe loss is caption tokens through the frozen text model, which is this row's main technical risk: a backward pass through Q8_0 weights on the device. The hybrid-stack route already computes one for 9B; reuse it with the text weights frozen.\nThe bridge starts at zero output, so the untrained composite equals the text model alone, as internal/densecausal/graft.go does.\nMeasure one step, then bound the GPU-hours before a full run. Smallest first: a bounded run on Qwen2.5-0.5B, then 9B.\nServes: the cheapest kind of training the system can judge, since only a small adapter changes.\nDisappears: nothing.\nEvidence: a fixture run, its checkpoint record and frozen-model proof.\nBatch: training lanes.",
-          "depends_on": [
-            "vision-bridge/terms",
-            "vision-bridge/seam",
-            "vision-bridge/wire"
-          ]
-        },
-        {
-          "id": "judge",
-          "title": "Judge the composite, then keep or remove it",
-          "status": "open",
-          "verify": "go test -tags modeltest,integration ./internal/evaluation -count=1 -run '^TestVisionBridgeVerdict$'",
-          "rationale": "Read the composite, floor and ceiling on the frozen held-out suite with exposure charged. Report quality, peak card memory, throughput and first output side by side; the host encoder alone reads 4.5 s today, which may decide the result.\nA win publishes an inactive candidate, activated through decision gated-promotion or by hand.\nA loss keeps one record under docs/verification and removes what this row added, as the doctrine asks of a null result. A projector matching a native vision model is an open question, and a clear loss is a valid outcome.\nEither result feeds the seam-align bias audit.\nServes: held-out-quality and peak-device-memory, on evidence.\nDisappears: on a loss, this row's wiring.\nEvidence: one retained verdict, whichever way it goes.\nBatch: cycle-only model evaluation.",
-          "depends_on": [
-            "vision-bridge/train",
-            "heldout-verdict/verdict-noise",
-            "heldout-verdict/charge-objective"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "unattended-driver",
-      "title": "Make the unattended driver start and keep working",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "Estimate. One init command and a wait in the existing driver. If decision driver-future chooses removal, this row deletes the driver instead."
-      },
-      "steps": [
-        {
-          "id": "first-start",
-          "title": "Publish the strategy and config with one command",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestADriverStartsFromAPublishedStrategy$'",
-          "rationale": "No .overgo-runtime/loop.json exists on this machine, and a strategy needs a hand-written spec, so the worker loop has not been started here. Continuity comes from the Stop hook and a hand-started .cmd for full runs.\n-init publishes the strategy, writes the config and names the worker. The prompt goes by standard input, not argv, because of the 32 KB Windows limit (cmd/loop/main.go:347-349).\nServes: setup-steps, and hours of unattended work.\nDisappears: the .cmd hand step.\nEvidence: a fixture start from an empty state directory.\nBatch: host lane.",
-          "depends_on": [
-            "store-history/store-root"
-          ]
-        },
-        {
-          "id": "ownership-wait",
-          "title": "Wait for work instead of exiting",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestDriverWaitsForOwnershipToMove$'",
-          "rationale": "Run returns on ReasonWorkWaiting (internal/loop/driver.go:164-167) and nothing restarts it, so one waiting row ends the campaign. Wake on the plan's commit or a released lock, a signal and not a timer, as doctrine requires. WorkerTimeoutMinutes defaulting to 90 (cmd/loop/main.go:214-216) is a fixed timer the same doctrine refuses, and a landing can outlast it: bound by the landing's own signals.\nServes: unattended runtime.\nDisappears: the 90-minute default.\nEvidence: a world that releases a row after one wait.\nBatch: loop lane.\n\nSQA-258 and SQA-271 land here with this row: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success and a finished or failed run is acted on without a nudge. sqa-cycle/run-continuation was retired into this step, as SQA-271 itself directs, so one owner holds it."
-        }
-      ]
-    },
-    {
-      "id": "commit-rules",
-      "title": "Make the commit rules hold for every harness and spend fewer commits",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 250,
-        "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
-      },
-      "steps": [
-        {
-          "id": "merge-exemption",
-          "title": "Remove the raw commit exemption during a merge",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestGuardCorpus$'",
-          "rationale": "internal/guard/guard.go:278 allows raw git commit while MERGE_HEAD exists, and its comment (:327-330) says a merge cannot go through the gate. Merges do (skill.md Working loop, internal/landing/landing.go:296-317).\nServes: no unchecked commit.\nDisappears: mergeInProgress, about 30 lines.\nEvidence: the corpus case reversed.\nBatch: host lane."
-        },
-        {
-          "id": "git-hook",
-          "title": "Refuse a raw code commit in Git itself",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestARawCommitIsRefusedByGit$'",
-          "rationale": "The guard is a Claude Code hook, and .git/hooks holds only LFS hooks. On master since 2026-10-15, 120 commits came from outside it; each touched only docs/sqa_findings.json, so no code slipped through, but a non-Claude worker has only convention (cmd/loop/main.go:1-5,251).\nA tracked pre-commit hook refuses anything but the findings register. Landings use commit-tree and do not run it.\nServes: the gate as the one code path, for any worker.\nDisappears: nothing.\nEvidence: a fixture repository.\nBatch: host lane."
-        },
-        {
-          "id": "terms-visible",
-          "title": "Show every change to a row's check or count",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAChangedCheckOrCountIsWrittenInTheCommit$'",
-          "rationale": "A plan-only commit runs only the check (internal/landing/landing.go:209-211) and is judged by the plan it carries (:403), so acceptance is frozen for one commit. A change can raise its own count (landing.go:461, rules.go:62), which contradicts skill.md's boundaries line.\nA landing writes each old and new check and count as trailers, and the doctrine says what the count is: a declared estimate, reported, not a limit.\nServes: an honest record; bold changes stay allowed.\nDisappears: a sentence of doctrine that does not hold.\nEvidence: a planted weakened check appears in the message.\nBatch: host lane."
-        },
-        {
-          "id": "row-with-work",
-          "title": "Let a new row land with its own work",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestANewRowLandsWithItsWork$'",
-          "rationale": "Of the last 600 master commits, 219 touch Go and 276 change only the plan, because a row must exist before its work and each count raise is a commit.\nA row new in the change lands with it, judged by its own check, which must fail on the commit it builds on. That keeps the proof a frozen check gave.\nPredicted: plan-only commits under 20 percent.\nServes: development velocity.\nDisappears: carrier commits and the patch-aside recipe.\nEvidence: the share over the next 200 commits.\nBatch: host lane.",
-          "depends_on": [
-            "commit-rules/terms-visible"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "test-reach",
-      "title": "Run the checks that exist but reach little",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Workflow and script changes; no production Go grows."
-      },
-      "steps": [
-        {
-          "id": "race-wide",
-          "title": "Run the race detector over every host package",
-          "status": "open",
-          "verify": "grep -q 'race ./\\.\\.\\.' .github/workflows/test.yml",
-          "rationale": "-race appears only at .github/workflows/test.yml:68, on Ubuntu, for two packages. Commit checks never use it, and CI runs only when a push is asked for. Device code under *_windows.go (about 18,000 lines) cannot compile there.\nWiden the job. For device code, weigh a cgo-enabled Windows run in a separate build; measure its wall before adding it.\nServes: concurrency faults found before a run.\nDisappears: nothing.\nEvidence: a full job log.\nBatch: CI only; goes with the next push."
-        },
-        {
-          "id": "fuzz-or-delete",
-          "title": "Run fuzz-smoke or remove it, and remove stall_check",
-          "status": "open",
-          "verify": "grep -q 'fuzz-smoke' .github/workflows/test.yml",
-          "rationale": "Nothing calls scripts/fuzz-smoke.sh or scripts/stall_check.sh, so ten fuzz targets run only their seeds. Add a scheduled job with a short duration, and delete stall_check.sh.\nServes: parser and template faults found by mutation.\nDisappears: one unused script.\nEvidence: a job log.\nBatch: CI only."
+          "verify": "go test ./cmd/validate -count=1 -run '^TestVideoCellsTimeAUserSizeRequest$'",
+          "rationale": "Video cells time 21 frames at 32 by 16; a person's request is 81 frames at 832 by 480, about 6 minutes, and is untimed and its device memory unrecorded (README.md:202-208).\nAdd one user-size reading per run beside the small one. This is a new reading: Row.Lengths is inference-only (internal/scorecard/scorecard.go:749-751).\nSQA-221 joins this step: cmd/validate/media_selection.go:90-92 still claims the sample is what the scorecard reports.\nServes: first-output and peak-device-memory as a video user meets them.\nDisappears: nothing.\nEvidence: one published reading.\nBatch: validate lane; the reading runs in the cycle."
         }
       ]
     },
@@ -659,29 +574,101 @@
           "id": "nonfinite-stop",
           "title": "Stop a training step on a non-finite direction",
           "status": "open",
-          "verify": "go test ./internal/hostoptimizer ./internal/densecausal -count=1 -run 'NonFinite'",
-          "rationale": "norm \u003c guard is false for NaN (internal/hostoptimizer/newton_schulz.go:63; internal/optimizer/newton_schulz_cuda_windows.go:254), so one NaN makes the group and its momentum NaN permanently, found only at restore (internal/hostoptimizer/optimizer.go:172). The norm is already read back as a scalar, so the check adds no transfer.\nServes: hours not spent training a broken model.\nDisappears: nothing.\nEvidence: a planted NaN gradient on both paths.\nBatch: training lanes."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer ./internal/densecausal -count=1 -run 'StopsOnANonFiniteDirection$'",
+          "rationale": "norm \u003c guard is false for NaN (internal/hostoptimizer/newton_schulz.go:63; internal/optimizer/newton_schulz_cuda_windows.go:254), so one NaN makes the group and its momentum NaN. Checkpoints catch that at publish (internal/trainingprogram/checkpoint.go:373) and route runs stop on the step (cmd/train/shared_run.go:90,93, with the misleading text 'carried no gradient'), but the dense token paths have no check (workflow.go:504, densecausal/train.go:103), so a NaN at step 1 spends every remaining step.\nMomentum is written before any check (optimizer.go:106, muon_step_cuda_windows.go:90-95), so the stop must end the run. The guard refuses +Inf too: on the device a gradient of norm at or above about 1.85e19 gives normSquared +Inf, scale 0 and a silent zero update where the host steps normally (newton_schulz_cuda_windows.go:249-257, by reading).\nStep has about 15 direct callers, so prefer a field on the step's result, checked at the two dense sites, about 40 nodes, over an error return, about 200. The norm is already read as a scalar, so no transfer is added. MOSS shares this guard and its route contains it.\nServes: hours not spent training a broken model.\nDisappears: a misleading error text.\nEvidence: a planted NaN gradient on the host and device paths.\nBatch: training lanes."
         },
         {
           "id": "schedule-recorded",
           "title": "Record and judge the resident training schedule",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer -count=1 -run '^TestResidentScheduleIsRecordedAndJudged$'",
-          "rationale": "Resident training runs 4+2 iterations in TF32 (internal/optimizer/newton_schulz_cuda_windows.go:218,225); the host runs 8+2. Recomputed: update size is 42 percent of the host's for a 1/i spectrum of 4096, 67 percent for exponential decay, equal for flat spectra, because singular values under about 3e-3 of the norm do not reach 1. The code calls it measured; the speed gain is real, and neither state nor README says so.\nRecord schedule and precision in state, add an oracle for 4+2, and compare descent at both on one fixture. Keep whichever wins per unit time; if 4+2 stays, correct the scale rule.\nServes: throughput of training and honest rates.\nDisappears: an unstated difference.\nEvidence: loss per unit time at both schedules.\nBatch: training lanes."
+          "rationale": "Resident training runs 4+2 iterations in TF32 (internal/optimizer/newton_schulz_cuda_windows.go:218,225), used only by densecausaltrain/train_resident_cuda_windows.go:294; the host runs 8+2. Recomputed at rank 4096: update size 0.42 of the host's for a 1/i spectrum, 0.67 for exponential decay, 1.00 flat. The gap falls with rank: 1/i gives 0.53 at 2560, 0.80 at 896, Qwen2.5-0.5B's largest rank, 0.93 at 512, and 1/sqrt(i) gives 1.00 everywhere. Real spectra are unmeasured, so take a momentum SVD first.\nRecord schedule and precision in State, not Config: Config enters the session plan id and every seed (session_plan.go:84-90,126-144), and Restore compares it (optimizer.go:142). Add an oracle for 4+2, since newton_schulz_cuda_windows_test.go:106 compares only FP32, and compare descent at both on one fixture.\n4+2 is matched and pinned: muon_step_cuda_windows.go:167 and dense_training_leadership_cuda_windows_test.go:30-31 hold optimizer:muon-4x2-tf32 by SHA, so a change rebaselines that test and TestCarbonMatchedAdaptiveLeadership. Keep whichever wins per unit time; if 4+2 stays, correct the scale rule. MOSS is not affected: it runs FP32 8+2 (muon_step_cuda_windows.go:299).\nThis lands before training-gaps/judged-proof: recording moves no number, but the decision can, and a no-gain result could otherwise reflect an unjudged update size.\nServes: throughput of training and honest rates.\nDisappears: an unstated difference.\nEvidence: loss per unit time at both schedules.\nBatch: training lanes."
         },
         {
           "id": "momentum-absent",
           "title": "Skip parameters that received no gradient",
           "status": "open",
-          "verify": "go test ./internal/hostoptimizer ./internal/optimizer -count=1 -run 'AbsentGradient'",
-          "rationale": "A zero gradient with live momentum still takes full-size steps for about 415 updates, because the direction is normalized (internal/hostoptimizer/optimizer.go:105-110), and an absent gradient becomes zero (internal/optimizer/tensor_pack.go:238-240). The reward path already learned this lesson. Tell absent from zero and skip absent groups.\nServes: frozen or unused parts stay still.\nDisappears: drift.\nEvidence: a group with no gradient keeps its weights.\nBatch: training lanes."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/hostoptimizer ./internal/optimizer -count=1 -run 'AbsentGradient'",
+          "rationale": "A zero gradient with live momentum still takes full-size steps for about 415 updates, because the direction is normalized (internal/hostoptimizer/optimizer.go:105-110), and an absent gradient becomes zero (internal/optimizer/tensor_pack.go:238-240). The reward path learned this (train_resident_cuda_windows.go:374-379).\nOnly the six GatherGradients callers can tell absent from zero; slab trainers cannot, and a present all-zero gradient still drifts. Stepper.Step has no group skip (stepper.go:5), so device steppers need a small API change. MOSS has no absent case: every projection needs a module (muon_step_cuda_windows.go:209).\nServes: frozen or unused parts stay still.\nDisappears: drift.\nEvidence: a group with no gradient keeps its weights on both paths.\nBatch: training lanes."
         },
         {
           "id": "rate-count",
           "title": "Derive the rate from trained parameters and correct the README",
           "status": "open",
           "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -count=1 -run 'TrainedParameterCount'",
-          "rationale": "internal/trainingworkflow/workflow.go:220 passes the plan's whole count, frozen tensors included, though the policy says trained count (internal/trainingprogram/optimizer_policy.go:23): 19 percent low for 100M total with 30M frozen. README says a constant schedule, while scratch training decays linearly, and that only scalars cross, while flat and streamed steps copy weights.\nA rate change moves recorded training results, so judge it on Qwen2.5-0.5B before it lands.\nServes: the derived rate means what it says.\nDisappears: three README inaccuracies.\nEvidence: a frozen-lexical fixture.\nBatch: training lanes."
+          "rationale": "internal/trainingworkflow/workflow.go:220 and text_heldout.go:250 pass the plan's whole count, frozen tensors included, though the policy says trained count (internal/trainingprogram/optimizer_policy.go:23). That reads about 17 percent low for Qwen2.5-0.5B with its 151936 by 896 lexical table frozen. TensorPlan sets no Frozen (tensor_pack.go:88) and freezeLexical runs after training (text_heldout.go:591-593), so the count takes FreezeLexical at compile. MOSS counts trained factors already (route_moss_windows.go:255).\nREADME:247,253-254 says a constant schedule, while scratch training decays linearly (scratchmodel/construction.go:384), and that only scalars cross, while flat and streamed steps copy weights.\nA rate change moves recorded training results, so judge it on Qwen2.5-0.5B before it lands, and before training-gaps/judged-proof.\nServes: the derived rate means what it says.\nDisappears: three README inaccuracies.\nEvidence: a frozen-lexical fixture.\nBatch: training lanes."
+        }
+      ]
+    },
+    {
+      "id": "moss-training-repairs",
+      "title": "Hold a MOSS training run to its source and its data before it spends the device",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 150,
+        "reason": "Four checks in existing owners, an estimate."
+      },
+      "steps": [
+        {
+          "id": "served-target",
+          "title": "Refuse a served target before the first step",
+          "status": "open",
+          "verify": "go test ./internal/mosstrain -count=1 -run '^TestAServedTargetIsRefusedBeforeTraining$'",
+          "rationale": "PublishServed uses os.Link (internal/mosstrain/publish.go:68) at the end of a run, after the checkpoint and before the held-out judgement (cmd/train/route_moss_windows.go:352-374). An existing target fails there (reproduced), so the run loses its held-out reading at its last step. A target on another volume should fail the same way (hypothesis). Check at the route's start that the target is absent and a probe hard link works.\nServes: failure-rate; no run lost at its last step.\nDisappears: nothing.\nEvidence: its test.\nBatch: training lane."
+        },
+        {
+          "id": "tensor-shapes",
+          "title": "Refuse a tensor of another shape before placing it",
+          "status": "open",
+          "verify": "go test ./internal/mosstrain -count=1 -run '^TestATensorOfAnotherShapeIsRefused$'",
+          "rationale": "mosstrain.New places what it reads (internal/mosstrain/trainer_windows.go:149-155,182-193), and affine slices by the spec's width (:365-376), so a config that disagrees with its weights panics or reads past a device buffer. Hold each tensor's shape to the spec in the route's tensors closure, as inference does (internal/latentimage/resident_graph_cuda_windows.go:77).\nServes: failure-rate on a mismatched checkpoint.\nDisappears: nothing.\nEvidence: its test.\nBatch: training lane."
+        },
+        {
+          "id": "held-out-bytes",
+          "title": "Hold a picture out by its bytes",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestAPictureIsHeldOutByItsBytes$'",
+          "rationale": "Exclusion compares path strings (cmd/train/route_moss_windows.go:242), so a copy under another name or a case difference is judged as unseen. The published 32-frame reading drew from other videos, so nothing recorded is shown wrong. Compare digests of the bytes the run read.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a copy refused.\nBatch: training lane."
+        },
+        {
+          "id": "training-draw",
+          "title": "Draw a training step's noise level from the source's grid",
+          "status": "open",
+          "verify": "go test ./internal/mosstrain -count=1 -run '^TestATrainingDrawStandsOnTheSourceGrid$'",
+          "rationale": "Measure first: read training_shift in the checkpoint's scheduler_config.json and the upstream training code. The route draws sigma = t/N and calls that the source's grid (cmd/train/route_moss_windows.go:286-295), while inference builds that grid through training_shift (internal/latentimage/nearest_schedule.go:23-26). If the shift is 1 the step closes with that recorded and no code. Also compare the route's P^-0.6 rate (route_flow_organ.go:139-141) with the P^-0.5 optimizer_policy.go:24-27 assigns to factors starting from initialization.\nServes: held-out-quality of a trained adapter.\nDisappears: a false comment, if the draw stays.\nEvidence: the value read, and a retained rerun if the draw changes.\nBatch: training lane."
+        }
+      ]
+    },
+    {
+      "id": "training-gaps",
+      "title": "Find a training gap and judge the candidate with no person",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Two steps, estimated at 150 each after the 675d61b80 recheck. The served-model work moved to row close-the-loop."
+      },
+      "steps": [
+        {
+          "id": "training-target",
+          "title": "File a training row from a declared target on a held-out objective",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt$'",
+          "rationale": "No gap asks for training except below-base, which fires only for a trained model below its base (internal/scorecard/record.go:574-584,783,875-876), so the loop's train arc is never taken. Cycle training is a proof of 1 to 3 steps with no verdict (cmd/validate/training_proof.go:16-38).\nA route with no verdict is declared not applicable (training_quality_test.go:10-14), and Qwen2.5-0.5B has a verdict, so that predicate cannot reach it. A data file beside declared_trades.json names model, objective, steps, sequence, wall ceiling and required gain; goals and budgets stay inputs (skill.md:25). The gap stays open until a supported verdict meets it. Gaps group by kind and task (record.go:734-740), so the key must carry the model.\nServes: purpose: the system improves models through its own training.\nDisappears: nothing.\nEvidence: a filed row from a fixture scorecard, closed by a fixture verdict.\nBatch: host lane."
+        },
+        {
+          "id": "judged-proof",
+          "title": "Prove gap to supported verdict on the smallest model",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestTheSmallestModelsImprovementRecordIsComplete$'",
+          "rationale": "Run measure, gap, train and verdict once on Qwen2.5-0.5B and retain the record under docs/verification, as TestFirstRewardRunsRecordIsComplete does (internal/trainingworkflow/instruction_pilot_record_test.go:30). The test reads the record, so the gate stays hermetic and nothing trains twice.\nThe shortest path exists: train -objective -steps 128 -seq 512 -freeze-lexical publishes a session, a checkpoint and a verdict. It lacks a gap in front and a noise test behind, which this row and heldout-verdict supply. A run took about 5 minutes (docs/verification/change-corpus-qwen25-05b.txt:16-18): one minute of training at 0.47 s a step, the rest loading, host scoring and checkpointing. Measure validate -run -model Qwen2.5-0.5B's wall on the way, since no record holds it.\nNothing is activated, and a supported loss is a valid record. This shows a candidate found and judged by the system, not that what is served improved: the inference row reads MMLU-Pro 0.17 under a protocol the card advises against (internal/scorecard/model_uses.json:13-19), and wikitext training will probably not move that (hypothesis).\nServes: evidence that the loop reaches a judged candidate.\nDisappears: the claim that rests on separate parts.\nEvidence: one retained record.\nBatch: one device run by the row; the check is host lane.",
+          "depends_on": [
+            "heldout-verdict/verdict-noise",
+            "training-gaps/training-target",
+            "optimizer-truth/schedule-recorded",
+            "optimizer-truth/rate-count"
+          ]
         }
       ]
     },
@@ -700,28 +687,289 @@
           "title": "Let a runtime policy change reach published recipes",
           "status": "open",
           "verify": "go test ./internal/modelrecipe ./cmd/recipe -count=1 -run '^TestAPolicyEditLeavesPublishedRecipesServable$'",
-          "rationale": "EnsureRuntimePolicy refuses when the alias differs (internal/modelrecipe/runtime_policy.go:133-136); activation calls it (lifecycle.go:114) and so does the recipe policy repair (cmd/recipe/main.go:668). The next edit of runtime_policies.json blocks them all; it last changed on 2026-08-26.\nVerification reads the catalog while serving reads the alias (loaded_program.go:73,145), so it can prove a policy nothing serves.\nThe repair moves the alias with a recorded reason, and verification reads the alias.\nServes: failure-rate, and proof of what is served.\nDisappears: a second policy source in verification.\nEvidence: a fixture catalog edit.\nBatch: host lane."
+          "rationale": "EnsureRuntimePolicy refuses when the alias differs (internal/modelrecipe/runtime_policy.go:133-136); activation calls it (lifecycle.go:114) and so does the recipe policy repair (cmd/recipe/main.go:668). A catalog edit refuses any recipe published before it and passes one published after (measured). Tasks outside runtime_policies.json:4 never reach the check, and rollback bypasses it (rollback.go:76). The catalog last changed on 2026-08-26.\nA trained model is registered as an inactive inference candidate, which binds the alias to that binary's catalog (workflow.go:324, lifecycle.go:46-56), so a catalog edit between training and activation refuses it. The refusal corrupts nothing, but close-the-loop needs this repaired.\nVerification reads the catalog while serving reads the alias (loaded_program.go:79,157), so it can prove a policy nothing serves. Since run-from-files a not-verified model serves from the catalog (derived_program.go:83), and ResolveCandidateGGUF has no store and three callers (loaded_program.go:131-136).\nThe repair moves the alias with a recorded reason, and verification reads the alias.\nServes: failure-rate, and proof of what is served.\nDisappears: a second policy source in verification.\nEvidence: a fixture catalog edit that binds a different policy.\nBatch: host lane."
         },
         {
           "id": "ordinal-guard",
           "title": "Pin every profile enum's number to its name",
           "status": "open",
           "verify": "go test ./internal/model -count=1 -run '^TestEveryProfileOrdinalKeepsItsName$'",
-          "rationale": "internal/model/architecture_profiles.json holds raw numbers, ArchitectureProfile has no tags or marshal hooks, and the enums are iota lists. A reorder gives old numbers new meanings with identities unchanged, so old evidence still appears valid; profile_test.go's digests cannot see it.\nNames in the JSON would republish every model's definition, so pin an ordinal-to-name table in a test instead. It costs no production code.\nServes: held-out-quality; no silent model change.\nDisappears: nothing.\nEvidence: a reorder fails the test.\nBatch: host lane."
+          "rationale": "internal/model/architecture_profiles.json holds raw numbers, ArchitectureProfile has no tags or marshal hooks (architecture.go:333), and the enums are iota lists, about 90 lines in 22 files. A reorder gives old numbers new meanings with identities unchanged, so old evidence still appears valid; the digests in internal/modelrecipe/profile_test.go:19-21,120-127 cannot see it.\nNames in the JSON would republish every model's definition, so pin an ordinal-to-name table in a test instead. Walk the nested types (DenseStages, Experts, Validation), or a new enum slips past. It costs no production code.\nServes: held-out-quality; no silent model change.\nDisappears: nothing.\nEvidence: a reorder fails the test.\nBatch: host lane."
         },
         {
           "id": "sampling-identity",
           "title": "Bring declared sampling into what a run records",
           "status": "open",
           "verify": "go test ./internal/modelrecipe -count=1 -run '^TestDeclaredSamplingIsBoundToTheRun$'",
-          "rationale": "The newest model config overlays sampling at load (internal/modelrecipe/loaded_program.go:82-91), can be recorded after activation, and is outside the recipe's identity. Verification forces greedy, so it never sees it.\nServes: replay and comparison across a config change.\nDisappears: nothing.\nEvidence: two configs give two run identities.\nBatch: host lane."
+          "rationale": "The newest stored model config overlays sampling at load (internal/modelrecipe/loaded_program.go:83,112-126; second caller derived_program.go:90), can be recorded after activation, and is outside the recipe's identity (compile.go:709-726). A file's general.sampling is inside the model's identity, so only the store document (model_config_sampling.go:24-35) escapes. Verification forces greedy (internal/evaluation/exact.go:127), so it never sees it.\nThe effective policy already gets its own id (:108), and only internal/evaluation/transcription_projected.go:128-130 binds it to a run: generalize that. The test compares run identities, since policy ids already differ.\nA declared repetition penalty is also inert: model_config_sampling.go:103-105 sets it, runtime_policies.json:21,71 keep repeat_last_n 0, and sampling/order.go:56 idles the stage. Recheck this against run-from-files/declared-template, which moved this code.\nServes: replay and comparison across a config change.\nDisappears: nothing.\nEvidence: two configs give two run identities.\nBatch: host lane."
         },
         {
           "id": "candidate-closure",
           "title": "Compare candidate plans in one order, and validate what runs",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^(TestACandidateWithTwoComponentsValidates|TestAnUnloadableRecipeIsNotRunnable)$'",
-          "rationale": "ValidateIdentity compares hash-sorted trial lists with declared-order lists (internal/modelrecipe/candidate_compile.go:147-148,872-876), so a candidate of two or more components is refused when the orders differ. Tests use one.\nValidateCandidateRecipe skips capability compile for inference (candidate_validation.go:62), so it reports an unloadable recipe as runnable, and refuses bridge recipes through its catalog choice (:39).\nServes: candidates reach evaluation.\nDisappears: a false verdict.\nEvidence: two components in both orders.\nBatch: host lane."
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^(TestACandidateValidatesInEveryDeclaredOrder|TestAnUnloadableRecipeIsNotRunnable)$'",
+          "rationale": "ValidateIdentity compares hash-sorted trial lists with declared-order lists (internal/modelrecipe/candidate_compile.go:147-148,872-876). Measured over 200 label sets: one component with one ablation 0 refused, two components 148, one component with two ablations 91. So a single same-base candidate with two deltas is refused too (composition/candidate_plugin.go:237-241), reached from cmd/loop/evidence.go:405 through evaluation/candidate_attribution.go:192. Tests use one.\nValidateCandidateRecipe skips capability compile for inference (candidate_validation.go:62), so it reports an unloadable recipe as runnable. Compile refuses inference by design (compile.go:606-608) and a load check needs a file, so 'unloadable' means the structure check at compile.go:625-633.\nBridge recipes are refused 'unknown module model.capture-representation' (measured) by the catalog choice at candidate_validation.go:39 and again at compile.go:609-610; both change.\nServes: candidates reach evaluation.\nDisappears: a false verdict.\nEvidence: two components, and two ablations of one, in every order.\nBatch: host lane."
+        }
+      ]
+    },
+    {
+      "id": "close-the-loop",
+      "title": "Let a supported, charged verdict take a base model's place",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1000,
+        "reason": "A served-model slot, succession and rollback across models are new, beside owners of 292 nodes each (ActivateCapability, RollbackActivation, measured). The estimate is the least certain in this plan."
+      },
+      "steps": [
+        {
+          "id": "promote",
+          "title": "Let a supported, charged verdict take a base model's place",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOnlyAChargedSupportedVerdictTakesTheBasesPlace$'",
+          "rationale": "No production caller of ActivateCapability reads a verdict, and skill.md:15 forbids promotion, so this row waits on decision gated-promotion. Observer.Verify activating a training recipe (internal/trainingworkflow/session_observation.go:323,352) stays a statement about the route, not the model.\nMoving an alias does not work as first written. An active alias is per model (internal/modelrecipe/lifecycle.go:987-989) and a trained text model is a new model, so activating it supersedes nothing, rollback refuses (rollback.go:64-66), a win cannot retire the base (lifecycle.go:179 needs a failed gate), and the next run's cells compare it with nothing (internal/scorecard/scorecard.go:414-417, record.go:450-452).\nDefine the slot a candidate takes, record the succession the scorecard reads, and keep the base for rollback. Reuse TrainingDecision, which has approved and refused states with Rollback: parent (internal/runrecord/training_decision.go:15-25). A verdict over a base that is not verified moves nothing. The hand activate stays: cmd/recipe/main.go:302,609 serves every intake.\nServes: held-out-quality improves without a person.\nDisappears: nothing.\nEvidence: passing, failing and uncharged verdicts, and a rollback.\nBatch: host lane.",
+          "depends_on": [
+            "training-gaps/judged-proof",
+            "heldout-verdict/charge-objective",
+            "recipe-repairs/policy-moves"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "memory-bounds",
+      "title": "Reduce what models hold on the card and the host",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1475,
+        "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
+      },
+      "steps": [
+        {
+          "id": "peak-by-length",
+          "title": "Report peak device memory at each prompt length the first-output column reads",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestPeakMemoryIsReadAtEachPromptLength$'",
+          "rationale": "peakMemoryCell reads one attempt, the verification's short request (internal/scorecard/scorecard.go:1260-1266), though first output reads three lengths (README.md:120-130). Qwen3.8-27B reads 23.99 GB and held 30.4 GB at 22,746 tokens (263d0eecb), so the column cannot judge most steps below. Read whether the length attempts carry a peak; if they do not, record it where they run.\nServes: peak-device-memory.\nDisappears: nothing.\nEvidence: a fixture record of three lengths, then the next run's table.\nBatch: scorecard lane, with scorecard-truth."
+        },
+        {
+          "id": "stage-peaks",
+          "title": "Measure the card by stage for every media family before a stage changes",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -count=1 -run '^TestStagePeaksCoverEveryMediaFamily$'",
+          "rationale": "No record holds a peak by stage. driver.MemoryStats names the crossing and its ledger (internal/cuda/driver/driver.go:76-90), and ResetPeakBytes bounds a phase (driver_windows.go:753). Publish each stage's peak: Krea on a first, a repeat and a new prompt; MOSS at 1024 and 2048; Wan and LiveEdit at the user-size request; the VAE's round trip. About 30 minutes of the device alone, run once; the check reads the retained record, so the gate stays hermetic.\nServes: peak-device-memory for media, and settles whether Krea's first peak is load time and what fills the Wan VAE's 4.4 GiB on at most 0.53 GB of weights.\nDisappears: nothing.\nEvidence: docs/verification/media-stage-peaks.json.\nBatch: media lane."
+        },
+        {
+          "id": "momentum-f32",
+          "title": "Keep a hybrid checkpoint's matrix momentum in the dtype it steps",
+          "status": "open",
+          "verify": "go test ./internal/hybridtrain -count=1 -run '^TestAHybridCheckpointKeepsMatrixMomentumInF32$'",
+          "rationale": "checkpointF32 copies the momentum to float64 beside the live slabs (internal/hybridtrain/progress.go:96-101, hybrid_train_device_cuda_windows.go:255-256): 54,274,293,760 bytes on 9B, 108.5 GB in all on a 96 GB machine, and cmd/train/route_hybrid_stack_windows.go:190-192 checkpoints on every run. The recorded 72.2 GB peak predates this path. The file then holds 8 bytes a parameter, about 80 GB of checkpoint (09746220c).\nMomentumF32 exists (internal/hostoptimizer/optimizer.go:21) and three trainers use it. The hybrid route's vector momentum stays f64 and a state holds one dtype (:168), so let a state hold both, matrix first, in one momentum file. Fix Restore's two copies, which both start at index zero (:146-149). Old f64 files keep loading.\nServes: host memory and disk for training; one 9B checkpoint 27.1 GB smaller.\nDisappears: the float64 slab.\nEvidence: a resume bit-identical to an unbroken run on the synthetic stack, then the next 9B proof's peak.\nBatch: training lane."
+        },
+        {
+          "id": "hybrid-limit",
+          "title": "Derive the hybrid route's memory limit from its budget",
+          "status": "open",
+          "verify": "go test ./cmd/train -count=1 -run '^TestTheHybridRouteSetsItsMemoryLimitFromItsBudget$'",
+          "rationale": "Two 27 GB slabs are live heap, so the pacer runs far above need and the route needs GOGC=50 GOMEMLIMIT=68GiB set by hand (cmd/validate/training_proof.go:72). The record's 72.2 GB sits on that limit against a 55.2 GB budget (docs/verification/qwen35-9b-fullstack-training-run.txt:69-70,84,92). LayerStreamedBudget computes the need; set the limit from it with debug.SetMemoryLimit. Up to 12 to 17 GB of host, a hypothesis one 9B step settles.\nServes: host memory for training, and a route that runs without an environment.\nDisappears: the route's environment and its test's assertion.\nEvidence: one 9B proof's peak and step wall against 3m04s.\nBatch: training lane.",
+          "depends_on": [
+            "memory-bounds/momentum-f32"
+          ]
+        },
+        {
+          "id": "text-one-block",
+          "title": "Run an image model's text encoder one block on the card at a time",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestATextEncoderHoldsOneBlockOnTheCard$'",
+          "rationale": "MOSS's peak at 1024 is its encoder, 13,930,129,408 bytes whatever the picture (docs/verification/moss-image-resources.json:93,138), placed whole (internal/latentimage/model_encoder_windows.go:93-105), though compileModelEncoder takes a block range (model_encoder.go:22). A new Krea prompt places 8.17 GB beside the denoiser and VAE (runtime_cuda_windows.go:270-278, resident_pipeline_cuda_windows.go:364-371), about 34 to 35 GB against the 26.9 GB recorded, derived and never measured, and a second prompt is the normal case. routedlm streams a stack once across branches (prefixstack_cuda_windows.go:39-150), and adaptive_new held 201,872,384 bytes of this encoder's layer (fixtures/krea/g1_text_conditioning.json:20).\nCarry each block's rows on the card, both prompts through a block before the next, and give Krea the rotary path's conditioning cache (conditioning_cache.go). Hold pictures to their hashes; bounded tiling drifted SenseNova's stack (prefixstack_cuda_windows.go:73-76), so if a hash moves the check is the 415-prompt suite for each model. Evicting the denoiser instead, as MOSS does, is the worse trade on a 4-step Krea request.\nServes: peak-device-memory; a new Krea prompt about 35 GB to about 27 GB, MOSS at 1024 about 13.9 GB to about 12.5 GB.\nDisappears: nothing.\nEvidence: stage peaks before and after, pictures byte-identical.\nBatch: media lane.",
+          "depends_on": [
+            "memory-bounds/stage-peaks"
+          ]
+        },
+        {
+          "id": "denoiser-stream",
+          "title": "Upload a video denoiser's weights a tensor at a time from the file",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestADenoiserLoadHoldsOneTensorOnTheHost$'",
+          "rationale": "LoadDenoiserWeights decodes every tensor to F32 before any upload (internal/latentvideo/denoiser.go:241-255), 5.2 to 5.6 GB against 2.79 GB on the card, and frees them only after (denoiser_session.go:115). LiveEdit does the same (reference_edit_checkpoint.go:154-165). Keep the source open and encode each tensor where uploadWeights reaches it, as weightPayload does for images. p.weights feeds compile only for timestep weights, which stay.\nServes: host memory at video load; Wan's recorded 9,020,514,304 byte process peak (docs/image_video_memory.json:63).\nDisappears: the decoded map.\nEvidence: process peak before and after, the frozen Wan and LiveEdit hashes.\nBatch: media lane."
+        },
+        {
+          "id": "dense-read-release",
+          "title": "Give back a dense model's read scratch once a long prompt is read",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestALongReadLeavesADenseRunnerItsDecodeScratch$'",
+          "rationale": "ReleasePromptMemory does nothing without experts (internal/cuda/executor/executor.go:3226), so a dense runner keeps a long read's arena, scores and Q8 staging for its life (:2064-2067,3048-3083,3098-3100). On the 27B that is about 3.6 to 5.3 GB, an estimate from records (263d0eecb). ReleaseStageMemory (:1743) frees exactly these, and only MOSS calls it. Call it after a read whose arena exceeds what the decode plan needs, a comparison of two planned sizes and no threshold.\nThe decode after a read recaptures graphs and a next long read clears a new arena, so measure first-output and throughput on 27B, 9B, gemma-12B and one F32 model, and confirm Flash-Next is untouched. About 1 hour of the device. Outputs bit-identical.\nServes: card free beside a resident model. The peak column does not move, since the read sets it.\nDisappears: nothing.\nEvidence: retained bytes after a 16K read, per class.\nBatch: serving lane, with consolidate/release-storages."
+        },
+        {
+          "id": "qsa-ring-first",
+          "title": "Hold a Flash-Next sequence at the ring until it outgrows it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestARoundSequenceHoldsTheRingUntilItOutgrowsIt$'",
+          "rationale": "Measure first. A round holds 262,144 cells from open (internal/inference/qsa_cells_storage.go:126-135, strata_round.go:136-147): 787 MiB of card, a 3.09 GiB pinned host copy and a 260 MiB stage pool, against 444 MiB, none and none at the ring. A conversation under 32,768 cells gets nothing from the difference. Hypothesis: the round runs at the ring in production (strata_round.go:323-325 branches on slots; tests use 131,072).\nA stall at the crossing and a recapture of round graphs are why qsaSequenceCapacity keeps one capacity. If the crossing costs more than the experts buy, the step ends with that recorded. About 2 hours of the device with the 262K acceptance. Greedy tokens must equal the streamed run's.\nServes: 603 MiB of card for experts, about 175, 3.09 GiB of pinned host, and load time.\nDisappears: the stage pool below the ring.\nEvidence: bench rounds against HEAD, the 262K acceptance.\nBatch: Flash-Next lane, one process at a time."
+        },
+        {
+          "id": "codec-stages",
+          "title": "Free a video codec's workspace and a denoiser's scratch before the next stage",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAVideoStageLeavesNoScratchForTheNext$'",
+          "rationale": "Measure first. Wan2.1 VAE reads 4.4 GiB on at most 0.53 GB of weights, the worst ratio recorded. Workspaces are grow-only (internal/latentvideo/vae_session.go:176-199) and held across stages (reconstruction_cuda_windows.go:73-100, runtime.go:126-173), and no video path calls ReleaseStageMemory. Regrowth each request and recaptured denoiser graphs are the cost, so measure the second request's wall. Outputs bit-identical.\nServes: peak-device-memory for video.\nDisappears: workspace held idle between requests.\nEvidence: stage peaks before and after, frame hashes.\nBatch: media lane.",
+          "depends_on": [
+            "memory-bounds/stage-peaks"
+          ]
+        },
+        {
+          "id": "view-release",
+          "title": "Drop a GGUF view's built tensors when a load ends",
+          "status": "open",
+          "verify": "go test ./internal/gguf -count=1 -run '^TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds$'",
+          "rationale": "A view keeps up to 1 GiB of tensors it built for its file's life (internal/gguf/view.go:28-32,172-181), and a served runner keeps its file open. A load reads each once. A read after load builds again, which cost the 4B 0.80 s in its signature (8ce06a06d), so keep that case fast or say it moved.\nServes: host memory for models served from a directory.\nDisappears: the kept tensors after load.\nEvidence: heap after open on a fixture view.\nBatch: host lane."
+        },
+        {
+          "id": "server-peak",
+          "title": "Count a media runtime's sessions together in a server attempt's peak",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1 -run '^TestPeakAcrossSessionsCountsWhatTheOthersHold$'",
+          "rationale": "peakAcrossSessions takes the larger session's peak and says that is the high-water mark (internal/latentvideo/production_cuda_windows.go:285-305). The sessions are resident together, as cmd/recipe/main.go:497-501 says, and LiveEdit leaves its encoder out (:266). A server attempt newer than recipe measure then reads low. Take each session's peak plus what the others hold now.\nServes: peak-device-memory's truth.\nDisappears: a false comment.\nEvidence: a test with fake meters.\nBatch: media lane."
+        },
+        {
+          "id": "one-allocation",
+          "title": "Measure what per-tensor allocations cost, then hold a store in one",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestAStoreHoldsItsTensorsInOneAllocation$'",
+          "rationale": "Measure first: allocate 1,024 buffers each at 16 KiB, 704 KB and 5 MB and read MemInfo's fall. Experts learned this: about 540 allocations decoded at a third of the rate and lost 500 MB (internal/modeldevice/expert_residency.go:407-409). Weights still take one a tensor (device_load.go:292, internal/graphruntime/resident.go:146), a bound of 0.86 GiB on the 4B the ledger cannot see. ResidentSession.Release frees tensor by tensor and MOSS's stages depend on it (resident.go:239-257), so a store is one allocation per program or source, not per model.\nServes: card memory for every model, experts on Flash-Next, and possibly throughput.\nDisappears: per-tensor allocations.\nEvidence: MemInfo before and after, three bench rounds.\nBatch: device lane; opens with the first measurement's result."
+        },
+        {
+          "id": "expert-census",
+          "title": "Count how many of Flash-Next's pinned experts a served workload reads",
+          "status": "open",
+          "verify": "go test ./internal/modeldevice -count=1 -run '^TestExpertProfileCountsExpertsNeverRouted$'",
+          "rationale": "Measure only. Every expert is pinned for the engine's life, as Strata does, which took the working set from 25.9 to 57.2 GiB (d7b5a2cf7). An expert no workload routes need not be pinned. The census decides whether a row follows; pinning less reopens a choice made to match the reference.\nServes: host memory, bound 59.5 GB.\nDisappears: nothing.\nEvidence: never-routed share over the bench's suites.\nBatch: Flash-Next lane."
+        },
+        {
+          "id": "drafted-state",
+          "title": "Measure a drafted window's per-position state against replaying its kept tokens",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestDraftedWindowStateBytesAreReported$'",
+          "rationale": "Measure only. Drafting costs the 27B 1.30 GiB, every byte in span slots (d184ff653), which grow until close (internal/inference/span_slots.go:133-143, runner_lifecycle.go:525). Strata replays a window's kept tokens instead. Report the bytes by layer and position so a row can price the port.\nServes: peak-device-memory for the qwen35 family.\nDisappears: nothing.\nEvidence: a byte table on the 27B and Bonsai-27B.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "compact-production",
+      "title": "Remove production code that nothing needs",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -20685,
+        "reason": "Measured safe total: 0.90 percent of 2,300,544 production nodes. Exact duplication 2,259, no reader 1,340, the reward pilot 10,865, judgement 6,221. Gross and measured figures are exact; net fold figures rest on a cost model."
+      },
+      "steps": [
+        {
+          "id": "typed-walk",
+          "title": "Walk reach by types",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheReachWalkReadsTypes$'",
+          "rationale": "internal/repoanalysis/declaration_reach_test.go:120 walks names, so any x.Forward keeps every Forward alive. A typed walk of the Windows build from all 62 commands finds 226 more unreached declarations outside test support, 18,075 nodes, in 8 seconds. Replace the walk, add its false-positive rules (errors.Is, As and Unwrap methods, marker methods) and the two rules the shadowed groups name, and sort the additions into the record's classes. A production grep for MethodByName found none. The 174 reached only by tests, 16,735 nodes, are unwired under doctrine, so they get a route or the doctrine's four-part test, not a blind delete.\nServes: the record's truth.\nDisappears: the name walk.\nEvidence: list and record agree with the walk.\nBatch: host lane."
+        },
+        {
+          "id": "dead-declarations",
+          "title": "Delete what no command and no test reaches",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoDeclarationIsReachedByNothing$'",
+          "rationale": "52 declarations, 1,340 nodes, no command and no test reaches them: 20 ValidateIdentity, 9 Batch, 7 Spec, 2 Clone, Runner.Rank, Plan.Digest and others. A sample was read and the false positives removed. An interface that lists a method nothing calls will refuse at compile. The part inside the inference surface goes with surface-folds.\nServes: less code to keep right.\nDisappears: 52 declarations.\nEvidence: gate production nodes, and compile across tag sets.\nBatch: host lane.",
+          "depends_on": [
+            "compact-production/typed-walk"
+          ]
+        },
+        {
+          "id": "retire-reward-pilot",
+          "title": "Remove the reward pilot, keeping its record",
+          "status": "open",
+          "verify": "go test ./cmd/train ./cmd/training-objective -count=1 -run '^TestTheRewardPilotIsRetired$'",
+          "rationale": "docs/verification/instruction-pilot-run-qwen25-05b.txt:7 records no gain or loss and no adoption, and 17e04d771 filed no follow-up, yet train -pilot remains (cmd/train/main.go:79) with training-objective -pilot, the acceptance and the sampler. Doctrine removes a null result's path and keeps one record. A what-if removal leaves 12,693 production nodes no command reaches; 1,828 stay for charge-objective (heldout_confirmation.go, tensorstats/paired_binary.go), so -10,865 net.\nThis reading is a judgement: the arm neither gained nor lost on one small model. The workbench's reward run through -trainer is separate and stays; read internal/trainingworkflow/throwaway_test.go and reasoning_choice_test.go before deleting, since they may hold shared behaviour. If the lead wants the pilot kept as a capability, retire this step and lower the row's count.\nServes: doctrine, a null result's path goes.\nDisappears: -pilot on two commands and what only they reach.\nEvidence: gate nodes; TestInstructionPilotRecordIsTheAcceptanceItNames keeps reading the record.\nBatch: training lane.",
+          "depends_on": [
+            "heldout-verdict/charge-objective"
+          ]
+        },
+        {
+          "id": "exact-folds-outside",
+          "title": "Fold exact production repeats outside the inference surface",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestRepeatedProductionBodiesStayUnderTheirCeiling$'",
+          "rationale": "26 folds, 2,624 nodes gross and about 905 net, for example cmd/validate/parity_vqa_device_decode.go:284 with internal/vqaserve/pipeline.go:292 (203 nodes), and cmd/train/route_seq2seq.go:48 with three more. Same text, so little can break. The test holds a ceiling, so copies do not return.\nSQA-217 and SQA-224 join this step: compiledSerials (internal/cuda/executor/graph_exec_cache.go:21-27) and sseEmitter.write, which repeats named (internal/server/protocol_io.go:54-68).\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes.\nBatch: host lane."
+        },
+        {
+          "id": "param-folds-outside",
+          "title": "Fold repeats of at most three parameters outside the surface",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestParameterRepeatsStayUnderTheirCeiling$'",
+          "rationale": "43 folds plus 2 near clusters, about 1,893 net. Largest: evaluation's report publish (internal/evaluation/carried_continuation.go:180, 9 sites) and the compile*TargetPlan trio (internal/evaluation/media_target.go:143). A fold can change error text that a test matches.\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes.\nBatch: evaluation lane.",
+          "depends_on": [
+            "compact-production/exact-folds-outside"
+          ]
+        },
+        {
+          "id": "test-held-deletions",
+          "title": "Delete the test-held entries the record says go",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryProcessDeclarationIsReachedByACommand$'",
+          "rationale": "1,261 nodes: agentloop-obligation-ledger, dense-old-entries, training-test-entries, serving-attempt-kind, text-old-entry-points, AtLeast and RunKey. Each reason in docs/verification/unreached-declarations.txt states how its tests change. Claims qwen35-real-recurrent-layer-training, gemma-e4b-real-adapter-training, pocket-tts-production-oracle and constrained-generation are verified again, and pins in specialized-coverage.json move. This check passes before the work, so the evidence is the list shrinking.\nServes: doctrine.\nDisappears: those entries.\nEvidence: the list shrinks, and the claims verify again.\nBatch: device lane for the claims."
+        },
+        {
+          "id": "inline-forwarders",
+          "title": "Inline one-call functions used only in their own package",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestLocalForwardersStayUnderTheirCeiling$'",
+          "rationale": "32 functions, 812 nodes, three uses or fewer, mostly internal/runrecord, for example requireGateLifecycle (internal/runrecord/lifecycle.go:62), about -718 net. A name can read better than its body, so this is the first step to cut.\nServes: less code to keep right.\nDisappears: 32 functions.\nEvidence: gate nodes.\nBatch: store lane."
+        },
+        {
+          "id": "surface-folds",
+          "title": "Fold repeats that touch the inference surface, before one measurement run",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestSurfaceRepeatsStayUnderTheirCeiling$'",
+          "rationale": "87 folds and 8 near clusters, about 3,703 net, in internal/projector, internal/hostmath, internal/tokenizer, internal/cuda/cublas and internal/tensor/reference, for example internal/tokenizer/bpe.go:546,617,706 and internal/projector/hunyuanvl_cuda.go:76 with two more. Any file here moves the surface and expires evidence, so all go in one commit with the surface part of dead-declarations and the kernel steps of consolidate. No fold on a per-token path without a benchmark, since a helper that does not inline moves a rate.\nSQA-265 joins this step: editLayerStates has its own switch (internal/inference/cache_state.go:478-491).\nServes: less code to keep right.\nDisappears: copies.\nEvidence: gate nodes; the next run's cells unchanged.\nBatch: one commit before a measurement run."
+        }
+      ]
+    },
+    {
+      "id": "compact-tests",
+      "title": "Shrink the test code",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 20,
+        "reason": "One helper. The row's work is in test code, reported by the gate and not counted here: -98,453 test nodes, 4.18 percent, of which 64,263 measured on a copy and the rest modelled."
+      },
+      "steps": [
+        {
+          "id": "fatal-check",
+          "title": "Check a test's error in one call",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestATestChecksAnErrorInOneCall$'",
+          "rationale": "if err != nil { t.Fatal(err) } stands at 15,782 sites. One rewrite on a copy removed 64,263 test nodes and 27,191 lines from 14,571 sites in 1,949 files, skipping files named by compatibility.json or docs/verification, else-if branches and receivers other than t, tb and b. The rewrite compiled and passed on six host packages; the whole copy was not compiled. Add one helper to a leaf test-support package importing only testing, as internal/modelrecipetest/fixture.go:224 has privately, and rewrite with a one-shot tool that is not committed.\nIt touches most test files, so it lands at a quiet point, in batches by top directory so one refusal does not lose the lot, and before more test code is written around the old form.\nServes: development velocity and test-code size.\nDisappears: 27,191 test lines, no assertion.\nEvidence: test-code nodes on the gate's line, and three forced errors on a sample.\nBatch: alone."
+        },
+        {
+          "id": "exact-folds",
+          "title": "Fold test bodies that are the same text",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestBodyRepeatsThreeTimes$'",
+          "rationale": "After fatal-check, 184 exact folds free of claims remain, 25,578 nodes gross and about 13,878 net. Fold into each package's fixture, or test support across packages, and name the case so a failure stays readable. The register's reductions land here and close there: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255, 230, 233, 240.\nServes: development velocity and landing wall.\nDisappears: repeated bodies.\nEvidence: test-code nodes, and a mutation sample per package.\nBatch: with whichever row next opens each package.\n\nSQA-230, SQA-233 and SQA-240 join from consolidate/test-reductions: each QSA and cell parity graph built once for its two backends, the GDN fixture's forwarding closure gone, and the loader's allocation and write failure subtests sharing one body.",
+          "depends_on": [
+            "compact-tests/fatal-check"
+          ]
+        },
+        {
+          "id": "param-folds",
+          "title": "Fold test bodies that differ in at most three values",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestBodyOfThreeValuesRepeatsThreeTimes$'",
+          "rationale": "227 folds of at most three parameters, free of claims, 38,550 nodes gross and about 20,312 net; the largest is status-then-decode, 58 sites in internal/server. Drop any fold whose parameter is a behaviour, since that is two meanings in one body.\nServes: development velocity.\nDisappears: repeated bodies.\nEvidence: test-code nodes.\nBatch: per package, as the row before.",
+          "depends_on": [
+            "compact-tests/exact-folds"
+          ]
         }
       ]
     },
@@ -732,8 +980,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -600,
-        "reason": "Estimate of the net shrink, about 85 dense Go lines, from the steps that touch production Go. Kernel and test reductions are reported, not counted."
+        "nodes": -120,
+        "reason": "Without capability-surface, whose forwarding code measured 0, the steps sum to about -120 nodes, an estimate. The large reductions are in rows compact-tests and compact-production."
       },
       "steps": [
         {
@@ -741,28 +989,21 @@
           "title": "Choose the recipe catalog in one place",
           "status": "open",
           "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOneCatalogForEachTask$'",
-          "rationale": "The task-to-catalog choice repeats at internal/modelrecipe/compile.go:609, candidate_validation.go:38, lifecycle.go:805, candidate_recipe_derivation.go:239 and session_resources.go:64. Three near-identical resolvers sit at capability_selector.go:67-161, and a lineage comparator is written twice (candidate_compile.go:937, profile_catalog.go:246). The word candidate means three things; rename two.\nServes: development velocity.\nDisappears: four copies and two resolvers.\nEvidence: an analysis test.\nBatch: host lane."
+          "rationale": "The task-to-catalog choice repeats at internal/modelrecipe/compile.go:609, candidate_validation.go:38, lifecycle.go:805 and candidate_recipe_derivation.go:239. A lineage comparator is written twice (candidate_compile.go:937, profile_catalog.go:246), apart from checked.Nonzero. The word candidate means three things; rename two.\nsession_resources.go:64 makes no task choice, and the resolvers at capability_selector.go:67-161 are 83, 139 and 305 nodes and did not cluster, so both leave the step. Yield about -60 nodes, an estimate.\nServes: development velocity.\nDisappears: three copies of the choice and one comparator.\nEvidence: an analysis test.\nBatch: host lane."
         },
         {
           "id": "release-storages",
           "title": "Fold repeated release and view code",
           "status": "open",
-          "verify": "go test ./internal/inference ./internal/server -count=1 -run 'Release|ViewChooser'",
-          "rationale": "releaseStorages appears three times (internal/inference/device_cache.go:832,1124,1185), and the web view chooser three times (mod/api.js:62-83, mod/discovery.js:216-236, mod/inspect.js:10-23).\nDo not fold release code until the identity of each caller's lifetime is read.\nServes: less code to keep right.\nDisappears: two copies of each.\nEvidence: existing tests.\nBatch: serving lane."
-        },
-        {
-          "id": "capability-surface",
-          "title": "Measure, then shrink the server's capability interfaces",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestCapabilitiesComeFromOneTable$'",
-          "rationale": "Measure first. The server discovers capability by type assertion across 33 interfaces (internal/server/server.go:61-294), so each wrapper must forward each one, and Runner has 380 methods. Count the forwarding code. If it exceeds a struct of optional functions, replace the assertions with that one table.\nServes: new capabilities cost fewer edits.\nDisappears: forwarding wrappers.\nEvidence: the count, then the node delta.\nBatch: serving lane."
+          "verify": "go test ./internal/inference -count=1 -run '^TestReleaseStoragesHasOneBody$'",
+          "rationale": "releaseStorages appears three times, identical (internal/inference/device_cache.go:832,1124,1185), and the web view chooser nearly so at mod/api.js:62-83 and mod/discovery.js:216-236; mod/inspect.js:10-23 differs and stays. The first check passes today.\nDo not fold release code until the identity of each caller's lifetime is read. Yield about -45 nodes, an estimate.\nServes: less code to keep right.\nDisappears: two copies of release, one of the chooser.\nEvidence: existing tests.\nBatch: serving lane."
         },
         {
           "id": "quant-kernels",
           "title": "Replace hand copies in the quantized kernels",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestKernelManifestIsCurrent$'",
-          "rationale": "Six hand copies replicate DEFINE_SMALL_QUANT_KERNELS (kernels/cuda/ops_f32.cu:8750,8829,8920,8997,9092,9303), relative-bias code appears three times (:5889,5937,6302), load_u32_le repeats read_u32_le (:8109,8391), and get_rows uses 32-bit offsets (:7445,8250) where mul_mat uses size_t (:8270), which overflows at a 4 GiB table.\nThe compiled code's hash must not move, except where the offset fix moves it, on purpose and in its own landing.\nServes: smaller kernel source.\nDisappears: several hundred lines of source.\nEvidence: unchanged asset hashes.\nBatch: host lane; no surface move while the hash holds.",
+          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestSmallQuantKernelsHaveOneBody$'",
+          "rationale": "Six hand copies replicate DEFINE_SMALL_QUANT_KERNELS (kernels/cuda/ops_f32.cu:8839,8918,9009,9086,9181,9392), relative-bias code appears three times (:5978,6026,6391), load_u32_le repeats read_u32_le (:8198,8480), and get_rows uses 32-bit offsets (:7534,8339) where mul_mat uses size_t (:8359), which overflows at a 4 GiB table.\nMeasured: 344 lines of identical shape across 17 clusters (mul_mat_q*_K 125, get_rows_q*_K 70, dequant_rows_* 44), and up to 1,016 lines more of near copies.\nThe compiled code's hash must not move, except where the offset fix moves it, on purpose and in its own landing. Any change under kernels/cuda moves the inference surface even when the hash holds (internal/inferencesurface/surface.go:130, surface_test.go:219), so every evidence identity expires.\nServes: smaller kernel source.\nDisappears: several hundred lines of source.\nEvidence: unchanged asset hashes.\nBatch: one commit with the other surface moves, before one measurement run.",
           "depends_on": [
             "kernel-proof/include-scan"
           ]
@@ -771,8 +1012,8 @@
           "id": "split-ops",
           "title": "Split ops_f32.cu by include with identical compiled code",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestKernelManifestIsCurrent$'",
-          "rationale": "One 12,514-line file exists for its compiler flags, not its content. Includes by operation family leave the PTX bytes identical, which the pins prove once kernel-proof holds.\nServes: reviewable kernels.\nDisappears: one 551 KB file.\nEvidence: unchanged asset hashes.\nBatch: host lane.",
+          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestOpsF32IsSplitByFamily$'",
+          "rationale": "One file of 12,603 lines and 554,877 bytes exists for its compiler flags, not its content. Includes by operation family leave the PTX bytes identical, which the pins prove once kernel-proof holds. It moves the surface as quant-kernels does.\nServes: reviewable kernels.\nDisappears: one 551 KB file.\nEvidence: unchanged asset hashes.\nBatch: one commit with the other surface moves, before one measurement run.",
           "depends_on": [
             "consolidate/quant-kernels"
           ]
@@ -781,15 +1022,8 @@
           "id": "unused-kernels",
           "title": "Remove kernels nothing launches",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis ./cmd/kernel-bindings -count=1 -run 'Kernel'",
-          "rationale": "conv_2d_{input,weight,bias}_backward_f32 and the group_norm backward kernels have no production launch by name; the host path is internal/diffusionimage/backward.go. Confirm no launch name is built dynamically, then delete them, the seven shadowed entries of internal/repoanalysis/testdata/unreached_declarations.txt and what they alone reach. The 179 prototype entries stay, and a test-held entry goes only by the doctrine's test.\nServes: smaller compiled kernels and faster module load.\nDisappears: five kernels and seven declarations.\nEvidence: compiled size before and after.\nBatch: kernel lanes."
-        },
-        {
-          "id": "test-reductions",
-          "title": "Fold the register's duplicate test fixtures",
-          "status": "open",
-          "verify": "go vet ./internal/overgodb ./internal/server ./internal/inference ./internal/cuda/executor",
-          "rationale": "The register's P3 reductions, adopted as one row where no dispatched row reaches them: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255.\nTest code is 376K lines beside 421K of production; each fold shortens the changed packages' runs. No assertion is dropped: run mutation checks on a sample.\nServes: development velocity and landing wall.\nDisappears: test bodies, in each finding's stated owner.\nEvidence: test-code nodes the gate reports.\nBatch: with whichever row next opens those files.\n\nSQA-230 and SQA-233 join this step, read while their files were open: each QSA and cell parity graph built once for its two backends, and the GDN fixture's forwarding closure gone. No assertion moves.\n\nSQA-240 joins this step: the loader's allocation and write failure subtests share one body."
+          "verify": "go test ./cmd/kernel-bindings -count=1 -run '^TestEveryKernelHasALaunch$'",
+          "rationale": "conv_2d_{input,weight,bias}_backward_f32 and the two group_norm backward kernels have no launch by constant or string (grep; no such name is built dynamically): 171 body lines at ops_f32.cu:1814-2039 and 43,512 PTX bytes, 0.66 percent of the module, so load time will not move measurably. The host path is internal/diffusionimage/backward.go.\nNine more are launched only from code tests reach (gated_delta_net_backward_f32, short_conv_backward_f32, l2_norm_backward_f32, causal_softmax_f32 and five strata kernels, 162,637 PTX bytes); they go with their callers in compact-production/typed-walk's sort.\nThe seven shadowed declarations first listed here are live (webui-lane-harness and testskip-helpers, 105 and 154 declarations) and stay.\nServes: smaller compiled kernels.\nDisappears: five kernels.\nEvidence: compiled size before and after.\nBatch: one commit with the other surface moves, before one measurement run."
         },
         {
           "id": "cell-step-reads",
@@ -801,13 +1035,122 @@
       ]
     },
     {
+      "id": "test-reach",
+      "title": "Run the checks that exist but reach little",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Workflow and script changes; no production Go grows."
+      },
+      "steps": [
+        {
+          "id": "race-wide",
+          "title": "Run the race detector over every host package",
+          "status": "open",
+          "verify": "grep -q 'race ./\\.\\.\\.' .github/workflows/test.yml",
+          "rationale": "-race appears only at .github/workflows/test.yml:68, on Ubuntu, for two packages. Commit checks never use it, and CI runs only when a push is asked for. Device code under *_windows.go (19,752 lines in 100 files) cannot compile there.\nWiden the job. For device code, weigh a cgo-enabled Windows run in a separate build; measure its wall before adding it.\nServes: concurrency faults found before a run.\nDisappears: nothing.\nEvidence: a full job log.\nBatch: CI only; goes with the next push."
+        },
+        {
+          "id": "fuzz-or-delete",
+          "title": "Run fuzz-smoke or remove it, and remove stall_check",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEveryFuzzTargetRunsInAScheduledJob$'",
+          "rationale": "Nothing calls scripts/fuzz-smoke.sh or scripts/stall_check.sh, so ten fuzz targets run only their seeds. Run alone, the script is wrong too: FuzzSessionStateNeverPanics exists nowhere and exits 0 ('no fuzz tests to fuzz'), and FuzzFrontend, FuzzTemplate and FuzzAudioDecode are left out, so 7 of 10 run (measured).\nDerive the list from the tree, add a scheduled job with a short duration, and delete stall_check.sh. The first check, a grep of the workflow, a comment could satisfy.\nServes: parser and template faults found by mutation.\nDisappears: one unused script and a hand-kept list.\nEvidence: a job log.\nBatch: CI only."
+        }
+      ]
+    },
+    {
+      "id": "unattended-driver",
+      "title": "Make the unattended driver start and keep working",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "Estimate. One init command and a wait in the existing driver. If decision driver-future chooses removal, this row deletes the driver instead."
+      },
+      "steps": [
+        {
+          "id": "first-start",
+          "title": "Start the driver from one config file",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestADriverStartsFromItsConfigAlone$'",
+          "rationale": "go run ./cmd/loop still does not start from a checkout. The store half is repaired (cmd/loop/main.go:144). It still needs .overgo-runtime/loop.json (:202-209) naming a worker (:210) and an exact profile strategy_id (:261), that strategy and its prompt in the store (:264-276), to publish it a spec (cmd/loop/evidence.go:27-31) naming an agent definition whose only door is the server (internal/server/agent_control.go:111,336-357) plus a catalog, a policy and a model recipe (internal/recipe/agent.go:71-75), and OVERGO_AUTOMATION_WORKER set (main.go:220, internal/processcontrol/campaign.go:57-59).\nSubtract instead of adding an -init. The driver uses only the strategy's Loop (:240), Prompt (:273) and ID, and nothing reads the ID's environment value (:364-371). Put a prompt file, the two budgets and the worker name in loop.json, and take -publish-strategy out of the start. The prompt already goes by argv and stdin (:337-340,372).\nObligationWorld has no non-test implementer (internal/loop/driver.go:72-81,145,152), yet skill.md:177 cites its test. Wire it or remove both.\nServes: setup-steps, and hours of unattended work.\nDisappears: the strategy record at start, OVERGO_STRATEGY and OVERGO_STRATEGY_ID, and the .cmd hand step.\nEvidence: a fixture start from an empty state directory.\nBatch: host lane."
+        },
+        {
+          "id": "ownership-wait",
+          "title": "End a run that finds work waiting as waiting, not as an error",
+          "status": "open",
+          "verify": "go test ./internal/loop -count=1 -run '^TestARunThatFindsWorkWaitingSaysSo$'",
+          "rationale": "Partly repaired since filing: the driver waits on the lock (cmd/loop/main.go:290,321-323), and decisions no longer wait (internal/plan/dispatch.go:234-243). What remains is a stop, which Paused handles first, and another lane's rows (dispatch.go:246).\nThe live fault is after a worker exits: a dispatch found waiting there returns reason '' with 'loop: re-read plan: ...' (internal/loop/driver.go:240-243, measured), where :164-167 gives a waiting reason, and :179-181 reports plan-complete with an error. internal/loop/dispatch_wait_test.go:17 pins the current return. Wake on the plan's commit or a released lock, a signal and not a timer, as doctrine requires.\nWorkerTimeoutMinutes defaulting to 90 (main.go:213-215) is a fixed timer the same doctrine refuses, and a landing can outlast it: bound by the landing's own signals.\nSQA-258 and SQA-271 land here: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success and a finished or failed run is acted on without a nudge. sqa-cycle/run-continuation was retired into this step, as SQA-271 directs.\nServes: unattended runtime.\nDisappears: the 90-minute default.\nEvidence: a world that releases a row after one wait, and a waiting plan after a worker exits.\nBatch: loop lane."
+        }
+      ]
+    },
+    {
+      "id": "vision-bridge",
+      "title": "Test one composite model: give Qwen3.5-9B vision through a trained bridge",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1200,
+        "reason": "Estimate 1,000 to 1,300: the gradient through a frozen text model is new, and the encoder-bridge route computes no gradient today."
+      },
+      "steps": [
+        {
+          "id": "terms",
+          "title": "Freeze the comparison before any training",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeAcceptanceIsFrozenBeforeTraining$'",
+          "rationale": "The experiment asks one question: does a small host encoder plus a trained projector give Qwen3.5-9B useful vision at far less card memory than a native vision model? Qwen3.5-9B peaks at 9.0 GiB, Qwen3.8-27B at 22.3 GiB.\nFix before training: the suite, the required gain, the split, the limits on card memory and first output, and a limit on GPU-hours. A full-stack 9B step took about 3 min 4 s (docs/verification/qwen35-9b-fullstack-training-run.txt:87-90), so a thousand steps is about 51 hours; Qwen2.5-0.5B took 0.47 s a step. A bounded run on 0.5B comes first, and if it shows no gain the row ends with a record.\nNo download is needed: VidGen clips, captions and frames should be on disk, and evaluate -build-caption-matching takes a seed and a case count (cmd/evaluate/main.go:93-97). Confirm the data is there. Held-out clips and their source videos stay out of training.\nConfirm that RxBrain's 0.63 and Qwen3.8-27B's 0.92 rest on this suite (README.md:121-122,134); if not, read both on it. At 64 cases one reading's standard error is 0.061 at 0.63, so build a larger suite if the required gain is smaller than that can detect.\nInclude a floor (a constant answer) and a ceiling (27B).\nServes: held-out-quality and peak-device-memory.\nDisappears: nothing.\nEvidence: an acceptance record published before the first training step.\nBatch: evaluation lane."
+        },
+        {
+          "id": "seam",
+          "title": "Score the seam from measured representations",
+          "status": "open",
+          "verify": "go test ./cmd/seam-align -count=1 -run '^TestSeamScoreComesFromMeasuredRepresentations$'",
+          "rationale": "The Score function in cmd/seam-align returns the value in its input file (cmd/seam-align/main.go:228-234), so a recorded score proves nothing about the two models. The command has no test file yet.\nCapture real encoder outputs and real text embeddings over the training split, then rank DINO's pooled and patch outputs and the bridge operators by alignment residual (internal/composition/alignment_residual.go:24) before GPU-hours are spent.\nA residual is a cheap estimate: AlignmentResidualBiasAudit (:183) holds it to measured parity once bridges are trained.\nServes: GPU-hours go only to likely connections.\nDisappears: the hand-supplied score.\nEvidence: residuals from captured tensors, and a planted unrelated pair that scores badly.\nBatch: host lane."
+        },
+        {
+          "id": "wire",
+          "title": "Serve a composition through a recipe",
+          "status": "open",
+          "verify": "go test ./internal/inference ./internal/repoanalysis -count=1 -run '^(TestACompositionServesThroughARecipe|TestEveryProcessDeclarationIsReachedByACommand)$'",
+          "rationale": "ProductionComposition holds capture, transform and inject (internal/inference/representation_bridge.go:260-343), but no command reaches it: it is listed as prototype in internal/repoanalysis/testdata/unreached_declarations.txt (lines 68, 72, 136-145).\nReach it from a recipe, keeping capture and transform. Drop inject: it overrides every target token and refuses any other shape (:322-340), so it is not placeholder injection. The placeholder path is internal/inference/multimodal_prompt.go:32 and runner_projected.go:309, and a second path is what this row forbids. The recipe names encoder, bridge and text model by identity, and both models stay frozen.\nServes: a composite is a servable capability rather than a test object.\nDisappears: inject, and its entries in the unreached list.\nEvidence: a small composite answering through a recipe on the host.\nBatch: serving lane."
+        },
+        {
+          "id": "train",
+          "title": "Train the projector through the frozen text model",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -count=1 -run '^TestEncoderBridgeTrainsACaptionProjector$'",
+          "rationale": "This needs a new training path. The encoder-bridge route fits an affine map to a decoder's tokens, with no gradient and no text model (cmd/train/route_encoder_bridge.go:316-319), and internal/bridgetrain takes the caller's Gradients (train.go:40-43), though it does train only the bridge and proves both models unchanged.\nThe loss is caption tokens through the frozen text model, the row's main technical risk: a backward pass through Q8_0 weights on the device. The hybrid-stack route computes one for 9B but updates weights as it walks (docs/verification/qwen35-9b-fullstack-training-run.txt:31-33), so the frozen walk is new.\nThe bridge starts at zero output, so the untrained composite equals the text model alone, as internal/densecausal/graft.go:14-22 does.\nMeasure one step, then hold the GPU-hours the terms fixed. Smallest first: Qwen2.5-0.5B, then 9B only if 0.5B gained.\nServes: the cheapest kind of training the system can judge, since only a small adapter changes.\nDisappears: nothing.\nEvidence: a fixture run, its checkpoint record and frozen-model proof.\nBatch: training lanes.",
+          "depends_on": [
+            "vision-bridge/terms",
+            "vision-bridge/seam",
+            "vision-bridge/wire"
+          ]
+        },
+        {
+          "id": "judge",
+          "title": "Judge the composite, then keep or remove it",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestVisionBridgeRecordIsComplete$'",
+          "rationale": "Read the composite, floor and ceiling on the frozen held-out suite with exposure charged, and retain the record, which the check reads: a model-tagged test would train in every run (internal/landing/lanes.go:85-89,134). Report quality, peak card memory, throughput and first output side by side; the host encoder alone reads 4.5 s today (README.md:144), which may decide the result.\nA win publishes an inactive candidate, activated through close-the-loop or by hand. A composite has no slot yet, so its activation is by hand until that row lands.\nA loss keeps one record under docs/verification and removes what this row added, as the doctrine asks of a null result. A projector matching a native vision model is an open question, and a clear loss is a valid outcome.\nEither result feeds the seam-align bias audit.\nServes: held-out-quality and peak-device-memory, on evidence.\nDisappears: on a loss, this row's wiring.\nEvidence: one retained verdict, whichever way it goes.\nBatch: one device run by the row; the check is host lane.",
+          "depends_on": [
+            "vision-bridge/train",
+            "heldout-verdict/verdict-noise",
+            "heldout-verdict/charge-objective"
+          ]
+        }
+      ]
+    },
+    {
       "id": "time-and-memory",
       "title": "Cut host memory, run time and media peak memory",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
-        "reason": "Estimate, to be replaced by each step's measurement before it builds."
+        "nodes": 250,
+        "reason": "store-open and run-wall and moss-denoiser, after media-stages left for memory-bounds."
       },
       "steps": [
         {
@@ -815,34 +1158,21 @@
           "title": "Decode only the store projections a reader uses",
           "status": "open",
           "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenDecodesOnlyWhatItsReaderUses$'",
-          "rationale": "Measure first with overgodb checkpoint-families. Every open decodes the whole checkpoint, about 190 MB on disk and growing, and waits for its slowest projection. internal/scorecard/record.go:284-286 records that most load-time declines are the growth of the store's open, and that cost repeats in each server start and short command.\nHypothesis: lineage and commit projections can load on first use, cutting open time and resident host memory for commands and the server. Writers keep eager checks.\nServes: load-time, first-output, host memory.\nDisappears: memory held by projections a reader never touches.\nEvidence: open wall and heap by command on a store copy.\nBatch: store lane; rehearse on a copy.",
-          "depends_on": [
-            "store-history/anchor"
-          ]
+          "rationale": "Measure first with overgodb checkpoint-families. Every open decodes seven projections and waits for the slowest (internal/overgodb/checkpoints.go:175-186): 127,690,553 bytes on disk at sequence 28,489 (docs/verification/installed-store.txt:36-44, 2026-10-13), lineage slowest at 1.25 s of 2.72 s. The figure grows, and the row's first 190 MB has no record. internal/scorecard/record.go:284-286 records that most load-time declines are the growth of the store's open, and that cost repeats in each server start and short command.\nHypothesis: lineage and commit projections can load on first use, cutting open time and resident host memory for commands and the server. Writers keep eager checks.\nServes: load-time, first-output, host memory.\nDisappears: memory held by projections a reader never touches.\nEvidence: open wall and heap by command on a store copy.\nBatch: store lane; rehearse on a copy."
         },
         {
           "id": "run-wall",
           "title": "Reduce the longer test runs inside a full measurement run",
           "status": "open",
-          "verify": "go test ./cmd/validate ./cmd/loop -count=1 -run 'LaneWall'",
-          "rationale": "Measure first. The 2026-10-31 run spent 5h30m of 9h05m in the longer test runs and 3h08m measuring. Record each package's wall in the run record, and move what only guards a past adoption behind pairtest, as earlier cost four tests 237 minutes. SQA-266 asks the same.\nPredicted: under 2 hours for that phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work.\nEvidence: phase walls across two runs.\nBatch: validate lane."
-        },
-        {
-          "id": "media-stages",
-          "title": "Apply stage residency to the other image models",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestStageResidencyAcrossImageModels$'",
-          "rationale": "Doctrine: a mechanism built for one model is applied across the models it fits. moss-efficiency/bounded encodes once, releases the conditioner, then keeps the transformer through denoising. Krea-2-Turbo peaks at 25.0 GiB and SenseNova at 15.4 GiB at 512 square.\nMeasure peak by stage first; the gain is whatever the conditioner holds at the denoising peak, and a request that repeats a prompt must reuse its conditioning.\nServes: peak-device-memory for image models, with first-output judged beside it.\nDisappears: conditioner bytes held while denoising.\nEvidence: per-stage peak before and after, held-out quality unchanged.\nBatch: media lane, then the model's own cells.",
-          "depends_on": [
-            "moss-efficiency/bounded"
-          ]
+          "verify": "go test ./cmd/validate -count=1 -run '^TestTheRunRecordHoldsEachPackagesWallAndPeak$'",
+          "rationale": "Measure first. The 2026-10-31 run spent 5h30m of 9h05m in the longer test runs and 3h08m measuring. cmd/validate/lane_walls.go:21-44 keeps walls of a minute or more in process state, and they never reach the run record. Record each package's wall there, with its peak working set: internal/processcontrol/supervisor_windows.go:108-109 declares PeakProcessMemoryUsed, unread, and that finds the package recorded at 49 GiB. internal/testprocess/measure.go sees only the direct child, and go test's binary is a grandchild, so the job counter is the right owner.\nMove what only guards a past adoption behind pairtest, as earlier cost four tests 237 minutes. SQA-266 asks the same.\nPredicted: under 2 hours for that phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work.\nEvidence: phase walls across two runs.\nBatch: validate lane."
         },
         {
           "id": "moss-denoiser",
           "title": "Find and close the native MOSS denoiser's wall against upstream's",
           "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSRetainedEvidence$/throughput'",
-          "rationale": "The resource comparison measured native MOSS at 94 s of denoising a 1024 square picture against upstream's 52 s on one card and one protocol, at 0.47 times its peak device memory.\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes.\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSDenoiserWallIsAccountedFor$'",
+          "rationale": "The resource comparison measured native MOSS at 94.2 s of denoising a 1024 square picture against upstream's 51.8 s on one card and one protocol, at 0.47 times its peak device memory (docs/verification/moss-image-resources.json).\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes. The first check named a throughput subtest that its parent passes without (internal/evaluation/moss_retained_model_test.go:110).\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
         }
       ]
     }

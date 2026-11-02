@@ -235,7 +235,7 @@ func (state StageState) valid() bool {
 
 func stageTransition(previous, next StageReceipt) bool {
 	if previous.Recipe != next.Recipe || previous.Node != next.Node || previous.Operation != next.Operation ||
-		!sameInvocationBinding(previous.Invocation, next.Invocation) {
+		!bindingHolds(previous, next) {
 		return false
 	}
 	if next.Attempt == previous.Attempt {
@@ -253,6 +253,16 @@ func stageTransition(previous, next StageReceipt) bool {
 			previous.State == StageWaiting || previous.State == StageFailed ||
 			previous.State == StageCompleted) &&
 		next.State == StageAdmitted
+}
+
+// bindingHolds keeps one authority through an attempt and, but for an agent's mutation, through its chain: a grant there
+// authorizes one execution, so a retry is approved again and carries that decision.
+func bindingHolds(previous, next StageReceipt) bool {
+	if next.Attempt != previous.Attempt && previous.Invocation != nil && next.Invocation != nil &&
+		previous.Invocation.Boundary == invocation.BoundaryAgent && next.Invocation.Boundary == invocation.BoundaryAgent {
+		return true
+	}
+	return sameInvocationBinding(previous.Invocation, next.Invocation)
 }
 
 func sameInvocationBinding(left, right *invocation.ReceiptBinding) bool {

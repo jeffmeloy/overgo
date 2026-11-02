@@ -94,3 +94,24 @@ func TestRSIMutationEffectApprovalReceiptRatchet(t *testing.T) {
 		t.Fatal("receipt transition substituted invocation authority")
 	}
 }
+
+// TestOnlyAnAgentRetryCarriesANewAuthority: an agent's mutation is approved again for each attempt, and everything else keeps
+// one authority through its chain, as every chain does through an attempt.
+func TestOnlyAnAgentRetryCarriesANewAuthority(t *testing.T) {
+	t.Parallel()
+	binding := func(boundary invocation.Boundary, decision string) *invocation.ReceiptBinding {
+		return &invocation.ReceiptBinding{Boundary: boundary, Authority: testutil.ArtifactID(t, artifact.KindEvidence, decision)}
+	}
+	receipt := func(attempt uint32, state StageState, authority *invocation.ReceiptBinding) StageReceipt {
+		return StageReceipt{Attempt: attempt, State: state, Invocation: authority}
+	}
+	if !stageTransition(receipt(1, StageFailed, binding(invocation.BoundaryAgent, "first")), receipt(2, StageAdmitted, binding(invocation.BoundaryAgent, "second"))) {
+		t.Fatal("an agent's retry could not carry its new approval")
+	}
+	if stageTransition(receipt(1, StageRunning, binding(invocation.BoundaryAgent, "first")), receipt(1, StageCompleted, binding(invocation.BoundaryAgent, "second"))) {
+		t.Fatal("an attempt changed its authority")
+	}
+	if stageTransition(receipt(1, StageFailed, binding(invocation.BoundaryInternal, "first")), receipt(2, StageAdmitted, binding(invocation.BoundaryInternal, "second"))) {
+		t.Fatal("an internal chain changed its authority")
+	}
+}

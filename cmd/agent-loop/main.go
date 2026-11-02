@@ -237,7 +237,8 @@ func restoreCheckpoint(
 			}
 		}
 	}
-	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, store, checkpoint.Operation, uint32(artifact.InitialDocumentVersion))
+	// A checkpoint from before retries names no attempt, and was a first.
+	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, store, checkpoint.Operation, max(checkpoint.Attempt, uint32(artifact.InitialDocumentVersion)))
 	if err != nil {
 		return err
 	}

@@ -34,9 +34,11 @@ type AgentCheckpointEntry struct {
 // AgentMutationCheckpoint is a manifest over content-addressed preimages in
 // the common object store. It contains no inline file payloads.
 type AgentMutationCheckpoint struct {
-	Version       uint16                 `json:"version"`
-	ID            artifact.ID            `json:"-"`
-	Operation     artifact.ID            `json:"operation"`
+	Version   uint16      `json:"version"`
+	ID        artifact.ID `json:"-"`
+	Operation artifact.ID `json:"operation"`
+	// Attempt is the stimulus ordinal this checkpoint was taken for: a record from before retries names none, and was a first.
+	Attempt       uint32                 `json:"attempt,omitzero"`
 	MutationEpoch uint64                 `json:"mutation_epoch"`
 	Entries       []AgentCheckpointEntry `json:"entries"`
 	Captured      uint32                 `json:"captured"`

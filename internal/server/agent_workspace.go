@@ -123,7 +123,14 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 			writeError(response, http.StatusBadRequest, "invalid_request", "approval must name the previewed operation identity")
 			return
 		}
-		if _, err := h.agentCoordinator.ApproveMutation(request.Context(), session, body.Tool, arguments, approved); err != nil {
+		if body.Agent == "" {
+			_, err = h.agentCoordinator.ApproveMutation(request.Context(), session, body.Tool, arguments, approved)
+		} else {
+			_, err = h.agentCoordinator.ApproveMutationWithManuals(
+				request.Context(), session, body.Tool, arguments, approved, active.Definition.ID, active.Definition.ToolManuals,
+			)
+		}
+		if err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", err.Error())
 			return
 		}
@@ -134,9 +141,8 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	if body.Agent == "" {
 		result, err = h.agentCoordinator.Propose(ctx, session, body.Tool, arguments)
 	} else {
-		session.Ceiling = active.Definition.ID
 		result, err = h.agentCoordinator.ProposeWithManuals(
-			ctx, session, body.Tool, arguments, active.Definition.ToolManuals,
+			ctx, session, body.Tool, arguments, active.Definition.ID, active.Definition.ToolManuals,
 		)
 	}
 	if err != nil {

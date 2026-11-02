@@ -41,7 +41,8 @@ func NewMutationCheckpointRuntime(root string, store artifact.Repository) (*Muta
 }
 
 // BeginCheckpoint retains the writer claim until SealCheckpoint or Abort.
-func (runtime *MutationCheckpointRuntime) BeginCheckpoint(ctx context.Context, operation artifact.ID, effect agenttool.InvocationEffect, epoch uint64) (runrecord.AgentMutationCheckpoint, error) {
+//   - attempt = the stimulus ordinal, so a restore reads the effect of the attempt it undoes.
+func (runtime *MutationCheckpointRuntime) BeginCheckpoint(ctx context.Context, operation artifact.ID, attempt uint32, effect agenttool.InvocationEffect, epoch uint64) (runrecord.AgentMutationCheckpoint, error) {
 	if runtime == nil || ctx == nil || operation.Kind() != artifact.KindEvidence || effect.Class != agenttool.EffectMutation || !effect.Known || effect.OpaqueMutation {
 		return runrecord.AgentMutationCheckpoint{}, errors.New("agent loop: invalid mutation checkpoint request")
 	}
@@ -52,7 +53,7 @@ func (runtime *MutationCheckpointRuntime) BeginCheckpoint(ctx context.Context, o
 	}
 	runtime.active = true
 	runtime.mu.Unlock()
-	checkpoint, contents, err := runtime.capture(operation, effect, epoch)
+	checkpoint, contents, err := runtime.capture(operation, attempt, effect, epoch)
 	if err != nil {
 		runtime.AbortCheckpoint()
 		return runrecord.AgentMutationCheckpoint{}, err
@@ -77,7 +78,7 @@ func (runtime *MutationCheckpointRuntime) BeginCheckpoint(ctx context.Context, o
 	return checkpoint, nil
 }
 
-func (runtime *MutationCheckpointRuntime) capture(operation artifact.ID, effect agenttool.InvocationEffect, epoch uint64) (runrecord.AgentMutationCheckpoint, []artifact.Content, error) {
+func (runtime *MutationCheckpointRuntime) capture(operation artifact.ID, attempt uint32, effect agenttool.InvocationEffect, epoch uint64) (runrecord.AgentMutationCheckpoint, []artifact.Content, error) {
 	entries := []runrecord.AgentCheckpointEntry{}
 	contents := []artifact.Content{}
 	for _, target := range effect.Targets {
@@ -123,7 +124,7 @@ func (runtime *MutationCheckpointRuntime) capture(operation artifact.ID, effect 
 	if len(entries) == 0 {
 		return runrecord.AgentMutationCheckpoint{}, nil, errors.New("agent loop: mutation has no workspace checkpoint target")
 	}
-	checkpoint, err := runrecord.NewAgentMutationCheckpoint(runrecord.AgentMutationCheckpoint{Operation: operation, MutationEpoch: epoch, Entries: entries})
+	checkpoint, err := runrecord.NewAgentMutationCheckpoint(runrecord.AgentMutationCheckpoint{Operation: operation, Attempt: attempt, MutationEpoch: epoch, Entries: entries})
 	return checkpoint, contents, err
 }
 

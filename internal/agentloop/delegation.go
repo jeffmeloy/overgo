@@ -39,8 +39,7 @@ func (delegated *DelegatedCoordinator) Propose(ctx context.Context, session *Ses
 	if delegated == nil {
 		return nil, errors.New("agent loop: delegated coordinator is absent")
 	}
-	session.Ceiling = delegated.coordinator.identity.Recipe
-	return delegated.coordinator.ProposeWithManuals(ctx, session, name, arguments, delegated.manuals)
+	return delegated.coordinator.ProposeWithManuals(ctx, session, name, arguments, delegated.coordinator.identity.Recipe, delegated.manuals)
 }
 
 // PreviewMutationDecision projects the decision facts of the session's next step through the coordinator.
@@ -55,9 +54,8 @@ func (delegated *DelegatedCoordinator) PreviewMutationDecision(ctx context.Conte
 // ApproveMutation records the operator's grant for the session's next step through the coordinator.
 //   - the session's ceiling = the invocation, as Propose binds it, because Propose refuses a preflight that binds another ceiling.
 func (delegated *DelegatedCoordinator) ApproveMutation(ctx context.Context, session *Session, name string, arguments json.RawMessage, approved artifact.ID) (artifact.ID, error) {
-	if delegated == nil || session == nil {
-		return artifact.ID{}, errors.New("agent loop: delegated coordinator or session is absent")
+	if delegated == nil {
+		return artifact.ID{}, errors.New("agent loop: delegated coordinator is absent")
 	}
-	session.Ceiling = delegated.coordinator.identity.Recipe
-	return delegated.coordinator.ApproveMutation(ctx, session, name, arguments, approved)
+	return delegated.coordinator.ApproveMutationWithManuals(ctx, session, name, arguments, approved, delegated.coordinator.identity.Recipe, delegated.manuals)
 }

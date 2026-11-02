@@ -61,7 +61,8 @@ func (kind MutationKind) Valid() bool {
 }
 
 // ReceiptBinding is the immutable authority carried by every state in one
-// mutation receipt chain. Authority is exactly one HumanDecision today or an
+// mutation receipt chain, or in one attempt of an agent's, whose retry is
+// approved again. Authority is exactly one HumanDecision today or an
 // active automation-policy lifecycle record when unattended authority lands.
 type ReceiptBinding struct {
 	Boundary      Boundary          `json:"boundary"`

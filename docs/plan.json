@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 561,
-        "reason": "Estimate after the 675d61b80 recheck: agent-attempts 120, child-exit 220, provider-listing 150, one-address-list 110, public-routes 50, session-list 150. The row's filed 500 did not hold the wider fixes."
+        "nodes": 816,
+        "reason": "agent-attempts took 584 of an estimated 120: a retry carries a new approval, so the receipt chain, the checkpoint, the restore and both approval paths moved with the ordinal. The rest of the row is estimated from the same reading: provider-listing 300, one-address-list 110, public-routes 50, session-list 150."
       },
       "steps": [
-        {
-          "id": "agent-attempts",
-          "title": "Let an agent step be attempted again after an error or a restart",
-          "status": "open",
-          "verify": "go test ./internal/agentloop ./internal/server -count=1 -run '^(TestAToolErrorLeavesTheSessionUsable|TestACancelledMutationClosesItsReceipt|TestAMutationAfterARestartRuns)$'",
-          "rationale": "Three ways stop a session for good, and two are reproduced at 675d61b80.\nA mutation after a restart: agent_workspace.go:126 runs ApproveMutation before :137 sets session.Ceiling, and RestoreSession restores none (internal/agentloop/coordinator.go:241), so :552 writes the serving recipe and :404 compares the agent definition. Inspect, restart or swap, then approve: 'preflight binds different action facts', then 'attempt stimulus boundary already differs' for good. Set the ceiling first, inside the session lock, since :137 is also written outside it against the read at coordinator.go:558.\nA tool error: Steps advances only on success (coordinator.go:214-221), so the next try reuses callID (:150) at a fixed ordinal and a moved head (:528), and internal/runrecord/attempt_stimulus.go:85-89 refuses it. The ordinal is fixed at five sites (coordinator.go:394,477,549,584,615). A restored session must find its next ordinal from the store, since a counter on Session is lost.\nA refused approved step: coordinator.go:347 publishes before :130 refuses, since ApproveMutation has no manuals check, so a mutation outside the agent's manuals takes the ordinal. The page's list prevents this, the API does not.\nReceipts close on the request context (coordinator.go:192,209,217) and the store refuses a cancelled one (internal/overgodb/store.go:628), so a disconnect leaves a finished mutation marked running. Use WithoutCancel, as :199 already does.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: a tool that returns an error then succeeds, a restored session approving a mutation, and a cancelled request.\nBatch: serving lane."
-        },
         {
           "id": "provider-listing",
           "title": "Send a provider key only to the endpoint it was declared for",

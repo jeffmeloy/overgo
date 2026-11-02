@@ -85,7 +85,7 @@ func TestAgentMutationCheckpointLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			checkpoint, err := runtime.BeginCheckpoint(ctx, testutil.ArtifactID(t, artifact.KindEvidence, failure), effect, 1)
+			checkpoint, err := runtime.BeginCheckpoint(ctx, testutil.ArtifactID(t, artifact.KindEvidence, failure), 1, effect, 1)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -379,10 +379,14 @@ func run() error {
 			return rootsErr
 		}
 		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, workspaceStore, roots, runner.ModelID(), rewardTrainer(*trainer, repoPath))
-		if err != nil {
+		switch {
+		case errors.Is(err, llamaserver.ErrNoTrainingRecipe):
+			log.Printf("training: %v; conversation fine-tuning stays open", err)
+		case err != nil:
 			return fmt.Errorf("open training workspace: %w", err)
+		default:
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
 		}
-		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
 	// Fine-tuning on conversations rides the store alone, as exports do: it trains
 	// the served model, so it needs only that model and the roots it writes under.

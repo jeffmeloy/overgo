@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/peft"
 	"overgo/internal/recipe"
@@ -419,5 +421,27 @@ func TestSFTWorkspaceOffersAdapterVariants(t *testing.T) {
 		if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, scenario.capability, fixture.inputWith(scenario.output, scenario.fields), testReporter{}); err == nil || !strings.Contains(err.Error(), scenario.want) {
 			t.Errorf("%s: err = %v, want it to say %q", name, err, scenario.want)
 		}
+	}
+}
+
+// TestTrainingOpensOnADerivedRecipe: a served model with no training recipe asks for nothing to be published first. The
+// preference and reward workspace says it has no recipe, a condition its caller passes over and no refusal, and the
+// model's conversation fine-tuning is open on the identity alone.
+func TestTrainingOpensOnADerivedRecipe(t *testing.T) {
+	t.Parallel()
+	fixture := newSFTFixture(t)
+	if _, active, err := modelrecipe.ActiveRecord(t.Context(), fixture.store, fixture.model, recipe.TaskTraining); err != nil || active {
+		t.Fatalf("the fixture's model has a training recipe: %t, %v", active, err)
+	}
+	_, err := NewTrainingWorkspace(t.Context(), fixture.store, fixture.roots, fixture.model, nil)
+	if !errors.Is(err, ErrNoTrainingRecipe) {
+		t.Fatalf("a model with no training recipe: %v", err)
+	}
+	capabilities, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowTraining)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capabilities) == 0 {
+		t.Fatal("a model with no training recipe offers no training")
 	}
 }

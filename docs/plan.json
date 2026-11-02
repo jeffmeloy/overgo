@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 710,
+        "nodes": 628,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "training-opens",
-          "title": "Open training on a derived recipe and record the state on its run",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestTrainingOpensOnADerivedRecipe$'",
-          "rationale": "SQA-283 (5): the server's training workspace opens the way the loader now does; cmd/train's -bootstrap-recipe already does this for one case, so read it first and fold it in rather than beside it.\nServes: a model on disk trains without a recipe published first.\nDisappears: the active-recipe requirement of the training workspace.\nEvidence: its test.\nBatch: training lane.\n\nRead at 73b2d1401: cmd/train already bootstraps a recipe at each route's start, and the server's conversation fine-tuning trains with none. What is left is that a server started with -training on a model with no active training recipe exits at startup, and that no run records the model's state."
-        },
         {
           "id": "named-refusals",
           "title": "Refuse a run only for what it cannot run without, and name it",

@@ -29,6 +29,11 @@ type trainingWorkspace struct {
 	execute func(context.Context, trainingworkflow.Request) (trainingworkflow.Result, error)
 }
 
+// ErrNoTrainingRecipe says a model has no preference or reward recipe to open a workspace on. That refuses no training:
+// the server still serves the model, its conversation fine-tuning stays open, and cmd/train bootstraps a recipe at each
+// route's start.
+var ErrNoTrainingRecipe = errors.New("training workspace: the model has no active preference or reward recipe")
+
 // NewTrainingWorkspace opens the workspace of the model's active training
 // recipe, a preference (DPO) or a reward (GRPO) objective. A preference run
 // trains in the server, on the host processor. A reward run trains on the
@@ -39,6 +44,13 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 	if ctx == nil || store == nil || model.Kind() != artifact.KindModel || roots.Checkpoints == "" {
 		return nil, errors.New("training workspace: invalid store, roots, or model")
 	}
+	_, state, err := modelrecipe.ReadModelState(ctx, store, model, recipe.TaskTraining)
+	if err != nil {
+		return nil, err
+	}
+	if state.Verification == modelrecipe.StateNotVerified || state.Verification == modelrecipe.StateBroken {
+		return nil, fmt.Errorf("%w: %s", ErrNoTrainingRecipe, state.Verification)
+	}
 	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, model, recipe.TaskTraining)
 	if err != nil {
 		return nil, err
@@ -48,7 +60,7 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 		return nil, err
 	}
 	if objective != trainingprogram.ObjectiveDPO && objective != trainingprogram.ObjectiveGRPO {
-		return nil, errors.New("training workspace: active recipe is not an RL objective")
+		return nil, fmt.Errorf("%w: its active recipe trains %s", ErrNoTrainingRecipe, objective)
 	}
 	execute := trainingworkflow.Execute
 	if objective == trainingprogram.ObjectiveGRPO {

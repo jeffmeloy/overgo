@@ -175,12 +175,13 @@ a conversation is answered from the context already read, in about 1.3 s.
 
 ### Sample outputs
 
-Each sample is the output of the attempt the scorecard measures, exported from
+Each sample is an output of the attempts the scorecard reads, exported from
 the store into [assets](assets) by
 `go run ./cmd/validate -export-samples -media-scope measured -repo <store>` and
 named by the SHA-256 of its bytes, so it is checkable against the run that
-produced it. The time is that attempt's whole request after a fresh load; the
-memory is its peak on the card.
+produced it. The time and memory beside it are the scorecard's: the time is the
+median of the newest attempts at a whole request and the memory the newest's peak
+on the card, so neither need be that output's own.
 
 **Krea-2-Turbo, text → image.** "a red fox licking a vanilla ice cream cone in
 snow", 512 × 512, 4 steps, seed 2026: 13.9 s, 25.1 GiB.

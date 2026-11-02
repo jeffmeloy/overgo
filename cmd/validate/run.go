@@ -41,6 +41,10 @@ const (
 // ceiling on a pass; a benchmark with no measured wall is ordered by it.
 const benchmarkBudget = 6 * time.Hour
 
+// videoUserSize is the cell that times a video model's request at the size a person asks for: 81 frames at 832 by 480 for
+// Wan, about six minutes, where its proof times a small request.
+const videoUserSize = "video-user-size"
+
 // reacquireCommand builds the command that re-acquires one validation cell's
 // evidence into store, the one store this command selected and read, so the
 // producer never resolves a default of its own. It binds only the commands
@@ -90,6 +94,12 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 			return "", nil, errors.New("a capability measurement needs the model's registered directory, or a served model's weights file")
 		}
 		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), path}, nil
+	case videoUserSize:
+		// A person's request, beside the small one its proof times, on the directory that proof reads.
+		if cell.Directory == "" {
+			return "", nil, errors.New("a capability measurement needs the model's registered directory")
+		}
+		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), "-user-size", cell.Directory}, nil
 	}
 	if !benchmark(cell) {
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)
@@ -415,7 +425,7 @@ func cellEnvironment(validation string, environment []string) []string {
 // benchmarks, the guards and the lanes read answers and memory, which a busy machine does not change.
 func timedValidation(validation string) bool {
 	switch validation {
-	case trainingProof, projectionProof, servingValidation, "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof":
+	case trainingProof, projectionProof, servingValidation, "image-proof", "video-proof", videoUserSize, "speech-proof", "vqa-proof", "specialized-proof":
 		return true
 	}
 	return false

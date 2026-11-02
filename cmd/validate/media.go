@@ -25,9 +25,10 @@ import (
 type mediaReportScope struct {
 	Tasks          []recipe.Task
 	FrozenRequests bool
-	// MeasuredAttempts selects the request of the attempt each scorecard
-	// cell is measured on, so the exported sample is the output whose time
-	// and memory the scorecard reports.
+	// MeasuredAttempts selects the attempt each scorecard cell names as its
+	// source, an output of what the cell reads: its time is a median of the
+	// newest attempts and its memory the newest's, so neither need be this
+	// output's own.
 	MeasuredAttempts bool
 }
 

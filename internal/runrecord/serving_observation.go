@@ -97,6 +97,8 @@ type ServingObservation struct {
 	Phases        []PhaseMetric           `json:"phases,omitempty"`
 	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
 	Failure       string                  `json:"failure,omitzero"`
+	// UserSize marks an attempt at the size a person asks for, beside the small request a model's cells time.
+	UserSize bool `json:"user_size,omitzero"`
 	// CodeCommit is the commit the attempt ran (RunningCommit). A record from before this field holds none.
 	CodeCommit string `json:"code_commit,omitzero"`
 	// Causal explains why the serving execution occurred.

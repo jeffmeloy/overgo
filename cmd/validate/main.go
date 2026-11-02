@@ -432,7 +432,7 @@ func kindValidation(task recipe.Task) []string {
 	case "image-gen":
 		return []string{"image-proof"}
 	case "video-gen":
-		return []string{"video-proof"}
+		return []string{"video-proof", videoUserSize}
 	case "speech", "transcription":
 		return []string{"speech-proof"}
 	case "vqa":

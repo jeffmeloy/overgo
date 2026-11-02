@@ -41,7 +41,9 @@ type WholeOutput struct {
 	OutputTokens       uint64
 	PeakDeviceBytes    uint64
 	PeakMeasured       bool
-	Cause              error
+	// UserSize marks a request at the size a person asks for (ServingObservation.UserSize).
+	UserSize bool
+	Cause    error
 }
 
 // failureCode is the code a failed attempt records.
@@ -69,7 +71,7 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 		Version: artifact.InitialDocumentVersion, Model: attempt.Model, Recipe: attempt.Recipe, Environment: environment.ID,
 		Run: attempt.Run, Task: attempt.Task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: attempt.Started.UnixNano(),
 		MeasuredNS: uint64(max(attempt.Wall, 0)), Resources: runrecord.ServingResources{PeakDeviceBytes: attempt.PeakDeviceBytes},
-		Usage: runrecord.ServingUsage{OutputTokens: attempt.OutputTokens},
+		Usage: runrecord.ServingUsage{OutputTokens: attempt.OutputTokens}, UserSize: attempt.UserSize,
 	}
 	if attempt.Load > 0 {
 		observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(attempt.Load)}}

@@ -852,7 +852,9 @@
         "uncertainty": "Admitted two/three-attempt counterexamples follow the retained arithmetic contract. Actual published sample/observation equality remains unverified. A source may also be a benchmark fallback; no current media-row failure from that path was established, so this finding does not prescribe a speculative guard."
       },
       "likely_effort": "Small evidence/comment correction using existing retained observation identities.",
-      "plan_references": [],
+      "plan_references": [
+        "scorecard-truth/video-user-size"
+      ],
       "plan_coverage": "The former scorecard rows landed07e1f701e and303ae00b9 and are pruned. MOSS has a retained quality reading now, but these attribution/denominator claims remain. No new run or row is requested.",
       "closure_criteria": [
         "Sample documentation distinguishes the representative run from aggregate timing/newest-attempt memory, or cites that run's own retained elapsed/peak values.",
@@ -6815,7 +6817,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "e57e7236f3174699a8d42f31d6a1a5450627b5cd",
+    "head": "0b80394917c471cdd1dd3ada43edc33f623d758b",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7094,11 +7096,11 @@
         "note": "Stands, and stays open. Parked with finding 773e7e0f: the adapter that bound those six suites is not in this repository, so rerunning them means finding or rebuilding it. No row until that harness exists; the coverage record already discloses the old definition per cell."
       },
       "SQA-221": {
-        "action": "existing-row",
+        "action": "implemented",
         "rows": [
-          "scorecard-unmeasured-image-gen/do"
+          "scorecard-truth/video-user-size"
         ],
-        "note": "P3 taken when that row reads the scorecard's MOSS samples, since it is the wording of the same cells."
+        "note": "Prose only, as the finding asks. README's Sample outputs, mediaReportScope and measuredSampleSelection now say a sample is an output of the attempts the scorecard reads, and that the time beside it is a median of attempts and the memory the newest's, so neither need be that output's own. No measurement, schema or export mode was added, and the scorecard's median and memory tests are unchanged. README's own figures are not re-derived: the 95 s beside the MOSS sample stays the cell's reading, which the reworded paragraph now describes."
       },
       "SQA-276": {
         "action": "filed",

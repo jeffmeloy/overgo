@@ -284,6 +284,12 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 					text.WriteString(fmt.Sprintf("; %s at %d tokens", cellText(column, length), length.Prompt))
 				}
 			}
+			// A video model's reading at the size a person asks for follows the small request's.
+			for _, sized := range row.Measured(column) {
+				if sized.AtUserSize() {
+					text.WriteString(fmt.Sprintf("; %s at the size a person asks for", cellText(column, sized)))
+				}
+			}
 			table.WriteString(" " + text.String() + " |")
 			line := fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[column], cell.Reason)
 			switch {

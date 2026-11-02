@@ -111,3 +111,62 @@ func TestFailureRateCountsTheAttemptsOfItsWindow(t *testing.T) {
 		t.Fatalf("a recorded attempt names commit %q (%v), want the one this process runs, %q", published.CodeCommit, err, runrecord.RunningCommit())
 	}
 }
+
+// TestAVideoIsReadAtTheSizeAPersonAsksFor: an attempt at a person's size is an attempt, and stays out of the small request's
+// reading; its time and peak memory read as cells of their own, compared on their own contract and printed by their column.
+func TestAVideoIsReadAtTheSizeAPersonAsksFor(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	model := testutil.ArtifactID(t, artifact.KindModel, "video model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "video recipe")
+	environment := testutil.ArtifactID(t, artifact.KindEvidence, "video environment")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "video/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipeID}, {ID: environment}}}); err != nil {
+		t.Fatal(err)
+	}
+	const small, sized, smallPeak, sizedPeak = 13_000_000_000, 360_000_000_000, 3 << 30, 12 << 30
+	attempt := func(label string, started int64, took uint64, peak uint64, userSize bool) {
+		t.Helper()
+		observation, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+			Model: model, Recipe: recipeID, Environment: environment, Task: recipe.TaskVideoGen, Outcome: runrecord.OutcomeSucceeded,
+			StartedUnixNS: started, MeasuredNS: took, Resources: runrecord.ServingResources{PeakDeviceBytes: peak}, UserSize: userSize,
+			Phases: []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: 1}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := observation.Batch("video/" + label)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	attempt("small", 1, small, smallPeak, false)
+	attempt("sized", 2, sized, sizedPeak, true)
+	summaries, err := servingByRecipe(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := summaries[recipeID]
+	if summary == nil || summary.attempts != 2 || summary.peakDeviceBytes != smallPeak {
+		t.Fatalf("the summary reads %+v, want both attempts and the small request's memory", summary)
+	}
+	if timed, measured := summary.timed(timingWholeOutput, "ms", "whole", "whole"); !measured || timed.Value != small/1e6 {
+		t.Fatalf("the small request reads %+v (%t), want its own time", timed, measured)
+	}
+	unmeasured := gap("not read in this fixture")
+	row := Row{Cells: map[metric.Name]Cell{metric.FirstOutput: unmeasured, metric.PeakMemory: unmeasured}, Warm: userSizeCells(summary)}
+	timeCells, memoryCells := row.Measured(metric.FirstOutput), row.Measured(metric.PeakMemory)
+	if len(timeCells) != 1 || timeCells[0].Value != sized/1e6 || !timeCells[0].AtUserSize() {
+		t.Fatalf("the first-output column holds %+v, want the person's request", timeCells)
+	}
+	if len(memoryCells) != 1 || memoryCells[0].Value != sizedPeak || !memoryCells[0].AtUserSize() {
+		t.Fatalf("the memory column holds %+v, want the person's request", memoryCells)
+	}
+}

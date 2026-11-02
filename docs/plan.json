@@ -167,25 +167,6 @@
       ]
     },
     {
-      "id": "scorecard-truth",
-      "title": "Make scorecard readings say what a user would see",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 202,
-        "reason": "stale-quality measures about 520, a run's record carried to its publication and a gap read from it, where the row's estimate took 60 to 120; the video step is still estimated at 150 to 200."
-      },
-      "steps": [
-        {
-          "id": "video-user-size",
-          "title": "Time a video request of the size a person asks for",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestVideoCellsTimeAUserSizeRequest$'",
-          "rationale": "Video cells time 21 frames at 32 by 16; a person's request is 81 frames at 832 by 480, about 6 minutes, and is untimed and its device memory unrecorded (README.md:202-208).\nAdd one user-size reading per run beside the small one. This is a new reading: Row.Lengths is inference-only (internal/scorecard/scorecard.go:749-751).\nSQA-221 joins this step: cmd/validate/media_selection.go:90-92 still claims the sample is what the scorecard reports.\nServes: first-output and peak-device-memory as a video user meets them.\nDisappears: nothing.\nEvidence: one published reading.\nBatch: validate lane; the reading runs in the cycle."
-        }
-      ]
-    },
-    {
       "id": "optimizer-truth",
       "title": "Hold training's optimizer to what it states",
       "owner": "master-lead",

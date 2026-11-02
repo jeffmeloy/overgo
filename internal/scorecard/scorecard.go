@@ -273,10 +273,24 @@ const (
 	warmRateMetric  = "output tokens over decode time, a request again on a loaded model"
 )
 
+// The measures of a video model's request at the size a person asks for, which Row.Warm holds beside the warm request's.
+const (
+	userSizeTimeMetric   = "time to the whole output, at the size a person asks for"
+	userSizeMemoryMetric = "peak device memory, at the size a person asks for"
+)
+
+// AtUserSize says the cell reads the request of the size a person asks for.
+func (c Cell) AtUserSize() bool {
+	return c.Contract.Metric == userSizeTimeMetric || c.Contract.Metric == userSizeMemoryMetric
+}
+
 // warmColumn is the column a warm cell measures, by its measure.
 func warmColumn(cell Cell) metric.Name {
-	if cell.Contract.Metric == warmRateMetric {
+	switch cell.Contract.Metric {
+	case warmRateMetric:
 		return metric.Throughput
+	case userSizeMemoryMetric:
+		return metric.PeakMemory
 	}
 	return metric.FirstOutput
 }
@@ -387,7 +401,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Lengths = lengthCells(capability.Task, observed)
-			row.Warm = warmCells(capability.Task, observed)
+			row.Warm = append(warmCells(capability.Task, observed), userSizeCells(observed)...)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			if record, found := heldout[capability.Recipe]; found {
@@ -613,6 +627,8 @@ type servingSummary struct {
 	// lengths reads, by each of evaluation.PromptLengths, the successes whose prompt was of about that
 	// length: the newest, under whose environment its window is, and the next older ones under it.
 	lengths map[int]*servingSummary
+	// userSize reads, the same way, the successes at the size a person asks for.
+	userSize *servingSummary
 	// warm reads, the same way, the successes timed again on the model they had loaded and served.
 	warm *servingSummary
 }
@@ -797,6 +813,43 @@ func warmCells(task recipe.Task, observed *servingSummary) []Cell {
 	return cells
 }
 
+// readUserSize adds a success at the size a person asks for to its window, as readWarm does. Its whole request is its
+// time, and the newest's peak its memory.
+func (summary *servingSummary) readUserSize(observation runrecord.ServingObservation) {
+	if summary.userSize == nil {
+		summary.userSize = &servingSummary{
+			measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment,
+			peakDeviceBytes: observation.Resources.PeakDeviceBytes,
+		}
+	}
+	read := summary.userSize
+	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
+		return
+	}
+	sample := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
+	sample.took[timingWholeOutput] = milliseconds(observation.MeasuredNS)
+	read.window = append(read.window, sample)
+}
+
+// userSizeCells are a row's time and peak memory at the size a person asks for, where its attempts read them.
+func userSizeCells(observed *servingSummary) []Cell {
+	if observed == nil {
+		return nil
+	}
+	read := observed.userSize
+	cell, measured := read.timed(timingWholeOutput, "ms", userSizeTimeMetric, "serving "+userSizeTimeMetric+", the median of the newest attempts")
+	if !measured {
+		return nil
+	}
+	cells := []Cell{cell}
+	if read.peakDeviceBytes != 0 {
+		memory := read.cell(read.measured, float64(read.peakDeviceBytes), "bytes", userSizeMemoryMetric, "serving "+userSizeMemoryMetric+", the newest attempt")
+		memory.Newest = read.window[0].started
+		cells = append(cells, memory)
+	}
+	return cells
+}
+
 // lengthCells are a row's first outputs at the longer prompts its attempts read, shortest first.
 func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	if task != recipe.TaskInference || observed == nil {
@@ -863,6 +916,13 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if !summary.tally(observation) {
 			return nil
 		}
+		// An attempt at the size a person asks for counts as an attempt, and is timed as that size's alone.
+		if observation.UserSize {
+			if observation.Outcome == runrecord.OutcomeSucceeded {
+				summary.readUserSize(observation)
+			}
+			return nil
+		}
 		// An attempt timed again on the model it had loaded and served counts as an attempt, and is timed as the
 		// warm request's alone.
 		if observation.SessionReused {
@@ -884,7 +944,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(summary.window) >= recentAttempts {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths, warm: summary.warm}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment, lengths: summary.lengths, warm: summary.warm, userSize: summary.userSize}
 		timings := servingSample{attempt: observation.ID, started: observation.StartedUnixNS}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {

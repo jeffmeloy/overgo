@@ -88,9 +88,8 @@ func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.
 }
 
 // measuredSampleSelection selects, for each media activation, the run of the
-// attempt the scorecard's first-output cell is measured on, read from that
-// cell's source, so the exported sample is the output whose time and memory
-// the scorecard reports.
+// attempt the scorecard's first-output cell names as its source, so the
+// exported sample is an output of what the cell reads (mediaReportScope).
 func measuredSampleSelection(ctx context.Context, store *overgodb.Store) (*mediaSampleSelection, error) {
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {

@@ -78,6 +78,7 @@ func run() error {
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
+	userSize := flags.Bool("user-size", false, "measure: run the verified request at the size a person asks for: the model's own defaults in place of the size its verification stated")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
 	inputFile := flags.String("input-file", "", "a file holding the task input, in place of -input (verify, run)")
 	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
@@ -236,7 +237,7 @@ func run() error {
 		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
-		return measureCapability(repository, path, selectedTask, capability)
+		return measureCapability(repository, path, selectedTask, capability, *userSize)
 	case "status":
 		return status(repository, path, selectedTask)
 	case "policy":
@@ -448,7 +449,7 @@ func executeCapability(
 			return err
 		}
 	}
-	output, _, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input)
+	output, _, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input, false)
 	if err != nil {
 		return err
 	}
@@ -472,6 +473,7 @@ func attemptCapability(
 	selected modelrecipe.CapabilityEvidenceSelection,
 	capability mediacapability.Capability,
 	input string,
+	userSize bool,
 ) (any, artifact.ID, error) {
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
@@ -483,7 +485,7 @@ func attemptCapability(
 	recorded, recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
-		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
+		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, UserSize: userSize, Cause: err,
 	})
 	return output, recorded.ID, errors.Join(err, recordErr)
 }
@@ -513,8 +515,10 @@ func devicePeak(process uint64, measured capabilityruntime.Measured, cause error
 // measureCapability runs the active capability once on the request its
 // verification ran, so the scorecard measures the model the way its users
 // meet it, and prints the output. Its fresh operation runs the model even
-// when verification already retained the identical request's output.
-func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability) error {
+// when verification already retained the identical request's output. With
+// userSize the request is the one a person's would be (userSizeRequest), and a
+// model whose verification states no size has none to measure.
+func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability, userSize bool) error {
 	ctx := context.Background()
 	store, err := overgodb.Open(repository)
 	if err != nil {
@@ -534,12 +538,23 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	if err != nil {
 		return err
 	}
+	if userSize {
+		sized, smaller, err := userSizeRequest(request)
+		if err != nil {
+			return err
+		}
+		if !smaller {
+			fmt.Fprintf(os.Stderr, "recipe: the verification of %s states no size of its own, so there is no larger request to measure\n", path)
+			return nil
+		}
+		request = sized
+	}
 	if err := clioptions.Ready(); err != nil {
 		return err
 	}
 	ctx, stages := processmeasure.WithStages(capabilityruntime.FreshRun(ctx))
 	clock := processmeasure.NewStopwatch()
-	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
+	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request, userSize)
 	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
 		return err
 	}
@@ -552,6 +567,26 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		}
 	}
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
+}
+
+// requestSize is what a verification states to keep its request small, which a request that leaves it out takes from the
+// model's own defaults, the size a person gets by asking for nothing else.
+var requestSize = []string{"frames", "width", "height", "steps"}
+
+// userSizeRequest is a verified request at the size a person asks for, and whether the verification stated a size to lift.
+func userSizeRequest(request string) (string, bool, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(request), &fields); err != nil {
+		return "", false, fmt.Errorf("recipe: the verified request: %w", err)
+	}
+	stated := false
+	for _, name := range requestSize {
+		_, held := fields[name]
+		stated = stated || held
+		delete(fields, name)
+	}
+	sized, err := json.Marshal(fields)
+	return string(sized), stated, err
 }
 
 // verifiedRequest is the request the activation's accepted verification ran,

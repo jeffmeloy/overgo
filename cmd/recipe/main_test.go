@@ -343,7 +343,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 					return "measured", test.cause
 				},
 			}
-			err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability)
+			err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability, false)
 			reopened, openErr := overgodb.Create(directory)
 			if openErr != nil {
 				t.Fatal(openErr)
@@ -434,7 +434,7 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 					return capabilityruntime.Measured{Output: "measured", Load: load, PeakDeviceBytes: test.executor}, test.cause
 				},
 			}
-			if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability); !errors.Is(err, test.cause) {
+			if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability, false); !errors.Is(err, test.cause) {
 				t.Fatalf("measurement = %v, want %v", err, test.cause)
 			}
 			observed := servingAttempts(t, directory)
@@ -502,7 +502,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	}{{runs: 1}, {runs: 1}, {measure: true, runs: 2}, {measure: true, runs: 3}, {runs: 3}, {fresh: true, runs: 4}, {runs: 4}} {
 		var err error
 		if step.measure {
-			err = measureCapability(directory, "fixture-path", recipe.TaskForecast, capability)
+			err = measureCapability(directory, "fixture-path", recipe.TaskForecast, capability, false)
 		} else {
 			err = executeCapability(directory, "fixture-path", "", "", modelrecipe.SessionWarm, recipe.TaskForecast, capability, request, step.fresh)
 		}
@@ -538,7 +538,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	}
 	for _, cause := range []error{errors.New("fixture forecast failed"), context.Canceled} {
 		terminal = cause
-		if err := measureCapability(directory, "fixture-path", recipe.TaskForecast, capability); !errors.Is(err, cause) {
+		if err := measureCapability(directory, "fixture-path", recipe.TaskForecast, capability, false); !errors.Is(err, cause) {
 			t.Fatalf("terminal measurement = %v; want %v", err, cause)
 		}
 	}
@@ -637,7 +637,7 @@ func TestCapabilityMeasurementRecordsDecodeAndOutputTokens(t *testing.T) {
 			return output, err
 		},
 	}
-	if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability); err != nil {
+	if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability, false); err != nil {
 		t.Fatal(err)
 	}
 	observed := servingAttempts(t, directory)

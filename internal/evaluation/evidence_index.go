@@ -75,6 +75,10 @@ type EvalSummary struct {
 	// counts them: a held-out verdict's records, a transcription report's
 	// utterances. Zero where a suite's descriptor is what counts them.
 	Cases uint64 `json:"cases,omitzero"`
+	// Supported says a held-out verdict's gain is one its cases support, and Objective is the objective it judged; both are
+	// the trained model's, and zero for everything else.
+	Supported bool        `json:"supported,omitzero"`
+	Objective artifact.ID `json:"objective,omitzero"`
 	// Noise is the standard error of the headline metric where the record
 	// keeps what it follows from: for a held-out verdict, that of the mean
 	// of its records' scores. Zero where it does not.

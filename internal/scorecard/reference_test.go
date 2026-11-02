@@ -94,7 +94,8 @@ func TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence(t *test
 	}
 
 	// Four earlier readings say neither what the cell holds nor how far it moves.
-	filed, compared := judged(metric.Load, timed(100, 101, 99, 100, 300))
+	// The zero sampled nothing and is no reading: counted, it would make the fifth that judges the cell.
+	filed, compared := judged(metric.Load, timed(0, 100, 101, 99, 100, 300))
 	if len(filed) != 0 || len(compared) != 1 || compared[0].Verdict != Unknown || !strings.Contains(compared[0].Why, fmt.Sprintf("%d earlier readings on its contract, fewer than the %d", fewestReadings-1, fewestReadings)) {
 		t.Errorf("300 ms after four readings near 100 = %+v and %+v, want no decline and one comparison that is unknown for its too few readings", filed, compared)
 	}

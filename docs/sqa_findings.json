@@ -2956,7 +2956,7 @@
       },
       "likely_effort": "Small deletion and one literal/comment change in two existing native tests.",
       "plan_references": [
-        "compact-tests/fatal-check"
+        "training-gaps/training-target"
       ],
       "plan_coverage": "Existing test-compaction row can absorb this assertion simplification; advisory only, no plan edit or new work framework.",
       "closure_criteria": [
@@ -6972,7 +6972,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "5721eddccacc79e17a49255c9ad3fc7c34069572",
+    "head": "42aaf620b8fd6bdc1db8a26b5b191c9cf6e54d10",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7589,6 +7589,13 @@
           "review-repairs/do"
         ],
         "note": "Bug in scorecard-truth/quality-level. readingsOf takes what counts as a reading: a timing's zero stays out before its window, and a quality's zero is a reading. Held by TestAPerfectZeroIsAQualitysLevel on the headline and a second suite, with a timing's zero still left out."
+      },
+      "SQA-291": {
+        "action": "implemented",
+        "rows": [
+          "training-gaps/training-target"
+        ],
+        "note": "The timing fixture in TestAPerfectZeroIsAQualitysLevel is deleted, since its assertion passed with the fault in or out. The eligibility case in reference_test now holds a zero before its four readings, and still requires Unknown: a zero admitted there would make the fifth reading that judges the cell."
       }
     }
   },

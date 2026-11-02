@@ -468,7 +468,9 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 				Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
 			}
 		}
-		return visit(verdict.Observation, summary(verdict.BaselineValue, reports[0]), summary(verdict.CandidateValue, reports[1]))
+		trained := summary(verdict.CandidateValue, reports[1])
+		trained.Supported, trained.Objective = verdict.Passed && verdict.ReadGain(reports[0], reports[1]).Supported, verdict.Objective
+		return visit(verdict.Observation, summary(verdict.BaselineValue, reports[0]), trained)
 	})
 	return err
 }

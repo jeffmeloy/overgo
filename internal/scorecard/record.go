@@ -630,7 +630,9 @@ const failureNoise = 1
 // judges a training against its base model, not the record against its
 // reference.
 const (
-	gapBelowBase  = "below-base"
+	gapBelowBase = "below-base"
+	// gapTraining is a declared training target no verdict meets; its key names the model (TrainingTarget).
+	gapTraining   = "train"
 	gapFailing    = "failing"
 	gapUncompared = "uncompared"
 	gapUnmeasured = "unmeasured"
@@ -692,9 +694,11 @@ func regressionKeys(row Row, column metric.Name, cell Cell) (own, inherited []st
 // kind of gap on a task the catalog holds, or the decline of a cell. A key that
 // matches neither is not a gap that is closed; nothing could ever open it.
 func KnownGapKey(key string) bool {
-	if digest, found := strings.CutPrefix(key, regressionKeyPrefix); found {
-		raw, err := hex.DecodeString(digest)
-		return err == nil && hex.EncodedLen(len(raw)) == regressionDigits
+	for _, prefix := range []string{regressionKeyPrefix, trainingKeyPrefix} {
+		if digest, found := strings.CutPrefix(key, prefix); found {
+			raw, err := hex.DecodeString(digest)
+			return err == nil && hex.EncodedLen(len(raw)) == regressionDigits
+		}
 	}
 	return slices.ContainsFunc(gapKinds, func(kind string) bool {
 		task, found := strings.CutPrefix(key, gapKey(kind, ""))
@@ -776,7 +780,7 @@ func (c Cell) bar(direction runrecord.Direction) float64 {
 // worse than the level it was accepted at by more than its readings allow, and
 // then to be restored to that level.
 func (record Record) Gaps(reference *Record) []Gap {
-	return record.gaps(reference, declaredTrades)
+	return append(record.gaps(reference, declaredTrades), record.trainingGaps(declaredTargets)...)
 }
 
 // gaps is Gaps under the trades given.

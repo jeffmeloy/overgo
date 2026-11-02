@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 300,
-        "reason": "Two steps, estimated at 150 each after the 675d61b80 recheck. The served-model work moved to row close-the-loop."
+        "nodes": 42,
+        "reason": "training-target measures 658, a verdict's support carried through evaluation and the scorecard to a target file, where 150 was estimated; judged-proof adds a record and little code."
       },
       "steps": [
-        {
-          "id": "training-target",
-          "title": "File a training row from a declared target on a held-out objective",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestADeclaredTrainingTargetIsARowUntilAVerdictMeetsIt$'",
-          "rationale": "No gap asks for training except below-base, which fires only for a trained model below its base (internal/scorecard/record.go:574-584,783,875-876), so the loop's train arc is never taken. Cycle training is a proof of 1 to 3 steps with no verdict (cmd/validate/training_proof.go:16-38).\nA route with no verdict is declared not applicable (training_quality_test.go:10-14), and Qwen2.5-0.5B has a verdict, so that predicate cannot reach it. A data file beside declared_trades.json names model, objective, steps, sequence, wall ceiling and required gain; goals and budgets stay inputs (skill.md:25). The gap stays open until a supported verdict meets it. Gaps group by kind and task (record.go:734-740), so the key must carry the model.\nServes: purpose: the system improves models through its own training.\nDisappears: nothing.\nEvidence: a filed row from a fixture scorecard, closed by a fixture verdict.\nBatch: host lane."
-        },
         {
           "id": "judged-proof",
           "title": "Prove gap to supported verdict on the smallest model",

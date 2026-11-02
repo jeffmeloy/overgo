@@ -68,7 +68,7 @@ func TestASlowQualityDeclineIsFiledAgainstItsLevel(t *testing.T) {
 }
 
 // TestAPerfectZeroIsAQualitysLevel: a rate of errors that read zero stays the level a later rise is judged against, on the
-// headline and on a model's other suites, where a zero is no reading of a timing and leaves its window.
+// headline and on a model's other suites.
 func TestAPerfectZeroIsAQualitysLevel(t *testing.T) {
 	t.Parallel()
 	model := testutil.ArtifactID(t, artifact.KindModel, "speech")
@@ -95,16 +95,5 @@ func TestAPerfectZeroIsAQualitysLevel(t *testing.T) {
 	}
 	if other := reference.Rows[0].Heldout; len(other) != 1 || other[0].Value != 0 {
 		t.Fatalf("the other suite's level is %+v, want the zero it read first", other)
-	}
-	// A timing's zero sampled nothing, and is no level.
-	timing := func(value float64) Cell {
-		return Cell{Value: value, Contract: Contract{Metric: "time", Origin: originServing}, Source: testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("time %g", value))}
-	}
-	var timed []Record
-	for _, value := range []float64{0, 10, 11, 12, 13, 14} {
-		timed = append(timed, Record{Rows: []Row{{Model: model, Task: recipe.TaskSpeech, Cells: map[metric.Name]Cell{metric.FirstOutput: timing(value)}}}})
-	}
-	if cell := Reference(timed).Rows[0].Cells[metric.FirstOutput]; cell.Value == 0 {
-		t.Fatalf("a timing's level is %+v, want the zero left out", cell)
 	}
 }

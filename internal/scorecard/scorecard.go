@@ -67,6 +67,9 @@ type Cell struct {
 	// held-out verdict's records, a transcription report's utterances. Zero
 	// where no record counts them.
 	Cases uint64 `json:"cases,omitzero"`
+	// Supported says a trained model's held-out verdict shows a gain its cases support, and Objective what it judged it on.
+	Supported bool        `json:"supported,omitzero"`
+	Objective artifact.ID `json:"objective,omitzero"`
 	// Noise is the standard error supplied or estimated from the measurement's records.
 	// Share estimates use a binomial model, whose independence is not established by case counts.
 	// Verdict means use record scores and pooled word-error rates use utterance observations.
@@ -1139,7 +1142,7 @@ func (record heldoutRecord) cell(task recipe.Task) Cell {
 		return gap(record.unreadable)
 	}
 	cell, _ := qualityCell(task, []evaluation.EvalSummary{record.summary}, nil)
-	cell.Base = record.base
+	cell.Base, cell.Supported, cell.Objective = record.base, record.summary.Supported, record.summary.Objective
 	return cell
 }
 

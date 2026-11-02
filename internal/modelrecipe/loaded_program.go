@@ -68,42 +68,59 @@ func ResolveClaimedGGUF(
 		return fail(err)
 	}
 	loaded.state.State = state
-	if state.Verification == StateNotVerified || state.Verification == StateBroken {
-		if err := loaded.bindDerived(ctx, store); err != nil {
+	reads := &observedReader{Reader: store}
+	if activation.Definition.ID != (artifact.ID{}) {
+		err := loaded.bindActivation(ctx, store, reads, activation)
+		switch {
+		case reads.failure != nil:
+			return fail(reads.failure)
+		case err == nil:
+			return loaded, nil
+		case state.Verification != StateBroken:
 			return fail(err)
 		}
-		return loaded, nil
 	}
+	// Nothing the alias names can be bound: the model's own file says what it is.
+	if err := loaded.bindDerived(ctx, store); err != nil {
+		return fail(err)
+	}
+	return loaded, nil
+}
+
+// bindActivation binds the program of the recipe an activation names, a recipe that stands winning over what its file
+// would derive, and one whose evidence is broken still being the recipe chosen for this model. reads is store observed,
+// for the reads a failure of which must not pass for a missing record; the declared sampling reads store's typed views.
+func (l *LoadedProgram) bindActivation(ctx context.Context, store, reads artifact.Reader, activation Activation) error {
 	definition := activation.Definition
-	loaded.state.EvidenceTier = activation.Tier
-	policy, err := ResolveRuntimePolicy(ctx, store, definition)
+	l.state.EvidenceTier = activation.Tier
+	policy, err := ResolveRuntimePolicy(ctx, reads, definition)
 	if err != nil {
-		return fail(err)
+		return err
 	}
-	if err := loaded.declarePolicy(ctx, store, policy); err != nil {
-		return fail(err)
+	if err := l.declarePolicy(ctx, store, policy); err != nil {
+		return err
 	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {
-		return fail(errors.New("model recipe: active recipe has no model definition"))
+		return errors.New("model recipe: active recipe has no model definition")
 	}
-	profile, err := resolveProfileDocumentDependency(ctx, store, definition, recipe.DependencyProfile)
+	profile, err := resolveProfileDocumentDependency(ctx, reads, definition, recipe.DependencyProfile)
 	if err != nil {
-		return fail(err)
+		return err
 	}
-	resolved, err := resolveModelDefinition(ctx, store, definitionID, &profile)
+	resolved, err := resolveModelDefinition(ctx, reads, definitionID, &profile)
 	if err != nil {
-		return fail(err)
+		return err
 	}
-	if resolved.Document.Model != loaded.state.Inventory.Manifest.ID ||
-		resolved.Tensors.ID != loaded.state.Inventory.TensorInventory.ID {
-		return fail(errors.New("model recipe: loaded GGUF differs from active model definition"))
+	if resolved.Document.Model != l.state.Inventory.Manifest.ID ||
+		resolved.Tensors.ID != l.state.Inventory.TensorInventory.ID {
+		return errors.New("model recipe: loaded GGUF differs from active model definition")
 	}
-	if err := loaded.bindResolved(definition, resolved); err != nil {
-		return fail(err)
+	if err := l.bindResolved(definition, resolved); err != nil {
+		return err
 	}
-	loaded.state.Program.Evidence = slices.Clone(activation.Event.Evidence)
-	return loaded, nil
+	l.state.Program.Evidence = slices.Clone(activation.Event.Evidence)
+	return nil
 }
 
 // declarePolicy takes policy as the program's, the model's own declared sampling overlaid on it: its generation config

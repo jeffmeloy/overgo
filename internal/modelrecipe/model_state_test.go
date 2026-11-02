@@ -123,7 +123,7 @@ func TestModelStateReadsFromItsRecords(t *testing.T) {
 			t.Fatal(err)
 		}
 		activation, state := read(t, store, inventory.Manifest.ID)
-		if state.Verification != StateBroken || state.Reason == "" || activation.Definition.ID != (artifact.ID{}) {
+		if state.Verification != StateBroken || state.Reason == "" || activation.Definition.ID != definition.ID {
 			t.Fatalf("state = %+v, activation of %v", state, activation.Definition.ID)
 		}
 	})

@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1950,
+        "nodes": 1200,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "keep-recipe",
-          "title": "Run a broken model on the recipe its alias names",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestABrokenVerificationKeepsItsRecipe$'",
-          "rationale": "Where evidence fails, the loader drops a readable tuned recipe for the default one (internal/modelrecipe/loaded_program.go:71-76, reproduced), though the row says a recipe that stands wins. Tuned paths such as Flash-Next lose most. Keep the recipe the alias names whenever it can be read; derive only when it cannot.\nDecided by recommendation: a failed store read says nothing about verification, so it refuses. ReadModelState maps every non-cancel error to a state (model_state.go:44-45), and an injected read failure turned a verified standing recipe into 'verification broken' and swapped the program (reproduced).\nServes: first-output, throughput and memory for tuned models.\nDisappears: nothing.\nEvidence: a tuned recipe with broken evidence runs as itself, state shown, and an unreadable store refuses.\nBatch: recipe lane."
-        },
         {
           "id": "record-identity",
           "title": "Record a run of a model the store does not hold",

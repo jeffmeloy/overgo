@@ -2,6 +2,8 @@ package modelrecipe
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -32,17 +34,28 @@ type ModelState struct {
 	Reason       string
 }
 
-// ReadModelState reads modelID's state for task from what the store records, with the activation that state rests on:
-// the activation is set exactly when the state is StateVerified or StateOutOfDate. A record that cannot be
-// trusted is a state and not a failure, so one broken activation leaves the model listed and runnable; only a canceled
-// ctx, or a build that cannot state its own profiles, returns an error.
+// ReadModelState reads modelID's state for task from what the store records, with the activation that state rests on: it
+// is whole when the state is StateVerified or StateOutOfDate, and holds only the Definition the alias names when the
+// state is StateBroken and that recipe can still be read. A record that cannot be trusted is a state and not a failure,
+// so one broken activation leaves the model listed and runnable. A store that fails to answer says nothing of the
+// model's verification, so that, a canceled ctx, and a build that cannot state its own profiles return an error.
 func ReadModelState(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, ModelState, error) {
-	activation, active, err := ActiveRecord(ctx, store, modelID, task)
+	reads := &observedReader{Reader: store}
+	activation, active, err := ActiveRecord(ctx, reads, modelID, task)
 	switch {
 	case ctx.Err() != nil:
 		return Activation{}, ModelState{}, ctx.Err()
+	case reads.failure != nil:
+		return Activation{}, ModelState{}, reads.failure
 	case err != nil:
-		return Activation{}, ModelState{StateBroken, err.Error()}, nil
+		named, readable := aliasedDefinition(ctx, reads, modelID, task)
+		if reads.failure != nil {
+			return Activation{}, ModelState{}, reads.failure
+		}
+		if !readable {
+			return Activation{}, ModelState{StateBroken, err.Error()}, nil
+		}
+		return Activation{Definition: named}, ModelState{StateBroken, err.Error()}, nil
 	case !active:
 		return Activation{}, ModelState{Verification: StateNotVerified}, nil
 	}
@@ -76,3 +89,94 @@ var compiledProfiles = sync.OnceValues(func() (map[artifact.ID]bool, error) {
 	}
 	return compiled, nil
 })
+
+// aliasedDefinition reads the recipe a model's active alias names, whatever its evidence says of it.
+func aliasedDefinition(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (recipe.Definition, bool) {
+	id, aliased, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, task))
+	if err != nil || !aliased {
+		return recipe.Definition{}, false
+	}
+	definition, err := recipe.RequireDefinition(ctx, store, id)
+	if err != nil || definition.Model != modelID || definition.Task != task {
+		return recipe.Definition{}, false
+	}
+	return definition, true
+}
+
+// observedReader keeps the first error the store itself answered with, so that a record which reads and does not stand
+// can be told from a store that could not answer; the checks over it fold the two into one error.
+type observedReader struct {
+	artifact.Reader
+	failure error
+}
+
+func answer[T any](r *observedReader, value T, err error) (T, error) {
+	if err != nil && r.failure == nil {
+		r.failure = err
+	}
+	return value, err
+}
+
+// Artifact answers as the store does, keeping a failure.
+func (r *observedReader) Artifact(ctx context.Context, id artifact.ID) (artifact.Descriptor, bool, error) {
+	descriptor, found, err := r.Reader.Artifact(ctx, id)
+	_, err = answer(r, descriptor, err)
+	return descriptor, found, err
+}
+
+// OpenContent answers as the store does, keeping a failure.
+func (r *observedReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
+	descriptor, content, found, err := r.Reader.OpenContent(ctx, id)
+	_, err = answer(r, descriptor, err)
+	if err != nil || content == nil {
+		return descriptor, content, found, err
+	}
+	return descriptor, observedContent{content, r}, found, nil
+}
+
+// Manifest answers as the store does, keeping a failure.
+func (r *observedReader) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest, bool, error) {
+	manifest, found, err := r.Reader.Manifest(ctx, id)
+	_, err = answer(r, manifest, err)
+	return manifest, found, err
+}
+
+// ResolveAlias answers as the store does, keeping a failure.
+func (r *observedReader) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {
+	id, found, err := r.Reader.ResolveAlias(ctx, name)
+	_, err = answer(r, id, err)
+	return id, found, err
+}
+
+// Parents answers as the store does, keeping a failure.
+func (r *observedReader) Parents(ctx context.Context, id artifact.ID) ([]artifact.Lineage, error) {
+	lineage, err := r.Reader.Parents(ctx, id)
+	return answer(r, lineage, err)
+}
+
+// Children answers as the store does, keeping a failure.
+func (r *observedReader) Children(ctx context.Context, id artifact.ID) ([]artifact.Lineage, error) {
+	lineage, err := r.Reader.Children(ctx, id)
+	return answer(r, lineage, err)
+}
+
+// Locations answers as the store does, keeping a failure.
+func (r *observedReader) Locations(ctx context.Context, id artifact.ID) ([]artifact.Location, error) {
+	locations, err := r.Reader.Locations(ctx, id)
+	return answer(r, locations, err)
+}
+
+// observedContent keeps a content stream's failure as its reader's; its end is no failure.
+type observedContent struct {
+	io.Reader
+	reads *observedReader
+}
+
+// Read reads the stream, keeping a failure.
+func (c observedContent) Read(data []byte) (int, error) {
+	count, err := c.Reader.Read(data)
+	if err != nil && !errors.Is(err, io.EOF) && c.reads.failure == nil {
+		c.reads.failure = err
+	}
+	return count, err
+}

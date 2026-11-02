@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "qsa-bound",
-          "title": "Keep an attention bound when the QSA boundary is close",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestQSALayerMatchesStrata$'",
-          "rationale": "SQA-229: controlled indexer inputs give a separated boundary, and every attention output meets the finite bound; the excusing branch goes.\nServes: a finite attention regression cannot pass on a near tie.\nDisappears: the excusing branch.\nEvidence: the retained test.\nBatch: device lane."
-        },
-        {
           "id": "nextn-oracle",
           "title": "Give the NextN acceptance a real plain oracle",
           "status": "open",
@@ -775,7 +768,14 @@
           "title": "Fold the register's duplicate test fixtures",
           "status": "open",
           "verify": "go vet ./internal/overgodb ./internal/server ./internal/inference ./internal/cuda/executor",
-          "rationale": "The register's P3 reductions, adopted as one row where no dispatched row reaches them: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255.\nTest code is 376K lines beside 421K of production; each fold shortens the changed packages' runs. No assertion is dropped: run mutation checks on a sample.\nServes: development velocity and landing wall.\nDisappears: test bodies, in each finding's stated owner.\nEvidence: test-code nodes the gate reports.\nBatch: with whichever row next opens those files."
+          "rationale": "The register's P3 reductions, adopted as one row where no dispatched row reaches them: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255.\nTest code is 376K lines beside 421K of production; each fold shortens the changed packages' runs. No assertion is dropped: run mutation checks on a sample.\nServes: development velocity and landing wall.\nDisappears: test bodies, in each finding's stated owner.\nEvidence: test-code nodes the gate reports.\nBatch: with whichever row next opens those files.\n\nSQA-230 and SQA-233 join this step, read while their files were open: each QSA and cell parity graph built once for its two backends, and the GDN fixture's forwarding closure gone. No assertion moves."
+        },
+        {
+          "id": "cell-step-reads",
+          "title": "Take the cell step records' window from Reads",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run 'CellAttention'",
+          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go."
         }
       ]
     },

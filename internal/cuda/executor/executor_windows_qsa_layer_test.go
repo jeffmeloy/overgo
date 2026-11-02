@@ -30,6 +30,15 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 		// A picture of 10 x 12 patches from cell 120, the way Strata's picture request lays its cells out (generate.cpp
 		// 10736-10800): its cells at (p, p + y, p + x), the text after it from p + 12.
 		picture, pictureRows, pictureColumns = 120, 10, 12
+		// The selection this layer test holds both sides to. Each block's indexer key stands on a rung of its own, an
+		// integer FP16 keeps exactly, in a dimension no rotation touches, beside an anchor that sets its norm; each
+		// query looks along that dimension far harder than along its random rest. Block scores then stand a rung
+		// apart, past 0.08 percent of a score against FP32's rounding of it, so every boundary is separated and both
+		// sides select the same cells. The stride scatters the selected blocks. A near tie is strataBlockTopKParity's
+		// to judge, and attention over given cells strataAttentionParity's.
+		rungs, rungStride              = (prompt+decode)/tensor.QSABlockCells + 1, 311
+		rungDimension, anchorDimension = tensor.QSARotated, tensor.QSARotated + 1
+		rungAnchor, rungQuery          = 1024, 100
 	)
 	worker := newFixtureWorker(t)
 	cuda := newFixtureExecutorWithWorker(t, worker)
@@ -106,12 +115,21 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 			cells[index] = first + uint32(index)
 		}
 		n := uint64(tokens)
+		indexerKey := random(tensor.QSAIndexerWidth*n, 1)
+		indexerQuery := random(tensor.QSAIndexerWidth*tensor.QSAIndexerHeads*n, 0.2)
+		for token, cell := range cells {
+			key := indexerKey[token*tensor.QSAIndexerWidth:]
+			key[rungDimension], key[anchorDimension] = float32(cell/tensor.QSABlockCells*rungStride%rungs), rungAnchor
+			for head := range tensor.QSAIndexerHeads {
+				indexerQuery[(token*tensor.QSAIndexerHeads+head)*tensor.QSAIndexerWidth+rungDimension] = rungQuery
+			}
+		}
 		inputs := map[string]reference.Value{
 			"query":         {Shape: tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAQueryHeads, n), Data: random(tensor.QSAHeadWidth*tensor.QSAQueryHeads*n, 1)},
 			"key":           {Shape: tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAKeyValueHeads, n), Data: random(tensor.QSAHeadWidth*tensor.QSAKeyValueHeads*n, 1)},
 			"value":         {Shape: tensor.MustShape(tensor.QSAHeadWidth, tensor.QSAKeyValueHeads, n), Data: random(tensor.QSAHeadWidth*tensor.QSAKeyValueHeads*n, 1)},
-			"indexer_key":   {Shape: tensor.MustShape(tensor.QSAIndexerWidth, 1, n), Data: random(tensor.QSAIndexerWidth*n, 1)},
-			"indexer_query": {Shape: tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSAIndexerHeads, n), Data: random(tensor.QSAIndexerWidth*tensor.QSAIndexerHeads*n, 0.2)},
+			"indexer_key":   {Shape: tensor.MustShape(tensor.QSAIndexerWidth, 1, n), Data: indexerKey},
+			"indexer_query": {Shape: tensor.MustShape(tensor.QSAIndexerWidth, tensor.QSAIndexerHeads, n), Data: indexerQuery},
 			"indexer_norm":  {Shape: tensor.MustShape(tensor.QSAIndexerWidth), Data: norm},
 		}
 		attributes := tensor.QSAAttentionAttributes{Cells: cells, Capacity: capacity, Epsilon: strataRMSEpsilon}
@@ -180,68 +198,31 @@ func TestQSALayerMatchesStrata(t *testing.T) {
 		for _, value := range want[referenceOutput].Data[:attentionValues] {
 			scale = max(scale, math.Abs(float64(value)))
 		}
-		// A token's attention differs from the reference's by the kernels' rounding (FP32 for a token, FP16 hi/lo
-		// products with FP32 sums for a chunk, against float64: the prompt parity's 1e-4 of the output scale), or
-		// by a different selection where the two sides' block scores order the selection's boundary differently.
-		// The device rotates a chunk's pooled keys with Strata's native kernel, compiled with fast math as Strata
-		// compiles it, the reference exactly; a block's score moves by at most sum over heads |q_h| |delta k| from
-		// that difference (Cauchy-Schwarz), so a token may select differently only where the reference's boundary
-		// gap is inside twice that.
+		// Both sides selected the same cells (rungs above), so the attention differs from the reference's by the kernels'
+		// rounding alone (FP32 for a token, FP16 hi/lo products with FP32 sums for a chunk, against float64): the prompt
+		// parity's 1e-4 of the output scale.
+		if !(difference <= 1e-4*scale) {
+			t.Fatalf("cells %d..%d: the attention stands %.3g from the reference, past 1e-4 of the scale %.3g", first, first+tokens-1, difference, scale)
+		}
+		// The rotated half of each pooled key is all the picture's positions reach, and the rungs do not read it. Each side
+		// takes a float32 angle of position * theta^pair, and this fixture's positions pass 2048, where a float32 angle
+		// rounds to 2.4e-4 of a radian: a rotated value may stand two such shares of the row's size from the reference's.
 		devicePooled := float32s(buffers.read(t, devicePointers[qsaInputIndexerPooled-qsaInputKeyCodes], int(4*tensor.QSAIndexerWidth*(pages+tensor.QSAPooledSpare))))
 		referencePooled := hostState[qsaInputIndexerPooled-qsaInputKeyCodes].Data
-		keyShift := 0.0
-		for block := uint64(0); block < uint64(first+tokens)/tensor.QSABlockCells; block++ {
-			norm := 0.0
-			for d := range uint64(tensor.QSAIndexerWidth) {
-				delta := float64(devicePooled[block*tensor.QSAIndexerWidth+d] - referencePooled[block*tensor.QSAIndexerWidth+d])
-				norm += delta * delta
+		pooledDifference, pooledScale := 0.0, 0.0
+		for block := range uint64(first+tokens) / tensor.QSABlockCells {
+			rotated := referencePooled[block*tensor.QSAIndexerWidth:][:tensor.QSARotated]
+			apart, _ := maxAbsDifference(t, devicePooled[block*tensor.QSAIndexerWidth:][:tensor.QSARotated], rotated)
+			pooledDifference = max(pooledDifference, apart)
+			for _, value := range rotated {
+				pooledScale = max(pooledScale, math.Abs(float64(value)))
 			}
-			keyShift = max(keyShift, math.Sqrt(norm))
 		}
-		width := tensor.QSAHeadWidth * tensor.QSAQueryHeads
-		flips := 0
-		for token := range int(tokens) {
-			worst := 0.0
-			for index := token * width; index < (token+1)*width; index++ {
-				worst = max(worst, math.Abs(float64(got[output].Data[index]-want[referenceOutput].Data[index])))
-			}
-			if worst <= 1e-4*scale {
-				continue
-			}
-			held := int(cells[token]) + 1
-			blocks := held / tensor.QSABlockCells
-			query := inputs["indexer_query"].Data[token*tensor.QSAIndexerHeads*tensor.QSAIndexerWidth:]
-			shift := 0.0
-			for head := range tensor.QSAIndexerHeads {
-				norm := 0.0
-				for d := range tensor.QSAIndexerWidth {
-					norm += float64(query[head*tensor.QSAIndexerWidth+d]) * float64(query[head*tensor.QSAIndexerWidth+d])
-				}
-				shift += math.Sqrt(norm) * keyShift
-			}
-			scores := make([]float64, blocks)
-			for block := range blocks {
-				for head := range tensor.QSAIndexerHeads {
-					dot := 0.0
-					for d := range tensor.QSAIndexerWidth {
-						dot += float64(referencePooled[block*tensor.QSAIndexerWidth+d]) * float64(query[head*tensor.QSAIndexerWidth+d])
-					}
-					scores[block] += max(dot, 0)
-				}
-			}
-			slices.Sort(scores)
-			slices.Reverse(scores)
-			tailCells := held - blocks*tensor.QSABlockCells
-			whole := (int(tensor.QSASelectionWidth(uint32(held))) - tailCells) / tensor.QSABlockCells
-			gap := scores[whole-1] - scores[whole]
-			if whole <= 0 || whole >= blocks || gap >= 2*shift {
-				t.Fatalf("cell %d: the attention stands %.3g from the reference, past 1e-4 of the scale %.3g, with a selection margin %.3g beyond twice the score shift %.3g",
-					cells[token], worst, scale, gap, shift)
-			}
-			flips++
+		if !(pooledDifference <= 5e-4*pooledScale) {
+			t.Fatalf("cells %d..%d: the rotated pooled keys stand %.3g from the reference, past 5e-4 of the scale %.3g", first, first+tokens-1, pooledDifference, pooledScale)
 		}
-		t.Logf("cells %d..%d: %.3g from the reference (scale %.3g); %d near-tie selections inside twice the score shift of pooled keys %.3g apart",
-			first, first+tokens-1, difference, scale, flips, keyShift)
+		t.Logf("cells %d..%d: %.3g from the reference (scale %.3g); rotated pooled keys %.3g apart (scale %.3g)",
+			first, first+tokens-1, difference, scale, pooledDifference, pooledScale)
 	}
 	step(0, prompt)
 	for token := range uint32(decode) {

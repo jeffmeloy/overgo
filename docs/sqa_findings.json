@@ -3189,7 +3189,9 @@
         "uncertainty": "AST/setup proxies, not measured elapsed or allocation savings. Complete cell replacement parsed, not package-compiled/executed. If229 changes QSA acceptance first, recalculate combined cost. Mutable reference state remains independent of CUDA state."
       },
       "likely_effort": "Small test-only cleanup. No new test needed for sharing the already immutable graph.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "One graph build per step serves the two independently executed backends in each test.",
@@ -3244,7 +3246,9 @@
         "uncertainty": "Complete source replacement parsed, original bounded methods type-resolved; no application package compilation or execution. Inlining/runtime effect unmeasured. No standalone test needed for this direct reuse."
       },
       "likely_effort": "Small local consolidation in the existing tensor owner.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/cell-step-reads"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "RuntimeWords/steps and reference.cellAttention both use Reads for first/count.",
@@ -3279,7 +3283,9 @@
         "uncertainty": "Fresh complete parse at8cc359, not an executed change or speedup. Combined with232's+12GDN predicate repair:3447->3441(-6); any added self-check is additional cost."
       },
       "likely_effort": "Trivial test cleanup, optional when maintaining the same fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "The local forwarding closure is absent and all three callers invoke the established owner directly.",
@@ -6374,6 +6380,17 @@
         "plan_steps": [
           "sqa-tests/ordered-distances"
         ]
+      },
+      {
+        "comment": "Landed with sqa-tests/qsa-bound. Each block's indexer key holds an integer rung FP16 keeps exactly, in an unrotated dimension beside an anchor that sets its norm, and each query looks along it far harder than along its random rest, so block scores stand a rung apart and every top-k boundary is separated. That covers the partial next block too, which the deleted gap calculation did not read: a selection width that is not a whole number of blocks takes cells of the block after the boundary it measured. The attention bound now has no exception: measured 1.19e-6 at scale 2.86 over the prompt, about 5e-8 at each decode step. One check is added beyond the recommendation: with the rungs in charge of the selection, the rotated half of the pooled keys no longer reaches any output, and that half is all the picture's positions touch, so the device's rotated pooled keys are held to the reference's within 5e-4 of their scale, two float32 angle rounding steps at these positions (measured 4.83e-6 at scale 0.0232, 2.1e-4). Random query, key and value inputs, reversed pages, the 10x12 picture, the 3000-cell prompt, six decodes and the exact tail, code and scale checks stay. Nothing here covers near ties end to end: strataBlockTopKParity and strataAttentionParity keep those.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestQSALayerMatchesStrata"
+        ],
+        "finding_id": "SQA-229",
+        "plan_steps": [
+          "sqa-tests/qsa-bound"
+        ]
       }
     ],
     "experiments": {
@@ -6420,7 +6437,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "69e6a95d4e98ffb8a141e981bb827c912f1fd966",
+    "head": "efae230f5511bf9adefcd63c7bdc98a0f1219238",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6674,11 +6691,11 @@
         "note": "Landed. The named comparisons accept only an ordered distance inside its bound, so a NaN fails where it used to pass. Arithmetic and inclusive finite limits are unchanged. Awaits the reviewer's closure."
       },
       "SQA-229": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-tests/qsa-bound"
         ],
-        "note": "Accepted: a test branch excuses a finite attention regression on near ties."
+        "note": "Landed. The composed layer test's indexer keys stand on separated rungs, so both sides select the same cells, and every attention output is held to 1e-4 of the scale with the excusing branch gone. Awaits the reviewer's closure."
       },
       "SQA-251": {
         "action": "filed",
@@ -6894,16 +6911,25 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_strata_qsa_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-230": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_qsa_layer_test.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Lead's judgement: filed. Worth doing when these fixtures next open; the QSA layer's graph is still built twice at this landing, to keep this change only about its acceptance."
       },
       "SQA-234": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/tensor/builder_cell.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/cell-step-reads"
+        ],
+        "note": "Lead's judgement: filed. A real duplicate of a small rule, steps can take its bounds from Reads."
       },
       "SQA-233": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/executor_windows_strata_gdn_test.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Lead's judgement: filed. One forwarding closure in the GDN fixture, trivial, no assertion changes."
       },
       "SQA-249": {
         "action": "none",

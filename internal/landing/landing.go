@@ -90,6 +90,8 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
+	// added are the checks of the steps this change itself adds.
+	added []string
 	// changedTerms are the trailers that state each row's check and count this change alters.
 	changedTerms []string
 	// trunk is the directory of the repository's main worktree and branch the
@@ -397,8 +399,8 @@ func (l *landing) capture(ctx context.Context) (string, error) {
 // step's check and what its row may still add. The terms come from the plan
 // of the commit the landing builds on, so a change that edits its own row's
 // check is held to the one it started with, a count it raises counts only
-// with a reason of its own (charge), and a step the change itself adds has no
-// terms to land by. Two changes have no earlier terms and
+// with a reason of its own (charge), and a step the change itself adds has its
+// own, its check failing without the change (addedChecksFail). Two changes have no earlier terms and
 // are judged by the plan they hold: a change to the plan alone, which is how
 // a row is filed and a count raised, and a merge, whose row is named for the
 // head it joins.
@@ -433,7 +435,7 @@ func (l *landing) row(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	l.advanced, l.verifiers = document, nil
+	l.advanced, l.verifiers, l.added = document, nil, nil
 	l.counts = make(map[string]plan.Budget, len(document.Items))
 	for _, item := range document.Items {
 		l.counts[item.ID] = item.Budget
@@ -451,7 +453,9 @@ func (l *landing) row(ctx context.Context) error {
 			}
 		}
 		if !judged {
-			return fmt.Errorf("land: %s is not a step of the plan at %.12s, the commit this change builds on, and a change is judged by the count and the check its row had before it; land the plan's edit alone first", row, l.head)
+			if err := l.judgeAdded(document, row); err != nil {
+				return err
+			}
 		}
 		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
 			return fmt.Errorf("land: %s cannot leave the plan: %w", row, err)
@@ -695,6 +699,49 @@ func (l *landing) verify(ctx context.Context) error {
 		}
 		if _, err := planverify.Execute(ctx, l.stageRoot(), verifier, nil); err != nil {
 			return err
+		}
+	}
+	return l.addedChecksFail(ctx)
+}
+
+// judgeAdded takes a step the change itself adds: nothing earlier states its terms, so its own check and count judge it.
+func (l *landing) judgeAdded(document plan.Plan, row ref) error {
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			if item.ID != row.item || step.ID != row.step {
+				continue
+			}
+			l.added = append(l.added, step.Verify)
+			if !slices.Contains(l.verifiers, step.Verify) {
+				l.verifiers = append(l.verifiers, step.Verify)
+			}
+			if !slices.ContainsFunc(l.terms.Items, func(held plan.Item) bool { return held.ID == item.ID }) {
+				l.terms.Items = append(slices.Clone(l.terms.Items), item)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("land: %s is not a step of the plan this change carries", row)
+}
+
+// addedChecksFail runs an added step's check on the commit the change builds on, where it must fail: that keeps the proof a
+// check filed before its work gives, that the check speaks of the change.
+func (l *landing) addedChecksFail(ctx context.Context) error {
+	if len(l.added) == 0 {
+		return nil
+	}
+	tree := filepath.Join(l.scratch, "base")
+	if _, err := l.git(ctx, "worktree", "add", "--detach", tree, l.head); err != nil {
+		return err
+	}
+	defer func() {
+		if _, removed := l.git(context.WithoutCancel(ctx), "worktree", "remove", "--force", tree); removed != nil {
+			fmt.Fprintf(l.Log, "land: the worktree %s an added check ran in is left: %v\n", tree, removed)
+		}
+	}()
+	for _, check := range l.added {
+		if _, err := planverify.Execute(ctx, tree, check, nil); err == nil {
+			return fmt.Errorf("land: the check %q passes on %.12s without this change, so it proves nothing of it", check, l.head)
 		}
 	}
 	return nil

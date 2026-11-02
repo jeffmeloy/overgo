@@ -2,6 +2,7 @@ package landing
 
 import (
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -51,8 +52,9 @@ func rowPlan(count int, steps ...[2]string) plan.Plan {
 // TestChangeIsJudgedByTheTermsItStartedWith holds a change to the count and the
 // check its row had at the commit it builds on. A change that carries code and
 // also raises its own row's count, replaces its own step's check with one that
-// passes, and adds a step, is checked by the earlier check, bounded by the
-// earlier count, and cannot land the step it added. The same edit to the plan
+// passes, and adds a step, is checked by the earlier check and bounded by the
+// earlier count, and the step it added answers to a check that must fail
+// without the change. The same edit to the plan
 // alone lands by the plan it holds, which is how a row is filed and its terms
 // changed; and the code then lands under the terms that landing left.
 func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
@@ -77,12 +79,10 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	if err := l.rules(ctx); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("may add %d", grown-1)) {
 		t.Errorf("a change that raised its own row's count: %v, want the growth refused by the earlier count", err)
 	}
-	added := &landing{Options: Options{Repo: fixture.repo, Ref: "row/file"}, scratch: t.TempDir()}
-	if err := added.parents(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := added.shipSet(ctx); err == nil || !strings.Contains(err.Error(), "land the plan's edit alone first") {
-		t.Errorf("a change that carries code landed a step it added itself: %v", err)
+	added := fixture.candidateOf("row/file")
+	added.Log = io.Discard
+	if err := added.verify(ctx); err == nil || !strings.Contains(err.Error(), "proves nothing") {
+		t.Errorf("a step added with a check that passes without the change: %v", err)
 	}
 
 	// The plan's edit alone is judged by the plan it holds, and files the terms.
@@ -101,6 +101,44 @@ func TestChangeIsJudgedByTheTermsItStartedWith(t *testing.T) {
 	}
 	if err := l.rules(ctx); err != nil {
 		t.Fatalf("the change did not pass under the terms a landing before it filed: %v", err)
+	}
+}
+
+// TestANewRowLandsWithItsWork: a row new in a change lands with it, judged by its own check and count, and its check, which
+// fails on the commit the change builds on, passes with the change, so no row need be filed in a commit of its own.
+func TestANewRowLandsWithItsWork(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": emptyPackage})
+	grown := packageNodes(t, oneFunction) - packageNodes(t, emptyPackage)
+	fixture.commitPlan(rowPlan(0, [2]string{"later", "true"}))
+	document := rowPlan(0, [2]string{"later", "true"})
+	document.Items = append(document.Items, plan.Item{
+		ID: "new", Title: "new", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: grown, Reason: "the new row's estimate"},
+		Steps: []plan.Step{{ID: "do", Title: "new", Status: plan.StatusOpen, Verify: "test -f internal/p/marker"}},
+	})
+	if err := plan.Save(fixture.planPath(), document); err != nil {
+		t.Fatal(err)
+	}
+	fixture.write("internal/p/p.go", oneFunction)
+	fixture.write("internal/p/marker", "here\n")
+	l := fixture.candidateOf("new/do")
+	l.Log = io.Discard
+	if err := l.rules(ctx); err != nil {
+		t.Fatalf("a new row's own count did not admit its work: %v", err)
+	}
+	if err := l.verify(ctx); err != nil {
+		t.Fatalf("a new row's check: %v", err)
+	}
+	if _, err := l.commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	landed, err := plan.Load(fixture.planPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(landed.Items, func(item plan.Item) bool { return item.ID == "new" }) {
+		t.Fatal("the new row stayed in the plan its landing published")
 	}
 }
 
@@ -183,7 +221,7 @@ func TestItemsGrowthIsChargedAcrossItsLandings(t *testing.T) {
 
 // TestAFilingBesideTheFindingsRegisterIsAFiling holds a change to the plan and to the findings register a review left
 // uncommitted to a filing: it lands a step the plan's edit adds, by the check that edit gives it, and its commit
-// carries the register. The same edit with code beside it is judged by the terms its row had before it, as any is.
+// carries the register. The same edit with code beside it answers to a check that must fail without the change, as any added step does.
 func TestAFilingBesideTheFindingsRegisterIsAFiling(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -194,12 +232,10 @@ func TestAFilingBesideTheFindingsRegisterIsAFiling(t *testing.T) {
 	}
 	fixture.write(findingsRegister, "{\"findings\": [\"SQA-1\"]}\n")
 	fixture.write("internal/p/p.go", oneFunction)
-	carrying := &landing{Options: Options{Repo: fixture.repo, Ref: "row/file"}, scratch: t.TempDir()}
-	if err := carrying.parents(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := carrying.shipSet(ctx); err == nil || !strings.Contains(err.Error(), "land the plan's edit alone first") {
-		t.Errorf("a filing beside the register that carries code landed a step it added itself: %v", err)
+	carrying := fixture.candidateOf("row/file")
+	carrying.Log = io.Discard
+	if err := carrying.verify(ctx); err == nil || !strings.Contains(err.Error(), "proves nothing") {
+		t.Errorf("a step that carries code, with a check that passes without it: %v", err)
 	}
 
 	fixture.write("internal/p/p.go", emptyPackage)

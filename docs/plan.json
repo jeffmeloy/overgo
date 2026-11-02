@@ -148,28 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "commit-rules",
-      "title": "Make the commit rules hold for every harness and spend fewer commits",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 42,
-        "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
-      },
-      "steps": [
-        {
-          "id": "row-with-work",
-          "title": "Let a new row land with its own work",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestANewRowLandsWithItsWork$'",
-          "rationale": "Of the last 600 master commits, 235 touch Go and 258 change only the plan, 43 percent, because a row must exist before its work (internal/landing/landing.go:441) and each count raise is a commit.\nA row new in the change lands with it, judged by its own check, which must fail on the commit it builds on. That keeps the proof a frozen check gave.\nPredicted: plan-only commits under 20 percent.\nServes: development velocity.\nDisappears: carrier commits and the patch-aside recipe.\nEvidence: the share over the next 200 commits.\nBatch: host lane.",
-          "depends_on": [
-            "commit-rules/terms-visible"
-          ]
-        }
-      ]
-    },
-    {
       "id": "kernel-proof",
       "title": "Prove compiled kernels come from their source",
       "owner": "master-lead",

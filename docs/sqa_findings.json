@@ -1,15 +1,21 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "113 stable IDs:54 open,4 deferred,55 resolved. Resolve274; lower283 P1->P2 after ordinary text serving repairs while preserving residuals. Add284 (pending prior publication),285 (-333 test nodes),286 (shutdown cancellation).",
-      "priority": "Shutdown recovery and current evidence validity precede advisory reductions. Continue283 model-reach and271/258 actual supervision through existing owners. Concrete285 consolidation has a measured AST/setup reduction without an abstraction.",
-      "declined_candidates": "Retain distinct child-exit/loading, authority/decision, base-check/hook, packed corruption/cancellation, and query accounting contracts. Nine mutating Git verb fixtures are not redundant solely because setup looks similar. No new framework, selector, telemetry, device sweep or performance ratchet."
+      "assessment": "Close SQA-246 on the shared flattened-extent guard and retained span fallback. Add SQA-287: a complete same-file assertion migration removes 36 test AST nodes and one redundant manifest-read/generation setup, with production unchanged. No safe new production-Go net reduction established in this sample.",
+      "priority": "Keep recovery/cancellation and evidence integrity ahead of compaction: SQA-286 and SQA-277 remain leading concerns; supervised first-start/ownership-wait residuals stay with SQA-271/SQA-258. The repaired large-tensor boundary no longer competes for implementation work.",
+      "declined_candidates": [
+        "Do not delete new BF16/attention fault tests: NaN preservation and every-row writes are distinct requirements. Device routing census and host conversion behavior have different owners. Growth is correctness coverage, not a claimed reduction.",
+        "The extra Strata NaN caller uses 1500 cells/256 queries; the existing 1500-cell parity caller uses 1500 queries. Different geometry prevents an exact-duplicate claim; retain both until a specific unique-case migration is justified.",
+        "TestBFloat16Conversions compares the conversion composition to its RoundBF16 wrapper, so it is not an independent finite-rounding oracle. No established replacement owner for every finite case was demonstrated; do not remove it solely as a self-comparison.",
+        "Do not replace the pinned PTX load-pattern check with a new control-flow framework. The 16-line recognition window is a disclosed limit, not proof of an observed bad kernel.",
+        "Do not file a second unattended-driver issue or infer a delivered continuation from a completion timestamp. Existing dispatch/stop owners and SQA-271/SQA-258 cover the remaining start/wait obligation."
+      ]
     },
   "committed_plan": {
-    "git_blob": "c2a16568de0f8999afefde856ace74e4162643c4",
+    "git_blob": "6158ccc24ae04755743c154da07208c4f826825a",
     "path": "docs/plan.json",
-    "revision": "accabb964e202e91da03d9c0e30c9da8ce2b9e7a",
-    "sha256": "daec2af12f710a1278e4882f53ebb54de752e9300089befb9945771c340f2b80",
+    "revision": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
+    "sha256": "c5409d0c433f0f71f67fff89592f1ec118d43b27c07997cfe046ea1e8c357131",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -645,74 +651,42 @@
       "comparison": "The actual in-memory AST migration is decisive for reduction; existing native server package validation during implementation can verify behavior. No new test or extra SQA confidence run."
     },
     {
-      "id": "SQA-246",
+      "id": "SQA-287",
       "status": "open",
       "severity": "P3",
-      "category": "tensor-geometry",
-      "classification": "confirmed-source-boundary-defect",
-      "title": "Bound flattened q8_1 activations before entering the signed native quantizer",
-      "evidence_commit": "83378b5527add9b63718e8c6ea3287d267123d24",
+      "category": "native-go-test-surface",
+      "classification": "source-and-in-memory-ast-established-net-reduction",
+      "title": "Reuse the existing generated-binding result for the width-table assertion",
+      "evidence_commit": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
       "sources": [
         {
-          "path": "internal/cuda/executor/launch_strata_native_mmvq.go",
-          "symbol": "strataNativeShape; launchStrataNativeQuantizeQ81:116 and launchStrataNativeSwigluQuantizeQ81:128 int32 total"
+          "path": "cmd/kernel-bindings/main_test.go",
+          "symbol": "TestGeneratedBindingsMatchManifest; TestBindingsRecordArgumentWidths"
         },
         {
-          "path": "internal/cuda/executor/launch_linear_layout.go",
-          "symbol": "launchLinearLayout K-quant dispatch; launchKQuantProduct; retained q8-input span fallback"
-        },
-        {
-          "path": "internal/cuda/executor/executor.go",
-          "symbol": "compileGraph q81Bytes/q81Offset; Execute/Compile exported graph boundary"
-        },
-        {
-          "path": "internal/cuda/executor/fallback.go",
-          "symbol": "checkLaunchWords: MulMat dimensions signed, total uncounted"
-        },
-        {
-          "path": "internal/tensor/shape.go",
-          "symbol": "NewShape; Elements uint64"
-        },
-        {
-          "path": "kernels/cuda/strata_native_mmvq.cuh",
-          "symbol": "native_quantize_q8_1_kernel:139-145; native_swiglu_quantize_q8_1_kernel:155-159"
-        },
-        {
-          "path": "internal/cuda/executor/strata_drafter_run.go",
-          "symbol": "strataDrafterRecord.front/rest/sharedExpert/recordRound call quantizers"
-        },
-        {
-          "path": "internal/cuda/executor/strata_round_window.go",
-          "symbol": "strataRoundWindow.lexical/gdnMixer/qsaMixer/sharedExpert/head call quantizers"
-        },
-        {
-          "path": "internal/cuda/executor/compile_test.go",
-          "symbol": "TestCompileHoldsLaunchWords retained no-device shape owner"
-        },
-        {
-          "path": "internal/cuda/executor/executor_windows_strata_native_mmvq_test.go",
-          "symbol": "TestStrataNativeMMVQMatchesStrata retained precision/geometry owner"
+          "path": "cmd/kernel-bindings/main.go",
+          "symbol": "generateBindings; generateKernelManifest; parameterWidth; run"
         }
       ],
-      "evidence": "Admitted graph counterexample: Q4K weights[268435456,1], F32 activations[268435456,8], output[1,8]. Dimensions are below MaxInt32, inner is divisible by256, native width8 is allowed; NewShape/Elements and checkLaunchWords accept those extents (MulMat deliberately does not cap flattened elements). compileGraph uses uint64 activation/staging byte counts; launchKQuantProduct only checks inner/output rows individually. Both native quantizers then compute total:=nIn*ncols in int32:2147483648 becomes -2147483648. CUDA takes int n_in and returns at i>=n_in, so all launched threads return without writing q8_1 staging before MMVQ reads it. Activations8GiB plus each q8 staging2.25GiB and small-row weights can fit a sufficiently large device; no allocation ceiling in this path eliminates the admitted shape. This is a source-established conditional failure, not an observed GPU/model run. Current model dimensions are far smaller.",
-      "recommended_change": "Use the existing shape/dispatch owners. Bound the flattened extent before signed arithmetic in strataNativeShape, after positive nIn and1..8 columns are validated. At compileGraph and launchLinearLayout keep oversized K-quant activations on the existing q8-input span route and omit unused q8_1 reservation, rather than rejecting a shape that the retained uint32-block path supports. Apply the shared guard to both native quantizers and existing native callers. No new export, wrapper, option, kernel ABI or device capability policy.",
-      "displaced_surface": "Replace unchecked native eligibility at the existing compile and dispatch sites and add the missing signed-total bound in existing strataNativeShape. No kernel, fallback, test or fixture disappears; correctness requires net growth. Retain 32-value q8_1 blocks,256-value K blocks,36-byte q8_1 storage,1..8 native widths, nine-column fallback, column ordering, FP16 scale precision, Windows CUDA tags and synchronization/resource ownership. Existing drafter/round callers inherit the guard without per-caller branches.",
-      "impact": "A valid large rectangular tensor can launch a quantizer that writes nothing and then produce incorrect output from staging. No observed served-model failure or confidentiality/data-loss claim. P3 because the established boundary is much larger than current served shapes.",
+      "evidence": "Both tests read the same committed kernels/manifest.json and call generateBindings. TestGeneratedBindingsMatchManifest already owns that successful result as want and compares the complete generated bindings and manifest with committed files. TestBindingsRecordArgumentWidths separately owns scalar/by-value parameter widths and .opaque rejection, then repeats manifest reading/generation only to check for kernelFunctionArgumentWidths. That final presence assertion can use want in the existing generated-file owner. Concrete parsed in-memory migration gives complete test file344->308 AST; existing owner132->149, width unit135->82. Similar AST alone is not the evidence: producer, input, errors and generated result are identical.",
+      "recommended_change": "Move only the emitted kernelFunctionArgumentWidths presence assertion into TestGeneratedBindingsMatchManifest immediately after generateBindings succeeds, using want. Delete the duplicate manifest-read/generate/error tail from TestBindingsRecordArgumentWidths. Keep its width table and opaque refusal, both test functions, and both exact committed-file comparisons. No new helper, table, fixture, dependency or selector.",
+      "displaced_surface": "Production main.go1716->1716. Complete test344->308(-36); combined compared surface2060->2024. Migrated assertion17 nodes is included: retained owner+17, width unit-53. Imports unchanged; helper/wrapper/new abstraction cost0. Manifest reads2->1 and generateBindings executions2->1; generateKernelManifest1 and the two other committed-asset reads unchanged. Four top-level tests unchanged. Static fixtures/files/bytes0; no temporary store, browser/device setup, new gate leg or configuration. One existing test now owns generated-output structure and file identity together.",
+      "impact": "Reduces duplicated generation/setup and maintenance without retiring a requirement. Scalar.u64/.u32/.f32/.f64 and by-value72/1232 widths plus unknown-shape rejection remain. Both untagged host tests have synchronous fatal error handling, no cancellation difference or resource-lifetime/numerical/platform dependency. CLI/generated exports and user-visible behavior unchanged; no data/confidentiality contract removed.",
       "expected_benefit": {
-        "outcome": "Complete in-memory three-file candidate parses native1478->1495(+17), layout8480->8492(+12), executor17093->17099(+6): total27051->27086(+35productionAST). No helper/wrapper/import cost omitted. Existing tests unchanged at this stage; one retained host boundary table extension estimated40..100test nodes, not yet implemented/measured. Fixtures/setup0additional; no large tensor allocation required.",
-        "uncertainty": "Source/type/arithmetic evidence only; candidate not compiled as full CUDA packages or run. Exact test growth belongs to implementation. No speed/memory improvement claimed; oversized fallback avoids unnecessary native staging but bytes were not measured in a workload."
+        "outcome": "36 fewer test AST nodes and one fewer manifest-read/generation setup; production unchanged. The full replacement and assertion migration are counted.",
+        "uncertainty": "Static source/AST/setup evidence only; candidate not executed and no elapsed/allocation saving measured. Shared generation semantics are established by the same function and committed input, not assumed from test similarity."
       },
-      "likely_effort": "Small shared ABI-bound repair plus one existing host shape-table extension.",
+      "likely_effort": "Small same-file assertion relocation and deletion.",
       "plan_references": [
-        "device-numerics/aligned-read"
+        "compact-tests/exact-folds"
       ],
-      "plan_coverage": "New advisory correctness finding on completed widen-windows. Do not reopen the retired row or run a new SQA workload.",
+      "plan_coverage": "Existing test compaction row can absorb this advisory; no new plan row, framework or recurring workload.",
       "closure_criteria": [
-        "No supported native quantizer narrows a flattened extent beyond signed32; both quantizers and their callers share the checked boundary.",
-        "Oversized K-quant graphs retain the existing span path and its storage requirements; normal1..8 native routing and all precision/layout/lifetime coverage remain.",
-        "Count full production/test/setup cost; no claimed reduction from moving checks or adding helpers."
+        "The generated-file test owns the single manifest read and binding generation used by both identity and emitted-width-table assertions.",
+        "The width unit retains every scalar/by-value case and opaque refusal; generated manifest/binding exact comparisons remain.",
+        "Whole test/helper/fixture/setup surface is smaller; no displaced code reappears in a helper or extra gate."
       ],
-      "comparison": "During implementation extend TestCompileHoldsLaunchWords with shape-only checks below/at the aligned signed-total boundary, including268435456x8, and check the existing native shape refusal plus retained fallback reservation. No8GiB input allocation, GPU workload, benchmark or new framework is needed for the deciding comparison. Existing device numerical cases remain their owners."
+      "comparison": "The retained concrete in-memory344->308 AST migration establishes size/setup reduction. During implementation use existing native generator-package validation; no new test, benchmark or SQA confidence run is necessary."
     },
     {
       "id": "SQA-215",
@@ -3177,6 +3151,62 @@
       ],
       "status": "deferred",
       "title": "Make historical document reads explicit about later content releases"
+    },
+    {
+      "id": "SQA-246",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "tensor-geometry",
+      "classification": "implemented-with-shared-bound-and-retained-fallback",
+      "title": "Native K-quant flattened extents now share a signed bound and span fallback",
+      "evidence_commit": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
+      "sources": [
+        {
+          "path": "internal/cuda/executor/launch_strata_native_mmvq.go",
+          "symbol": "strataNativeExtentFits; strataNativeShape; launchStrataNativeQuantizeQ81; launchStrataNativeSwigluQuantizeQ81; native MMVQ callers"
+        },
+        {
+          "path": "internal/cuda/executor/launch_linear_layout.go",
+          "symbol": "kQuantNativeProduct; launchLinearLayout; retained q8-input span fallback"
+        },
+        {
+          "path": "internal/cuda/executor/executor.go",
+          "symbol": "compileGraph native q8_1 staging reservation"
+        },
+        {
+          "path": "internal/cuda/executor/quant_launch_test.go",
+          "symbol": "TestAnOversizedKQuantProductKeepsItsSpanKernels"
+        },
+        {
+          "path": "internal/cuda/executor/strata_drafter_run.go",
+          "symbol": "strataDrafterRecord quantizer callers"
+        },
+        {
+          "path": "internal/cuda/executor/strata_round_window.go",
+          "symbol": "strataRoundWindow quantizer callers"
+        },
+        {
+          "path": "internal/cuda/executor/executor_windows_strata_native_mmvq_test.go",
+          "symbol": "TestStrataNativeMMVQMatchesStrata"
+        }
+      ],
+      "evidence": "At6ed5cf177, strataNativeShape validates positive/block-aligned nIn and1..8 columns before strataNativeExtentFits requires nIn<=MaxInt32 and nIn*ncols<=MaxInt32. Both native quantizers call it before int32 total arithmetic; native MMVQ callers share it. kQuantNativeProduct checks columns<=8 before the same extent predicate, and both compileGraph reservation and launchLinearLayout use that eligibility. Thus the original Q4K[268435456,1] by F32[268435456,8] counterexample stays on the existing q8 span path with q81Bytes==0. Actual callers bound the product operands; no impossible-state overflow branch is needed. Existing host test asserts normal2560x8 routing, oversized refusal and allocation-free graph reservation. Retained6ed commit records passing device coverage and unchanged finite product hashes; SQA did not execute them.",
+      "recommended_change": "No further code change for this finding. Retain the common extent predicate in shape admission and K-quant eligibility, the existing span fallback and the native host boundary test. Do not reopen the pruned aligned-read plan row or request a new workload.",
+      "displaced_surface": "Unchecked eligibility at compile and dispatch is displaced by kQuantNativeProduct; unchecked flattened native arithmetic is guarded by strataNativeShape/strataNativeExtentFits. No fallback, test or fixture was retired. Complete affected Go production: native1478->1528(+50), layout8537->8579(+42), executor17838->17846(+8), total27853->27953(+100). quant_launch_test494->677(+183), complete compared surface28347->28630(+283). Two private shared predicates/import/migration costs included; no export/wrapper/config. Host test adds one shape graph/compile without tensor allocation, model, store or device setup. Existing Windows numerical tests,32/256-value blocks,36-byte staging,1..8 widths, column order, FP16 scales, error refusal and lifetime owners remain.",
+      "impact": "The admitted large tensor can no longer wrap its native quantizer total negative and read unwritten q8_1 staging. Normal supported native routes remain; oversized graph routes retain existing span semantics. Source-established recovery of correctness, not a measured speed or device-memory win.",
+      "expected_benefit": {
+        "outcome": "Boundary repair verified in committed source with existing host and retained device evidence; +100 production/+183 test AST is correctness growth, not simplification savings.",
+        "uncertainty": "No SQA allocation/device reproduction of the multi-GiB shape. Full numerical landing adds+130 production/+2255 test AST and+57CUDA lines; this finding's complete selected owners are counted separately. No fixture growth or timing-based acceptance."
+      },
+      "likely_effort": "Implemented in6ed5cf177; no remaining development requested for246.",
+      "plan_references": [],
+      "plan_coverage": "Completed by device-numerics/aligned-read within6ed5cf177; that row is pruned from the pinned plan. Preserve implementation triage's historical row attribution; reviewer live references are empty.",
+      "closure_criteria": [
+        "Satisfied: both native quantizers share the signed flattened bound before narrowing.",
+        "Satisfied: compile reservation and dispatch use common eligibility; oversized graphs retain span kernels and no unused q8_1 reservation.",
+        "Satisfied: native host boundary assertions and existing precision/layout/lifetime owners are retained, with full net growth disclosed."
+      ],
+      "comparison": "No new deciding run required. Existing TestAnOversizedKQuantProductKeepsItsSpanKernels is the shape-only owner for268435456x8 and ordinary2560x8 routing; retained native device product evidence covers finite numerical behavior. SQA performed source/AST reconciliation only."
     },
     {
       "id": "SQA-274",
@@ -5821,80 +5851,115 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "Retained implementation gate records only; no SQA verification or extra confidence execution.",
+      "execution": "No review tests or gates run. Native Go caching, existing affected-lane selection, exact evidence identity and gate/resume owners retain responsibility.",
       "sample_cost": {
+        "revision": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
+        "comparison_revision": "ab94137c8645cd7f9ef92b0ea7445b1c7698ac70",
         "files": 22,
-        "production_nodes": 25550,
-        "test_nodes": 8177,
-        "total_nodes": 33727,
-        "functions": 172,
-        "parser_local_bindings": 6180,
-        "typecheck": {
-          "path": "internal/pathidentity/identity.go",
-          "definitions": 29,
-          "uses": 152,
-          "selections": 1
-        },
-        "proposed_merge": {
-          "path": "internal/server/agent_session_list_test.go",
-          "before": 863,
-          "after": 530,
-          "delta": -333,
-          "production_delta": 0
+        "functions": 268,
+        "parser_local_bindings": 11554,
+        "production_ast_before": 36326,
+        "production_ast_after": 36868,
+        "production_ast_delta": 542,
+        "test_ast_before": 11477,
+        "test_ast_after": 14188,
+        "test_ast_delta": 2711,
+        "total_ast_after": 51056,
+        "scope": "20 initial files plus executor.go and launch_linear_layout.go; the prior revision lacks the two new Windows device test files. Selected-file totals, not whole-repository counts.",
+        "files_and_ast": {
+          "cmd/build-kernels/main.go": 554,
+          "cmd/build-kernels/main_test.go": 324,
+          "cmd/kernel-bindings/main.go": 1716,
+          "cmd/kernel-bindings/main_test.go": 344,
+          "cmd/kernel-manifest/main.go": 1773,
+          "cmd/kernel-manifest/main_test.go": 1237,
+          "internal/cuda/executor/fallback.go": 1498,
+          "internal/cuda/executor/launch_strata_native_mmvq.go": 1528,
+          "internal/cuda/executor/quant_launch_test.go": 677,
+          "internal/cuda/executor/executor_windows_attention_nan_test.go": 1348,
+          "internal/cuda/executor/executor_windows_bf16_pack_test.go": 276,
+          "internal/cuda/executor/executor_windows_strata_qsa_test.go": 8193,
+          "internal/tensor/dtype/bfloat16.go": 144,
+          "internal/tensor/dtype/bfloat16_test.go": 195,
+          "internal/overgodb/blobs.go": 1219,
+          "internal/overgodb/blob_commit_test.go": 692,
+          "internal/server/event_hub.go": 735,
+          "internal/server/event_hub_test.go": 628,
+          "internal/loop/continuation_test.go": 274,
+          "internal/loop/driver.go": 1276,
+          "internal/cuda/executor/executor.go": 17846,
+          "internal/cuda/executor/launch_linear_layout.go": 8579
         }
       },
-      "complete_change_cost": "12 landings from972dd24df toaccabb964 record +3294 production/+7873 test AST (+11167 total), zero fixture files and -218 fixture bytes. This whole batch is growth, including necessary security/lifecycle/automation coverage. Previous pending review's nine landings separately record+661 production/+3298 test; no aggregate elapsed/memory improvement inferred.",
-      "completed_reductions": [
-        "SQA-274: presence323->308(-15), retained directory-image/model/moved tests1223 unchanged; function+tests1546->1531. No new helper/wrapper/migration/fixture/setup/gate.",
-        "82292dc10 removes guard.mergeInProgress, GateEnv and their runtime exemptions; ruleVerdict retains unconditional raw-commit refusal. Corpus removes environment/merge toggles and obsolete exemption case; real MERGE_HEAD refusal retains its own small fixture. Retained gate -210 production/+35 test=-175 total, fixture bytes-218, files unchanged. Per-corpus-case .git/environment setup disappears; one dedicated merge tempdir remains. No new SQA test.",
-        "SQA-285 proposed: agent_session_list_test863->530(-333); retain TestAgentSessionList, migrate exact response and zero-restored assertions, delete TestListingAgentSessionsRestoresNone. Stores/tempdirs2->1, handlers4->2, step executions7->4, list calls4->2, helper/fixture/import/gate additions0."
-      ],
+      "complete_change_cost": "Retained gate records for 4fb6820b6, 16d397070 and 6ed5cf177 report respectively +120/+319, +292/+295 and +130/+2255 production/test AST: combined +542 production/+2869 tests (+3411). Fixture files/bytes and record schemas +0; CUDA source +57 lines, entry points +0. The selected AST sample omits 158 nodes of test growth elsewhere. These are correctness/ABI/reproducibility additions, not net reductions.",
+      "completed_reductions": "None newly established across the complete production/test surface. Shared BF16 and attention arithmetic owners displace duplicate CUDA behavior, but this landing adds Go tests and CUDA lines overall. SQA-246 adds 100 production and 183 test AST across its complete selected owners.",
       "sampled_tests": [
         {
           "classification": "merge",
-          "owner": "TestAgentSessionList; displaced TestListingAgentSessionsRestoresNone",
-          "requirements": "Retain stray-alias exclusion, both session IDs/counts/inspection, first-handler close, restart equality, zero restored sessions before resume, then resumed third step. Actual in-memory AST507+337 function nodes ->511 retained; file863->530."
+          "tests": "cmd/kernel-bindings: TestGeneratedBindingsMatchManifest and TestBindingsRecordArgumentWidths",
+          "retained_owner": "TestGeneratedBindingsMatchManifest owns one manifest read and generateBindings result; TestBindingsRecordArgumentWidths retains scalar/by-value widths and opaque refusal.",
+          "unique_cases": "Move emitted width-table presence assertion into the existing generated-bindings owner. Exact committed binding/manifest comparisons remain.",
+          "cost": "344->308 test AST (-36); manifest reads2->1, generateBindings2->1; four top-level tests unchanged. No production/helper/wrapper/fixture/gate growth. SQA-287."
         },
         {
           "classification": "retain",
-          "owner": "modelswap.process_lifecycle_test.go183; supervisor child-exit/loading tests read",
-          "requirements": "Real process exit signal, dead-child relaunch, responsive status while loading, failed readiness and lease/held-open cancellation are distinct. Process interface changes add no proof that these can be dropped."
-        },
-        {
-          "classification": "retain/extend",
-          "owner": "server.TestCatalogTakesTheKeyAndWritesNothing (catalog_key_test.go358; body339)",
-          "requirements": "Keep unauthorized path confidentiality, authorized catalog/scorecard nonblocking reads, unchanged request-path store head and successful later publication. Extend same store/handler for shutdown-cancelled blocked publication286. No new fixture or test leg; estimated40-120 test nodes,0-20 production nodes, no saving."
+          "tests": "internal/cuda/executor: TestAnOversizedKQuantProductKeepsItsSpanKernels",
+          "retained_owner": "Existing quant_launch_test.go holds native eligibility, shape refusal and no q8_1 reservation for oversized graphs.",
+          "unique_cases": "Normal2560x8 routing versus268435456x8 overflow boundary, plus shape-only graph compile without allocation.",
+          "cost": "Whole test file494->677 (+183); one new host graph setup, no model/device/store/fixture data. SQA-246 is a repair with net growth."
         },
         {
           "classification": "retain",
-          "owner": "loop.driver_test.go1234 and dispatch_wait_test.go104",
-          "requirements": "Failing row parks after budget and rows behind run; repeated parked row cannot spin. Initial ownership contention and stop/invocation budgets remain. Post-worker waiting now loops once but persistent waiting still returns; no actual delivered-wakeup evidence."
+          "tests": "TestAttentionWritesEveryRowOnNaN; executor_windows_bf16_pack_test.go; TestFloat32ToBF16KeepsEveryNaN; existing Strata parity cases",
+          "retained_owner": "Host conversion owns NaN/Inf representation; Windows device tests own packing and actually reached attention kernels; Strata helper owns its separate layouts.",
+          "unique_cases": "All output channels of the poisoned row, finite adjacent rows, 11 route census entries, signaling/quiet NaNs and sign/payload/finite/Inf pack patterns. Finite numerical ordering remains separate from timing.",
+          "cost": "New Windows files1348+276 AST; full numerical landing +2255 test AST, honestly counted. No deletion justified by common assertions alone."
         },
         {
           "classification": "retain",
-          "owner": "landing.terms_test.go1734 and trunk_hook_test.go907",
-          "requirements": "New-row check must fail on base; existing row terms retain prior authority; real trunk movements including no-verify/reset/merge are refused while report-only commit remains allowed. Nine mutation scenarios require independent Git states; don't retire them for AST similarity."
+          "tests": "cmd/kernel-manifest: TestAnAlignedWordLoadsOnce; build-kernels flag/module tests",
+          "retained_owner": "Compiled PTX pattern test plus existing manifest/build flag owner.",
+          "unique_cases": "Planted unguarded aligned second load versus compiled guarded source; actual manifest flags/module list and pinned compiler identity.",
+          "cost": "No new selector/framework/fixture. The PTX16-line window limits recognition; not a generalized safety proof."
         },
         {
           "classification": "retain",
-          "owner": "overgodb.blob_pack_test.go1807 and query_plan_test.go719",
-          "requirements": "Packed/loose identities, corrupt/truncated index, cancellation, backup/lifetime and retention differ from current-cardinality plan/loaded/inspected accounting. Existing costed223 and253 stay advisory; no new query/pack consolidation established."
+          "tests": "internal/overgodb: TestExternalBlobCommitAtomicity",
+          "retained_owner": "Existing durable-store commit/replay fixture.",
+          "unique_cases": "Small journal envelope for8192-byte external payload, missing-blob refusal, append fault and unreachable orphan, reopen replay.",
+          "cost": "One initial store plus reopen retained; not redundant with query or blob-stream closure tests."
         },
         {
-          "classification": "retain/extend",
-          "owner": "server.TestWebUIBrowserLongSessionStaysBounded268",
-          "requirements": "Keep message render/tail/end requirements. Add284 oversized sole chunk and following piece to the same store/server/browser, exact text/notice independent of timing; no additional browser suite."
+          "classification": "retain",
+          "tests": "internal/server: TestEventHubFansOutOnce",
+          "retained_owner": "Existing event-hub fanout/resync test.",
+          "unique_cases": "Three subscribers,64-stream fixture, manager-completion ordering/final snapshot and cap(slow)+1 overflow yielding resync.",
+          "cost": "Keep current operation fixture and channel bounds; this does not close SQA-284 single-event byte growth."
         },
         {
-          "classification": "simplify/remove",
-          "owner": "guard.TestGuardCorpus and TestARawCommitDuringAMergeIsRefused",
-          "requirements": "Already landed: obsolete successful exemption contract removed, real merge refusal retained; production bypass helper/environment flag deleted. This deliberately tightens authority, not equivalent behavior being silently discarded."
+          "classification": "retain",
+          "tests": "internal/loop/continuation_test.go successful-next-step and stop-after-first cases",
+          "retained_owner": "Existing native driver fake-worker fixture.",
+          "unique_cases": "One supervised Run reaches the next step; explicit stop prevents second dispatch.",
+          "cost": "No external notification or initial ownership-wait delivery proved; no extra loop runs or permanent test suite."
+        },
+        {
+          "classification": "retain",
+          "tests": "internal/tensor/dtype: TestBFloat16Conversions",
+          "retained_owner": "Existing finite conversion cases.",
+          "unique_cases": "Wrapper-consistency assertion is weak as an independent numerical oracle; finite cases have no demonstrated complete replacement owner in this review.",
+          "cost": "No removal or substitute fixture claimed; retain pending a concrete behavioral ownership comparison."
         }
       ],
-      "retained_measurements": "648d25865 retains identical Bonsai output hash and5347.3MiB device peak against835c72eac; first-output1358ms,56tok/s,load2451ms are one retained slice, not a speedup. Its CUDA gate executed8/cached11. Later rule/dispatch gates skipped device/webui/CUDA. accabb964 cites258 plan-only commits among600 as historical process evidence; <20% in next200 is a prediction, not an achieved result.",
-      "sequencing": "Driver parks exhausted rows through existing plan dispatch, allowing later ready host work; post-worker ErrWorkWaiting is no longer generic reread failure. Explicit contrary decisions and unanswered doctrine block dispatch. New row may land with work, avoiding a required separate filing but adding one isolated base worktree/check. Start/ownership-wait remain open; no SQA run or proof of unattended delivery. The report-only Git-hook exemption preserves authorized SQA publication."
+      "retained_measurements": [
+        "4fb6820b62eacad89965a81006830d529c8562ed: device10m16.905s; webui/CUDA lanes skipped. The existing lane selector avoided unnecessary legs; no new review run.",
+        "16d397070176fa1249469cea2ec008c01f6dd00c: device10m21.280s, webui2m52.650s, CUDA4m56.334s (14 executed/5 cached). Recorded broad tests2m41.902s. Width checks improve admission; no measured application speedup claimed.",
+        "6ed5cf177b8ed62a14344b72f48afd224671a5be: device10m28.336s, webui2m53.435s, CUDA6m6.456s (19 executed/0 cached), broad tests2m59.599s. Commit reports all11 finite attention outputs and Q4K/Q6K/Q8_0 hashes unchanged. Aligned-load speed hypothesis failed to beat noise over6000 rounds; device fault was not established.",
+        "6ed5cf177 retained Bonsai-27B slice identity aab9f12d012eac83d94d033df9154062c893702f340aacf6cb84e4a2c1ce845c, output4d9f9909fc4ccbc027189a2d3a9a42769508730637749bc8fca1fc8f2acb44c0: peak5347.3MiB unchanged, first-output1359ms, throughput55.7445tok/s, load2442.7413ms. One retained identity is not a distributional speed/memory improvement."
+      ],
+      "sequencing": "build-kernels checks toolchain paths before compilation, compiles modules, then deterministically updates manifest, generates bindings/pins, verifies and updates SBOM; errors stop at the failing phase. Compiler-banner mismatch is recognized at the manifest phase after compile, so source ordering alone does not prove early version admission; no observed wasted run or new framework is claimed. Driver row parking and post-worker wait handling remain credited; initial first-start/ownership-wait residuals retain SQA-271/SQA-258. Fake-worker completion tests are supervised in-process continuation, not delivered external wakeups. No new run_end timestamp was used as delivery evidence."
     },
-  "hygiene_assessment": "Only docs/sqa_findings.json is merged. Concurrent discovery/catalog/runtime-policy/plan/skill/API-manifest edits belong to implementation and are preserved; analysis helpers remain outside the repository.",
+  "hygiene_assessment": "Only docs/sqa_findings.json is merged. The concurrent round-sampling implementation landed separately as98f15bf627 while publication waited; it was never modified by SQA. Unrelated index/worktree changes are preserved; analysis utilities remain outside the repository.",
   "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
@@ -6689,15 +6754,15 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "No SQA tests, model workloads, services, browser runs, gates, benchmarks, profiles, agents, worker messages, plan or skill edits. Source AST/type analysis and report-only publication.",
-      "Go AST counts include parsed comments; embedded JavaScript is a Go literal, not a JS AST census. Parser local bindings do not resolve imported package APIs; only the stated standalone standard-library typecheck does. No CUDA/full-repository typecheck.",
-      "Retained gate records supply runtime observations. SQA supplies source/AST/caller evidence, with no new elapsed, heap/RSS, device-memory or delivered-wakeup measurement. Strata is a comparison, not presumed optimal.",
-      "New285 is a safe bounded proposed reduction, not an implemented or compiled merge. New286 is a source-established cancellability gap, not a reproduced shutdown hang. Its necessary test growth is disclosed rather than counted as savings.",
-      "SQA-283 ordinary file-derived text serving is implemented; directory mappings/media derivation/held-out and recipe-attribution residuals remain. Source consumers unchanged since972dd24df; owner response explicitly narrows coverage.",
-      "GUI tail uses UTF-16 code units. Fixed4096-character ASCII test chunks do not cover an admitted2MiB JSON event under the producer64MiB bound;284 remains source-established without a browser reproduction.",
-      "Pack key/header/entry widths derive from the on-disk kind/SHA256/offset/size format. readPackIndex bounds count by actual file length before allocation; normal packing admits members below inlineContentLimit. Preserve digest, count, cancellation, rename/sync and retention guarantees. No additional robust reduction established there.",
-      "Query media/schema planning uses actual current index cardinalities, not normality, uniformity or independence. Session tip uses actual max ordinal bounded by coordinator.maxSteps and scans backward to known inspection; do not claim every list is constant-time. Numerical acceptance remains separate from timing.",
-      "Driver now passes parked rows and handles post-worker ownership waiting, but persistent initial ownership waiting still returns. Run-end recording/printing and Git-hook installation do not establish a delivered continuation. Native Go caching, existing phase credit/affected lanes and locks retain credit."
+      "Report-only SQA with disclosed prior implementation overlap; no independent third-party assurance. Working plan and round-sampling changes are excluded.",
+      "No tests, model runs, services, production gates, benchmarks, profiles, workers or messages started. Temporary analysis utilities stay outside the repository; only this report may be committed.",
+      "Bounded sample, not a recurring census or complete package typecheck. Parser local bindings do not resolve imported methods or interface targets. Full CUDA/package symbol resolution was unavailable in this lightweight analysis; actual callers were traced in committed source.",
+      "Standalone dtype typecheck resolved 16 definitions, 35 uses and zero selections, including Float32ToBF16, BF16ToFloat32 and math.Float32bits. It does not establish device behavior.",
+      "AST includes parsed Go syntax/comments. CUDA/embedded PTX, generated records and fixture bytes are accounted separately using retained gate records, not conflated with Go AST. Similar syntax alone is not treated as redundancy.",
+      "New reduction is a parsed in-memory proposal only; setup reductions are static counts, not measured elapsed or memory improvements. Numerical acceptance remains separate from timing variability.",
+      "Retained finite hashes, NaN observations, device lanes and Bonsai slice are implementation evidence with their recorded identity; no broader workload distribution, held-out quality or unattended delivery conclusion follows.",
+      "The compiled aligned-load check recognizes a 16-line PTX shape under the pinned toolchain, not arbitrary control flow. No observed device fault or additional robust reduction was established; no framework or new workload prescribed.",
+      "Unchanged findings retain original evidence and are not represented as freshly reproduced. Deferred entries and owner responses are preserved; no new global threshold, selector, telemetry, scheduler or policy suite."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7306,12 +7371,12 @@
       }
     }
   },
-  "next_finding_number": 287,
+  "next_finding_number": 288,
   "publication_context": {
-      "checked_head": "10617d7a0de1d268563d89481fc7788ba437ca29",
-      "assessment": "Source pin is committed master; working changes excluded. Current report reconciled with all owner fields preserved exactly.",
-      "newer_commit_note": "10617d7a0 landed kernel include discovery after the source pin; it changes kernel-manifest/SBOM/manifest/plan only, not sampled finding owners or the report. Reviewed source and plan remain accabb964; newer kernel implementation is outside this bounded review. Current dirty build-kernels/kernel-manifest/README work excluded.",
-      "publication": "Report-only update authorized by owner; use existing landing/gate locks and actual hooks, preserve unrelated index/worktree, no production gate."
+      "checked_head": "98f15bf6275efc1e3942fddbba867a5d674a3207",
+      "assessment": "Pinned committed master and plan assessed; concurrent worktree edits excluded. Current report re-read immediately before replacement with implementation-owned and unknown fields preserved exactly.",
+      "newer_commit_note": "Publication waited for the existing landing turn without touching the report. 98f15bf6275efc1e3942fddbba867a5d674a3207 then landed round-sampling: host fallback for unsupported min_keep/zero named stages and mapped nonfinite guard consumption after synchronization. Its seven-path diff does not change this report, SQA-246/287 owners or the 22-file AST sample. This bounded publication reconciliation read its source diff and retained commit evidence; it is not included in the three-commit AST/gate totals. Source and plan review remain pinned at6ed5cf177.",
+      "publication": "Owner-authorized report-only Git commit using existing landing/gate locks and actual hooks; no production gate or security/hook changes."
     },
   "ranked_active_finding_ids": [
     "SQA-286",
@@ -7323,7 +7388,7 @@
     "SQA-266",
     "SQA-257",
     "SQA-285",
-    "SQA-246",
+    "SQA-287",
     "SQA-215",
     "SQA-221",
     "SQA-276",
@@ -7372,53 +7437,41 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "Master improved session-list work, dead-child recovery, catalog confidentiality and deterministic work sequencing. Complete change/test surface grew substantially; one completed guard simplification and one fresh test merge have net savings.",
-      "Agree with274 closure and credit283 ordinary file runs. Retain the explicit directory/media/held-out/recipe-attribution limitations in283 rather than equating owner implemented disposition with the broader original requirement.",
-      "New286: moving memo persistence off requests made its store-lock wait uncancellable and placed it before handler resource cleanup. Reuse the existing handler lifetime and retain successful publication plus cancellation coverage.",
-      "Preserve implementation_review, master_lead_triage and unknown implementation-owned fields raw-exact; reconcile again immediately before report-only publication."
+      "Current synthesis:114 stable findings,54 open,4 deferred,56 resolved. Close246 and add287; no ranking escalation, reopened issue or measured performance win.",
+      "Distribution/geometry: signed extent bound is evaluated after valid1..8 columns, so uint64 multiplication is safe for admitted callers; preserve32-value q8_1 blocks,256-value K blocks,36-byte q8_1 storage and existing span layout. BF16 mantissa/NaN masks are format coefficients, not arbitrary thresholds.",
+      "The two blob-path digest characters are an existing256-bucket storage format; query counts use actual candidates. GUI queue fixtures use actual channel capacity for overflow; they do not establish representative event byte sizes. No normality, stationarity or universal timing threshold introduced.",
+      "No safe new production reduction proved. Candidate287 eliminates unnecessary repeated generation while retaining unique width and file-identity cases; other sampled correctness/recovery tests remain."
     ],
-  "reviewed_at": "2026-11-02T10:08:44Z",
-  "reviewed_master": "accabb964e202e91da03d9c0e30c9da8ce2b9e7a",
+  "reviewed_at": "2026-11-02T12:11:42Z",
+  "reviewed_master": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master accabb964e202e91da03d9c0e30c9da8ce2b9e7a; read skill.md blob0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3 and docs/plan.json blobc2a16568de0f8999afefde856ace74e4162643c4 first. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; lane master-lead. Worktree kernel-manifest/SBOM/plan edits excluded.",
-      "Rotated committed source/caller samples: model-child load/exit/status/resource lifetime; agent session listing versus actual restoration; catalog/scorecard memo publication; packed-blob verification/query/retention; GUI tool-output producer/consumer; driver parking/ownership/decision admission; landing terms/base checks and report-only Git-hook exemption. This includes established owners beyond the latest diff.",
-      "Fresh stdlib Go AST analysis of22 committed files:25550 production+8177 test=33727 nodes,172 functions,6180 parser-local bindings. Actual in-memory session-test merge863->530 nodes. Standalone go/types of committed pathidentity/identity.go resolves29 definitions,152 uses,1 selection (os.SameFile/os.Stat/filepath.EvalSymlinks). No package-wide typecheck or executable candidate.",
-      "Provisional source conclusions preceded current full-report reconciliation; prior report familiarity and implementation statements in commit descriptions are disclosed. This chat previously implemented changes; this is not independent third-party review.",
-      "Reconcile pending274 closure,283 text-path progress/P2 residuals and284 oversized-event finding with the unchanged latest owner responses. Add285 concrete test merge and286 shutdown lifetime defect. Recheck271 continuation boundary after row-parking/decision repairs. Older unchanged findings retain dated evidence, not exhaustive recertification."
+      "Pinned committed master and plan at 6ed5cf177b8ed62a14344b72f48afd224671a5be; plan blob 6158ccc24ae04755743c154da07208c4f826825a; skill blob 0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
+      "Fresh caller-led sampling before reading the previous report: kernel binding generation and its two tests; native K-quant shape/compile/dispatch; BF16 and attention fault propagation; compiled aligned reads. Followed exported graph admission, staging reservation and quantizer lifetime, retaining normal/fallback layouts.",
+      "Beyond the latest diff: immutable blob publication/read/close, commit failure/replay and retention roots; query candidate ownership; GUI fanout/resync; supervised driver continuation and stop boundaries. No new finding from these rotated samples.",
+      "Actual Go parser/AST analysis of 22 committed production/test files, with per-function call expressions and local bindings; standalone go/types resolution of committed tensor/dtype/bfloat16.go. Concrete in-memory AST migration of kernel-binding test assertions; no candidate test or production code executed.",
+      "Reconciled current report and implementation responses after provisional source conclusions; rechecked SQA-246 repair, unchanged SQA-284/285/286 owners, and new finding against existing IDs. Reviewed retained gate/scorecard evidence in the three implementation commit bodies."
     ],
   "sqa_response": {
-      "reviewed_master": "accabb964e202e91da03d9c0e30c9da8ce2b9e7a",
-      "assessment": "Resolve274;283 P1->P2/open with residuals. Add284 oversized GUI event,285 session-test consolidation,286 shutdown cancellation.271 gains parking/decision/post-worker-wait progress but remains open with258.",
+      "reviewed_master": "6ed5cf177b8ed62a14344b72f48afd224671a5be",
+      "assessment": "SQA-246 is resolved by the common signed-extent admission and retained span fallback. Add SQA-287 for one small proven test-setup reduction. Recent master improves numerical fault visibility and ABI/build admission, with substantial necessary test growth; no new runtime speed or memory reduction is demonstrated.",
       "new_findings": [
-        "SQA-284",
-        "SQA-285",
-        "SQA-286"
+        "SQA-287"
       ],
       "resolved_findings": [
-        "SQA-274"
+        "SQA-246"
       ],
-      "partially_addressed_findings": [
-        "SQA-283",
-        "SQA-271"
-      ],
+      "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
-      "priority_changes": [
-        {
-          "id": "SQA-283",
-          "from": "P1",
-          "to": "P2",
-          "reason": "Ordinary file-derived text serving now works; remaining mapping/media/evidence obligations are bounded and adopted."
-        }
-      ],
-      "evidence": "22-file committed AST sample and standalone go/types; exact in-memory session merge; committed caller/lifetime/dispatch paths plus12 retained gate records. No new workload.",
+      "priority_changes": [],
+      "evidence": "22 committed files parsed (51056 AST); local caller tracing; standalone dtype type resolution; exact344->308 in-memory test migration; three retained gate commit records. No fresh workload.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "e0fbc3d5e76b1598b27fbd7e8736772d4a9ba095",
-        "status": "Owner objects preserved exactly. Agree with274;283 implementation response is explicitly narrower than its original closure criteria, so retain residuals in the same stable finding."
+        "current_triage_head": "16d397070176fa1249469cea2ec008c01f6dd00c",
+        "status": "Preserve implementation_review, master_lead_triage and every implementation-owned/unknown finding field exactly. Agree with the246 implementation response after checking both quantizers, compile reservation and dispatch. No new claim about unchanged responses."
       },
-      "recommendation": "Repair handler memo cancellation through its existing lifetime owner; preserve current evidence attribution/model-reach and supervised continuation. Bound single GUI events; merge duplicated session-list setup into its original native test.",
-      "uncertainty": "No fresh elapsed/memory or delivery measurement.284/286 are admitted source counterexamples, not executed reproductions.285 AST reduction is hypothetical, not implemented. Older unchanged issues retain original evidence."
+      "recommendation": "Keep recovery/evidence/driver residuals prioritized. Retire246 from implementation work; absorb287 in compact-tests/exact-folds using the existing generator-test owner. Retain new numerical coverage and exact finite acceptance without extra confidence runs.",
+      "uncertainty": "AST/setup savings are static, not measured wall time or allocations. Retained device and scorecard observations belong to their implementation records. No delivered wakeup or broader held-out performance inference."
     }
 }

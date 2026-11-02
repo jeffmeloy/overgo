@@ -197,7 +197,11 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		if err := stream.named("operation.snapshot", h.operations.List()); err != nil {
 			return err
 		}
-		return stream.named("hub.downloads", h.downloads.snapshot())
+		if err := stream.named("hub.downloads", h.downloads.snapshot()); err != nil {
+			return err
+		}
+		// A change the queue dropped is in no snapshot: the page reads what it holds again.
+		return stream.named(hubResync, struct{}{})
 	}
 	if snapshots() != nil {
 		return

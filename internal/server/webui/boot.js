@@ -429,11 +429,13 @@
       },
       // read: host shows one load's answer; the newest read wins, an empty answer shows options.empty's
       // words, and a failure offers to read again. A call that changes an inventory the read fetched
-      // from (workspace.changed) reads it again, so no action refreshes what it changed by hand.
+      // from (workspace.changed) reads it again, so no action refreshes what it changed by hand, and
+      // a stream that fell behind (resync) reads again whatever has run, as it may have lost such a change.
       read(host, load, render, options) {
         const { loading = "Loading…", empty = null } = options || {};
         let current = null, fetched = new Set();
         if (!reads.length) life.subscribe((name, value) => {
+          if (name === "resync") for (const entry of reads) if (entry.fetched().size) entry.run(refreshing);
           if (name !== "workspace.changed") return;
           const inventory = value.inventory;
           for (const entry of reads) if ([...entry.fetched()].some((path) => path === inventory || path.startsWith(inventory + "/") || path.startsWith(inventory + "?"))) entry.run(refreshing);

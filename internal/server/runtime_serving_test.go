@@ -139,6 +139,8 @@ func servingStreamInitial(t *testing.T, probe *runtimeServingProbe) runtimeActiv
 	probe.next(t, "operation.snapshot", nil)
 	probe.release(t)
 	probe.next(t, "hub.downloads", nil)
+	probe.release(t)
+	probe.next(t, "resync", nil)
 	return snapshot // the reader remains parked after the initial snapshot
 }
 
@@ -258,6 +260,8 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 		probe.next(t, "operation.snapshot", nil)
 		probe.release(t)
 		probe.next(t, "hub.downloads", nil)
+		probe.release(t)
+		probe.next(t, "resync", nil)
 		// Both events fit the buffer. The first belongs to the already-captured
 		// snapshot; only the new publication may be delivered as a live event.
 		servingStreamTurn(t, handler)

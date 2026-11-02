@@ -6296,6 +6296,17 @@
         "plan_steps": [
           "sqa-served/sampler-chain"
         ]
+      },
+      {
+        "comment": "Landed with sqa-served/inventory-resync. runtimeActivityStream ends every snapshot sequence with hubResync, on connect, on reconnect and when a queue overflowed. runtimeEvents.publish keeps it out of the replayed latest state, so a later subscriber never sees an old invalidation, and drops the first of a page's life. workspace.read refreshes only reads whose fetched set is not empty. TestWebUIBrowserStreamLifecycle publishes the marker and counts one read of the shown inventory.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestWebUIBrowserStreamLifecycle"
+        ],
+        "finding_id": "SQA-218",
+        "plan_steps": [
+          "sqa-served/inventory-resync"
+        ]
       }
     ],
     "experiments": {
@@ -6342,7 +6353,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "a6556ce832d83cc1f73f599501718332c8ffcbef",
+    "head": "b30807e602301430c17f073bb1ffa1b4b5d57b4b",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6527,11 +6538,11 @@
         "note": "Landed. strataSamplingOf tells nil from an explicit empty chain through strataChainDeclared, which requires each active stage once, in native order, and leaves neutral stages out of it. A chain that differs in effect stays on the ordinary path. Awaits the reviewer's closure."
       },
       "SQA-218": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-served/inventory-resync"
         ],
-        "note": "Read again: SQA-MOSS-009's fix handles a wait through a resynchronizing stream, and this finding's inventory refresh stays open and separate. Same stream, different consumer."
+        "note": "Landed. A completed snapshot sequence sends the resync marker, and workspace.read refreshes every read that has run. The marker is transient, and the page's first one, which lost nothing, is dropped. Awaits the reviewer's closure."
       },
       "SQA-260": {
         "action": "filed",

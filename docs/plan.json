@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-served",
-      "title": "Repair the register's served-path defects",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 220,
-        "reason": "Small corrections inside existing owners, each named by its finding."
-      },
-      "steps": [
-        {
-          "id": "inventory-resync",
-          "title": "Refresh tracked reads when the event stream resynchronizes",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowser'",
-          "rationale": "SQA-218: a completed resynchronization reaches the client and workspace.read refreshes what it fetched.\nServes: an open inventory cannot silently stay stale.\nDisappears: nothing.\nEvidence: the existing runtime-stream fixture.\nBatch: web interface lane."
-        }
-      ]
-    },
-    {
       "id": "sqa-cycle",
       "title": "Repair the register's measurement-run and landing defects",
       "owner": "master-lead",

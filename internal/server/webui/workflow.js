@@ -3,6 +3,7 @@
   const subscribers = new Set();
   const latest = new Map();
   let streamController = null;
+  let synchronized = false;
 
   function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
@@ -30,6 +31,11 @@
       };
       name = "runtime.activity";
       latest.set(name, value);
+    } else if (name === "resync") {
+      // The page's first snapshot lost nothing: it read everything it shows just now.
+      const first = !synchronized;
+      synchronized = true;
+      if (first) return;
     } else if (name !== "workspace.changed" && name !== "agent.output") { // a change or an output piece happened once; replaying it would repeat it
       latest.set(name, value);
       if (name === "operation.snapshot") {

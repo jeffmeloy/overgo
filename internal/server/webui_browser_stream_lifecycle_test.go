@@ -151,6 +151,15 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	if compositionsAfter := lifecycle()["compositions"]; compositionsAfter != compositionsBefore+1 {
 		t.Errorf("an inventory change read the compositions %v times, want once", compositionsAfter-compositionsBefore)
 	}
+	// A stream that fell a queue behind may have lost such a change, so what the tab has read
+	// it reads again, once, with no change named.
+	compositionsBefore = lifecycle()["compositions"]
+	handler.events.publish(hubResync, nil)
+	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.compositions > ` + strconv.FormatFloat(compositionsBefore, 'f', -1, 64) + `)`)
+	settle(`overgo.api.inFlight() === 0`)
+	if compositionsAfter := lifecycle()["compositions"]; compositionsAfter != compositionsBefore+1 {
+		t.Errorf("a resynchronized stream read the compositions %v times, want once", compositionsAfter-compositionsBefore)
+	}
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	// A hidden page does not probe health or the catalog through a whole status interval.
 	// Requests a remount started finish first, so what follows is the hidden page alone.

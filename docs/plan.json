@@ -182,31 +182,6 @@
       ]
     },
     {
-      "id": "training-gaps",
-      "title": "Find a training gap and judge the candidate with no person",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 52,
-        "reason": "the first trained model reached every check of the live catalog: the benchmark and the denominators measure 323; about 60 for the target's data order."
-      },
-      "steps": [
-        {
-          "id": "judged-proof",
-          "title": "Prove gap to supported verdict on the smallest model",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestTheSmallestModelsImprovementRecordIsComplete$'",
-          "rationale": "Run measure, gap, train and verdict once on Qwen2.5-0.5B and retain the record under docs/verification, as TestFirstRewardRunsRecordIsComplete does (internal/trainingworkflow/instruction_pilot_record_test.go:30). The test reads the record, so the gate stays hermetic and nothing trains twice.\nThe shortest path exists: train -objective -steps 128 -seq 512 -freeze-lexical publishes a session, a checkpoint and a verdict. It lacks a gap in front and a noise test behind, which this row and heldout-verdict supply. A run took about 5 minutes (docs/verification/change-corpus-qwen25-05b.txt:16-18): one minute of training at 0.47 s a step, the rest loading, host scoring and checkpointing. Measure validate -run -model Qwen2.5-0.5B's wall on the way, since no record holds it.\nNothing is activated, and a supported loss is a valid record. This shows a candidate found and judged by the system, not that what is served improved: the inference row reads MMLU-Pro 0.17 under a protocol the card advises against (internal/scorecard/model_uses.json:13-19), and wikitext training will probably not move that (hypothesis).\nServes: evidence that the loop reaches a judged candidate.\nDisappears: the claim that rests on separate parts.\nEvidence: one retained record.\nBatch: one device run by the row; the check is host lane.",
-          "depends_on": [
-            "heldout-verdict/verdict-noise",
-            "training-gaps/training-target",
-            "optimizer-truth/schedule-recorded",
-            "optimizer-truth/rate-count"
-          ]
-        }
-      ]
-    },
-    {
       "id": "recipe-repairs",
       "title": "Repair recipe identity and validation",
       "owner": "master-lead",
@@ -261,7 +236,7 @@
           "title": "Let a supported, charged verdict take a base model's place",
           "status": "open",
           "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOnlyAChargedSupportedVerdictTakesTheBasesPlace$'",
-          "rationale": "No production caller of ActivateCapability reads a verdict, and skill.md:15 forbids promotion, so this row waits on decision gated-promotion. Observer.Verify activating a training recipe (internal/trainingworkflow/session_observation.go:323,352) stays a statement about the route, not the model.\nMoving an alias does not work as first written. An active alias is per model (internal/modelrecipe/lifecycle.go:987-989) and a trained text model is a new model, so activating it supersedes nothing, rollback refuses (rollback.go:64-66), a win cannot retire the base (lifecycle.go:179 needs a failed gate), and the next run's cells compare it with nothing (internal/scorecard/scorecard.go:414-417, record.go:450-452).\nDefine the slot a candidate takes, record the succession the scorecard reads, and keep the base for rollback. Reuse TrainingDecision, which has approved and refused states with Rollback: parent (internal/runrecord/training_decision.go:15-25). A verdict over a base that is not verified moves nothing. The hand activate stays: cmd/recipe/main.go:302,609 serves every intake.\nServes: held-out-quality improves without a person.\nDisappears: nothing.\nEvidence: passing, failing and uncharged verdicts, and a rollback.\nBatch: host lane.",
+          "rationale": "No production caller of ActivateCapability reads a verdict, and skill.md:15 forbids promotion, so this row waits on decision gated-promotion. Observer.Verify activating a training recipe (internal/trainingworkflow/session_observation.go:323,352) stays a statement about the route, not the model.\nMoving an alias does not work as first written. An active alias is per model (internal/modelrecipe/lifecycle.go:987-989) and a trained text model is a new model, so activating it supersedes nothing, rollback refuses (rollback.go:64-66), a win cannot retire the base (lifecycle.go:179 needs a failed gate), and the next run's cells compare it with nothing (internal/scorecard/scorecard.go:414-417, record.go:450-452).\nDefine the slot a candidate takes, record the succession the scorecard reads, and keep the base for rollback. Reuse TrainingDecision, which has approved and refused states with Rollback: parent (internal/runrecord/training_decision.go:15-25). A verdict over a base that is not verified moves nothing. The hand activate stays: cmd/recipe/main.go:302,609 serves every intake.\nServes: held-out-quality improves without a person.\nDisappears: nothing.\nEvidence: passing, failing and uncharged verdicts, and a rollback.\nBatch: host lane.\n\nMeasured 2026-11-02 (docs/verification/improvement-run-qwen25-05b.txt): a supported verdict that meets its target does not make a better model. Seed 25 gained 0.01653 on wikitext token accuracy and read MMLU-Pro 0.1447 against the base's 0.1696; the file-order run read 0.1530. Promotion on one objective's verdict would have replaced the default with a model worse on the general suite, so whatever the owner decides, a promotion must also hold the candidate to the base on the suites the row measures, and the one measurement already gives those readings.",
           "depends_on": [
             "training-gaps/judged-proof",
             "heldout-verdict/charge-objective",
@@ -740,6 +715,13 @@
           "status": "open",
           "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSDenoiserWallIsAccountedFor$'",
           "rationale": "The resource comparison measured native MOSS at 94.2 s of denoising a 1024 square picture against upstream's 51.8 s on one card and one protocol, at 0.47 times its peak device memory (docs/verification/moss-image-resources.json).\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes. The first check named a throughput subtest that its parent passes without (internal/evaluation/moss_retained_model_test.go:110).\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
+        },
+        {
+          "id": "trained-precision",
+          "title": "A trained model serves at its base's precision",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestATrainedCheckpointServesAtItsBasesPrecision$'",
+          "rationale": "A safetensors checkpoint saves 32-bit weights where its base holds 16-bit: 1.98 GB against 0.99 GB. The two trained models read 321 and 318 tok/s against the base's 505.7, a first token at 4096 tokens of 142 ms against 79 ms, and a load of 3.15 s against 1.6 s, with nothing in the training to explain any of it.\nSave what serves at the base's precision, and keep what resumes as it is. Measure first: a 16-bit float may round away small updates, so the check is the verdict re-read on the rounded weights, and if the gain goes the row is retired with the reading.\nServes: throughput, load-time and peak-device-memory of every trained model.\nDisappears: a trained model twice the size of its base.\nEvidence: a test of the saved precision, then the rows of one trained model.\nBatch: one device run."
         }
       ]
     }

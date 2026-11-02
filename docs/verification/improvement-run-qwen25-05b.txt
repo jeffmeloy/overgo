@@ -1,0 +1,40 @@
+overgo improvement run: a training gap found, trained, judged and measured on the smallest model, with no person
+what this shows: the scorecard filed a gap from a declared target, one command closed it, and the store holds a judged candidate that serves and has its one measurement. It does not show that what is served improved: see "what the gain is not" below.
+
+commit: 3556f6ce05b8bf38af61c70bc2b80dc69a045386
+model: model:sha256:88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342
+objective: profile:sha256:7b7ed5dec1e127562609801d3c4542255e82d40054f96dadd2b6e6a490962665
+gap: scorecard-train-abf3e440cf2c66e0
+target-gain: 0.01
+command: go run ./cmd/train -objective objective.registered.text-text -model overgo_data/models/Qwen2.5-0.5B -out overgo_data/checkpoints/qwen25-05b-order-25 -steps 128 -seq 512 -order-seed 25 -freeze-lexical -max-wall 10m
+wall-seconds: 642
+
+the run, as that one command made it, nothing by hand: training, the verdict, the listing, the benchmark, the admission and the five cells
+observation: evidence:sha256:70d52069e7db0c44887cb75fc6dd492c576a8d4119f363d722620d5e67dccaf1
+checkpoint: checkpoint:sha256:18b03c59b1870b2c0b4e843f3e33874e282d4a0342d8a85d85f2f2219dcb085c
+verdict: evaluation:sha256:6ce2728cd536f4aeec82f717fa39bc77b27de823ed84eef7a67c03313b20c91b
+base: 0.5001176590690053
+trained: 0.5166520025400517
+gain: 0.016534343471046348
+detectable: 0.004384280047695177
+cases: 24
+supported: true
+gap-after: closed
+measured-cells: 5
+measured-again: nothing to re-acquire
+
+what it took to get here: the first run of the row's command is the record too
+The command then named no order. It read the first 128 windows of the membership, the first few articles: gain 0.00796, detectable 0.00463, supported, below the target, so the row stayed open (verdict evaluation:sha256:d03aaa986a05a54db9383739d7dae37dfb7ebd9f58e7186522fa6674139340f0, checkpoint qwen25-05b-judged-proof). Seed 1 on this code gained 0.01740 in the experiment store where the corpus holds 0.01751, so the difference was the data and not the optimizer. Seed 25 is the first the corpus never ran; it was fixed before it was read.
+The one measurement of a trained model had never run on a real one. It stopped four times, each repaired by its own commit: a trained directory read as its base (training-gaps/trained-tie), a viewed text directory could not validate (training-gaps/trained-admission), a checkpoint lost its chat template (the same), and nothing published the benchmark a guard needs (training-gaps/trained-benchmark). That last commit also keeps a trained model out of every denominator a person accepted.
+
+held-out reads: the verdicts above are not the first looks at these 24 records. The 24 corpus runs read the same inputs in another store, and the real store's count does not see them. The support here is against noise in the cases, not against the selection those reads allow.
+
+what the gain is not
+The target asks for token accuracy on wikitext, and that rose. Every general suite the model has a reading on says otherwise, on one run of each:
+| | MMLU-Pro raw, 1209 cases | BBH raw, 577 cases | IFEval instruction-strict, 55 prompts | throughput | load |
+| base Qwen2.5-0.5B | 0.1696 | 0.3206 | 0.2989 (chat form) | 505.7 tok/s | 1.6 s |
+| seed 25, this run | 0.1447 | 0.3033 | 0.2299 | 321.3 tok/s | 3.15 s |
+| file order, first run | 0.1530 | 0.3258 | 0.3678 | 318 tok/s | 3.1 s |
+The scorecard states a margin of about 0.01 on MMLU-Pro, so both trained models read below their base there, by 0.0166 and 0.0249. BBH and IFEval move both ways between the two runs, which is what so few cases of them allow. The plan expected MMLU-Pro not to move; it fell.
+The throughput and load columns are not the training: a checkpoint holds 32-bit weights, 1.98 GB, where the base holds 16-bit, 0.99 GB, so each trained model reads about 36% slower to serve and twice as large until it is saved at its base's precision.
+A verdict on one objective is therefore no reason to serve a model in place of its base.

@@ -79,3 +79,21 @@ func TestACellNotMeasuredThisRunSaysSo(t *testing.T) {
 		t.Fatalf("the cell not measured since is no gap: %+v", gaps)
 	}
 }
+
+// TestATrainedModelsReadingStands: a trained model is measured once, so a later record keeps its reading, where any other
+// model's reading from before the previous record says it was not measured.
+func TestATrainedModelsReadingStands(t *testing.T) {
+	t.Parallel()
+	published := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	reading := Cell{Value: 1, Newest: published.Add(-time.Hour).UnixNano()}
+	row := func(once bool) Row {
+		return Row{MeasuredOnce: once, Cells: map[metric.Name]Cell{metric.Throughput: reading}}
+	}
+	got := Record{Rows: []Row{row(true), row(false)}}.Unmeasured(published)
+	if cell := got.Rows[0].Cells[metric.Throughput]; cell.Value != reading.Value || cell.Reason != "" {
+		t.Fatalf("the trained model's reading became %+v", cell)
+	}
+	if cell := got.Rows[1].Cells[metric.Throughput]; cell.Reason == "" {
+		t.Fatalf("another model's old reading stands as %+v", cell)
+	}
+}

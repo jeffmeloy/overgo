@@ -6815,7 +6815,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "83f4df1fcce26d50067e59c5cf8a8b7621212165",
+    "head": "e57e7236f3174699a8d42f31d6a1a5450627b5cd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7059,7 +7059,7 @@
         "rows": [
           "time-and-memory/run-wall"
         ],
-        "note": "Was advisory with no row. The static review's run-wall step asks the same and measures first, so it owns this now, including the finding's caution that a removed paired test needs its requirement named."
+        "note": "Was advisory with no row. The static review's run-wall step asks the same and measures first, so it owns this now, including the finding's caution that a removed paired test needs its requirement named. trained-models/do changes SelectValidation for one class only: a trained model whose one measurement finished leaves a run of every model. The lanes the finding measures are unchanged, so the finding stays with its row."
       },
       "SQA-232": {
         "action": "implemented",

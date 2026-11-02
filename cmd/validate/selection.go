@@ -45,6 +45,9 @@ type ModelValidation struct {
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
 	Consumed     string `json:"consumed,omitzero"` // what binding found the files its command is given to be (consumedFiles)
+	// Trained is a model a training run produced, and Measured that its one measurement finished.
+	Trained  bool `json:"trained,omitzero"`
+	Measured bool `json:"measured,omitzero"`
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket
@@ -75,24 +78,37 @@ type Plan struct {
 	OperatorOwned      []Selected `json:"operator_owned"`
 	RegisteredInactive []Selected `json:"registered_inactive"`
 	SkipInappropriate  []Selected `json:"skip_inappropriate"`
+	// MeasuredOnce is the cells of trained models whose one measurement finished, which no run of every model repeats.
+	MeasuredOnce []Selected `json:"measured_once"`
 
 	Suites []SelectedSuite `json:"suites"`
 }
 
 // OnlyModel is the plan of the models named alone: their cells, and no lane, so a decline's row is judged by its own
-// model measured again (validate -run -model), never by a run of every model. It refuses a name no cell answers to.
+// model measured again (validate -run -model), never by a run of every model, and a trained model measured once before
+// runs when it is named. It refuses a name no cell answers to.
 func (plan Plan) OnlyModel(name string, named func(ModelValidation) bool) (Plan, error) {
 	keep := func(cells []Selected) []Selected {
 		return slices.DeleteFunc(slices.Clone(cells), func(sel Selected) bool { return !named(sel.ModelValidation) })
 	}
 	only := Plan{
-		Scorecard: plan.Scorecard, Run: keep(plan.Run), Background: keep(plan.Background), OperatorOwned: keep(plan.OperatorOwned),
-		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
+		Scorecard: plan.Scorecard, Run: append(keep(plan.Run), keep(plan.MeasuredOnce)...), Background: keep(plan.Background), OperatorOwned: keep(plan.OperatorOwned),
+		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{}, MeasuredOnce: []Selected{},
 	}
 	if len(only.Run)+len(only.Background)+len(only.OperatorOwned) == 0 {
 		return Plan{}, fmt.Errorf("validate -model %s: no cell of the plan is that model's", name)
 	}
 	return only, nil
+}
+
+// OnlyTrained is the plan of the trained models still to be measured: their cells, which SelectValidation holds in Run
+// all of them, and no lane.
+func (plan Plan) OnlyTrained() Plan {
+	return Plan{
+		Scorecard: plan.Scorecard, Background: []Selected{}, OperatorOwned: []Selected{}, RegisteredInactive: []Selected{},
+		SkipInappropriate: []Selected{}, MeasuredOnce: []Selected{},
+		Run: slices.DeleteFunc(slices.Clone(plan.Run), func(sel Selected) bool { return !sel.Trained || sel.Measured }),
+	}
 }
 
 // SelectedSuite is one lane of the improvement cycle, the real-model suites
@@ -127,7 +143,7 @@ func cycleSuites() []SelectedSuite {
 func SelectValidation(in Inputs) Plan {
 	plan := Plan{
 		Run: []Selected{}, Background: []Selected{}, OperatorOwned: []Selected{},
-		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
+		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{}, MeasuredOnce: []Selected{},
 	}
 	if in.Scorecard != nil {
 		plan.Scorecard = in.Scorecard.Name
@@ -135,6 +151,9 @@ func SelectValidation(in Inputs) Plan {
 	for _, mv := range in.Registered {
 		sel := Selected{ModelValidation: mv}
 		switch {
+		case mv.Trained && mv.Measured:
+			sel.Reason = "skip: a trained model is measured once, after its training"
+			plan.MeasuredOnce = append(plan.MeasuredOnce, sel)
 		case mv.OperatorOnly:
 			sel.Reason = "operator-owned: " + mv.OperatorReason
 			plan.OperatorOwned = append(plan.OperatorOwned, sel)
@@ -147,6 +166,10 @@ func SelectValidation(in Inputs) Plan {
 		case mv.Inapplicable != "":
 			sel.Reason = "skip: " + mv.Inapplicable
 			plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
+		case mv.Trained:
+			// The one measurement it has: the scorecard waits on every cell of it, the background ones too.
+			sel.Reason, sel.Promotion = "run: a trained model's one measurement", "blocking: a trained model is measured once"
+			plan.Run = append(plan.Run, sel)
 		case mv.Stale != "":
 			sel.Reason = "run: the activation is stale: " + mv.Stale
 			plan.schedule(sel, in.Scorecard)
@@ -155,7 +178,7 @@ func SelectValidation(in Inputs) Plan {
 			plan.schedule(sel, in.Scorecard)
 		}
 	}
-	for _, bucket := range [][]Selected{plan.Run, plan.Background, plan.OperatorOwned, plan.RegisteredInactive, plan.SkipInappropriate} {
+	for _, bucket := range [][]Selected{plan.Run, plan.Background, plan.OperatorOwned, plan.RegisteredInactive, plan.SkipInappropriate, plan.MeasuredOnce} {
 		slices.SortStableFunc(bucket, func(a, b Selected) int {
 			return cmp.Or(cmp.Compare(a.Cost, b.Cost), cmp.Compare(a.Model.String(), b.Model.String()), cmp.Compare(a.Validation, b.Validation))
 		})

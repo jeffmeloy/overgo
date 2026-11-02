@@ -156,9 +156,28 @@ func servedModel(ctx context.Context, repository *overgodb.Store, directory stri
 // inventory states its standing and the command that advances it. The first
 // step that fails stops the command and is named.
 func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory string) error {
-	model, projector, convert, err := onboardingModel(directory, filepath.Join(steps.checkpoints, conversionDirectory))
+	model, err := steps.admit(ctx, output, directory)
 	if err != nil {
 		return err
+	}
+	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model}, steps.store)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "onboard: activated; long-form guard\n")
+	if err := steps.run(ctx, name, args); err != nil {
+		return fmt.Errorf("onboard: guard %s: %w", model, err)
+	}
+	fmt.Fprintf(output, "onboard: %s validated\n", directory)
+	return nil
+}
+
+// admit is onboarding up to the guard: the model a directory serves converted when it must be, registered, validated and
+// activated. It returns the model's path.
+func (steps onboarding) admit(ctx context.Context, output io.Writer, directory string) (string, error) {
+	model, projector, convert, err := onboardingModel(directory, filepath.Join(steps.checkpoints, conversionDirectory))
+	if err != nil {
+		return "", err
 	}
 	// A directory served as it is takes the place of any conversion of it: an
 	// activated one is retired once the directory is activated, never refused.
@@ -170,7 +189,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if info, err := os.Stat(directory); err == nil && info.IsDir() {
 		tied, err := steps.registered(ctx, directory)
 		if err != nil {
-			return err
+			return "", err
 		}
 		var bound []string
 		for _, registered := range tied {
@@ -193,7 +212,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 				continue
 			}
 			if active {
-				return fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
+				return "", fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
 					directory, registered.Location)
 			}
 			if convert && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) && !slices.Contains(bound, registered.Location) {
@@ -201,7 +220,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 			}
 		}
 		if len(bound) > 1 {
-			return fmt.Errorf("onboard: the store ties %s to %d conversions (%s); onboard the one meant by its file",
+			return "", fmt.Errorf("onboard: the store ties %s to %d conversions (%s); onboard the one meant by its file",
 				directory, len(bound), strings.Join(bound, ", "))
 		}
 		if len(bound) == 1 {
@@ -210,12 +229,12 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	}
 	if convert {
 		if _, err := os.Lstat(model); !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("onboard: the store ties %s to no conversion of %s: it may be another directory's or a partial one; move it aside and run again (%v)",
+			return "", fmt.Errorf("onboard: the store ties %s to no conversion of %s: it may be another directory's or a partial one; move it aside and run again (%v)",
 				model, directory, cmp.Or(err, fs.ErrExist))
 		}
 		fmt.Fprintf(output, "onboard: convert %s to %s\n", directory, model)
 		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-source", directory, "-output", model, "-record", steps.store}); err != nil {
-			return fmt.Errorf("onboard: convert %s: %w", directory, err)
+			return "", fmt.Errorf("onboard: convert %s: %w", directory, err)
 		}
 	}
 	if activated {
@@ -223,7 +242,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	} else {
 		fmt.Fprintf(output, "onboard: register, record, replay and activate %s\n", model)
 		if _, err := steps.validate(ctx, model, projector); err != nil {
-			return fmt.Errorf("onboard: validate %s: %w", model, err)
+			return "", fmt.Errorf("onboard: validate %s: %w", model, err)
 		}
 	}
 	// The declarations bind to the model the store holds for the directory's
@@ -231,25 +250,16 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if native {
 		fmt.Fprintf(output, "onboard: %s is served from its own files; record its declarations under the model it serves\n", directory)
 		if err := steps.run(ctx, "go", []string{"run", "./cmd/model-config", "-source", directory, "-repo", steps.store, directory}); err != nil {
-			return fmt.Errorf("onboard: record %s: %w", directory, err)
+			return "", fmt.Errorf("onboard: record %s: %w", directory, err)
 		}
 	}
 	for _, conversion := range superseded {
 		fmt.Fprintf(output, "onboard: retire %s, the conversion %s takes the place of\n", conversion, directory)
 		if err := steps.retire(ctx, directory, conversion); err != nil {
-			return fmt.Errorf("onboard: retire %s: %w", conversion, err)
+			return "", fmt.Errorf("onboard: retire %s: %w", conversion, err)
 		}
 	}
-	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model}, steps.store)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(output, "onboard: activated; long-form guard\n")
-	if err := steps.run(ctx, name, args); err != nil {
-		return fmt.Errorf("onboard: guard %s: %w", model, err)
-	}
-	fmt.Fprintf(output, "onboard: %s validated\n", directory)
-	return nil
+	return model, nil
 }
 
 // onboardingModel resolves the GGUF a path onboards as: the file itself, the

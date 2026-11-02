@@ -108,12 +108,16 @@ func (record Record) Published() (time.Time, bool) {
 // since then: a gap, never a reading. A recipe whose attempts in a run failed
 // or were set aside keeps a window of older attempts, whose median read as
 // measured under a label that says newest. A longer prompt's or a warm
-// request's cell so read is left out.
+// request's cell so read is left out. A trained model is measured once, so its
+// reading stands.
 func (record Record) Unmeasured(since time.Time) Record {
 	stale := func(cell Cell) bool { return cell.Newest != 0 && cell.Newest < since.UnixNano() }
 	record.Rows = slices.Clone(record.Rows)
 	for index := range record.Rows {
 		row := &record.Rows[index]
+		if row.MeasuredOnce {
+			continue
+		}
 		row.Cells = maps.Clone(row.Cells)
 		for column, cell := range row.Cells {
 			if stale(cell) {

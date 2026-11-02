@@ -16,7 +16,9 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/densecausal"
 	"overgo/internal/gguf"
+	"overgo/internal/hfconvert"
 	"overgo/internal/modelintake"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/quant"
 	"overgo/internal/recipe"
 	"overgo/internal/tensorcatalog"
@@ -182,9 +184,9 @@ func (t storedTensor) ReadAt(data []byte, offset int64) (int, error) {
 // RecordCheckpoint records the checkpoint a run published at directory as
 // the run's training evidence: its document, resume sidecar, weights and
 // locations, beside each parent its lineage names that the store does not
-// hold yet. A checkpoint holding a trained model, as a GGUF base's run
-// publishes, also registers that model as an inactive inference candidate,
-// the model the server, validate and the scorecard open, which returns; a
+// hold yet. A checkpoint holding a model the server can open, a GGUF or a
+// directory the view serves, also registers that model and marks it trained,
+// which lists it (publishTrainedModel), and returns it; any other
 // checkpoint of trained tensors returns no candidate.
 func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
 	directory, err := filepath.Abs(directory)
@@ -202,10 +204,19 @@ func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory 
 	if err != nil {
 		return modelintake.Candidate{}, err
 	}
-	if !isGGUFModelInput(weights) {
+	if isGGUFModelInput(weights) {
+		return publishTrainedModel(ctx, store, weights, checkpoint)
+	}
+	if !hfconvert.Viewed(directory) {
 		return modelintake.Candidate{}, nil
 	}
-	return publishTrainedModel(ctx, store, weights, checkpoint)
+	// The run trained and its checkpoint is kept, so a directory that cannot be listed costs it nothing: it says so.
+	candidate, err := publishTrainedModel(ctx, store, directory, checkpoint)
+	if err != nil {
+		fmt.Printf("trained model at %s is not listed: %v\n", directory, err)
+		return modelintake.Candidate{}, nil
+	}
+	return candidate, nil
 }
 
 // publishWithParents publishes a checkpoint's batch as training evidence,
@@ -255,19 +266,19 @@ func RecordCheckpointDocument(ctx context.Context, store artifact.Repository, ch
 	return publishWithParents(ctx, store, batch)
 }
 
-// publishTrainedModel registers the trained model a recorded checkpoint
-// holds at directory as an inactive inference candidate and records its
-// lineage: the base model it trained from, the dataset, program and run
-// plan the checkpoint names, and the checkpoint itself.
-func publishTrainedModel(ctx context.Context, store artifact.Repository, weights string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
-	directory := filepath.Dir(weights)
-	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, weights, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+// publishTrainedModel registers the trained model a recorded checkpoint holds
+// at path, its GGUF or the directory the view serves, marks it trained, which
+// lists it and brings its one measurement (validate -trained), and records its
+// lineage: the base model it trained from, the dataset, program and run plan
+// the checkpoint names, and the checkpoint itself.
+func publishTrainedModel(ctx context.Context, store artifact.Repository, path string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
 		return modelintake.Candidate{}, err
 	}
 	model := candidate.Inventory.Manifest.ID
 	batch := artifact.Batch{
-		Key:     "training/model/" + checkpoint.ID().String() + "/" + directory,
+		Key:     "training/model/" + checkpoint.ID().String() + "/" + path,
 		Lineage: []artifact.Lineage{{Child: model, Parent: checkpoint.ID(), Relation: artifact.RelationProducedBy}},
 	}
 	// A run that trained bytes the store registered from another run's
@@ -281,6 +292,9 @@ func publishTrainedModel(ctx context.Context, store artifact.Repository, weights
 			batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 		}
 	} else if err := modelintake.RegisterCandidate(ctx, store, candidate); err != nil {
+		return modelintake.Candidate{}, err
+	}
+	if err := modelrecipe.MarkTrained(ctx, store, candidate.Definition); err != nil {
 		return modelintake.Candidate{}, err
 	}
 	for _, parent := range checkpoint.Lineage {

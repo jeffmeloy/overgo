@@ -13,10 +13,15 @@ import (
 // returns the model and task it names. The alias format is owned here, next to
 // its writer, so enumerating consumers never restate it.
 func ParseActiveAlias(name string) (artifact.ID, recipe.Task, bool) {
-	if !strings.HasPrefix(name, activeAliasPrefix) {
+	return parseModelAlias(activeAliasPrefix, name)
+}
+
+// parseModelAlias reads the task and model a name under prefix holds.
+func parseModelAlias(prefix, name string) (artifact.ID, recipe.Task, bool) {
+	if !strings.HasPrefix(name, prefix) {
 		return artifact.ID{}, "", false
 	}
-	task, modelText, found := strings.Cut(strings.TrimPrefix(name, activeAliasPrefix), ".")
+	task, modelText, found := strings.Cut(strings.TrimPrefix(name, prefix), ".")
 	if !found {
 		return artifact.ID{}, "", false
 	}

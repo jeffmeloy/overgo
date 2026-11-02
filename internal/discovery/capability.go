@@ -34,6 +34,9 @@ type CatalogEntry struct {
 	// State is the model's verification as the store records it: for inference, or where it has no inference recipe for
 	// the task it is activated for. It stays off the capability census's published wire.
 	State modelrecipe.ModelState `json:"-"`
+	// Trained says a training run produced the model, and Measured that its one measurement finished, after which a run of
+	// every model leaves it out. Both stay off the census's wire, as State does.
+	Trained, Measured bool `json:"-"`
 	// KeyEnvironment names the variable a hosted model's provider key
 	// lives in (empty for a local model), so a page can take the key when
 	// the entry is refused for its absence.
@@ -133,7 +136,14 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 			tasksByModel[descriptor.ID] = map[recipe.Task]artifact.ID{}
 		}
 	}
+	trained, measured := map[artifact.ID]bool{}, map[artifact.ID]bool{}
 	for _, alias := range aliases {
+		if model, marked := modelrecipe.ParseTrainedAlias(alias.Name); marked {
+			trained[model] = true
+		}
+		if model, marked := modelrecipe.ParseMeasuredAlias(alias.Name); marked {
+			measured[model] = true
+		}
 		model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
 			continue
@@ -163,7 +173,10 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
-		entry := CatalogEntry{Model: model, State: modelrecipe.ModelState{Verification: modelrecipe.StateNotVerified}}
+		entry := CatalogEntry{
+			Model: model, State: modelrecipe.ModelState{Verification: modelrecipe.StateNotVerified},
+			Trained: trained[model], Measured: measured[model],
+		}
 		manifest, found, err := store.Manifest(ctx, model)
 		if err != nil {
 			return nil, false, err

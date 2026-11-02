@@ -76,7 +76,8 @@ type Request struct {
 }
 
 type Result struct {
-	// Candidate is a published, inactive serving recipe for the checkpoint.
+	// Candidate is the serving recipe published for the checkpoint: a trained model's, marked so that its training lists it
+	// (RecordCheckpoint), or a speech or audio adapter's, which stays inactive beside its base's recipe.
 	Candidate      artifact.ID
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind

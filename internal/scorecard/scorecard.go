@@ -260,6 +260,8 @@ type Row struct {
 	Lengths      []Cell               `json:"lengths,omitempty"`
 	Warm         []Cell               `json:"warm,omitempty"`
 	Succeeds     []artifact.ID        `json:"succeeds,omitempty"`
+	// MeasuredOnce is a trained model whose one measurement finished: no run measures it again, so its readings stand.
+	MeasuredOnce bool `json:"measured_once,omitempty"`
 	// Stale says why the activation behind the row cannot be trusted, or why it is not measured.
 	Stale string `json:"stale,omitzero"`
 }
@@ -378,7 +380,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 			if err != nil {
 				return nil, err
 			}
-			row := Row{Stale: capability.Stale, Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
+			row := Row{Stale: capability.Stale, MeasuredOnce: entry.Measured, Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference

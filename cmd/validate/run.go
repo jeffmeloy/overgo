@@ -211,6 +211,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	var unbound, failed, inapplicable []string
 	acquired := 0
+	// acquiredOf counts each model's cells, which say when a trained model has had its one measurement.
+	acquiredOf := map[artifact.ID]int{}
 	record := func(subject string, err error) {
 		switch {
 		case err == nil:
@@ -241,6 +243,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		if credit.has(sel.ModelValidation) {
 			fmt.Fprintf(output, "validate -run %d/%d: %s %s credited: an earlier run of this cycle acquired it, so it is not run again\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation))
 			acquired++
+			acquiredOf[sel.Model]++
 			continue
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
@@ -258,6 +261,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		settle := func(err error) {
 			record(subject, err)
 			if err == nil {
+				acquiredOf[sel.Model]++
 				if creditErr := credit.add(sel.ModelValidation); creditErr != nil {
 					fmt.Fprintf(output, "validate -run: the cycle's credit for this cell was not kept: %v\n", creditErr)
 				}
@@ -284,6 +288,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	}
 	for _, measureAgain := range again {
 		measureAgain()
+	}
+	if err := markMeasured(ctx, storeRoot, measuredCells(cells, acquiredOf)); err != nil {
+		failed = append(failed, fmt.Sprintf("a trained model's one measurement was not recorded: %v", err))
 	}
 	var problems []string
 	if len(failed) > 0 {

@@ -61,6 +61,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
 	root := flags.String("root", ".", "repository root: the grounding files are read from it, and the commands run in it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
+	trained := flags.Bool("trained", false, "take every trained model not yet measured to its one measurement: admit it, run its cells and record that they finished; train runs this when a training ends")
 	execute := flags.Bool("run", false, "execute the selected validations the scorecard waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the scorecard does not compare, which the scorecard never waits on")
 	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle runs its checks before its cells")
@@ -110,6 +111,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
+			"a trained model is measured once, by -trained or the first -run after its training; a later -run leaves it out unless -model names it",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
 			"-models, -media, -check-census and -check-census-binding read the store; -export-samples writes only under assets; -publish-census and -record-verification write the store; -accept-census reads it, and with -reason writes it and the binding file",
 			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
@@ -256,6 +258,12 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if storeRoot, err = filepath.Abs(storeRoot); err != nil {
 		return err
 	}
+	// Before the store opens for the run, which reads what it holds at that moment: a model admitted here is one of its cells.
+	if *trained || *execute && !*background && !*lanesOnly && !*preflight {
+		if err := admitTrained(ctx, output, *root, storeRoot); err != nil {
+			return err
+		}
+	}
 	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		return err
@@ -307,6 +315,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 	}
+	if *trained {
+		return executeRun(ctx, output, *root, storeRoot, store, plan.OnlyTrained(), scopeCells)
+	}
 	if *execute {
 		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}
@@ -354,7 +365,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 				cells = append(cells, ModelValidation{
 					Model: entry.Model, ModelName: name, Location: entry.Location, Directory: directory,
 					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
-					Validation: validation, Stale: capability.Stale,
+					Validation: validation, Stale: capability.Stale, Trained: entry.Trained, Measured: entry.Measured,
 				})
 			}
 		}

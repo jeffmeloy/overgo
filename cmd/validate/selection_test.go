@@ -392,3 +392,57 @@ func TestSelectValidationStableEmpty(t *testing.T) {
 		t.Fatalf("empty plan not clean: %+v", plan)
 	}
 }
+
+// TestATrainedModelIsMeasuredOnce: a trained model not yet measured runs every cell in a run of every model, and
+// validate -trained runs those cells alone, the background ones too. Its measurement counts only when every cell of it was
+// acquired. Measured, a run of every model leaves it out and says why, and a run that names it still measures it.
+func TestATrainedModelIsMeasuredOnce(t *testing.T) {
+	t.Parallel()
+	model := testutil.ArtifactID(t, artifact.KindModel, "trained")
+	other := testutil.ArtifactID(t, artifact.KindModel, "bought")
+	cell := func(model artifact.ID, validation string) ModelValidation {
+		return ModelValidation{
+			Model: model, ModelName: validation, Location: "C:/models/m.gguf", Kind: recipe.TaskInference, Modality: "text",
+			Validation: validation, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "served"),
+		}
+	}
+	trained := func(measured bool, validation string) ModelValidation {
+		mv := cell(model, validation)
+		mv.Trained, mv.Measured = true, measured
+		return mv
+	}
+	pending := SelectValidation(Inputs{Registered: []ModelValidation{
+		trained(false, guardValidation), trained(false, servingValidation), trained(false, "exact"), cell(other, guardValidation),
+	}})
+	if len(pending.Run)+len(pending.Background) != 4 || len(pending.MeasuredOnce) != 0 ||
+		slices.ContainsFunc(pending.Background, func(sel Selected) bool { return sel.Trained }) {
+		t.Fatalf("a run of every model holds %+v and %+v, and %d left out", pending.Run, pending.Background, len(pending.MeasuredOnce))
+	}
+	only := pending.OnlyTrained()
+	if len(only.Run) != 3 || len(only.Suites) != 0 || slices.ContainsFunc(only.Run, func(sel Selected) bool { return sel.Model != model }) {
+		t.Fatalf("validate -trained runs %+v and suites %v, want the trained model's three cells alone", only.Run, only.Suites)
+	}
+	acquired := map[artifact.ID]int{model: len(only.Run) - 1}
+	if got := measuredCells(only.Run, acquired); len(got) != 0 {
+		t.Fatalf("a model with a cell not acquired reads as measured: %+v", got)
+	}
+	acquired[model]++
+	if got := measuredCells(only.Run, acquired); len(got) != 1 || got[0].Model != model {
+		t.Fatalf("a model whose cells were all acquired reads %+v, want it once", got)
+	}
+
+	done := SelectValidation(Inputs{Registered: []ModelValidation{trained(true, guardValidation), trained(true, servingValidation), cell(other, guardValidation)}})
+	if len(done.MeasuredOnce) != 2 || len(done.Run) != 1 || done.Run[0].Model != other {
+		t.Fatalf("a run of every model holds %+v, want the measured trained model left out", done)
+	}
+	if reason := done.MeasuredOnce[0].Reason; !strings.Contains(reason, "measured once") {
+		t.Fatalf("the plan says %q of a model it left out", reason)
+	}
+	if got := done.OnlyTrained(); len(got.Run) != 0 {
+		t.Fatalf("validate -trained measures a measured model again: %+v", got.Run)
+	}
+	named, err := done.OnlyModel("trained", func(mv ModelValidation) bool { return mv.Model == model })
+	if err != nil || len(named.Run) != 2 {
+		t.Fatalf("a run that names the model holds %+v (%v), want its cells", named.Run, err)
+	}
+}

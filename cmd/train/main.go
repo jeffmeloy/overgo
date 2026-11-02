@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -31,8 +32,31 @@ const defaultKeptCheckpoints = 3
 // which carries the CUDA worker, registers it.
 var denseDevice trainingworkflow.DeviceTrainer
 
+// measuredStore is the store whose trained models this run's end measures, empty for a run that keeps no model.
+var measuredStore string
+
 func main() {
-	clioptions.MainNamed("train", quietmachine.Workload("train", os.Stderr, run))
+	clioptions.MainNamed("train", func() error {
+		if err := quietmachine.Workload("train", os.Stderr, run)(); err != nil {
+			return err
+		}
+		measureTrained(measuredStore, os.Stdout, os.Stderr)
+		return nil
+	})
+}
+
+// measureTrained gives the model this run trained its one measurement, once the run is over, so the device and the quiet
+// machine are free. The training stands whatever this does: a model not measured here is listed, and the next run of
+// validate takes it up.
+func measureTrained(store string, output, errors io.Writer) {
+	if store == "" {
+		return
+	}
+	command := exec.Command("go", "run", "./cmd/validate", "-trained", "-repo", store)
+	command.Stdout, command.Stderr = output, errors
+	if err := command.Run(); err != nil {
+		fmt.Fprintf(errors, "train: the first measurement did not finish (%v); the model is listed, and the next run of validate takes it up\n", err)
+	}
 }
 
 func run() error {
@@ -77,11 +101,15 @@ func run() error {
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
 	acceptance := flag.String("acceptance", "", "with -objective: held-out pool acceptance artifact ID, as training-objective -pool wrote it: the trained model answers once on the pool's promotion part, charged to its budget, in place of a verdict")
+	measure := flag.Bool("measure", true, "measure the trained model once when training ends (validate -trained); false leaves that to the next run of validate")
 	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
 	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
 	if err := dataroot.ResolveStore(storePath); err != nil {
 		return err
+	}
+	if *measure && *output != "" && !*proof && *pilot == "" {
+		measuredStore = *storePath
 	}
 	given := false
 	flag.Visit(func(set *flag.Flag) { given = given || set.Name == keepFlag })

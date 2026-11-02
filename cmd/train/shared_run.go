@@ -421,7 +421,7 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 			return trainingprogram.Checkpoint{}, err
 		}
 		if candidate.Definition.ID.Valid() {
-			fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
+			fmt.Printf("model=%s recipe=%s is listed; its one measurement follows this run\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
 		}
 	}
 	if session.published != nil {

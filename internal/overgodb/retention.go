@@ -53,9 +53,12 @@ type RetentionPolicy struct {
 }
 
 // liveSet is one reachability computation over a store: the catalog facts
-// copied under the read lock and everything the alias roots and the policy's
-// roots reach through manifests, lineage, causality and the followed children.
+// copied under the read lock, the head they were copied at, and everything the
+// alias roots and the policy's roots reach through manifests, lineage, causality
+// and the followed children.
 type liveSet struct {
+	head          artifact.CommitID
+	sequence      uint64
 	descriptors   map[artifact.ID]artifact.Descriptor
 	manifests     map[artifact.ID]artifact.Manifest
 	contents      map[artifact.ID]bool
@@ -87,6 +90,7 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 		source.mu.RUnlock()
 		return live, err
 	}
+	live.head, live.sequence = source.head, source.sequence
 	aliases := source.state.aliasViews("")
 	if err := admitStoreLocalAliases(operation, aliases, admit); err != nil {
 		source.mu.RUnlock()
@@ -208,8 +212,15 @@ func Release(ctx context.Context, store *Store, admit StoreLocalAdmission, polic
 	if err != nil {
 		return report, err
 	}
-	report.Retained, report.PinnedRoots, report.PinnedMissing = len(live.retained), live.pinnedRoots, live.pinnedMissing
-	report.HeadBefore, report.SequenceBefore = store.Head()
+	return releaseLive(ctx, store, live, releasable)
+}
+
+// releaseLive releases what live leaves unreached, as of the head live was read
+// at: a commit since may have reached what live did not, so the first release
+// commit expects that head and refuses a store that moved on.
+func releaseLive(ctx context.Context, store *Store, live liveSet, releasable func(artifact.Descriptor) bool) (ReleaseReport, error) {
+	report := ReleaseReport{Retained: len(live.retained), PinnedRoots: live.pinnedRoots, PinnedMissing: live.pinnedMissing}
+	report.HeadBefore, report.SequenceBefore = live.head, live.sequence
 	report.HeadAfter, report.SequenceAfter = report.HeadBefore, report.SequenceBefore
 	var releases []artifact.ID
 	for id := range live.contents {

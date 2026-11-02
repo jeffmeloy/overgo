@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 356,
+        "nodes": 288,
         "reason": "Small corrections inside existing owners, each named by its finding."
       },
       "steps": [
-        {
-          "id": "retention-head",
-          "title": "Bind retention releases to the head of their snapshot",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run 'Release'",
-          "rationale": "SQA-272: Release authorizes its batch from the head its reachability snapshot was taken at.\nServes: a concurrent commit can no longer lose reachable content to a stale decision.\nDisappears: the later store.Head read.\nEvidence: the existing release tests with the interleaving added.\nBatch: store lane."
-        },
         {
           "id": "sampler-chain",
           "title": "Keep declared sampler chains the native round cannot implement on the ordinary path",

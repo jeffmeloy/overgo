@@ -6274,6 +6274,17 @@
         "plan_steps": [
           "sqa-served/durable-blobs"
         ]
+      },
+      {
+        "comment": "Landed with sqa-served/retention-head. The later store.Head read is gone. releaseLive splits off the body of Release so a test can commit between the snapshot and the release; with the old read restored, TestReleaseRefusesACommitAfterItsSnapshot fails. Split-batch head progression, cancellation, cleanup and the candidate proof are unchanged, and no retry was added: the existing caller owns a fresh attempt.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestReleaseRefusesACommitAfterItsSnapshot"
+        ],
+        "finding_id": "SQA-272",
+        "plan_steps": [
+          "sqa-served/retention-head"
+        ]
       }
     ],
     "experiments": {
@@ -6320,7 +6331,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-01",
-    "head": "715fb7ab122651edfe27a1091940d6192cc8334f",
+    "head": "f12a0e853929d81e4fda1c7c5777110ce274adcb",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6477,11 +6488,11 @@
         "note": "Landed. blobStore.prepare publishes through fsatomic.Replace, and the retry path persists the name it finds through SyncFile and SyncDirectory after verifying. The lost-blob outcome stays a hypothesis: this was not reproduced with a power cut. Awaits the reviewer's closure."
       },
       "SQA-272": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-served/retention-head"
         ],
-        "note": "Read again against store-history/anchor, which does not touch Release or collectLiveSet. Still stands; exposure stays limited to the isolated-clone caller."
+        "note": "Landed. liveSet carries the head its catalog was copied at, under the same read lock, and the first release commit expects it, so a commit after the snapshot refuses through the existing head conflict. Awaits the reviewer's closure."
       },
       "SQA-275": {
         "action": "implemented",

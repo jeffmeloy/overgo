@@ -229,6 +229,29 @@ func TestReleaseSurvivesReplayAndCheckpoints(t *testing.T) {
 
 // TestReleaseRefusals binds the two refusals: bytes that were never
 // durable, and the current target of an alias.
+// TestReleaseRefusesACommitAfterItsSnapshot releases from a reachability snapshot
+// the store has since moved past. The commit could have reached what the snapshot
+// did not, so the release fails on the snapshot's head and the content stays.
+func TestReleaseRefusesACommitAfterItsSnapshot(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	fixture := newReleaseFixture(t)
+	store := fixture.store
+	live, err := collectLiveSet(ctx, store, "release", nil, RetentionPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "after-the-snapshot", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindEvidence, "after-the-snapshot")}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := releaseLive(ctx, store, live, releasable); !errors.Is(err, ErrHeadConflict) {
+		t.Fatalf("a release behind the head = %v", err)
+	}
+	if _, found, err := artifact.ReadContent(ctx, store, fixture.orphan.Descriptor.ID); err != nil || !found {
+		t.Fatalf("the orphan after a refused release: %t %v", found, err)
+	}
+}
+
 func TestReleaseRefusals(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

@@ -499,7 +499,7 @@ Why the second waits.
 	requireOffered(t, root, "-show", "the reasoning -prompt leaves out: -show <item-id>")
 
 	var prompt bytes.Buffer
-	printPromptStep(held.Items[0], held.Items[0].Steps[0], &prompt)
+	printPromptStep(held.Items[0], held.Items[0].Steps[0], nil, &prompt)
 	if text := prompt.String(); !strings.Contains(text, "\nSCRATCH tmp/shown/ ") || strings.Contains(text, "Why the first step.") {
 		t.Fatalf("the task prompt names no scratch folder for its row, or carries the reasoning -show prints:\n%s", text)
 	}

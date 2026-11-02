@@ -146,7 +146,7 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	if dispatch.Stop != nil {
 		fmt.Fprintln(output, dispatch.Stop.String())
 	}
-	printPromptStep(it, st, output)
+	printPromptStep(it, st, dispatch.Decided, output)
 	return nil
 }
 

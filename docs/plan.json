@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 120,
-        "reason": "About 60 for decision answers and 60 for a failing row, an estimate."
+        "nodes": 281,
+        "reason": "decision-answers adds 469 of an estimated 60: the holding rule reaches dispatch, Advance, the prompt and a new plan -doctrine. failing-row is re-estimated at 280: the driver, a state file and dispatch."
       },
       "steps": [
-        {
-          "id": "decision-answers",
-          "title": "Run a decision's rows only under the answer they were written for",
-          "status": "open",
-          "verify": "go test ./internal/plan -count=1 -run '^(TestARowRunsOnlyUnderTheAnswerItWasWrittenFor|TestADoctrineDecisionIsNeverTakenByRecommendation|TestPromptAndNextAgreeOnAnAwaitingRow)$'",
-          "rationale": "Measured on the real plan at 675d61b80. awaitingDecision tests only that an answer exists (internal/plan/dispatch.go:273), so answering 'Keep activation by hand' still dispatched the promotion row. With no answer, once no other row is ready byRecommendation takes the option (:234,258-262), the note is left out of a worker's prompt (cmd/plan/main.go:587-600), and landing and plan.Advance read no decisions (internal/landing/landing.go:400-449, internal/plan/plan.go:487-533). skill.md:118 tells the row to go on, so the recommended path rewrites 'never a promotion' with no answer given.\nA decision that changes a standing rule is never taken by recommendation: add a field for that, set it on gated-promotion, and let dispatch report the row as waiting. A row whose decision was answered another way is passed over until it is rewritten or retired. Also: plan -prompt says not ready for a row plan -next dispatches (dispatch.go:226-228 before :234), and one row reports every decision as taken, including ones that do not block it (:239,258-262).\nServes: the owner's answer and doctrine hold.\nDisappears: nothing.\nEvidence: a table of answered, unanswered and doctrine decisions.\nBatch: host lane."
-        },
         {
           "id": "failing-row",
           "title": "Pass over a row that keeps failing",
@@ -1386,7 +1379,8 @@
       "blocks": [
         "close-the-loop"
       ],
-      "asked": "2026-11-01"
+      "asked": "2026-11-01",
+      "doctrine": true
     },
     {
       "id": "driver-future",

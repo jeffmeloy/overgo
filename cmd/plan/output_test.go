@@ -23,7 +23,7 @@ func TestCompactAgentOutput(t *testing.T) {
 	if !found {
 		t.Fatal("the plan dispatched no step")
 	}
-	printPromptStep(item, step, &output)
+	printPromptStep(item, step, nil, &output)
 	text := output.String()
 	if len(text) > 700 || !strings.Contains(text, "TASK item/do") || !strings.Contains(text, "VERIFY go test") || !strings.Contains(text, "COMMIT go run ./cmd/loop -land") {
 		t.Fatalf("prompt is not compact and decision-complete (%d bytes):\n%s", len(text), text)
@@ -47,7 +47,7 @@ func TestBatchPromptRetainsParentDispatch(t *testing.T) {
 	if !found {
 		t.Fatal("the plan dispatched no step")
 	}
-	printPromptStep(item, step, &output)
+	printPromptStep(item, step, nil, &output)
 	for _, want := range []string{"TASK audio/dataset", "BATCH ACCEPTANCE source:", "full gating and parent completion remain mandatory"} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("prompt lacks %q: %s", want, output.String())

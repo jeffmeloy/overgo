@@ -153,9 +153,20 @@ func Answer(document Plan, id, option string) (Plan, error) {
 	return document, nil
 }
 
+// MarkDoctrine records that a decision changes a standing rule.
+func MarkDoctrine(document Plan, id string) (Plan, error) {
+	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool { return decision.ID == id })
+	if at < 0 {
+		return document, fmt.Errorf("plan: no decision %q", id)
+	}
+	document.Decisions = slices.Clone(document.Decisions)
+	document.Decisions[at].Doctrine = true
+	return document, nil
+}
+
 // Decision is one question for the owner: its options, the recommended
-// one, the items it blocks, the day it was asked (YYYY-MM-DD) and, once
-// given, the answer.
+// one, which the items it blocks were written for, the day it was asked
+// (YYYY-MM-DD) and, once given, the answer.
 type Decision struct {
 	ID             string   `json:"id"`
 	Question       string   `json:"question"`
@@ -164,6 +175,9 @@ type Decision struct {
 	Blocks         []string `json:"blocks,omitempty"`
 	Asked          string   `json:"asked"`
 	Answer         string   `json:"answer,omitzero"`
+	// Doctrine marks a decision that changes a standing rule: its rows wait
+	// for the owner's answer, and no recommendation stands in for it.
+	Doctrine bool `json:"doctrine,omitzero"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -484,7 +498,11 @@ func normalizedRole(role string) string {
 // in Git through the gate's structured trailers, not as retained rows.
 // An item whose last step completes leaves the plan with it, and the
 // close-out row leaves only when no doctrine paragraph governs what it closes.
+// A row a decision holds cannot leave: the landing reads no dispatch.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
+	if decision, held := holdingDecision(d, itemID); held {
+		return Plan{}, fmt.Errorf("plan: %s is held by decision %s: %s", itemID, decision.ID, decision.holds())
+	}
 	advanced, err := advancePlan(d, itemID, stepID, stepID == ".")
 	if err != nil {
 		return Plan{}, err

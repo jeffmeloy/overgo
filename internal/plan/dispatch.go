@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/worklease"
@@ -223,23 +224,32 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		item, step, _ := dispatchStep(document, ref.String())
 		return stepDispatch(item, step), nil
 	}
-	if reference != "" {
-		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
-	}
 	awaiting := awaitingDecision(document)
-	if item, _, open := Current(document, role); open && !awaiting[item.ID] {
+	if item, _, open := Current(document, role); open && !awaiting[item.ID] && reference == "" {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
 	}
-	if decided, taken := byRecommendation(document); len(taken) > 0 && slices.ContainsFunc(document.Items, func(item Item) bool {
+	if decided, taken := byRecommendation(document); taken && slices.ContainsFunc(document.Items, func(item Item) bool {
 		return item.Status == StatusOpen && awaiting[item.ID]
 	}) {
 		dispatch, err := selectDispatch(decided, role, reference)
 		if err == nil && dispatch.Item != "" {
-			dispatch.Decided = taken
+			dispatch.Decided = decidedFor(document, dispatch.Item)
 			dispatch.Line = dispatchLine(dispatch)
 		}
 		return dispatch, err
+	}
+	if reference != "" {
+		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
+	}
+	var held []string
+	for _, item := range document.Items {
+		if decision, holding := holdingDecision(document, item.ID); holding && item.Status == StatusOpen {
+			held = append(held, item.ID+" is held by decision "+decision.ID+": "+decision.holds())
+		}
+	}
+	if len(held) != 0 {
+		return finishDispatch(Dispatch{Waiting: strings.Join(held, "; ")}), nil
 	}
 	for _, item := range document.Items {
 		if item.Status == StatusOpen {
@@ -249,32 +259,64 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	return finishDispatch(Dispatch{Complete: true}), nil
 }
 
-// byRecommendation is the plan with each unanswered decision taken at its recommendation, and the decisions it took:
-// once no row is ready but those a question blocks, they go on under the recommended option, and an answer given
-// before then is the one they go on under. The loop never waits on a question.
-func byRecommendation(document Plan) (Plan, []string) {
+// byRecommendation is the plan with each unanswered decision taken at its recommendation, and whether it took any: once
+// no row is ready but those a question blocks, they go on under the recommended option, and an answer given before then
+// is the one they go on under. The loop never waits on a question, except one that changes a standing rule.
+func byRecommendation(document Plan) (Plan, bool) {
 	decided := slices.Clone(document.Decisions)
-	var taken []string
+	taken := false
 	for at := range decided {
-		if decided[at].Answer == "" {
+		if decided[at].Answer == "" && !decided[at].Doctrine {
 			decided[at].Answer = decided[at].Recommendation
-			taken = append(taken, decided[at].ID+": "+decided[at].Recommendation)
+			taken = true
 		}
 	}
 	document.Decisions = decided
 	return document, taken
 }
 
-// awaitingDecision are the items an unanswered owner decision blocks:
-// dispatch moves past them while another row is ready (byRecommendation).
+// decidedFor names the unanswered decisions an item goes on under.
+func decidedFor(document Plan, item string) []string {
+	var taken []string
+	for _, decision := range document.Decisions {
+		if decision.Answer == "" && !decision.Doctrine && slices.Contains(decision.Blocks, item) {
+			taken = append(taken, decision.ID+": "+decision.Recommendation)
+		}
+	}
+	return taken
+}
+
+// awaitingDecision are the items a decision keeps from running as they stand: its rows were written for the recommended
+// option. Dispatch moves past them while another row is ready (byRecommendation).
 func awaitingDecision(document Plan) map[string]bool {
 	blocked := map[string]bool{}
 	for _, decision := range document.Decisions {
-		if decision.Answer == "" {
+		if decision.Answer != decision.Recommendation {
 			for _, item := range decision.Blocks {
 				blocked[item] = true
 			}
 		}
 	}
 	return blocked
+}
+
+// holdingDecision is the decision an item cannot run under: one that changes a standing rule and has no answer, or one
+// answered another way than the row was written for, until the row is rewritten or retired.
+func holdingDecision(document Plan, item string) (Decision, bool) {
+	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool {
+		return slices.Contains(decision.Blocks, item) && decision.Answer != decision.Recommendation &&
+			(decision.Answer != "" || decision.Doctrine)
+	})
+	if at < 0 {
+		return Decision{}, false
+	}
+	return document.Decisions[at], true
+}
+
+// holds says why a holding decision holds its rows.
+func (decision Decision) holds() string {
+	if decision.Answer == "" {
+		return "it changes a standing rule, so it waits for the owner's answer"
+	}
+	return "answered " + strconv.Quote(decision.Answer) + ", and the row was written for another answer; rewrite or retire it"
 }

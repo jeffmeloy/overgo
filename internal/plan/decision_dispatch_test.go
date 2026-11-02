@@ -86,3 +86,87 @@ func TestAQuestionNeverHoldsTheLoop(t *testing.T) {
 		t.Fatal("dispatch wrote an answer into the plan it read")
 	}
 }
+
+// TestARowRunsOnlyUnderTheAnswerItWasWrittenFor: a row was written for its decision's recommendation. Answered that way it
+// runs, and answered another way it is passed over, reported, and cannot land, until it is rewritten or retired.
+func TestARowRunsOnlyUnderTheAnswerItWasWrittenFor(t *testing.T) {
+	t.Parallel()
+	document := decisionFixture()
+	document.Decisions[0].Answer = "b"
+	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "second" {
+		t.Fatalf("answered another way, dispatch = %+v, %v; want second", dispatch, err)
+	}
+	if _, err := Advance(document, "first", "do"); err == nil {
+		t.Fatal("a row answered another way landed")
+	}
+	document.Items = document.Items[:1]
+	dispatch, err := selectDispatch(document, "", "")
+	if err != nil || dispatch.Item != "" || !strings.Contains(dispatch.Waiting, "first is held by decision choose") {
+		t.Fatalf("with only that row left, dispatch = %+v, %v; want it reported", dispatch, err)
+	}
+	document.Decisions[0].Answer = "a"
+	if dispatch, err := selectDispatch(document, "", ""); err != nil || dispatch.Item != "first" {
+		t.Fatalf("answered as written, dispatch = %+v, %v; want first", dispatch, err)
+	}
+	if _, err := Advance(document, "first", "do"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestADoctrineDecisionIsNeverTakenByRecommendation: a decision that changes a standing rule holds its rows for the owner,
+// though nothing else is ready, and they cannot land; an unanswered ordinary decision goes on as it does.
+func TestADoctrineDecisionIsNeverTakenByRecommendation(t *testing.T) {
+	t.Parallel()
+	document, err := MarkDoctrine(decisionFixture(), "choose")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MarkDoctrine(document, "unknown"); err == nil {
+		t.Fatal("an unknown decision was marked")
+	}
+	document.Items = document.Items[:1]
+	dispatch, err := selectDispatch(document, "", "")
+	if err != nil || dispatch.Item != "" || len(dispatch.Decided) != 0 || !strings.Contains(dispatch.Waiting, "waits for the owner's answer") {
+		t.Fatalf("with a doctrine decision unanswered, dispatch = %+v, %v; want the row reported as waiting", dispatch, err)
+	}
+	if _, err := Advance(document, "first", "do"); err == nil {
+		t.Fatal("a row a doctrine decision holds landed")
+	}
+	if ordinary := decisionFixture(); ordinary.Decisions[0].Doctrine {
+		t.Fatal("the fixture's decision is doctrine")
+	} else if _, err := Advance(ordinary, "first", "do"); err != nil {
+		t.Fatalf("a row under an unanswered ordinary decision could not land: %v", err)
+	}
+	answered, err := Answer(document, "choose", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dispatch, err := selectDispatch(answered, "", ""); err != nil || dispatch.Item != "first" {
+		t.Fatalf("answered, dispatch = %+v, %v; want first", dispatch, err)
+	}
+}
+
+// TestPromptAndNextAgreeOnAnAwaitingRow: a row that goes on by recommendation is dispatched whether it is asked for by name
+// or found next, and the note names only the decisions that block it.
+func TestPromptAndNextAgreeOnAnAwaitingRow(t *testing.T) {
+	t.Parallel()
+	document := decisionFixture()
+	document.Items = document.Items[:1]
+	other := document.Decisions[0]
+	other.ID, other.Blocks = "unrelated", []string{"another-row"}
+	document.Decisions = append(document.Decisions, other)
+	next, err := selectDispatch(document, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	named, err := selectDispatch(document, "", "first/do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Item != "first" || named.Item != "first" || named.Waiting != "" {
+		t.Fatalf("next = %+v, by name = %+v", next, named)
+	}
+	if len(next.Decided) != 1 || next.Decided[0] != "choose: a" || len(named.Decided) != 1 {
+		t.Fatalf("next decided %v, by name %v; want only the decision that blocks the row", next.Decided, named.Decided)
+	}
+}

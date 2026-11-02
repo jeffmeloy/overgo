@@ -71,7 +71,7 @@ func TestPromptContractProjection(t *testing.T) {
 		DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 20),
 	}
 	var out bytes.Buffer
-	printPromptStep(item, step, &out)
+	printPromptStep(item, step, nil, &out)
 	text := out.String()
 	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/loop -land work/do ", "SCRATCH tmp/work/ ", "go run ./cmd/finding -h", "STOP ", "Landed-Row"} {
 		if !strings.Contains(text, want) {

@@ -38,6 +38,7 @@ func main() {
 	status := flag.Bool("status", false, "one line per item")
 	decisions := flag.Bool("decisions", false, "the decisions still open, outside the system's authority, with how long each has waited")
 	answer := flag.Bool("answer", false, "record the answer to a decision: -answer <decision-id> -title <one of its options>")
+	doctrine := flag.Bool("doctrine", false, "mark a decision as changing a standing rule, so its rows wait for the answer: -doctrine <decision-id>")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]; or file a document's rows: -add -from <document> [-before <id>]")
 	from := flag.String("from", "", "with -add: a plan-shaped JSON document; every row and decision of it is filed, a row it assigns to no role assigned to -role, an id the plan holds is refused, and no row the plan holds changes")
 	setcount := flag.Bool("setcount", false, "set what a row may still add and why, running no check: -setcount -nodes <n> -reason <why> <item-id>")
@@ -66,7 +67,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, answer: *answer, doctrine: *doctrine, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker,
 			from: *from, setcount: *setcount, nodes: *nodes, reason: *reason, addstep: *addstep, note: *note, paragraph: *paragraph, rationaleFile: *rationaleFile, show: *show, retire: *retire}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
@@ -76,7 +77,7 @@ type cli struct {
 	resumeStop, maintenanceStop, stopMode, mode  string
 	worker                                       string
 	next, prompt, verify, status, add, setverify bool
-	decisions, answer                            bool
+	decisions, answer, doctrine                  bool
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 	setcount, addstep, note, show, retire        bool
@@ -175,6 +176,17 @@ func run(c cli, args []string) error {
 	case c.decisions:
 		printDecisions(os.Stdout, document, time.Now())
 		return nil
+	case c.doctrine:
+		if len(args) != 1 {
+			return errors.New("usage: plan -doctrine <decision-id>")
+		}
+		return withPlanMutation(commandWorktree, func(document plan.Plan) error {
+			marked, err := plan.MarkDoctrine(document, args[0])
+			if err != nil {
+				return err
+			}
+			return savePlanMutation(commandWorktree, marked)
+		})
 	case c.answer:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -answer <decision-id> -title <one of its options>")
@@ -191,7 +203,7 @@ func run(c cli, args []string) error {
 			return nil
 		})
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -paragraph, -retire, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -show, -decisions, -answer, -doctrine, -add, -addstep, -move, -retitle, -setverify, -setcount, -note, -paragraph, -retire, -stop is required")
 	}
 }
 
@@ -523,6 +535,9 @@ func printDecisions(output io.Writer, document plan.Plan, now time.Time) {
 		asked, _ := time.Parse(time.DateOnly, decision.Asked)
 		days := int(now.Sub(asked).Hours() / hoursPerDay)
 		fmt.Fprintf(output, "%s (asked %s, %d days): %s\n", decision.ID, decision.Asked, days, decision.Question)
+		if decision.Doctrine {
+			fmt.Fprintln(output, "  changes a standing rule: its rows wait for your answer")
+		}
 		for _, option := range decision.Options {
 			mark := " "
 			if option == decision.Recommendation {
@@ -584,12 +599,15 @@ func locateStep(document plan.Plan, dispatch plan.Dispatch) (plan.Item, plan.Ste
 }
 
 // printPromptStep renders the task for one located row.
-func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
+func printPromptStep(it plan.Item, st plan.Step, decided []string, output io.Writer) {
 	verify := st.Verify
 	if strings.TrimSpace(verify) == "" {
 		verify = "MISSING -- add a runnable step.verify before implementation"
 	}
 	fmt.Fprintf(output, "TASK %s/%s\n%s\nVERIFY %s\n", it.ID, st.ID, st.Title, verify)
+	for _, decision := range decided {
+		fmt.Fprintf(output, "UNANSWERED, TAKEN AT ITS RECOMMENDATION %s\n", decision)
+	}
 	if len(st.DependsOn) != 0 {
 		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
 	}

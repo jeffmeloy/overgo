@@ -116,6 +116,8 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - never a raw commit (check: internal/guard TestGuardCorpus)
    - merge = `git merge --no-ff --no-commit <branch>` -> resolve -> land (check: internal/landing TestProgressSeesALandedMerge)
 5. open decision and no other row ready => its row goes on under the recommended option, an answer given before then taken instead (check: internal/plan TestAQuestionNeverHoldsTheLoop, internal/plan TestAnswerTakesOneOfTheOptions)
+   - a decision that changes a standing rule => its rows wait for the answer (check: internal/plan TestADoctrineDecisionIsNeverTakenByRecommendation)
+   - a row runs only under the answer it was written for => answered another way, it waits to be rewritten or retired (check: internal/plan TestARowRunsOnlyUnderTheAnswerItWasWrittenFor)
 
 - landing returns to dispatch (check: internal/loop TestLoopContinuationAfterCommit, cmd/loophook TestStopDecision)
 - pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help) (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision, cmd/loop TestPersistentLoopStop)

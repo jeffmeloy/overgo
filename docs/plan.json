@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 816,
+        "nodes": 366,
         "reason": "agent-attempts took 584 of an estimated 120: a retry carries a new approval, so the receipt chain, the checkpoint, the restore and both approval paths moved with the ordinal. The rest of the row is estimated from the same reading: provider-listing 300, one-address-list 110, public-routes 50, session-list 150."
       },
       "steps": [
-        {
-          "id": "provider-listing",
-          "title": "Send a provider key only to the endpoint it was declared for",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAProviderKeyGoesOnlyToItsDeclaredEndpoint$'",
-          "rationale": "GET /library/providers/models takes a caller's endpoint and environment variable name (internal/server/library_workspace.go:295-304) and sends the value as a bearer token (internal/remoterelay/listing.go:47). A cross-site request is refused (library_workspace.go:291), so what remains is a local client or a key holder sending OVERGO_HF_TOKEN anywhere.\nChecking only the listing does not close this: /library/register with kind provider takes the same caller-chosen pair (mod/discovery.js:197, library_workspace.go:236), canonicalize requires only a non-empty name (remoteprovider/provider.go:75), and the relay then sends the value (remoterelay/generator.go:152).\nBind a variable to one endpoint at declaration, and refuse the server's own secrets, on both routes. The page lists before declaring (discovery.js:203-206), so a new key goes in a POST body with a field on the page. Four tests use undeclared pairs and change (library_listing_test.go:17, idle_shell_test.go:218, library_provider_models_cross_site_test.go:28,35).\nServes: keys stay with their provider.\nDisappears: arbitrary environment reads.\nEvidence: a refused undeclared pair on both routes.\nBatch: serving lane."
-        },
         {
           "id": "one-address-list",
           "title": "Keep one list of refused addresses and a bounded tool environment",

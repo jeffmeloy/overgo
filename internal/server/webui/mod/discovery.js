@@ -190,6 +190,8 @@
 
       // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
+      // A key typed here lists a provider not declared yet: it goes to that endpoint for the one listing and is kept nowhere. A declared provider lists under its variable.
+      const providerKey = el("input", { class: "text", type: "password", autocomplete: "off", placeholder: "key, to list before declaring", "aria-label": "provider key to list with" });
       const providerNote = el("span", { class: "note" });
       const providerListing = el("span", { class: "row" });
       const providerReason = el("input", { class: "text", placeholder: "retirement reason (the endpoint gone, the key withdrawn)", "aria-label": "retirement reason" });
@@ -206,13 +208,13 @@
       const listButton = el("button", { class: "btn alt", text: "list the provider's models", onclick: async () => {
         const [, endpoint, keyEnvironment] = providerValues();
         try {
-          const listed = await overgo.api.get("/library/providers/models?endpoint=" + encodeURIComponent(endpoint) + "&key_environment=" + encodeURIComponent(keyEnvironment));
+          const listed = await overgo.api.post("/library/providers/models", providerKey.value ? { endpoint, key: providerKey.value } : { endpoint, key_environment: keyEnvironment });
           providerListing.replaceChildren(...(listed.models || []).map((model) => el("button", { class: "btn alt", text: model.id + (model.context_length ? " · " + model.context_length : ""), title: model.name || model.id, onclick: () => {
             providerFields[3].value = [...providerFields[3].value.split(",").map((id) => id.trim()).filter(Boolean), model.id].join(", "); if (model.context_length) providerFields[4].value = String(model.context_length);
           } })));
         } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
       } });
-      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
+      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, providerKey, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
       // The Library shows its models or, as a view the way Inspect's analyses are, the scorecard: one at a time, the
       // scorecard one choice away and with no navigation entry of its own.

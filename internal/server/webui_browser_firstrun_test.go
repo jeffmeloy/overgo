@@ -245,7 +245,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	t.Cleanup(func() { retireLaneRemote(t, store, "remote://webui-lane-page/lane/page-model") })
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const fill = (label, value) => { document.querySelector("input[aria-label='provider " + label + "']").value = value; };
-      fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY");
+      fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY"); fill("key to list with", "lane-key");
       [...document.querySelectorAll("button")].find((button) => button.textContent === "list the provider's models").click(); return true; })()`)
 	settle("the provider lists its model on the cold page", `[...document.querySelectorAll("button")].some((button) => button.textContent === "lane/page-model · 4096")`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
@@ -798,6 +798,9 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	}
 }
 
+// laneProviderLimit bounds the hosted models the journey's intake reads.
+const laneProviderLimit = 64
+
 // laneIdleIntake: the cold page's library intake for the journey, the
 // launcher's own steps (internal/providerintake binds them for the swap
 // command; this package's tests cannot import it without a cycle).
@@ -808,15 +811,15 @@ func laneIdleIntake() LibraryIntake {
 			if err != nil {
 				return nil, err
 			}
-			declarations, err := remoteprovider.DeclareDocument(ctx, store, remoteprovider.Document{Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment, Models: declaration.Models, ContextLength: declaration.ContextLength}, commit)
+			declarations, err := remoteprovider.DeclareDocument(ctx, store, laneProviderLimit, remoteprovider.Document{Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment, Models: declaration.Models, ContextLength: declaration.ContextLength}, commit)
 			declared := make([]DeclaredProvider, 0, len(declarations))
 			for _, item := range declarations {
 				declared = append(declared, DeclaredProvider{Location: item.Location, Model: item.Model.String(), Recipe: item.Recipe.ID.String(), Refusal: remoteprovider.Refusal(item.Provider)})
 			}
 			return declared, err
 		},
-		ListProviderModels: func(ctx context.Context, endpoint, keyEnvironment string) ([]ProviderModel, error) {
-			listed, err := remoterelay.ListModels(ctx, remoteprovider.Provider{Endpoint: strings.TrimRight(endpoint, "/"), KeyEnvironment: keyEnvironment}, nil)
+		ListProviderModels: func(ctx context.Context, store *overgodb.Store, listing ProviderListing) ([]ProviderModel, error) {
+			listed, err := remoterelay.ListModels(ctx, store, laneProviderLimit, remoterelay.Listing(listing), nil)
 			models := make([]ProviderModel, 0, len(listed))
 			for _, model := range listed {
 				models = append(models, ProviderModel{ID: model.ID, Name: model.Name, ContextLength: model.ContextLength})

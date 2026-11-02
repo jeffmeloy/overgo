@@ -60,7 +60,11 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 		}
 		libraryRegisterRoute(response, request, s.Repository, s.Intake, body)
 	case "/library/providers/models":
-		libraryProviderModelsRoute(response, request, s.Intake.ListProviderModels)
+		var body ProviderListing
+		if !requireMethod(response, request, http.MethodPost) || !decodeJSONBounded(response, request, &body, maxRequestBytes) {
+			return
+		}
+		libraryProviderModelsRoute(response, request, s.Repository, s.Intake.ListProviderModels, body)
 	case "/library/providers/retire":
 		var body providerRetireRequest
 		if !requireMethod(response, request, http.MethodPost) || !decodeJSONBounded(response, request, &body, maxRequestBytes) {

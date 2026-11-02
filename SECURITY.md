@@ -13,12 +13,19 @@ listener the Host must be loopback, since a matching Origin alone cannot
 stop DNS rebinding, and the browser's cross-origin protection applies. The
 proxy applies the rule before anything of its own changes: a foreign
 origin can neither place a provider key in the proxy's environment nor
-launch a child, and it never reaches the idle shell. A GET whose handling
-has a side effect (the proxy's `?swap=` on the health probe, the provider
-listing that sends a key to the named endpoint) is admitted as a mutation
+launch a child, and it never reaches the idle shell. A request that reaches
+beyond the server (the proxy's `?swap=` on the health probe, the provider
+listing that sends a key to an endpoint) is admitted as a mutation
 (`AdmitCredentiallessEffect`): cross-site fetch metadata or a foreign
 Origin refuses it, the workbench's own same-origin requests and loopback
 clients without fetch metadata pass.
+
+A provider's variable goes to one endpoint: a declaration binds the pair until
+it retires, and a listing names a declared pair or carries a key of its own,
+which goes to that endpoint and is kept nowhere. The server's own secrets
+(`OVERGO_API_KEY`, `OVERGO_HF_TOKEN`, `OVERGO_MODELSCOPE_TOKEN`) cannot be
+declared. An authenticated client can still bind a variable no declaration
+holds yet.
 
 ## API keys
 

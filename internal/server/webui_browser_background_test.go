@@ -28,7 +28,10 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	}
 	defer store.Close()
 	idle := &IdleShell{Repository: store, Catalog: func(context.Context) ([]discovery.CatalogEntry, bool, error) { return nil, false, nil }, Intake: LibraryIntake{
-		ListProviderModels: func(context.Context, string, string) ([]ProviderModel, error) {
+		ListProviderModels: func(_ context.Context, _ *overgodb.Store, listing ProviderListing) ([]ProviderModel, error) {
+			if listing.Key != "cold-typed-key" || listing.KeyEnvironment != "" {
+				return nil, errors.New("the page's key did not reach the listing")
+			}
 			return []ProviderModel{{ID: "fixture/cold-model", ContextLength: 4096}}, nil
 		},
 		DeclareProvider: laneIdleIntake().DeclareProvider,
@@ -55,7 +58,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length===0 && document.querySelector('#global-operation-shell').hidden`)
-	assertBrowserPredicate(t, ctx, browser, `(() => {const field=name=>document.querySelector('#panel-library input[aria-label="provider '+name+'"]');field('name').value='cold';field('endpoint').value='http://localhost';field('key variable').value='COLD_FIXTURE_KEY';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==="list the provider's models").click();return true;})()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {const field=name=>document.querySelector('#panel-library input[aria-label="provider '+name+'"]');field('name').value='cold';field('endpoint').value='http://localhost';field('key variable').value='COLD_FIXTURE_KEY';field('key to list with').value='cold-typed-key';[...document.querySelectorAll('#panel-library button')].find(button=>button.textContent==="list the provider's models").click();return true;})()`)
 	if err := browser.Eventually(ctx, `[...document.querySelectorAll('#panel-library button')].some(button=>button.textContent==='fixture/cold-model · 4096')`); err != nil {
 		t.Fatal(err)
 	}

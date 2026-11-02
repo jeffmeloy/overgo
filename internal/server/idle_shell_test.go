@@ -196,7 +196,7 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 				}
 				return []DeclaredProvider{{Location: "remote://page/" + declaration.Models[0], Refusal: "key absent"}}, nil
 			},
-			ListProviderModels: func(_ context.Context, endpoint, variable string) ([]ProviderModel, error) {
+			ListProviderModels: func(context.Context, *overgodb.Store, ProviderListing) ([]ProviderModel, error) {
 				return []ProviderModel{{ID: "vendor/one", ContextLength: 4096}}, nil
 			},
 			RetireProvider: func(_ context.Context, store *overgodb.Store, location, reason string) error { retired++; return nil },
@@ -215,7 +215,7 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	var listing struct {
 		Models []ProviderModel `json:"models"`
 	}
-	decode(t, front.URL+"/library/providers/models?endpoint=http://127.0.0.1:1&key_environment=K", &listing)
+	decodeResponse(t, post(t, front.URL+"/library/providers/models", `{"endpoint":"http://127.0.0.1:1","key_environment":"K"}`), &listing)
 	if len(listing.Models) != 1 || listing.Models[0].ContextLength != 4096 {
 		t.Fatalf("listing = %+v", listing)
 	}

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
 )
 
@@ -29,18 +30,37 @@ type Listed struct {
 	ContextLength uint32 `json:"context_length,omitzero"`
 }
 
-// ListModels asks a provider for the models it serves (GET the endpoint's
-// models route under the key): the OpenAI-compatible listing carries each
-// model's id, and OpenRouter's adds its name and context length. The
-// provider's endpoint and key variable are all the listing needs; its
-// key's absence refuses the listing by the variable's name.
-func ListModels(ctx context.Context, provider remoteprovider.Provider, client *http.Client) ([]Listed, error) {
+// Listing is what a model listing goes with: the endpoint and either the key in hand, which goes there and nowhere else,
+// or the variable a declaration bound to it.
+type Listing struct {
+	Endpoint       string
+	KeyEnvironment string
+	Key            string
+}
+
+// ListModels asks a provider for the models it serves under a key that goes to no other endpoint: the one in hand, or the
+// value of a variable a declaration bound to this endpoint, the limit bounding the active models read. A key's absence
+// refuses the listing by the variable's name.
+func ListModels(ctx context.Context, store *overgodb.Store, limit int, listing Listing, client *http.Client) ([]Listed, error) {
+	if listing.Key != "" {
+		return listModels(ctx, remoteprovider.CanonicalEndpoint(listing.Endpoint), listing.Key, client)
+	}
+	provider, err := remoteprovider.Bound(ctx, store, limit, listing.Endpoint, listing.KeyEnvironment)
+	if err != nil {
+		return nil, err
+	}
 	key, err := remoteprovider.Key(provider)
 	if err != nil {
 		return nil, err
 	}
+	return listModels(ctx, provider.Endpoint, key, client)
+}
+
+// listModels GETs the endpoint's models route: the OpenAI-compatible listing carries each model's id, and OpenRouter's adds
+// its name and context length.
+func listModels(ctx context.Context, endpoint, key string, client *http.Client) ([]Listed, error) {
 	client = cmp.Or(client, http.DefaultClient)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.Endpoint+modelsPath, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+modelsPath, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,13 +75,13 @@ func ListModels(ctx context.Context, provider remoteprovider.Provider, client *h
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("remote relay: %s answered %d to the model listing: %s", provider.Endpoint, response.StatusCode, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("remote relay: %s answered %d to the model listing: %s", endpoint, response.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var listing struct {
 		Data []Listed `json:"data"`
 	}
 	if err := json.Unmarshal(body, &listing); err != nil {
-		return nil, fmt.Errorf("remote relay: %s model listing: %w", provider.Endpoint, err)
+		return nil, fmt.Errorf("remote relay: %s model listing: %w", endpoint, err)
 	}
 	models := make([]Listed, 0, len(listing.Data))
 	for _, model := range listing.Data {

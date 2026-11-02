@@ -120,7 +120,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/artifacts/intake", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).artifactIntake, Inventory: true},
 	{Path: "/artifacts/lineage", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactLineage},
 	{Path: "/providers/key", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).providerKey},
-	{Path: "/library/providers/models", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).libraryProviderModels},
+	{Path: "/library/providers/models", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryProviderModels},
 	{Path: "/library/providers/retire", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryProviderRetire, Inventory: true},
 	{Path: "/runtime/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeSessions},
 	{Path: "/scorecard", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).scorecardView},

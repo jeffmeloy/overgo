@@ -58,7 +58,7 @@ func run(args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		declarations, err := remoteprovider.DeclareDocument(ctx, store, document, commit)
+		declarations, err := remoteprovider.DeclareDocument(ctx, store, *limit, document, commit)
 		for _, declared := range declarations {
 			fmt.Fprintf(output, "declared %s model=%s recipe=%s %s\n", declared.Location, declared.Model, declared.Recipe.ID, servability(declared.Provider))
 		}

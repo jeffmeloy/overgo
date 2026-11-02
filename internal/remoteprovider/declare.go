@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -39,6 +40,9 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 	declared, err := New(provider)
 	if err != nil {
 		return Declaration{}, err
+	}
+	if slices.Contains(serverSecrets, declared.KeyEnvironment) {
+		return Declaration{}, errors.New("remote provider: " + Refusal(declared))
 	}
 	content, err := codec.Content(declared)
 	if err != nil {
@@ -132,10 +136,21 @@ type Document struct {
 // DeclareDocument declares every model of a document (each its own
 // manifest and activation over the one provider) and returns the
 // declarations in the document's order; a document naming no model is
-// refused.
-func DeclareDocument(ctx context.Context, store artifact.Repository, document Document, codeCommit string) ([]Declaration, error) {
+// refused. A variable goes to one endpoint: while a declaration binds it to
+// another, this one is refused, the limit bounding the active models read.
+func DeclareDocument(ctx context.Context, store *overgodb.Store, limit int, document Document, codeCommit string) ([]Declaration, error) {
 	if len(document.Models) == 0 {
 		return nil, errors.New("remote provider: the declaration names no model")
+	}
+	active, err := List(ctx, store, limit)
+	if err != nil {
+		return nil, err
+	}
+	variable, endpoint := strings.TrimSpace(document.KeyEnvironment), CanonicalEndpoint(document.Endpoint)
+	if index := slices.IndexFunc(active, func(model Declared) bool {
+		return model.Provider.KeyEnvironment == variable && model.Provider.Endpoint != endpoint
+	}); index >= 0 {
+		return nil, fmt.Errorf("remote provider: %s is bound to %s, and its key goes to no other endpoint until that declaration retires", variable, active[index].Provider.Endpoint)
 	}
 	declarations := make([]Declaration, 0, len(document.Models))
 	for _, model := range document.Models {
@@ -278,6 +293,21 @@ func List(ctx context.Context, store *overgodb.Store, limit int) ([]Declared, er
 		}
 		query.Cursor = result.Next
 	}
+}
+
+// Bound returns the provider a declaration binds to the endpoint and variable: no other pair reads a variable.
+func Bound(ctx context.Context, store *overgodb.Store, limit int, endpoint, keyEnvironment string) (Provider, error) {
+	active, err := List(ctx, store, limit)
+	if err != nil {
+		return Provider{}, err
+	}
+	index := slices.IndexFunc(active, func(model Declared) bool {
+		return model.Provider.KeyEnvironment == keyEnvironment && model.Provider.Endpoint == CanonicalEndpoint(endpoint)
+	})
+	if index < 0 {
+		return Provider{}, fmt.Errorf("remote provider: no declaration binds %s to %s; list a new provider with its key", keyEnvironment, endpoint)
+	}
+	return active[index].Provider, nil
 }
 
 // Reference resolves a serving reference, the remote location or the

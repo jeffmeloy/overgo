@@ -8,7 +8,6 @@ package providerintake
 
 import (
 	"context"
-	"strings"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
@@ -32,7 +31,7 @@ func (intake Intake) Declare(ctx context.Context, store *overgodb.Store, declara
 	if err != nil {
 		return nil, err
 	}
-	declarations, err := remoteprovider.DeclareDocument(ctx, store, remoteprovider.Document{
+	declarations, err := remoteprovider.DeclareDocument(ctx, store, intake.CatalogLimit, remoteprovider.Document{
 		Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment,
 		Models: declaration.Models, ContextLength: declaration.ContextLength,
 	}, commit)
@@ -46,10 +45,10 @@ func (intake Intake) Declare(ctx context.Context, store *overgodb.Store, declara
 	return declared, err
 }
 
-// ListModels asks the provider at the endpoint for its models under the
-// key its variable holds.
-func (intake Intake) ListModels(ctx context.Context, endpoint, keyEnvironment string) ([]server.ProviderModel, error) {
-	listed, err := remoterelay.ListModels(ctx, remoteprovider.Provider{Endpoint: strings.TrimRight(endpoint, "/"), KeyEnvironment: keyEnvironment}, nil)
+// ListModels asks the provider at the endpoint for its models, under the
+// key the page typed or the variable a declaration bound to the endpoint.
+func (intake Intake) ListModels(ctx context.Context, store *overgodb.Store, listing server.ProviderListing) ([]server.ProviderModel, error) {
+	listed, err := remoterelay.ListModels(ctx, store, intake.CatalogLimit, remoterelay.Listing(listing), nil)
 	if err != nil {
 		return nil, err
 	}

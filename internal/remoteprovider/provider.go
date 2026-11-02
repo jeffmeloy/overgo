@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -37,6 +38,10 @@ const (
 	locationScheme = "remote://"
 )
 
+// serverSecrets are the variables this program reads for its own use. A declaration never names one, since the value of
+// a provider's variable leaves for the provider's endpoint.
+var serverSecrets = []string{"OVERGO_API_KEY", "OVERGO_HF_TOKEN", "OVERGO_MODELSCOPE_TOKEN"}
+
 // Provider is one hosted model: the service name, its API endpoint (the
 // base the chat completions path joins), the environment variable whose
 // value is the key, the model id the service routes on, and the context
@@ -57,12 +62,17 @@ var codec = artifact.JSONDocumentCodec(
 	func(value *Provider, id artifact.ID) { value.ID = id },
 )
 
+// CanonicalEndpoint is an endpoint as a declaration holds it, so a pair compares whatever its spelling.
+func CanonicalEndpoint(endpoint string) string {
+	return strings.TrimRight(strings.TrimSpace(endpoint), "/")
+}
+
 func canonicalize(provider *Provider) error {
 	if provider == nil || provider.Version != artifact.InitialDocumentVersion {
 		return errors.New("remote provider: invalid document version")
 	}
 	provider.Name = strings.TrimSpace(provider.Name)
-	provider.Endpoint = strings.TrimRight(strings.TrimSpace(provider.Endpoint), "/")
+	provider.Endpoint = CanonicalEndpoint(provider.Endpoint)
 	provider.KeyEnvironment = strings.TrimSpace(provider.KeyEnvironment)
 	provider.Model = strings.TrimSpace(provider.Model)
 	if provider.Name == "" || strings.ContainsAny(provider.Name, "/ ") {
@@ -117,9 +127,13 @@ func SetKey(ctx context.Context, store *overgodb.Store, limit int, reference, ke
 	return provider, nil
 }
 
-// Refusal names why the provider cannot serve now: its key is absent from
-// the environment. An empty refusal means the key is present.
+// Refusal names why the provider cannot serve now: its variable is one of
+// the server's own, or its key is absent from the environment. An empty
+// refusal means the key is present.
 func Refusal(provider Provider) string {
+	if slices.Contains(serverSecrets, provider.KeyEnvironment) {
+		return provider.KeyEnvironment + " is the server's own secret"
+	}
 	if os.Getenv(provider.KeyEnvironment) == "" {
 		return provider.KeyEnvironment + " is not set"
 	}

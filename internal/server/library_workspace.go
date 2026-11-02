@@ -54,10 +54,9 @@ type LibraryIntake struct {
 	// the provider command does; absent, the provider kind answers that it
 	// needs it.
 	DeclareProvider func(ctx context.Context, repository *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error)
-	// ListProviderModels asks a hosted provider for the models it serves,
-	// under the key its variable holds; absent, the listing route answers
-	// that it needs it.
-	ListProviderModels func(ctx context.Context, endpoint, keyEnvironment string) ([]ProviderModel, error)
+	// ListProviderModels asks a hosted provider for the models it serves;
+	// absent, the listing route answers that it needs it.
+	ListProviderModels func(ctx context.Context, repository *overgodb.Store, listing ProviderListing) ([]ProviderModel, error)
 	// RetireProvider retires a declared hosted model by its location with
 	// a reason, as the provider command does; absent, the retirement route
 	// answers that it needs it.
@@ -80,6 +79,14 @@ type ProviderModel struct {
 	ID            string `json:"id"`
 	Name          string `json:"name,omitzero"`
 	ContextLength uint32 `json:"context_length,omitzero"`
+}
+
+// ProviderListing is what a model listing goes with: the endpoint and either the key the page typed, which goes there and is
+// kept nowhere, or the variable a declaration bound to it.
+type ProviderListing struct {
+	Endpoint       string `json:"endpoint"`
+	KeyEnvironment string `json:"key_environment,omitzero"`
+	Key            string `json:"key,omitzero"`
 }
 
 // ProviderDeclaration is a hosted provider and the model ids it serves,
@@ -273,40 +280,41 @@ func demoDatasetFile(name string) (string, error) {
 	return file.Name(), errors.Join(err, file.Close())
 }
 
-// libraryProviderModels answers GET /library/providers/models: the
-// provider named by endpoint and key variable lists its models through
-// the launcher's intake, so the page declares from the provider's own
-// listing with each model's declared context length.
+// libraryProviderModels answers POST /library/providers/models: the
+// provider lists its models through the launcher's intake, so the page
+// declares from the provider's own listing with each model's declared
+// context length. It is a POST since a typed key travels in its body.
 func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *http.Request) {
-	libraryProviderModelsRoute(response, request, h.config.LibraryIntake.ListProviderModels)
-}
-
-// libraryProviderModelsRoute: the listing over one intake; the idle shell
-// serves it too. The listing sends the named variable as a bearer token to
-// the named endpoint, so the GET is admitted as a mutation.
-func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Request, list func(context.Context, string, string) ([]ProviderModel, error)) {
-	if !requireMethod(response, request, http.MethodGet) {
+	var body ProviderListing
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
+	libraryProviderModelsRoute(response, request, h.repository, h.config.LibraryIntake.ListProviderModels, body)
+}
+
+// libraryProviderModelsRoute: the listing over one store and intake; the
+// idle shell serves it too. A key leaves for the endpoint, so the listing is
+// admitted as a mutation.
+func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, list func(context.Context, *overgodb.Store, ProviderListing) ([]ProviderModel, error), body ProviderListing) {
 	if refusal := apimanifest.AdmitCredentiallessEffect(request); refusal != nil {
 		writeError(response, http.StatusForbidden, refusal.Type, refusal.Message)
 		return
 	}
-	endpoint, variable := strings.TrimSpace(request.URL.Query().Get("endpoint")), strings.TrimSpace(request.URL.Query().Get("key_environment"))
-	if endpoint == "" || variable == "" {
-		writeInvalidRequestMessage(response, "library: endpoint and key_environment are required")
+	body.Endpoint, body.KeyEnvironment = strings.TrimSpace(body.Endpoint), strings.TrimSpace(body.KeyEnvironment)
+	if body.Endpoint == "" || (body.KeyEnvironment == "") == (body.Key == "") {
+		writeInvalidRequestMessage(response, "library: endpoint and one of key_environment or key are required")
 		return
 	}
 	if list == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider listing needs the launcher's provider intake")
 		return
 	}
-	models, err := list(request.Context(), endpoint, variable)
+	models, err := list(request.Context(), repository, body)
 	if err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"endpoint": endpoint, "models": models})
+	writeJSON(response, http.StatusOK, map[string]any{"endpoint": body.Endpoint, "models": models})
 }
 
 // libraryProviderRetire answers POST /library/providers/retire: the

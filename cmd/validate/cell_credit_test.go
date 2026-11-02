@@ -333,6 +333,80 @@ func TestResumedRunStartsAgainACellWhoseWeightsChanged(t *testing.T) {
 }
 
 // creditModel declares the exact files two recovery fixtures consume.
+// creditView registers a model as a native directory view is: one image no file
+// holds, located at the directory it reads from.
+func creditView(t *testing.T, store *overgodb.Store, directory string) artifact.ID {
+	t.Helper()
+	image := testutil.ArtifactID(t, artifact.KindTensorSet, "view image")
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: image}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := artifact.CanonicalLocalLocation(image, artifact.LocationDirectory, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.Publish(t.Context(), store, artifact.Batch{
+		Key: "test/credit/view/" + manifest.ID.String(), Artifacts: []artifact.Descriptor{{ID: image, Size: 1}}, Manifests: []artifact.Manifest{manifest},
+		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return manifest.ID
+}
+
+// TestCellCreditCoversADirectoryView holds resume credit for a model registered as
+// a native view: its image is no file, so the credit rests on the directory's
+// files. Unchanged files earn the same credit; a changed or an added one does not,
+// and a view whose directory is gone earns none.
+func TestCellCreditCoversADirectoryView(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	directory := t.TempDir()
+	weights, config := filepath.Join(directory, "model.safetensors"), filepath.Join(directory, "config.json")
+	write := func(path, text string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(weights, "weights")
+	write(config, "{}")
+	model := creditView(t, store, directory)
+	cell := ModelValidation{Model: model, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "view"), Kind: recipe.TaskImageGen, Validation: "image-proof", Location: directory, Directory: directory}
+	consumed := func() string {
+		t.Helper()
+		return consumedFiles(t.Context(), store, cell, map[string]string{}, "fixture-execution")
+	}
+	first := consumed()
+	if first == "" || first != consumed() {
+		t.Fatalf("an unchanged view earned %q, then %q", first, consumed())
+	}
+	write(weights, "changed")
+	changed := consumed()
+	if changed == first {
+		t.Fatal("changed weights kept the view's credit")
+	}
+	write(weights, "weights")
+	if consumed() != first {
+		t.Fatal("restored weights did not earn the view's credit back")
+	}
+	write(filepath.Join(directory, "added.bin"), "new")
+	if consumed() == first {
+		t.Fatal("an added file kept the view's credit")
+	}
+	if err := os.RemoveAll(directory); err != nil {
+		t.Fatal(err)
+	}
+	if consumed() == consumed() {
+		t.Fatal("a view whose directory is gone earned a stable credit")
+	}
+}
+
 func creditModel(t *testing.T, store *overgodb.Store, paths ...string) artifact.ID {
 	t.Helper()
 	var batch artifact.Batch

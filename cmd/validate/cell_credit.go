@@ -70,6 +70,7 @@ func cellKey(cell ModelValidation) string {
 
 // consumedFiles qualifies resume credit by declared model components and explicit file inputs.
 //   - Every component is read through artifact identity once per binding
+//   - A view's component is an image no file holds: what it consumes is its directory's files, each read by its bytes
 //   - A directory containing undeclared files or directory links authorizes no credit
 //   - Missing content or execution authority authorizes no credit
 //   - Relative command inputs belong to the pinned commit
@@ -88,10 +89,14 @@ func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidat
 	inputs := map[string]string{}
 	for _, component := range manifest.Components {
 		path, err := artifact.AvailablePath(ctx, store, component.Artifact, artifact.LocationFile)
-		if err != nil {
+		if err == nil {
+			inputs[path] = component.Artifact.DigestHex()
+			continue
+		}
+		directory, err := artifact.AvailablePath(ctx, store, component.Artifact, artifact.LocationDirectory)
+		if err != nil || viewFiles(directory, inputs) != nil {
 			return rand.Text()
 		}
-		inputs[path] = component.Artifact.DigestHex()
 	}
 	for _, path := range append(given, cell.Location) {
 		if path != cell.Location && !filepath.IsAbs(path) {
@@ -114,7 +119,10 @@ func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidat
 					return errors.New("consumed input has no regular file authority")
 				}
 				canonical, err := pathidentity.Canonical(file)
-				if err != nil || inputs[canonical] == "" {
+				if err != nil {
+					return err
+				}
+				if _, declared := inputs[canonical]; !declared {
 					return errors.New("consumed directory has an undeclared input")
 				}
 				return nil
@@ -162,6 +170,27 @@ func consumedFiles(ctx context.Context, store *overgodb.Store, cell ModelValidat
 		fmt.Fprintln(named, path, identity)
 	}
 	return hex.EncodeToString(named.Sum(nil))
+}
+
+// viewFiles declares every regular file under a view's directory as consumed, with no digest to expect: the view's
+// image is no file's bytes, so each file's own identity keys the credit. A README changing costs a credit, which is
+// the safe way round; a file that is no regular file has no authority.
+func viewFiles(directory string, inputs map[string]string) error {
+	return filepath.Walk(directory, func(file string, entry fs.FileInfo, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return walkErr
+		}
+		target, err := os.Stat(file)
+		if err != nil || !target.Mode().IsRegular() {
+			return errors.New("a view's directory holds a file with no regular authority")
+		}
+		canonical, err := pathidentity.Canonical(file)
+		if err != nil {
+			return err
+		}
+		inputs[canonical] = ""
+		return nil
+	})
 }
 
 // has says the cell was acquired by an earlier run of this commit and store.

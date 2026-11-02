@@ -6318,6 +6318,18 @@
         "plan_steps": [
           "sqa-cycle/absent-profiles"
         ]
+      },
+      {
+        "comment": "Landed with sqa-cycle/resume-credit. A component with no file location falls to its directory location, and viewFiles declares every regular file under it, sharing the binding's per-path memo so a directory is hashed once. No credit rests on timestamps, and a component with neither location still earns none. TestCellCreditCoversADirectoryView holds an unchanged, a changed, a restored, an added and a missing case, and fails without the change.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestCellCreditCoversADirectoryView",
+          "TestCellCreditSurvivesAKilledRun"
+        ],
+        "finding_id": "SQA-263",
+        "plan_steps": [
+          "sqa-cycle/resume-credit"
+        ]
       }
     ],
     "experiments": {
@@ -6364,7 +6376,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "863213ad6abacc460bba6587074094b26060cdcd",
+    "head": "4655414ac4332a110781193308d7fcaeffcd0934",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6563,11 +6575,11 @@
         "note": "Landed. OtherLane and the waiting report are gone, since MOSS, the only cell they were for, is on the trunk. A cell with no registered profile now refuses the preflight and fails a run like any other, so it stays a visible gap. Awaits the reviewer's closure."
       },
       "SQA-263": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-cycle/resume-credit"
         ],
-        "note": "Accepted: fails closed, so it costs repeated hours and risks no false evidence."
+        "note": "Landed. consumedFiles reads a view's directory: each regular file's own bytes key the credit, so a view's virtual image is never passed off as a file's digest. The finding preferred the inventory's exact consumed set; every file in the directory is a superset of it, so a changed README costs a credit and no change is missed. Awaits the reviewer's closure."
       },
       "SQA-264": {
         "action": "filed",

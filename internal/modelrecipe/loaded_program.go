@@ -26,6 +26,7 @@ type loadedProgramState struct {
 	Weights      model.Weights
 	Inventory    modelartifact.Inventory
 	EvidenceTier recipe.EvidenceTier
+	State        ModelState
 	Program      Plan
 	Policy       RuntimePolicy
 	// Claims are shard identities taken on trust from a claimer: the bytes
@@ -34,7 +35,8 @@ type loadedProgramState struct {
 	Claims []artifact.ID
 }
 
-// ResolveActiveGGUF verifies and compiles the active recipe before execution.
+// ResolveActiveGGUF compiles the model at path before execution: its active recipe where one stands, else what its own
+// file declares, the state it carries saying which.
 func ResolveActiveGGUF(
 	ctx context.Context,
 	store artifact.Reader,
@@ -61,34 +63,24 @@ func ResolveClaimedGGUF(
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, loaded.Close())
 	}
-	activation, active, err := ActiveRecord(ctx, store, loaded.state.Inventory.Manifest.ID, recipe.TaskInference)
+	activation, state, err := ReadModelState(ctx, store, loaded.state.Inventory.Manifest.ID, recipe.TaskInference)
 	if err != nil {
 		return fail(err)
 	}
-	if !active {
-		return fail(errors.New("model recipe: active inference recipe is absent"))
+	loaded.state.State = state
+	if state.Verification == StateNotVerified || state.Verification == StateBroken {
+		if err := loaded.bindDerived(ctx, store); err != nil {
+			return fail(err)
+		}
+		return loaded, nil
 	}
 	definition := activation.Definition
 	loaded.state.EvidenceTier = activation.Tier
-	loaded.state.Policy, err = ResolveRuntimePolicy(ctx, store, definition)
+	policy, err := ResolveRuntimePolicy(ctx, store, definition)
 	if err != nil {
 		return fail(err)
 	}
-	// The model's own declared sampling (its generation config or model
-	// card) overlays the catalog policy, else the sampling its file
-	// recommends; a store without typed document projections cannot hold a
-	// declaration, so the file's stands.
-	declared := fileDeclaredSampling(loaded.state.File)
-	if documents, ok := store.(overgodb.DocumentReader); ok {
-		config, found, err := ResolveModelConfig(ctx, documents, loaded.state.Inventory.Manifest.ID)
-		if err != nil {
-			return fail(err)
-		}
-		if found && config.Generation != nil && config.Generation.Sampling != nil {
-			declared = config.Generation.Sampling
-		}
-	}
-	if loaded.state.Policy, err = withDeclaredSampling(loaded.state.Policy, declared); err != nil {
+	if err := loaded.declarePolicy(ctx, store, policy); err != nil {
 		return fail(err)
 	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
@@ -112,6 +104,25 @@ func ResolveClaimedGGUF(
 	}
 	loaded.state.Program.Evidence = slices.Clone(activation.Event.Evidence)
 	return loaded, nil
+}
+
+// declarePolicy takes policy as the program's, the model's own declared sampling (its generation config or model card)
+// overlaid on it, else the sampling its file recommends; a store without typed document projections cannot hold a
+// declaration, so the file's stands.
+func (l *LoadedProgram) declarePolicy(ctx context.Context, store artifact.Reader, policy RuntimePolicy) error {
+	declared := fileDeclaredSampling(l.state.File)
+	if documents, ok := store.(overgodb.DocumentReader); ok {
+		config, found, err := ResolveModelConfig(ctx, documents, l.state.Inventory.Manifest.ID)
+		if err != nil {
+			return err
+		}
+		if found && config.Generation != nil && config.Generation.Sampling != nil {
+			declared = config.Generation.Sampling
+		}
+	}
+	var err error
+	l.state.Policy, err = withDeclaredSampling(policy, declared)
+	return err
 }
 
 // ResolveCandidateGGUF verifies one explicit candidate before promotion.
@@ -142,6 +153,7 @@ func ResolveCandidateGGUF(
 		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
 	}
 	loaded.state.EvidenceTier = recipe.EvidenceVerified
+	loaded.state.State = ModelState{Verification: StateNotVerified, Reason: "a candidate under verification"}
 	policy, found, err := CatalogRuntimePolicy(definition.Task)
 	if err != nil {
 		return fail(err)
@@ -162,6 +174,14 @@ func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
 		return ProgramIdentity{}, errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	return l.state.Program.Identity, nil
+}
+
+// State returns what the store records of the model's verification before transfer.
+func (l *LoadedProgram) State() (ModelState, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return ModelState{}, errors.New("model recipe: loaded program is unavailable or consumed")
+	}
+	return l.state.State, nil
 }
 
 // Describe returns the resolved program's runtime description before transfer: its stages and their placements.

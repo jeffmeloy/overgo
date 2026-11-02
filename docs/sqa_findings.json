@@ -1574,7 +1574,9 @@
         "uncertainty": "Complete alternatives parsed from committed files externally,not package typechecked or tested. A brief necessary comment would add its own AST cost. Static IEEE comparison establishes branch behavior; no elapsed/heap savings measured. Shared writer's changed combined-error diagnostic is acceptable only while no caller asserts it; success bytes/default options and cleanup remain the same."
       },
       "likely_effort": "Small existing-owner repair and one expanded native test; no new infrastructure.",
-      "plan_references": [],
+      "plan_references": [
+        "run-from-files/declared-template"
+      ],
       "plan_coverage": "New advisory correctness finding in landed file-sampling defaults; no new plan row or adoption inferred.",
       "closure_criteria": [
         "NaN and either infinity in file temperature reach existing invalid-policy handling,while absent values and finite0/negative preserve catalog/greedy semantics and stored generation overrides remain authoritative.",
@@ -2269,7 +2271,9 @@
         "uncertainty": "Parser measurement only; no compiler/inlining or elapsed/memory measurement. Existing driver helper type evidence retained; caller packages source-traced without CUDA build. Whole loader tests have necessary mapped-host growth independent of this local reuse."
       },
       "likely_effort": "Trivial local owner reuse; no caller migration.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/cell-step-reads"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "encodeF32 delegates to driver.Bytes and no longer imports unsafe; full production delta includes the retained adapter and is negative.",
@@ -3109,7 +3113,9 @@
         "uncertainty": "Temporary4*T F32 payload copy removed; actual memory/elapsed savings unmeasured. This rotation parsed both cache files and re-read validation/materialization/edit ownership. Type resolution limited to exact contextDiscardCount with fmt(10defs/49uses/77expressions). Keep owned copies and slices import. Independent265 range-edit consolidation adds33-node saving without double-counting the shared file."
       },
       "likely_effort": "One assignment in the existing owner; no new test is needed for this trivial read-only ownership change.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/cell-step-reads"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "The first compressed layer is borrowed only during validateCache; the temporary clone disappears and all validation branches and errors remain.",
@@ -3464,7 +3470,9 @@
         "uncertainty": "Complete hypothetical source parsed only, not package-compiled or run. Failure acceptance compared from source: allocation remains OOM-specific, writes still require any error, cancellation remains exact errors.Is. Seven writes are a bounded existing sample; no exhaustive fault-coverage claim. No elapsed/allocation measurement."
       },
       "likely_effort": "Small local merge in one existing test; batch with ordinary affected work.",
-      "plan_references": [],
+      "plan_references": [
+        "consolidate/test-reductions"
+      ],
       "plan_coverage": "Advisory only; no new plan row or implementation adoption inferred.",
       "closure_criteria": [
         "Only one allocation/write setup and cleanup assertion body remains, with all 28 corresponding subtests and both separate cancellation cases retained.",
@@ -6540,7 +6548,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "ecaecf8a48fe62e3eaccf697ec255dbc032f395d",
+    "head": "7028a38f9f96c0cd585aead82b6f976c4cc607cf",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6833,8 +6841,11 @@
         "note": "Adopted by the static review's reduction row."
       },
       "SQA-238": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modelrecipe/model_config_sampling.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "run-from-files/declared-template"
+        ],
+        "note": "Lead's judgement: filed where it now matters. A derived run trusts the file's own sampling, so malformed metadata must fail validation instead of silently selecting greedy."
       },
       "SQA-215": {
         "action": "none",
@@ -6902,8 +6913,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/graph_exec_cache.go. Title-level triage, not re-verified at this head."
       },
       "SQA-219": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_converted_weights.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/cell-step-reads"
+        ],
+        "note": "Lead's judgement: filed. A one-line reuse, batched with its neighbours."
       },
       "SQA-204": {
         "action": "existing-row",
@@ -7005,8 +7019,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/safetensors/source_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-227": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/inference/cache_state.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/cell-step-reads"
+        ],
+        "note": "Lead's judgement: filed. A one-line borrow, batched with its neighbours."
       },
       "SQA-265": {
         "action": "none",
@@ -7042,8 +7059,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/catalog_evidence_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-240": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/modeldevice/device_load_test.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "consolidate/test-reductions"
+        ],
+        "note": "Lead's judgement: filed. A test merge with no assertion moving."
       },
       "SQA-243": {
         "action": "none",

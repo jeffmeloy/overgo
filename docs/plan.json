@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2654,
+        "nodes": 2102,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "derive-gguf",
-          "title": "Run a GGUF with nothing recorded from its metadata and its prototype",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestAGGUFNothingRecordsResolvesFromItsFile$'",
-          "rationale": "SQA-283 (1): a GGUF with no active recipe has its definition derived in memory from the prototype its architecture selects, sized by its own metadata, the runtime policy the catalog's unless one is bound. A stored recipe still wins, so a tuned path stays.\nServes: a model on disk answers without anything published first.\nDisappears: the refusal 'active inference recipe is absent' and the per-recipe policy requirement in the loader.\nEvidence: its test, a GGUF the store has never seen.\nBatch: recipe lane."
-        },
         {
           "id": "derive-safetensors",
           "title": "Run a safetensors directory with nothing recorded from config.json and its prototype",
@@ -176,7 +169,7 @@
           "title": "Take the prompt template and sampling from the model's own files",
           "status": "open",
           "verify": "go test ./internal/inference -count=1 -run '^TestADeclaredTemplateOutranksTheBuiltInFormats$'",
-          "rationale": "SQA-283 (2): chat_template.jinja, tokenizer_config.json or tokenizer.chat_template, the built-in formats only where the files declare none; sampling from generation_config.json or the file. Read what already holds before adding anything: hfconvert and chat_jinja.go exist, and the overlay in ResolveClaimedGGUF reads a stored config.\nServes: a derived run formats its prompt as its model expects.\nDisappears: nothing.\nEvidence: its test, one model with a declared template and one without.\nBatch: recipe lane."
+          "rationale": "SQA-283 (2): chat_template.jinja, tokenizer_config.json or tokenizer.chat_template, the built-in formats only where the files declare none; sampling from generation_config.json or the file. Read what already holds before adding anything: hfconvert and chat_jinja.go exist, and the overlay in ResolveClaimedGGUF reads a stored config.\nServes: a derived run formats its prompt as its model expects.\nDisappears: nothing.\nEvidence: its test, one model with a declared template and one without.\nBatch: recipe lane.\n\nSQA-238 joins this step: a derived run trusts the file's own sampling, so a NaN or -Inf general.sampling.temp must reach the policy's validation instead of silently selecting greedy."
         },
         {
           "id": "catalog-states",
@@ -810,14 +803,14 @@
           "title": "Fold the register's duplicate test fixtures",
           "status": "open",
           "verify": "go vet ./internal/overgodb ./internal/server ./internal/inference ./internal/cuda/executor",
-          "rationale": "The register's P3 reductions, adopted as one row where no dispatched row reaches them: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255.\nTest code is 376K lines beside 421K of production; each fold shortens the changed packages' runs. No assertion is dropped: run mutation checks on a sample.\nServes: development velocity and landing wall.\nDisappears: test bodies, in each finding's stated owner.\nEvidence: test-code nodes the gate reports.\nBatch: with whichever row next opens those files.\n\nSQA-230 and SQA-233 join this step, read while their files were open: each QSA and cell parity graph built once for its two backends, and the GDN fixture's forwarding closure gone. No assertion moves."
+          "rationale": "The register's P3 reductions, adopted as one row where no dispatched row reaches them: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255.\nTest code is 376K lines beside 421K of production; each fold shortens the changed packages' runs. No assertion is dropped: run mutation checks on a sample.\nServes: development velocity and landing wall.\nDisappears: test bodies, in each finding's stated owner.\nEvidence: test-code nodes the gate reports.\nBatch: with whichever row next opens those files.\n\nSQA-230 and SQA-233 join this step, read while their files were open: each QSA and cell parity graph built once for its two backends, and the GDN fixture's forwarding closure gone. No assertion moves.\n\nSQA-240 joins this step: the loader's allocation and write failure subtests share one body."
         },
         {
           "id": "cell-step-reads",
           "title": "Take the cell step records' window from Reads",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run 'CellAttention'",
-          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go."
+          "rationale": "SQA-234: CellAttentionAttributes.steps repeats the window bounds Reads owns; steps takes them from Reads.\nServes: one statement of a cell's window.\nDisappears: the duplicate initialization and condition, about 21 nodes.\nEvidence: the existing cell attention tests.\nBatch: with whichever row next opens internal/tensor/builder_cell.go.\n\nSQA-219 and SQA-227 join this step, each one line beside it in weight: encodeF32 takes driver.Bytes, and validateCache borrows the positions it only reads."
         }
       ]
     },

@@ -203,6 +203,9 @@ func openRunner(
 		}
 	}
 	runner, err := inference.OpenWithProgram(ctx, &loaded, options)
+	if err == nil {
+		noteModelState(path, runner.ModelState())
+	}
 	if err != nil || !judge {
 		return runner, err
 	}
@@ -210,6 +213,17 @@ func openRunner(
 		return nil, errors.Join(err, runner.Close())
 	}
 	return runner, nil
+}
+
+// noteModelState says on the standard error what stands in the way of a model's verification; it runs all the same.
+func noteModelState(path string, state modelrecipe.ModelState) {
+	switch {
+	case state.Verification == modelrecipe.StateVerified:
+	case state.Reason == "":
+		fmt.Fprintf(os.Stderr, "model %s: %s\n", path, state.Verification)
+	default:
+		fmt.Fprintf(os.Stderr, "model %s: %s: %s\n", path, state.Verification, state.Reason)
+	}
 }
 
 // ExpertProfilePath is where the expert profile of the model at path lies, beside it: a load of the model that finds

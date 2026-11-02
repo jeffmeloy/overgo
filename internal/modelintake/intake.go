@@ -75,36 +75,11 @@ func PrepareInferenceCandidate(
 	if err != nil {
 		return Candidate{}, err
 	}
-	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		return Candidate{}, err
-	}
-	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		return Candidate{}, err
-	}
-	weights, err := model.ReadWeights(file, spec)
-	if err != nil {
-		return Candidate{}, err
-	}
-	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, profileDocument.Policy)
-	if err != nil {
-		return Candidate{}, err
-	}
-	session := modelrecipe.DecodeSessionCapacity
-	if !modelPlan.SupportsCapacityCache() {
-		session = modelrecipe.DecodeSessionRequest
-	}
+	var session *modelrecipe.DecodeSessionPolicy
 	if override.Set {
-		if override.Value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
-			return Candidate{}, errors.New("model intake: the capacity session is unsupported by this model's compiled plan")
-		}
-		session = override.Value
+		session = &override.Value
 	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
-		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		session, residency,
-	)
+	definition, resolved, err := modelrecipe.DeriveInference(file, inventory, spec, profileDocument, session, residency)
 	if err != nil {
 		return Candidate{}, err
 	}

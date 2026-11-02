@@ -18,25 +18,6 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 	path := t.TempDir() + "/model.gguf"
 	writeServingDefinitionGGUF(t, path, false)
 
-	t.Run("missing", func(t *testing.T) {
-		store := openProgramStore(t)
-		defer store.Close()
-		_, err := ResolveActiveGGUF(t.Context(), store, path)
-		assertProgramError(t, err, "active inference recipe is absent")
-	})
-
-	t.Run("inactive", func(t *testing.T) {
-		store := openProgramStore(t)
-		defer store.Close()
-		inventory, resolved := publishProgramFacts(t, store, path)
-		definition := definitionRecipe(t, inventory, resolved)
-		if _, _, err := PublishCandidate(t.Context(), store, "fixture/inactive", definition); err != nil {
-			t.Fatal(err)
-		}
-		_, err := ResolveActiveGGUF(t.Context(), store, path)
-		assertProgramError(t, err, "active inference recipe is absent")
-	})
-
 	t.Run("incompatible", func(t *testing.T) {
 		store := openProgramStore(t)
 		defer store.Close()
@@ -105,7 +86,8 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 
 // TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim resolves a program from a
 // remembered identity without hashing: the program carries the claim, Take
-// hands it over with the claim, and a claim for other bytes finds no recipe.
+// hands it over with the claim, and a claim for other bytes finds no recipe, so it derives, the claim still there for
+// its taker to prove.
 func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	path := t.TempDir() + "/model.gguf"
 	writeServingDefinitionGGUF(t, path, false)
@@ -136,10 +118,16 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
+	derived, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return other, inventory.Components[0].Size, true
 	})
-	assertProgramError(t, err, "active inference recipe is absent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer derived.Close()
+	if derived.state.State.Verification != StateNotVerified || len(derived.state.Claims) != 1 || derived.state.Claims[0] != other {
+		t.Fatalf("a claim no recipe names = state %+v, claims %v", derived.state.State, derived.state.Claims)
+	}
 
 	hashed, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
 		return artifact.ID{}, 0, false

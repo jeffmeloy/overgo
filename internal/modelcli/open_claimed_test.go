@@ -186,11 +186,14 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 	}
 
 	replaceInPlace(unknown)
-	runner, err, _ = open(path)
-	if err == nil || !strings.Contains(err.Error(), "active inference recipe is absent") {
-		if runner != nil {
-			_ = runner.Close()
-		}
-		t.Fatalf("stale memo over bytes no recipe names: open = %v, want a missing recipe", err)
+	runner, err, stderr = open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "remembered identity") || runner.ModelState().Verification != modelrecipe.StateNotVerified {
+		t.Fatalf("stale memo over bytes no recipe names: stderr %q, state %+v, want hashed and not verified", stderr, runner.ModelState())
+	}
+	if err := runner.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -191,6 +191,7 @@ type preparedModel struct {
 	runtimePolicy       modelrecipe.RuntimePolicy
 	realizedResidency   recipe.RealizedResidency
 	evidenceTier        recipe.EvidenceTier
+	modelState          modelrecipe.ModelState
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor
@@ -365,6 +366,15 @@ func (r *Runner) Spec() model.Spec {
 	return r.spec
 }
 
+// ModelState reports what the store records of the model's verification, the fact the run carries.
+func (r *Runner) ModelState() modelrecipe.ModelState {
+	if r == nil {
+		return modelrecipe.ModelState{}
+	}
+	return r.modelState
+}
+
+// EvidenceTier reports the grade of the evidence the runner's recipe was activated on.
 func (r *Runner) EvidenceTier() recipe.EvidenceTier {
 	if r == nil {
 		return ""

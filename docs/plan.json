@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
-        "reason": "Four checks in existing owners, an estimate."
+        "nodes": 306,
+        "reason": "served-target measures 194 where the row's estimate took 150 for all four checks; the other three are estimated at about 100 each."
       },
       "steps": [
-        {
-          "id": "served-target",
-          "title": "Refuse a served target before the first step",
-          "status": "open",
-          "verify": "go test ./internal/mosstrain -count=1 -run '^TestAServedTargetIsRefusedBeforeTraining$'",
-          "rationale": "PublishServed uses os.Link (internal/mosstrain/publish.go:68) at the end of a run, after the checkpoint and before the held-out judgement (cmd/train/route_moss_windows.go:352-374). An existing target fails there (reproduced), so the run loses its held-out reading at its last step. A target on another volume should fail the same way (hypothesis). Check at the route's start that the target is absent and a probe hard link works.\nServes: failure-rate; no run lost at its last step.\nDisappears: nothing.\nEvidence: its test.\nBatch: training lane."
-        },
         {
           "id": "tensor-shapes",
           "title": "Refuse a tensor of another shape before placing it",

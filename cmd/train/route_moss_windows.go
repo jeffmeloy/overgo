@@ -201,6 +201,11 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		return err
 	}
 	directory := roots.ResolveModelPath(*model)
+	if *served != "" {
+		if err := mosstrain.CheckServedTarget(directory, *served); err != nil {
+			return err
+		}
+	}
 	weights, err := trainingworkflow.IdentifyModelWeights(directory)
 	if err != nil {
 		return err

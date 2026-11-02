@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/peft"
@@ -68,5 +69,44 @@ func TestPublishServedHoldsOneShardIndex(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(served, "vae", "config.json")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestAServedTargetIsRefusedBeforeTraining: a target that exists is refused and left as it was, and an absent one passes
+// with its parent made and nothing left behind, so PublishServed then writes it. A base with nothing in it has nothing to
+// serve from.
+func TestAServedTargetIsRefusedBeforeTraining(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := filepath.Join(root, "base")
+	if err := os.MkdirAll(filepath.Join(base, "vae"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(base, "vae", "config.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	existing := filepath.Join(root, "existing")
+	if err := os.MkdirAll(existing, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckServedTarget(base, existing); err == nil || !strings.Contains(err.Error(), "exists") {
+		t.Fatalf("a target that exists = %v, want it refused", err)
+	}
+	target := filepath.Join(root, "new", "served")
+	if err := CheckServedTarget(base, target); err != nil {
+		t.Fatalf("an absent target = %v", err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatalf("the check left its probe at %s: %v", target, err)
+	}
+	if err := CheckServedTarget(base, target); err != nil {
+		t.Fatalf("the check refused what it left: %v", err)
+	}
+	empty := filepath.Join(root, "empty")
+	if err := os.MkdirAll(empty, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckServedTarget(empty, filepath.Join(root, "other")); err == nil {
+		t.Fatal("a base with no file passes")
 	}
 }

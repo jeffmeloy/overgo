@@ -6307,6 +6307,17 @@
         "plan_steps": [
           "sqa-served/inventory-resync"
         ]
+      },
+      {
+        "comment": "Landed with sqa-cycle/absent-profiles. No exemption was needed: MOSS has its profile now, so ownership did not have to be wired and the inference from error text was simply removed. Ambiguous and missing-file failures, cancellation, scratch cleanup and cell credit are unchanged. ErrGenerationSourceAbsent stays, as library intake reads it.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestACellWithNoProfileRefusesThePreflight"
+        ],
+        "finding_id": "SQA-260",
+        "plan_steps": [
+          "sqa-cycle/absent-profiles"
+        ]
       }
     ],
     "experiments": {
@@ -6353,7 +6364,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "b30807e602301430c17f073bb1ffa1b4b5d57b4b",
+    "head": "863213ad6abacc460bba6587074094b26060cdcd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6545,11 +6556,11 @@
         "note": "Landed. A completed snapshot sequence sends the resync marker, and workspace.read refreshes every read that has run. The marker is transient, and the page's first one, which lost nothing, is dropped. Awaits the reviewer's closure."
       },
       "SQA-260": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-cycle/absent-profiles"
         ],
-        "note": "Accepted: a missing profile must not read as another lane's work; it hides coverage gaps in the cycle verdict."
+        "note": "Landed. OtherLane and the waiting report are gone, since MOSS, the only cell they were for, is on the trunk. A cell with no registered profile now refuses the preflight and fails a run like any other, so it stays a visible gap. Awaits the reviewer's closure."
       },
       "SQA-263": {
         "action": "filed",

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
@@ -50,15 +49,8 @@ type generationSourceCatalog struct {
 }
 
 // ErrGenerationSourceAbsent is the refusal of an artifact this checkout registers no generation source profile for: no
-// catalog profile matches its source identity, so its runtime is another lane's. A command reports it in its error
-// text, which validate reads to count the cell as waiting on that lane and not as failed (OtherLane).
+// catalog profile matches its source identity.
 var ErrGenerationSourceAbsent = errors.New("model recipe: no registered generation source profile")
-
-// OtherLane reports whether a command's error, read as its text across the process that ran it, is
-// ErrGenerationSourceAbsent.
-func OtherLane(err error) bool {
-	return err != nil && (errors.Is(err, ErrGenerationSourceAbsent) || strings.Contains(err.Error(), ErrGenerationSourceAbsent.Error()))
-}
 
 // ResolveGenerationSource selects one declared task profile.
 // An empty task selects across tasks and refuses ambiguous source identities.

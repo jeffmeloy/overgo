@@ -97,7 +97,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - rank by recorded outcomes and expected cost (check: internal/plan TestSchedulerRankedByRealizedDelta)
 - exploration = bounded (check: internal/agentloop TestCoordinatorBoundsSessionSteps, internal/loop TestLoopDriverCycle)
 - rejection feeds the next decision (check: internal/loop TestLoopDriverCycle, internal/loop TestLoopAcceptedPrerequisiteProgress)
-- missing resource => explicit resume condition and continue independent work (check: cmd/validate TestACellWhoseRuntimeIsNotHereWaitsOnItsLane, internal/plan TestDispatchPassesRowsAwaitingADecision, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
+- missing resource => explicit resume condition and continue independent work (check: internal/plan TestDispatchPassesRowsAwaitingADecision, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
 - persist position, dispositions, outstanding checks and budget => resume without duplicates (check: cmd/loop TestInterruptedCycleResumesAtItsFirstUnpassedPhase, cmd/validate TestCellCreditSurvivesAKilledRun, cmd/loop TestScorecardGapsBecomeProposals)
 - freeze acceptance before the work (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/scorecard TestADeclineKeepsItsKeyAndItsOriginalRestorationTarget)
 

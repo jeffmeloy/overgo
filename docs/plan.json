@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
+        "nodes": 642,
         "reason": "Corrections to the existing loop, landing and hook owners; no new scheduler."
       },
       "steps": [
-        {
-          "id": "absent-profiles",
-          "title": "Report a missing profile as missing, not as another lane's work",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./internal/modelrecipe -count=1 -run 'Lane|Profile'",
-          "rationale": "SQA-260: absence stays a gap in the cycle verdict unless an authority names the lane that owns it.\nServes: coverage gaps stay visible.\nDisappears: lane ownership inferred from an error.\nEvidence: the existing preflight fixtures.\nBatch: validate lane."
-        },
         {
           "id": "resume-credit",
           "title": "Keep resume credit for models registered from directory views",

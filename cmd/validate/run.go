@@ -209,7 +209,7 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
-	var unbound, failed, inapplicable, elsewhere []string
+	var unbound, failed, inapplicable []string
 	acquired := 0
 	record := func(subject string, err error) {
 		switch {
@@ -217,8 +217,6 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 			acquired++
 		case errors.Is(err, errInapplicable):
 			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
-		case modelrecipe.OtherLane(err):
-			elsewhere = append(elsewhere, fmt.Sprintf("%s: %v", subject, err))
 		default:
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 		}
@@ -287,7 +285,6 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 	for _, measureAgain := range again {
 		measureAgain()
 	}
-	reportElsewhere(output, "validate -run", elsewhere)
 	var problems []string
 	if len(failed) > 0 {
 		problems = append(problems, fmt.Sprintf("%d failed:\n  %s", len(failed), strings.Join(failed, "\n  ")))
@@ -338,7 +335,7 @@ func preflightCells(ctx context.Context, output io.Writer, root, storeRoot strin
 		return err
 	}
 	defer func() { err = errors.Join(err, os.RemoveAll(scratch)) }()
-	var refused, unchecked, elsewhere []string
+	var refused, unchecked []string
 	for index, sel := range cells {
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		name, args, environment, err := cellCommand(sel.ModelValidation, storeRoot)
@@ -355,32 +352,18 @@ func preflightCells(ctx context.Context, output io.Writer, root, storeRoot strin
 			args[at+1] = filepath.Join(scratch, fmt.Sprint(index), "checkpoint")
 		}
 		fmt.Fprintf(output, "validate -run -preflight %d/%d: %s\n", index+1, len(cells), subject)
-		err = run(ctx, output, root, name, args, append(slices.Clone(environment), clioptions.PreflightEnvironment+"=1")...)
-		switch {
-		case modelrecipe.OtherLane(err):
-			elsewhere = append(elsewhere, fmt.Sprintf("%s: %v", subject, err))
-		case err != nil:
+		if err := run(ctx, output, root, name, args, append(slices.Clone(environment), clioptions.PreflightEnvironment+"=1")...); err != nil {
 			refused = append(refused, fmt.Sprintf("%s: %v", subject, err))
 		}
 	}
-	reportElsewhere(output, "validate -run -preflight", elsewhere)
 	if len(unchecked) > 0 {
 		fmt.Fprintf(output, "validate -run -preflight: %d cell(s) measured by a go test are checked only when measured: %s\n", len(unchecked), strings.Join(unchecked, ", "))
 	}
 	if len(refused) > 0 {
 		return fmt.Errorf("validate -run -preflight: %d of %d cell(s) would be refused:\n  %s", len(refused), len(cells), strings.Join(refused, "\n  "))
 	}
-	fmt.Fprintf(output, "validate -run -preflight: %d cell(s) ready, none measured\n", len(cells)-len(unchecked)-len(elsewhere))
+	fmt.Fprintf(output, "validate -run -preflight: %d cell(s) ready, none measured\n", len(cells)-len(unchecked))
 	return nil
-}
-
-// reportElsewhere names the cells whose runtime is another lane's, not on this checkout (modelrecipe.OtherLane): they
-// wait on that lane and are no failure here, so a cell that fails reads apart from them. MOSS-Image's image cell, whose
-// runtime is the MOSS lane's, failed every run from 2026-10-25 and read like the failures beside it.
-func reportElsewhere(output io.Writer, scope string, elsewhere []string) {
-	if len(elsewhere) > 0 {
-		fmt.Fprintf(output, "%s: %d cell(s) wait on their lane, their runtime not on this checkout:\n  %s\n", scope, len(elsewhere), strings.Join(elsewhere, "\n  "))
-	}
 }
 
 // measureCell excludes only the successful observation the admitted command

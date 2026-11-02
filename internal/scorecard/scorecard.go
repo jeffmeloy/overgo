@@ -260,6 +260,8 @@ type Row struct {
 	Lengths      []Cell               `json:"lengths,omitempty"`
 	Warm         []Cell               `json:"warm,omitempty"`
 	Succeeds     []artifact.ID        `json:"succeeds,omitempty"`
+	// Stale says why the activation behind the row cannot be trusted, or why it is not measured.
+	Stale string `json:"stale,omitzero"`
 }
 
 // The measures of a warm cell (Row.Warm): a request read again on a loaded model, its prompt through the cache the
@@ -363,7 +365,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			if err != nil {
 				return nil, err
 			}
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
+			row := Row{Stale: capability.Stale, Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -788,9 +790,12 @@ func (summary *servingSummary) cell(source artifact.ID, value float64, unit, met
 // out: E4B's media resource proof published 324 deliberate failures under
 // its projection recipe. An attempt that was measured beside other work,
 // which the record of a contended reading depends on, is left out the same
-// way, so its recipe's cells keep what the earlier attempts gave them.
+// way, so its recipe's cells keep what the earlier attempts gave them. An
+// attempt made while nothing stood behind its model is left out too
+// (unverifiedAside), so a recipe activated since does not read it as its own.
 func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.ID]*servingSummary, error) {
 	summaries := map[artifact.ID]*servingSummary{}
+	proofs := map[artifact.ID]artifact.ID{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
@@ -798,6 +803,9 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		Order: overgodb.DocumentNewestFirst,
 	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
 		if aside, err := setAside(ctx, store, view.Content.Descriptor.ID); err != nil || aside {
+			return err
+		}
+		if aside, err := unverifiedAside(ctx, store, observation, proofs); err != nil || aside {
 			return err
 		}
 		summary := summaries[observation.Recipe]
@@ -887,6 +895,27 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 // setAside reports whether a record that takes a serving attempt out of the
 // scorecard's reading depends on the artifact. A gate result does, since its
 // run measured the attempt, and so does the record of a contended reading.
+// unverifiedAside reports an attempt made while nothing stood behind its model, which a recipe activated since must not
+// read as its own. The verification that activated the recipe stays: its attempts ran before they could be anything else,
+// and they are what its cells read. proofs remembers the run that verified each recipe read so far.
+func unverifiedAside(ctx context.Context, store *overgodb.Store, observation runrecord.ServingObservation, proofs map[artifact.ID]artifact.ID) (bool, error) {
+	if observation.Verification != string(modelrecipe.StateNotVerified) && observation.Verification != string(modelrecipe.StateBroken) {
+		return false, nil
+	}
+	proof, read := proofs[observation.Recipe]
+	if !read {
+		activation, _, err := modelrecipe.ReadModelState(ctx, store, observation.Model, observation.Task)
+		if err != nil {
+			return false, err
+		}
+		if activation.Definition.ID == observation.Recipe {
+			proof = activation.Verified.Run.ID
+		}
+		proofs[observation.Recipe] = proof
+	}
+	return !observation.Run.Valid() || observation.Run != proof, nil
+}
+
 func setAside(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
 	children, err := store.Children(ctx, id)
 	if err != nil {

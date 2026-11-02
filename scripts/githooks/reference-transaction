@@ -15,6 +15,9 @@ while read -r old new ref; do
 	*[!0]*) ;;
 	*) old=$(git rev-parse -q --verify "$ref") || continue ;;
 	esac
+	# A reset to where the trunk stands moves nothing: it is how a landing's own
+	# index follows its commit.
+	[ "$old" = "$new" ] && continue
 	changed=$(git diff-tree --no-commit-id --name-only -r "$old" "$new" 2>/dev/null)
 	[ "$changed" = docs/sqa_findings.json ] && continue
 	echo "the trunk moves only by 'go run ./cmd/loop -land <item>/<step> -message-file -'" >&2

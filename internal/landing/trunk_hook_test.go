@@ -144,3 +144,20 @@ func TestALandingRefusesATrunkWithoutItsHook(t *testing.T) {
 		t.Fatalf("a repository with no hook: %v", err)
 	}
 }
+
+// TestAResetThatMovesNothingPasses: git names the trunk to the hook on a reset to where it stands, which is how a landing's
+// index follows its commit. The hook refused that, so every landing landed and then reported itself refused.
+func TestAResetThatMovesNothingPasses(t *testing.T) {
+	t.Parallel()
+	run, _ := hookedRepository(t)
+	before, err := run(nil, "rev-parse", "refs/heads/master")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output, err := run(nil, "reset", "-q"); err != nil {
+		t.Fatalf("a reset that moves nothing was refused: %v: %s", err, output)
+	}
+	if after, err := run(nil, "rev-parse", "refs/heads/master"); err != nil || after != before {
+		t.Fatalf("the trunk went from %s to %s, %v", before, after, err)
+	}
+}

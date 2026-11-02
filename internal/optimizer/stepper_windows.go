@@ -16,10 +16,16 @@ type deviceStepper struct {
 	plan               Plan
 	config             Config
 	step               int
+	received           func(Group) bool
 }
 
 // NewStepper binds flat host storage to the shared CUDA Muon implementation.
 func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper, error) {
+	return newStepper(weights, gradients, plan, config, func(Group) bool { return true })
+}
+
+// newStepper is NewStepper leaving alone a group received says took no gradient.
+func newStepper(weights, gradients []float32, plan Plan, config Config, received func(Group) bool) (Stepper, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -29,13 +35,13 @@ func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper
 	}
 	return &deviceStepper{
 		worker: worker, weights: weights, gradients: gradients, momentum: make([]float32, len(weights)),
-		plan: plan, config: config,
+		plan: plan, config: config, received: received,
 	}, nil
 }
 
 func (s *deviceStepper) Step() error {
 	s.step++
-	return DeviceMuonStepPlan(s.worker, s.weights, s.gradients, s.momentum, s.plan, s.step, s.config)
+	return deviceMuonStep(s.worker, s.weights, s.gradients, s.momentum, s.plan, s.step, s.config, s.received)
 }
 
 // Snapshot copies the f32 momentum the device steps.

@@ -48,6 +48,7 @@ type Optimizer struct {
 	gradients []float32
 	plan      Plan
 	config    Config
+	received  func(Group) bool
 	momentum  []float64
 	step      int
 	scratch   newtonSchulzScratch
@@ -70,14 +71,19 @@ func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, er
 		plan:      plan,
 		config:    config,
 		momentum:  make([]float64, plan.ParameterCount()),
+		received:  func(Group) bool { return true },
 	}
 	return optimizer, nil
 }
 
-// Step advances every group once.
+// Step advances once every group that received a gradient (Receiving), every group unless it was told otherwise.
 func (o *Optimizer) Step() StepResult {
-	return o.StepGroups(func(Group) bool { return true })
+	return o.StepGroups(o.received)
 }
+
+// Receiving has Step leave alone a group received says took no gradient. Its direction would otherwise be normalized
+// momentum, a full-sized step on nothing for as long as the momentum lasts, about 415 updates at the policy's momentum.
+func (o *Optimizer) Receiving(received func(Group) bool) { o.received = received }
 
 // StepGroups advances the selected groups once; excluded state remains unchanged.
 func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {

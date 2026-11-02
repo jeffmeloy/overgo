@@ -31,6 +31,8 @@ type TensorPack struct {
 	gradients []float32
 	plan      Plan
 	bindings  [][]float32
+	// absent holds the groups the last gather found no gradient for.
+	absent map[string]bool
 }
 
 // NewTensorPack binds named tensors, in name order, to one validated
@@ -169,12 +171,20 @@ func (p *TensorPack) BindMapViews(tensors map[string][]float32) map[string][]flo
 
 // NewOptimizer binds Muon state directly to packed storage.
 func (p *TensorPack) NewOptimizer(config Config) (*Optimizer, error) {
-	return New(p.weights, p.gradients, p.plan, config)
+	optimizer, err := New(p.weights, p.gradients, p.plan, config)
+	if err == nil {
+		optimizer.Receiving(p.received)
+	}
+	return optimizer, err
 }
+
+// received says the last gather held a gradient for a group. Only a gather can tell: to a slab, an absent gradient and a
+// gradient of zeros read alike, and one of zeros still steps on its momentum.
+func (p *TensorPack) received(group Group) bool { return !p.absent[group.Name] }
 
 // NewStepper binds the packed slabs to the platform Muon backend.
 func (p *TensorPack) NewStepper(config Config) (Stepper, error) {
-	return NewStepper(p.weights, p.gradients, p.plan, config)
+	return newStepper(p.weights, p.gradients, p.plan, config, p.received)
 }
 
 // Save writes every packed tensor at path as SavePlanWeights does: the
@@ -237,8 +247,13 @@ func (p *TensorPack) GatherGradients(gradients map[string][]float32) error {
 		source, ok := gradients[group.Name]
 		if !ok {
 			clear(destination)
+			if p.absent == nil {
+				p.absent = map[string]bool{}
+			}
+			p.absent[group.Name] = true
 			continue
 		}
+		delete(p.absent, group.Name)
 		if len(source) != len(destination) {
 			return fmt.Errorf(
 				"optimizer tensor pack: %s gradient length %d, want %d",

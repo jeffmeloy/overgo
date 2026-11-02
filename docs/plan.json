@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 26,
-        "reason": "Estimate. A finite check, two state fields and a rate count in existing owners."
+        "nodes": 83,
+        "reason": "momentum-absent measures 317, a gather's record reaching the optimizer and both steppers on two platforms, where the row's estimate took a rate count and two state fields; rate-count is still estimated at about 80."
       },
       "steps": [
-        {
-          "id": "momentum-absent",
-          "title": "Skip parameters that received no gradient",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/hostoptimizer ./internal/optimizer -count=1 -run 'AbsentGradient'",
-          "rationale": "A zero gradient with live momentum still takes full-size steps for about 415 updates, because the direction is normalized (internal/hostoptimizer/optimizer.go:105-110), and an absent gradient becomes zero (internal/optimizer/tensor_pack.go:238-240). The reward path learned this (train_resident_cuda_windows.go:374-379).\nOnly the six GatherGradients callers can tell absent from zero; slab trainers cannot, and a present all-zero gradient still drifts. Stepper.Step has no group skip (stepper.go:5), so device steppers need a small API change. MOSS has no absent case: every projection needs a module (muon_step_cuda_windows.go:209).\nServes: frozen or unused parts stay still.\nDisappears: drift.\nEvidence: a group with no gradient keeps its weights on both paths.\nBatch: training lanes."
-        },
         {
           "id": "rate-count",
           "title": "Derive the rate from trained parameters and correct the README",

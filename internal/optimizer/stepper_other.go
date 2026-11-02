@@ -8,10 +8,16 @@ type hostStepper struct{ optimizer *Optimizer }
 
 // NewStepper binds flat storage to the shared host Muon implementation.
 func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper, error) {
+	return newStepper(weights, gradients, plan, config, func(Group) bool { return true })
+}
+
+// newStepper is NewStepper leaving alone a group received says took no gradient.
+func newStepper(weights, gradients []float32, plan Plan, config Config, received func(Group) bool) (Stepper, error) {
 	instance, err := New(weights, gradients, plan, config)
 	if err != nil {
 		return nil, err
 	}
+	instance.Receiving(received)
 	return &hostStepper{optimizer: instance}, nil
 }
 

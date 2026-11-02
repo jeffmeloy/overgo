@@ -278,6 +278,11 @@ func (s *ResidentMuonPlan) Close() error {
 
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
+	return deviceMuonStep(worker, weights, gradients, momentum, plan, step, config, func(Group) bool { return true })
+}
+
+// deviceMuonStep is DeviceMuonStepPlan over the groups received says took a gradient.
+func deviceMuonStep(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config, received func(Group) bool) error {
 	if worker == nil || plan.Identity() == "" || step <= 0 ||
 		len(weights) != plan.ParameterCount() || len(gradients) != len(weights) || len(momentum) != len(weights) {
 		return errors.New("device Muon step: invalid worker, plan, step, or storage")
@@ -301,7 +306,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 		dW, dG, dM := buffers[0], buffers[1], buffers[2]
 
 		for _, group := range plan.Groups() {
-			if group.Frozen {
+			if group.Frozen || !received(group) {
 				continue
 			}
 			if err := ops.muonMatrixGroupResident(

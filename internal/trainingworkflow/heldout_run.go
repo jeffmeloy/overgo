@@ -75,6 +75,8 @@ type HeldoutResult struct {
 	// Passed is a strict gain its cases support, which Gain reads either way.
 	Passed bool
 	Gain   evaluation.HeldoutGain
+	// Reads is how many trained candidates the held-out membership has answered, this one among them.
+	Reads uint64
 	// Skipped is the conversations a conversation run left out because the model's
 	// template or tokenizer cannot cut them into the stretches it learns, which the
 	// verdict was not judged on and the model was not trained on.
@@ -197,6 +199,10 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 	if run.Proof {
 		return HeldoutResult{Observation: observation, Trained: trained.ID()}, observer.Verify(ctx, recipeID, observation, trained.ID())
 	}
+	reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, trained.ID())
+	if err != nil {
+		return HeldoutResult{}, err
+	}
 	candidate, err := predictHeldout(plan, cases, run)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -207,6 +213,7 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 	if err != nil {
 		return HeldoutResult{}, err
 	}
+	result.Reads = reads
 	return result, observer.Verify(ctx, recipeID, observation, trained.ID(), result.Verdict)
 }
 

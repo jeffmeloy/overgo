@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -156,4 +157,75 @@ func recordedCheckpoint(t *testing.T, store *overgodb.Store, model, source, spli
 		t.Fatal(err)
 	}
 	return checkpoint
+}
+
+// TestAnObjectiveRunChargesExposureBeforeItReads: a trained candidate's read of the held-out records is on record before the
+// first record is handed over, each candidate is charged once, and a second candidate on the same set reads as the second.
+func TestAnObjectiveRunChargesExposureBeforeItReads(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	store, err := overgodb.Create(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	derived := derivedIdentity(t, "overgo/heldout-charge-test/")
+	source := derived(artifact.KindDataset, "dataset")
+	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)
+	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+		Name: "forecast-charge", Kind: trainingprogram.ObjectiveForecast,
+		Signature: recipecontract.ModalitySignature{
+			Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
+			Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
+		},
+		Dataset: source, Split: training.ID, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
+		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
+		Metric: trainingprogram.MetricForecastMAE, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
+		Authority: trainingprogram.ObjectiveDeclared,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const alias = "objective.registered.forecast-charge"
+	modelPath, modelID := registerObjective(t, ctx, store, root, objective, alias)
+	examples := map[string]HeldoutExample{}
+	for _, record := range slices.Concat(training.Records, heldout.Records) {
+		examples[record.ID] = HeldoutExample{Input: []float64{5, 5, 5}, Target: []float64{5, 5}}
+	}
+	level, trained := 0.0, false
+	candidate := func() trainingprogram.Checkpoint { return recordedCheckpoint(t, store, modelID, source, training.ID) }
+	var chargedAtRead []uint64
+	run := HeldoutRun{
+		Alias: alias, ModelPath: modelPath, Host: true,
+		Data: ObjectiveData{Examples: examples, Training: derived(artifact.KindProfile, "training stream"), Heldout: derived(artifact.KindProfile, "held-out stream")},
+		Train: func(context.Context, artifact.ID, []HeldoutExample) (trainingprogram.Checkpoint, error) {
+			level, trained = 5, true
+			return candidate(), nil
+		},
+		Predict: func(HeldoutExample) (HeldoutPrediction, error) {
+			if trained {
+				reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, derived(artifact.KindCheckpoint, "another candidate"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				chargedAtRead = append(chargedAtRead, reads)
+				trained = false
+			}
+			return HeldoutPrediction{Values: []float64{level, level}}, nil
+		},
+	}
+	result, err := RunHeldout(ctx, store, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The stand-in read charged its own candidate after the run's: two, so the run's came first.
+	if result.Reads != 1 || !slices.Equal(chargedAtRead, []uint64{2}) {
+		t.Fatalf("the run read as %d, and a candidate charged during its read as %v", result.Reads, chargedAtRead)
+	}
+	if reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, result.Trained); err != nil || reads != 2 {
+		t.Fatalf("the same candidate charged again = %d, %v; want no new charge", reads, err)
+	}
+	if reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, derived(artifact.KindCheckpoint, "a third candidate")); err != nil || reads != 3 {
+		t.Fatalf("a third candidate = %d, %v; want the third read of the set", reads, err)
+	}
 }

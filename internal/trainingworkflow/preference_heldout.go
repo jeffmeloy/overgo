@@ -66,6 +66,10 @@ func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, requ
 	if err != nil {
 		return HeldoutResult{}, false, err
 	}
+	reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, result.Checkpoint.ID())
+	if err != nil {
+		return HeldoutResult{}, false, err
+	}
 	var reports []evaluation.HeldoutReport
 	for _, policy := range []string{request.ModelDirectory, request.OutputDirectory} {
 		scores, err := scoreHeldout(policy, records.sequences)
@@ -85,6 +89,7 @@ func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, requ
 	verdict, err := publishHeldout(ctx, store, objective, view, records.plan, reports[0], reports[1], evaluation.HeldoutTraining{
 		Observation: result.Observation, Model: base, Trained: result.Checkpoint, Inputs: records.inputs,
 	})
+	verdict.Reads = reads
 	return verdict, err == nil, err
 }
 

@@ -35,6 +35,9 @@ const conversionDirectory = "overgo-hfconvert"
 // ggufExtension marks the one weights format the library validation serves.
 const ggufExtension = ".gguf"
 
+// shortBenchmarkPrompt is the prompt of a new model's short-prompt benchmark, the library validation's first.
+const shortBenchmarkPrompt = "The capital of France is"
+
 // onboarding is the one command's steps: registered names the models the
 // store already ties to a directory, run executes an existing command at the
 // repository root, validate is the library's own validation of a GGUF --
@@ -160,6 +163,9 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if err != nil {
 		return err
 	}
+	if err := steps.benchmark(ctx, output, model); err != nil {
+		return err
+	}
 	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model}, steps.store)
 	if err != nil {
 		return err
@@ -169,6 +175,15 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 		return fmt.Errorf("onboard: guard %s: %w", model, err)
 	}
 	fmt.Fprintf(output, "onboard: %s validated\n", directory)
+	return nil
+}
+
+// benchmark publishes the short-prompt reading the long-form guard bounds a model's rates by, which no other step writes.
+func (steps onboarding) benchmark(ctx context.Context, output io.Writer, model string) error {
+	fmt.Fprintf(output, "onboard: short-prompt benchmark of %s\n", model)
+	if err := steps.run(ctx, "go", []string{"run", "./cmd/benchmark", "-publish", "-repo", steps.store, model, shortBenchmarkPrompt}); err != nil {
+		return fmt.Errorf("onboard: benchmark %s: %w", model, err)
+	}
 	return nil
 }
 

@@ -43,6 +43,8 @@ type Entry struct {
 	// asked: one broken activation must not blind discovery to every healthy
 	// model.
 	Stale string
+	// Trained says a training run produced the model: it has its one measurement, and joins no denominator a person accepted.
+	Trained bool
 }
 
 // CatalogBound is the listing bound of a reader of the whole servable catalog: the catalog is read whole and never
@@ -109,6 +111,9 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 		entry := Entry{
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
 			Location: location, Present: present, State: state,
+		}
+		if entry.Trained, err = modelrecipe.IsTrained(ctx, store, manifest.ID, recipe.TaskInference); err != nil {
+			return nil, err
 		}
 		// A measurement holds to the policy its recipe binds, so the listing
 		// reports a recipe without one stale exactly as the capability catalog

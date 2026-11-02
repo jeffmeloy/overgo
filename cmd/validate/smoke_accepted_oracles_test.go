@@ -146,7 +146,11 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !active {
+			trained, err := modelrecipe.IsTrained(t.Context(), store, manifest.ID, recipe.TaskInference)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !active || trained {
 				continue
 			}
 			// An explicit external fixture store can acquire unrelated models

@@ -25,6 +25,12 @@ func MarkMeasured(ctx context.Context, store artifact.Repository, model artifact
 	return mark(ctx, store, measuredAliasPrefix, model, task, recipeID)
 }
 
+// IsTrained says a training run produced model for task.
+func IsTrained(ctx context.Context, store artifact.Reader, model artifact.ID, task recipe.Task) (bool, error) {
+	_, marked, err := artifact.ResolveAlias(ctx, store, trainedAliasPrefix+string(task)+"."+model.String())
+	return marked, err
+}
+
 // mark binds one mark of model to recipeID. A mark already bound to it is no change, which a retried run reaches.
 func mark(ctx context.Context, store artifact.Repository, prefix string, model artifact.ID, task recipe.Task, recipeID artifact.ID) error {
 	name := prefix + string(task) + "." + model.String()

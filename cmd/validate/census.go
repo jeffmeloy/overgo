@@ -49,16 +49,21 @@ type censusCapability struct {
 	Stale  string
 }
 
+// censusModels is what a census fixes: the models a person accepted, which a trained model, listed by its training, is not.
 func censusModels(entries []discovery.CatalogEntry) []censusModel {
-	result := make([]censusModel, len(entries))
-	for i, entry := range entries {
-		result[i] = censusModel{Model: entry.Model, Location: entry.Location, Present: entry.Present, KeyEnvironment: new(entry.KeyEnvironment)}
+	result := make([]censusModel, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Trained {
+			continue
+		}
+		model := censusModel{Model: entry.Model, Location: entry.Location, Present: entry.Present, KeyEnvironment: new(entry.KeyEnvironment)}
 		if entry.Capabilities != nil {
-			result[i].Capabilities = make([]censusCapability, len(entry.Capabilities))
+			model.Capabilities = make([]censusCapability, len(entry.Capabilities))
 			for j, capability := range entry.Capabilities {
-				result[i].Capabilities[j] = censusCapability(capability)
+				model.Capabilities[j] = censusCapability(capability)
 			}
 		}
+		result = append(result, model)
 	}
 	return result
 }

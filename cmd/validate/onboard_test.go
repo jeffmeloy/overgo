@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
@@ -107,6 +108,7 @@ func TestOnboardingAQwen35DirectoryWritesNoGGUF(t *testing.T) {
 	}
 	want := []string{
 		"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
+		"go run ./cmd/benchmark -publish -repo STORE " + directory + " " + shortBenchmarkPrompt,
 		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
 	}
 	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) || !slices.Equal(fixture.retired, []artifact.ID{conversion}) {
@@ -188,6 +190,7 @@ func TestTextModelsOnboardFromTheirSafetensors(t *testing.T) {
 		}
 		want := []string{
 			"go run ./cmd/model-config -source " + directory + " -repo STORE " + directory,
+			"go run ./cmd/benchmark -publish -repo STORE " + directory + " " + shortBenchmarkPrompt,
 			"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + directory,
 		}
 		if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{directory + "|"}) {
@@ -223,6 +226,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 	converted := fixture.converted
 	want := []string{
 		"go run ./cmd/gguf convert -source " + directory + " -output " + converted + " -record STORE",
+		"go run ./cmd/benchmark -publish -repo STORE " + converted + " " + shortBenchmarkPrompt,
 		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + converted,
 	}
 	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{converted + "|"}) {
@@ -294,4 +298,38 @@ func TestOnboardingReusesOnlyTheSameSourcesConversion(t *testing.T) {
 
 	fixture.tied[first] = nil
 	refusedBeforeAnyStep("a partial output nothing ties", fixture.onboard(t, first))
+}
+
+// TestATrainedModelHasItsBenchmarkBeforeItsGuard: the guard bounds a model's rates by a short-prompt benchmark, so a trained
+// model gets one, admitted now or by a run that stopped at its guard. One admitted already is not validated again.
+func TestATrainedModelHasItsBenchmarkBeforeItsGuard(t *testing.T) {
+	t.Parallel()
+	fixture := newOnboardingFixture(t)
+	fresh := huggingFaceDirectory(t, `{"model_type":"qwen3_5"}`)
+	admitted := huggingFaceDirectory(t, `{"model_type":"qwen3_5"}`)
+	fixture.steps.ready(t.Context(), io.Discard, []trainedModel{{path: fresh}, {path: admitted, admitted: true}})
+	want := []string{
+		"go run ./cmd/model-config -source " + fresh + " -repo STORE " + fresh,
+		"go run ./cmd/benchmark -publish -repo STORE " + fresh + " " + shortBenchmarkPrompt,
+		"go run ./cmd/benchmark -publish -repo STORE " + admitted + " " + shortBenchmarkPrompt,
+	}
+	if !slices.Equal(fixture.ran, want) || !slices.Equal(fixture.validated, []string{fresh + "|"}) {
+		t.Fatalf("readying ran %q and validated %q, want %q and the fresh model alone", fixture.ran, fixture.validated, want)
+	}
+}
+
+// TestATrainedModelOwesNoAcceptedDenominator: the census and the smoke declarations fix what a person accepted, and a model
+// training made joins neither, so the first trained model refuses no census and no smoke run.
+func TestATrainedModelOwesNoAcceptedDenominator(t *testing.T) {
+	t.Parallel()
+	bought := testutil.ArtifactID(t, artifact.KindModel, "bought")
+	trained := testutil.ArtifactID(t, artifact.KindModel, "trained")
+	census := censusModels([]discovery.CatalogEntry{{Model: bought}, {Model: trained, Trained: true}})
+	if len(census) != 1 || census[0].Model != bought {
+		t.Fatalf("the census holds %+v, want the bought model alone", census)
+	}
+	entries := declaredEntries([]discovery.Entry{{Model: bought}, {Model: trained, Trained: true}})
+	if len(entries) != 1 || entries[0].Model != bought {
+		t.Fatalf("the smoke run answers for %+v, want the bought model alone", entries)
+	}
 }

@@ -83,7 +83,7 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	}
 	covered := 0
 	for _, entry := range entries {
-		if !entry.Present || entry.Stale != "" || entry.Location == "" {
+		if !entry.Present || entry.Stale != "" || entry.Location == "" || entry.Trained {
 			continue
 		}
 		protocols := map[string]bool{}

@@ -59,6 +59,9 @@ func runSmoke(ctx context.Context, output io.Writer, repository string, budget t
 	if err != nil {
 		return errors.Join(err, reader.Close())
 	}
+	if model == "" {
+		entries = declaredEntries(entries)
+	}
 	if len(entries) == 0 {
 		return errors.Join(runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models"), reader.Close())
 	}

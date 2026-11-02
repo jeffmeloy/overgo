@@ -15,11 +15,18 @@ import (
 	"overgo/internal/recipe"
 )
 
-// admitTrained onboards each trained model no activation names yet, so its cells can run. A trained model is listed from
-// the moment its training ends whether this works or not; one that cannot be admitted here, on a tree with changes or
-// with no device, is named and taken up by the next run.
+// trainedModel is a trained model still to be measured: its GGUF, or the directory the view serves, and whether an
+// activation names it already, from a run that stopped before its measurement ended.
+type trainedModel struct {
+	path     string
+	admitted bool
+}
+
+// admitTrained readies each trained model still to be measured, so its cells can run. A trained model is listed from the
+// moment its training ends whether this works or not; one that cannot be readied here, on a tree with changes or with no
+// device, is named and taken up by the next run.
 func admitTrained(ctx context.Context, output io.Writer, root, repository string) error {
-	paths, err := unadmittedTrained(ctx, repository)
+	models, err := unmeasuredTrained(ctx, repository)
 	if err != nil {
 		return err
 	}
@@ -27,16 +34,29 @@ func admitTrained(ctx context.Context, output io.Writer, root, repository string
 	if err != nil {
 		return err
 	}
-	for _, path := range paths {
-		if _, err := steps.admit(ctx, output, path); err != nil {
-			fmt.Fprintf(output, "validate: trained model %s is not measured yet, and the next run takes it up: %v\n", path, err)
-		}
-	}
+	steps.ready(ctx, output, models)
 	return nil
 }
 
-// unadmittedTrained is where each trained model no activation names is: its GGUF, or the directory the view serves.
-func unadmittedTrained(ctx context.Context, repository string) (paths []string, err error) {
+// ready onboards the models no activation names, and gives each model the benchmark its guard needs. One admitted already
+// is not validated again, which would record its goldens over.
+func (steps onboarding) ready(ctx context.Context, output io.Writer, models []trainedModel) {
+	for _, model := range models {
+		var err error
+		if !model.admitted {
+			_, err = steps.admit(ctx, output, model.path)
+		}
+		if err == nil {
+			err = steps.benchmark(ctx, output, model.path)
+		}
+		if err != nil {
+			fmt.Fprintf(output, "validate: trained model %s is not measured yet, and the next run takes it up: %v\n", model.path, err)
+		}
+	}
+}
+
+// unmeasuredTrained is each trained model present and still to be measured.
+func unmeasuredTrained(ctx context.Context, repository string) (models []trainedModel, err error) {
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, err
@@ -50,16 +70,16 @@ func unadmittedTrained(ctx context.Context, repository string) (paths []string, 
 		return nil, fmt.Errorf("validate: registered catalog exceeds listing bound %d; raise the bound", catalogLimit)
 	}
 	for _, entry := range entries {
-		if !entry.Trained || entry.Measured || !entry.Present || len(entry.Capabilities) != 0 {
+		if !entry.Trained || entry.Measured || !entry.Present {
 			continue
 		}
 		path := entry.Location
 		if directory := filepath.Dir(path); hfconvert.Viewed(directory) {
 			path = directory
 		}
-		paths = append(paths, path)
+		models = append(models, trainedModel{path: path, admitted: len(entry.Capabilities) != 0})
 	}
-	return paths, nil
+	return models, nil
 }
 
 // measuredCells keeps the trained models whose every owed cell was acquired by this run, each with the task and recipe its

@@ -60,6 +60,11 @@ func readSmokeOracles(path string, entries []discovery.Entry, selected string) (
 	return bindSmokeOracles(declarations, entries)
 }
 
+// declaredEntries is the catalog the declarations answer for: a trained model has its one measurement and no declaration.
+func declaredEntries(entries []discovery.Entry) []discovery.Entry {
+	return slices.DeleteFunc(entries, func(entry discovery.Entry) bool { return entry.Trained })
+}
+
 func bindSmokeOracles(declarations []smokeOracle, entries []discovery.Entry) (map[artifact.ID]smokeOracle, error) {
 	if len(declarations) != len(entries) || len(entries) == 0 {
 		return nil, errors.New("smoke: declaration denominator differs from live inference catalog")

@@ -293,8 +293,8 @@ func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expect
 		return errors.New("coverage: required denominator absent")
 	}
 	for _, entry := range live {
-		if len(entry.Capabilities) == 0 {
-			continue // An inactive registration grants no credit and invalidates none.
+		if len(entry.Capabilities) == 0 || entry.Trained {
+			continue // An inactive registration grants no credit and invalidates none, and a trained model was never accepted.
 		}
 		declared, _, err := modelartifact.EvalDomains(ctx, store, entry.Model)
 		if err != nil {

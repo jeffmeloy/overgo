@@ -45,7 +45,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if err != nil {
 		return nil, fmt.Errorf("inference: read model state: %w", err)
 	}
-	file, path, spec, weights, program, evidenceTier, claims, err := loaded.Take()
+	file, path, spec, weights, program, claims, err := loaded.Take()
 	if err != nil {
 		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
@@ -230,7 +230,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}
 	}
 	runner := &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, evidenceTier: evidenceTier, modelState: modelState,
+		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, modelState: modelState,
 		realizedResidency: realized,
 		weights:           weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,

@@ -27,7 +27,7 @@ func TestSharedKVFixtureResolvesCapacitySession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s session: %v", session, err)
 		}
-		file, _, _, _, plan, _, _, err := loaded.Take()
+		file, _, _, _, plan, _, err := loaded.Take()
 		if err != nil {
 			t.Fatal(err)
 		}

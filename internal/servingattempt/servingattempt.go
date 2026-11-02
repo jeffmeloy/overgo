@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/finding"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -101,6 +102,10 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 func Record(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
 	if run, err := runrecord.RequireRun(ctx, store, observation.Run); err == nil && run.Environment.Valid() {
 		observation.Environment = run.Environment
+	}
+	// A store that cannot say leaves the attempt without a state: a record of what ran stands without one.
+	if _, state, err := modelrecipe.ReadModelState(ctx, store, observation.Model, observation.Task); err == nil {
+		observation.Verification = string(state.Verification)
 	}
 	published, err := runrecord.PublishServingObservation(ctx, store, observation)
 	if err != nil || published.Outcome != runrecord.OutcomeFailed {

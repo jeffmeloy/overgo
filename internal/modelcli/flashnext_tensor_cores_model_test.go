@@ -36,7 +36,7 @@ func TestFlashNextServesPromptTensorCores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file, _, spec, _, _, _, _, err := loaded.Take()
+	file, _, spec, _, _, _, err := loaded.Take()
 	if err != nil {
 		t.Fatal(err)
 	}

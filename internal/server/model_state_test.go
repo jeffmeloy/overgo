@@ -6,8 +6,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 // statedGenerator is a generator whose model the store records as state says.
@@ -76,5 +79,38 @@ func TestAResponseFromAnUnstatedGeneratorSaysNothing(t *testing.T) {
 		`{"model":"test-model","messages":[{"role":"user","content":"hi"}],"max_tokens":2,"temperature":0}`)))
 	if response.Header().Get(modelVerificationHeader) != "" || strings.Contains(response.Body.String(), "verification") {
 		t.Fatalf("header %q, body %s", response.Header().Get(modelVerificationHeader), response.Body.String())
+	}
+}
+
+// TestAnAttemptCarriesItsModelsState: the record of an attempt says what the store held of its model when it ended, so a
+// recipe activated later does not verify it; a record from before the field keeps its identity.
+func TestAnAttemptCarriesItsModelsState(t *testing.T) {
+	t.Parallel()
+	handler, store := servingStreamFixture(t, 1)
+	model, recipeID, ok := handler.servingIdentity(recipe.TaskInference)
+	if !ok {
+		t.Fatal("the fixture serves no identity")
+	}
+	id := handler.publishServing(t.Context(), runrecord.ServingObservation{
+		Model: model, Recipe: recipeID, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded,
+		StartedUnixNS: time.Now().UnixNano(), MeasuredNS: uint64(time.Millisecond),
+	})
+	if !id.Valid() {
+		t.Fatalf("the attempt did not record: %d failures", handler.observationErrors.Load())
+	}
+	observation, err := runrecord.RequireServingObservation(t.Context(), store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.Verification != string(modelrecipe.StateNotVerified) {
+		t.Fatalf("attempt on a model nothing verified reads %q", observation.Verification)
+	}
+	observation.Verification = ""
+	content, err := json.Marshal(observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "verification") {
+		t.Fatalf("a record with no state changed its bytes: %s", content)
 	}
 }

@@ -53,9 +53,9 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		_ = runner.Close()
 		t.Fatal("Qwen3.5 layer program lacks dense/recurrent coverage")
 	}
-	if runner.EvidenceTier() != recipe.EvidenceVerified {
+	if state := runner.ModelState(); state.Verification == modelrecipe.StateNotVerified || state.Verification == modelrecipe.StateBroken {
 		_ = runner.Close()
-		t.Fatalf("Qwen3.5 evidence tier = %q", runner.EvidenceTier())
+		t.Fatalf("Qwen3.5 state = %+v", state)
 	}
 	if err := runner.Close(); err != nil {
 		t.Fatal(err)

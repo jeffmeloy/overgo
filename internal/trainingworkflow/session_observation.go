@@ -268,6 +268,9 @@ func (o *Observer) finish(
 	if store, typed := o.store.(*overgodb.Store); typed && o.bracketing {
 		post = captureBracketSlice(ctx, store, model, recipeID)
 	}
+	if _, state, err := modelrecipe.ReadModelState(ctx, o.store, model, observation.Task); err == nil {
+		observation.Verification = string(state.Verification)
+	}
 	if len(result.router) == 0 {
 		published, err = runrecord.PublishServingObservation(ctx, o.store, observation)
 	} else {

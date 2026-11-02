@@ -48,7 +48,7 @@ func TestDenseModelsServePromptTensorCores(t *testing.T) {
 			t.Errorf("%s: %v", served, err)
 			continue
 		}
-		file, _, spec, _, _, _, _, err := loaded.Take()
+		file, _, spec, _, _, _, err := loaded.Take()
 		if err != nil {
 			t.Errorf("%s: %v", served, err)
 			continue

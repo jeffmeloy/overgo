@@ -190,7 +190,6 @@ type preparedModel struct {
 	program             modelrecipe.Plan
 	runtimePolicy       modelrecipe.RuntimePolicy
 	realizedResidency   recipe.RealizedResidency
-	evidenceTier        recipe.EvidenceTier
 	modelState          modelrecipe.ModelState
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
@@ -372,14 +371,6 @@ func (r *Runner) ModelState() modelrecipe.ModelState {
 		return modelrecipe.ModelState{}
 	}
 	return r.modelState
-}
-
-// EvidenceTier reports the grade of the evidence the runner's recipe was activated on.
-func (r *Runner) EvidenceTier() recipe.EvidenceTier {
-	if r == nil {
-		return ""
-	}
-	return r.evidenceTier
 }
 
 // ModelID: exact model artifact bound by the active inference recipe.

@@ -74,12 +74,12 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		identity.Runtime != RuntimeInference {
 		t.Fatalf("program identity = %+v", identity)
 	}
-	file, _, _, _, _, _, claims, err := loaded.Take()
+	file, _, _, _, _, claims, err := loaded.Take()
 	if err != nil || len(claims) != 0 {
 		t.Fatal(claims, err)
 	}
 	defer file.Close()
-	if _, _, _, _, _, _, _, err := loaded.Take(); err == nil {
+	if _, _, _, _, _, _, err := loaded.Take(); err == nil {
 		t.Fatal("loaded program consumed twice")
 	}
 }
@@ -108,7 +108,7 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 		len(loaded.state.Claims) != 1 || loaded.state.Claims[0] != inventory.Components[0].ID {
 		t.Fatalf("claimed program = %+v, claims %v", loaded.state.Program.Identity, loaded.state.Claims)
 	}
-	file, _, _, _, _, _, claims, err := loaded.Take()
+	file, _, _, _, _, claims, err := loaded.Take()
 	if err != nil || len(claims) != 1 || claims[0] != inventory.Components[0].ID {
 		t.Fatalf("Take = claims %v, %v", claims, err)
 	}
@@ -138,7 +138,7 @@ func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
 	if len(hashed.state.Claims) != 0 {
 		t.Fatalf("an unclaimed program carries claims %v", hashed.state.Claims)
 	}
-	kept, _, _, _, _, _, _, err := hashed.Take()
+	kept, _, _, _, _, _, err := hashed.Take()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +159,8 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	}
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Recipe != definition.ID ||
-		loaded.state.EvidenceTier != recipe.EvidenceVerified || len(loaded.state.Claims) != 0 {
-		t.Fatalf("candidate program = %+v tier=%s claims %v", loaded.state.Program.Identity, loaded.state.EvidenceTier, loaded.state.Claims)
+		loaded.state.State.Verification != StateNotVerified || len(loaded.state.Claims) != 0 {
+		t.Fatalf("candidate program = %+v state=%+v claims %v", loaded.state.Program.Identity, loaded.state.State, loaded.state.Claims)
 	}
 	// The candidate's own inventory claims its shard: the program carries the
 	// claim for the open to prove.

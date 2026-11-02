@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 711,
+        "nodes": 710,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "record-state",
-          "title": "Carry a model's state on every record of its run",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAnAttemptCarriesItsModelsState$'",
-          "rationale": "Runner.ModelState() reaches stderr alone (internal/modelcli/model.go:207). The evidence tier catalog-states names is in no response or record: Runner.EvidenceTier() has only a test consumer. Add an omitzero state to ServingObservation so old identities hold, and set it from the server, cmd/evaluate's campaign and cmd/benchmark. A derived recipe is the same artifact as the default candidate (reproduced), so every record keyed by recipe cannot otherwise tell an unverified run from a verified one.\nServes: every cell, which can then say what it measured.\nDisappears: Runner.EvidenceTier.\nEvidence: its test.\nBatch: serving lane, with catalog-states."
-        },
         {
           "id": "training-opens",
           "title": "Open training on a derived recipe and record the state on its run",
@@ -197,7 +190,7 @@
           "title": "Label a scorecard reading from a model that is not verified",
           "status": "open",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestAReadingFromAnUnverifiedModelSaysSo$'",
-          "rationale": "A model nothing verified has no row, so the reading this step first named does not exist there (internal/scorecard/scorecard.go:311-317, reproduced). Two routes carry an unverified reading into a verified row, both reproduced: an attempt made while a candidate becomes that row's first output once the recipe activates, since serving is keyed by recipe (:370,803), and a row whose activation is stale, which Build never reads. Held-out readings take the same path: results land in EvaluationsByRecipe (:375), and a verdict's base reading is credited to every served recipe of the model (:1092-1094).\nRead the state from record-state, keep an attempt out of a verified row's cells unless it was verified when it ran, and show capability.Stale on the row. Whether never-verified models get rows is catalog-states'.\nServes: the scorecard stays truthful about what was measured.\nDisappears: nothing.\nEvidence: the three cases as a table.\nBatch: scorecard lane."
+          "rationale": "A model nothing verified has no row, so the reading this step first named does not exist there (internal/scorecard/scorecard.go:311-317, reproduced). Two routes carry an unverified reading into a verified row, both reproduced: an attempt made while a candidate becomes that row's first output once the recipe activates, since serving is keyed by recipe (:370,803), and a row whose activation is stale, which Build never reads. Held-out readings take the same path: results land in EvaluationsByRecipe (:375), and a verdict's base reading is credited to every served recipe of the model (:1092-1094).\nRead the state from record-state, keep an attempt out of a verified row's cells unless it was verified when it ran, and show capability.Stale on the row. Whether never-verified models get rows is catalog-states'.\nServes: the scorecard stays truthful about what was measured.\nDisappears: nothing.\nEvidence: the three cases as a table.\nBatch: scorecard lane.\n\nMind the proof itself: a verification's own attempts run before activation, so record-state stamps them not verified, and they are what peak memory and first output read. Excluding every attempt that was not verified when it ran would empty those cells. An attempt whose run is the activation's evidence stays in."
         },
         {
           "id": "do",

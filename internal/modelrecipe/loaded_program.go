@@ -20,16 +20,15 @@ type LoadedProgram struct {
 }
 
 type loadedProgramState struct {
-	File         *gguf.File
-	Path         string
-	Spec         model.Spec
-	Weights      model.Weights
-	Inventory    modelartifact.Inventory
-	EvidenceTier recipe.EvidenceTier
-	State        ModelState
-	Derived      *Derivation
-	Program      Plan
-	Policy       RuntimePolicy
+	File      *gguf.File
+	Path      string
+	Spec      model.Spec
+	Weights   model.Weights
+	Inventory modelartifact.Inventory
+	State     ModelState
+	Derived   *Derivation
+	Program   Plan
+	Policy    RuntimePolicy
 	// Claims are shard identities taken on trust from a claimer: the bytes
 	// have not been hashed, and the program may not serve before they are
 	// proved. Empty when every shard was hashed.
@@ -93,7 +92,6 @@ func ResolveClaimedGGUF(
 // for the reads a failure of which must not pass for a missing record; the declared sampling reads store's typed views.
 func (l *LoadedProgram) bindActivation(ctx context.Context, store, reads artifact.Reader, activation Activation) error {
 	definition := activation.Definition
-	l.state.EvidenceTier = activation.Tier
 	policy, err := ResolveRuntimePolicy(ctx, reads, definition)
 	if err != nil {
 		return err
@@ -179,7 +177,6 @@ func ResolveCandidateGGUF(
 		resolved.Tensors.ID != loaded.state.Inventory.TensorInventory.ID {
 		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
 	}
-	loaded.state.EvidenceTier = recipe.EvidenceVerified
 	loaded.state.State = ModelState{Verification: StateNotVerified, Reason: "a candidate under verification"}
 	policy, found, err := CatalogRuntimePolicy(definition.Task)
 	if err != nil {
@@ -284,15 +281,15 @@ func (l *LoadedProgram) bindResolved(
 // shard was hashed. The taker must prove each before serving, and refuse with
 // artifact.ErrContentMismatch when a shard carries another identity.
 func (l *LoadedProgram) Take() (
-	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, []artifact.ID, error,
+	*gguf.File, string, model.Spec, model.Weights, Plan, []artifact.ID, error,
 ) {
 	if l == nil || l.state == nil || l.state.File == nil {
-		return nil, "", model.Spec{}, model.Weights{}, Plan{}, "", nil,
+		return nil, "", model.Spec{}, model.Weights{}, Plan{}, nil,
 			errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	state := l.state
 	l.state = nil
-	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.EvidenceTier, state.Claims, nil
+	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.Claims, nil
 }
 
 // Close releases untransferred GGUF ownership.

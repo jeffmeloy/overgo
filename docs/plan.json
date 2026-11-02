@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "ordered-distances",
-          "title": "Reject unordered distances in the numerical parity tests",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestResidentImagePipelineRetainsTextAndLatentOnDevice$'",
-          "rationale": "SQA-232: the seven named comparisons accept only ordered distances within their bounds.\nServes: a NaN distance can no longer pass.\nDisappears: nothing.\nEvidence: the retained tests.\nBatch: device lanes."
-        },
-        {
           "id": "qsa-bound",
           "title": "Keep an attention bound when the QSA boundary is close",
           "status": "open",

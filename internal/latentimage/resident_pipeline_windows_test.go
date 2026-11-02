@@ -104,7 +104,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	const deviceTolerance = 5e-3
 	for index, value := range got {
 		want := initial[index] + fixtureDelta*velocity.Velocity[index]
-		if delta := math.Abs(float64(value - want)); delta > deviceTolerance {
+		if delta := math.Abs(float64(value - want)); !(delta <= deviceTolerance) {
 			t.Fatalf("latent[%d] = %g, want %g (delta %g)", index, value, want, delta)
 		}
 	}
@@ -128,7 +128,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	for position := range plane {
 		for channel := range vaeDecoder.OutChannels {
 			gotIndex, wantIndex := position*vaeDecoder.OutChannels+channel, channel*plane+position
-			if delta := math.Abs(float64(pixels[gotIndex] - wantPixels[wantIndex])); delta > vaeTolerance {
+			if delta := math.Abs(float64(pixels[gotIndex] - wantPixels[wantIndex])); !(delta <= vaeTolerance) {
 				t.Fatalf("pixel[%d,%d] = %g, want %g (delta %g)", position, channel, pixels[gotIndex], wantPixels[wantIndex], delta)
 			}
 		}

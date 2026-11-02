@@ -94,7 +94,7 @@ func TestQwen35CellsMatchF32Decoding(t *testing.T) {
 		for index := range reference {
 			difference = max(difference, math.Abs(float64(got[index]-reference[index])))
 		}
-		if difference > 0.02*spread {
+		if !(difference <= 0.02*spread) {
 			t.Fatalf("step %d: the cells' logits stand %.3g from the F32 cache's, past 2%% of their spread %.3g", step, difference, spread)
 		}
 	}

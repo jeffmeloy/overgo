@@ -76,7 +76,7 @@ func TestKQuantSpansReadEachWeightOnce(t *testing.T) {
 				if columns <= q8InputSpanColumns && !slices.Equal(row, want) {
 					t.Fatalf("%s: column %d of a %d-column product is not the native MMVQ's column alone", storage, column, columns)
 				}
-				if d := strataRelativeL1(float32To64(row), float32To64(want)); d > bound {
+				if d := strataRelativeL1(float32To64(row), float32To64(want)); !(d <= bound) {
 					t.Fatalf("%s: column %d of a %d-column product is %.3g from the native product", storage, column, columns, d)
 				}
 			}

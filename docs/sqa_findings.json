@@ -835,7 +835,6 @@
       },
       "likely_effort": "Store prerequisite implemented; remaining configured start and ownership/continuation wiring use current plan owners and remain unpriced.",
       "plan_references": [
-        "sqa-cycle/run-continuation",
         "unattended-driver/first-start",
         "unattended-driver/ownership-wait"
       ],
@@ -883,9 +882,7 @@
         "uncertainty": "Retained implementation result, no SQA reproduction. A passing8192 ladder is not a universal geometry/capacity bound; near-limit9/10 rounding and reclaimable versus borrowed bytes retain their actual contracts."
       },
       "likely_effort": "Bounded existing-producer comparison first; runtime redesign cost unpriced.",
-      "plan_references": [
-        "sqa-cycle/guard-readiness"
-      ],
+      "plan_references": [],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: sqa-cycle/guard-readiness. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
         "Identify the exact guard setup operation refusing capacity and retain its error before unrelated long work without implying catalog preflight exercised it.",
@@ -1069,7 +1066,7 @@
       },
       "likely_effort": "Adopted bounded run-end record and existing hook/launch integration; no parallel monitoring subsystem.",
       "plan_references": [
-        "sqa-cycle/run-continuation"
+        "unattended-driver/ownership-wait"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: sqa-cycle/run-continuation. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -6354,6 +6351,29 @@
         "plan_steps": [
           "sqa-cycle/commit-queue"
         ]
+      },
+      {
+        "comment": "Declined at sqa-cycle/guard-readiness, with the step retired. Read the producer: options.corpusText is read at parse and listTargets resolves the catalog, both before clioptions.Ready. What is left of the finding's first three criteria is load and fit, which only an open runner can answer, and the finding forbids a second all-model pass or duplicate loads. If a guard failure recurs the question reopens with evidence of its cost.",
+        "disposition": "declined",
+        "evidence": [
+          "cmd/longform/main.go run",
+          "8e911e1eb"
+        ],
+        "finding_id": "SQA-268",
+        "plan_steps": [
+          "sqa-cycle/guard-readiness"
+        ]
+      },
+      {
+        "comment": "Landed with sqa-tests/ordered-distances. A mechanical rewrite of the comparisons the finding names, at the GDN, attention, Qwen cell, picture, nine-column K-quant, batched K/V and resident pipeline owners. Bands, the exact 1 to 8 K-quant checks and the conditions are as they were; the batched K/V keeps its zero-norm refusal through norm > 0.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestResidentImagePipelineRetainsTextAndLatentOnDevice"
+        ],
+        "finding_id": "SQA-232",
+        "plan_steps": [
+          "sqa-tests/ordered-distances"
+        ]
       }
     ],
     "experiments": {
@@ -6400,7 +6420,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "34db99153fb5973789b06f2ecfc63082b3e2b168",
+    "head": "69e6a95d4e98ffb8a141e981bb827c912f1fd966",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6622,23 +6642,22 @@
       "SQA-258": {
         "action": "filed",
         "rows": [
-          "sqa-cycle/run-continuation"
+          "unattended-driver/ownership-wait"
         ],
-        "note": "One step with 271. The answer to decision driver-future changes where this lands: a repaired driver owns continuation, so this step waits for that answer before it builds."
+        "note": "Moved with sqa-cycle/run-continuation to the owner SQA-271 names: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success. It waits on the driver-future decision."
       },
       "SQA-271": {
         "action": "filed",
         "rows": [
-          "sqa-cycle/run-continuation"
+          "unattended-driver/first-start",
+          "unattended-driver/ownership-wait"
         ],
-        "note": "One step with 258; see decision driver-future."
+        "note": "Read again: its prerequisite store-root landed at 31fd13011 and explicit-create at c4af5a1b6. The rest belongs to the unattended-driver row, as this finding says, and waits on the driver-future decision."
       },
       "SQA-268": {
-        "action": "filed",
-        "rows": [
-          "sqa-cycle/guard-readiness"
-        ],
-        "note": "Partly closed by 8e911e1eb: Flash-Next now climbs to 8192 and passes. What remains is exposing readiness before a run starts."
+        "action": "declined",
+        "rows": [],
+        "note": "Lead's judgement: no change. The corpus and the catalog are already read before Ready, so the only readiness left needs a model load, and a load per guard cell in the preflight is the second all-model workload this finding refuses. The fit it asked about was repaired in 8e911e1eb and passes at the required 2048 rung. A guard that breaks again is reported by its cell, with partial results kept."
       },
       "SQA-266": {
         "action": "existing-row",
@@ -6648,11 +6667,11 @@
         "note": "Was advisory with no row. The static review's run-wall step asks the same and measures first, so it owns this now, including the finding's caution that a removed paired test needs its requirement named."
       },
       "SQA-232": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-tests/ordered-distances"
         ],
-        "note": "Accepted: test-only but it can credit a NaN distance, and the resident pipeline sample has no later validator."
+        "note": "Landed. The named comparisons accept only an ordered distance inside its bound, so a NaN fails where it used to pass. Arithmetic and inclusive finite limits are unchanged. Awaits the reviewer's closure."
       },
       "SQA-229": {
         "action": "filed",

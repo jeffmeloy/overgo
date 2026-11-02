@@ -230,7 +230,7 @@ func TestDrafterPromptKVBatchedAsItsRows(t *testing.T) {
 				difference += math.Pow(float64(got[index]-want[index]), 2)
 				norm += math.Pow(float64(want[index]), 2)
 			}
-			if norm == 0 || math.Sqrt(difference/norm) > strataBatchedTolerance {
+			if !(norm > 0 && math.Sqrt(difference/norm) <= strataBatchedTolerance) {
 				t.Fatalf("cell %d head %d: the batched %s row parts from the six-row pass's by %.4f of it (norm %.3g), want at most %.2f",
 					row/int(heads), row%int(heads), kind, math.Sqrt(difference/math.Max(norm, math.SmallestNonzeroFloat64)), math.Sqrt(norm),
 					strataBatchedTolerance)

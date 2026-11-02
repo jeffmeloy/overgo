@@ -143,19 +143,19 @@ func TestStrataGatedDeltaWindowParity(t *testing.T) {
 			}
 		}
 		// The double-precision transcriptions and the rival readings.
-		if d := distance(convRows, gdnConvTranscription(history0, w.qkv, weights, keyHeads, epsilon, tokens, false, false)); d > bound {
+		if d := distance(convRows, gdnConvTranscription(history0, w.qkv, weights, keyHeads, epsilon, tokens, false, false)); !(d <= bound) {
 			t.Fatalf("T=%d: the conv is %.3g from the transcription", tokens, d)
 		}
 		wantState, wantOutputs := gdnTranscription(state0, w.rows, w.gate, w.beta, w.z, gamma, keyHeads, valueHeads, epsilon, tokens, true, true)
-		if d := distance(outputs, wantOutputs); d > bound {
+		if d := distance(outputs, wantOutputs); !(d <= bound) {
 			t.Fatalf("T=%d: the outputs are %.3g from the transcription", tokens, d)
 		}
-		if d := distance(states[tokens], wantState); d > bound {
+		if d := distance(states[tokens], wantState); !(d <= bound) {
 			t.Fatalf("T=%d: the state is %.3g from the transcription", tokens, d)
 		}
 		for name, reading := range map[string][2]bool{"interleaved heads": {false, true}, "the decay after the update": {true, false}} {
 			rivalState, _ := gdnTranscription(state0, w.rows, w.gate, w.beta, w.z, gamma, keyHeads, valueHeads, epsilon, tokens, reading[0], reading[1])
-			if d := distance(states[tokens], rivalState); d < rival {
+			if d := distance(states[tokens], rivalState); !(d >= rival) {
 				t.Fatalf("T=%d: the rival reading %q is %.3g from the kernels' state, not observable", tokens, name, d)
 			}
 		}
@@ -172,11 +172,11 @@ func TestStrataGatedDeltaWindowParity(t *testing.T) {
 	tinyWindow := upload(window{qkv: tiny, rows: tiny, gate: make([]float32, valueHeads), beta: make([]float32, valueHeads), z: make([]float32, valueWords)}, 1)
 	conv(buffers.upload(t, float32Bytes(tinyHistory)), tinyWindow, 1, false)
 	got := read(tinyWindow.rows, channels)
-	if d := distance(got, gdnConvTranscription(tinyHistory, tiny, weights, keyHeads, epsilon, 1, false, false)); d > bound {
+	if d := distance(got, gdnConvTranscription(tinyHistory, tiny, weights, keyHeads, epsilon, 1, false, false)); !(d <= bound) {
 		t.Fatalf("the conv is %.3g from the transcription", d)
 	}
 	for name, reading := range map[string][2]bool{"the taps reversed": {true, false}, "the epsilon on the mean": {false, true}} {
-		if d := distance(got, gdnConvTranscription(tinyHistory, tiny, weights, keyHeads, epsilon, 1, reading[0], reading[1])); d < rival {
+		if d := distance(got, gdnConvTranscription(tinyHistory, tiny, weights, keyHeads, epsilon, 1, reading[0], reading[1])); !(d >= rival) {
 			t.Fatalf("the rival reading %q is %.3g from the kernels' conv, not observable", name, d)
 		}
 	}
@@ -348,10 +348,10 @@ func TestStrataGatedDeltaGatesMatchStrata(t *testing.T) {
 			wantBeta[token*valueHeads+head] = 1 / (1 + math.Exp(-b))
 		}
 	}
-	if d := strataRelativeL1(float32To64(singleGate), wantGate); d > bound {
+	if d := strataRelativeL1(float32To64(singleGate), wantGate); !(d <= bound) {
 		t.Fatalf("the decay gates are %.3g from the transcription", d)
 	}
-	if d := strataRelativeL1(float32To64(singleBeta), wantBeta); d > bound {
+	if d := strataRelativeL1(float32To64(singleBeta), wantBeta); !(d <= bound) {
 		t.Fatalf("the betas are %.3g from the transcription", d)
 	}
 }

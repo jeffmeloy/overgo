@@ -168,7 +168,7 @@ func TestPicturesAnswerAsTheirReferenceDoes(t *testing.T) {
 					apart /= float64(len(own.Generated))
 				}
 				widest = max(widest, apart)
-				if apart > tolerance {
+				if !(apart <= tolerance) {
 					t.Errorf("%s: the reference's tokens are given %.4f a token apart from its own log-probabilities, over %.2f", own.Name, apart, tolerance)
 				}
 			}

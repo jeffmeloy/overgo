@@ -67,19 +67,8 @@ func strataSamplingOf(options GenerateOptions) (executor.StrataSampling, bool) {
 		c.DryMultiplier != 0 || c.TopNSigma > 0 || c.TypicalP > 0 && c.TypicalP < 1 || c.XTCProbability > 0 {
 		return executor.StrataSampling{}, false
 	}
-	order := []sampling.SamplerStage{sampling.SamplerTopK, sampling.SamplerTopP, sampling.SamplerMinP, sampling.SamplerTemperature}
-	if len(c.Samplers) != 0 {
-		next := 0
-		for _, stage := range c.Samplers {
-			at := slices.Index(order, stage)
-			if at < 0 && (stage == sampling.SamplerAdaptiveP || stage == sampling.SamplerInfill) || at >= 0 && at < next {
-				return executor.StrataSampling{}, false
-			}
-			next = max(next, at)
-		}
-		if !slices.Contains(c.Samplers, sampling.SamplerTemperature) {
-			return executor.StrataSampling{}, false
-		}
+	if c.Samplers != nil && !strataChainDeclared(c) {
+		return executor.StrataSampling{}, false
 	}
 	topP := c.TopP
 	if topP <= 0 || topP >= 1 {
@@ -89,6 +78,35 @@ func strataSamplingOf(options GenerateOptions) (executor.StrataSampling, bool) {
 		TopK: int32(c.TopK), TopP: topP, MinP: max(0, c.MinP), Temperature: c.Temperature, MinKeep: int32(max(1, c.MinKeep)),
 		PenaltyRepeat: 1, Seed: uint64(c.Seed),
 	}, true
+}
+
+// strataChainDeclared reports whether a declared chain is the one Strata's kernels always run: top_k, top_p, min_p and
+// temperature, each stage the config makes active named once and in that order. A stage the config leaves neutral does
+// nothing wherever it is named, or if it is not; an explicit empty chain names none and so is not this one.
+func strataChainDeclared(c sampling.Config) bool {
+	order := []sampling.SamplerStage{sampling.SamplerTopK, sampling.SamplerTopP, sampling.SamplerMinP, sampling.SamplerTemperature}
+	active := []bool{true, c.TopP > 0 && c.TopP < 1, c.MinP > 0, true}
+	nextActive := func(from int) int {
+		for from < len(order) && !active[from] {
+			from++
+		}
+		return from
+	}
+	next := nextActive(0)
+	for _, stage := range c.Samplers {
+		if stage == sampling.SamplerAdaptiveP || stage == sampling.SamplerInfill {
+			return false
+		}
+		at := slices.Index(order, stage)
+		if at < 0 || !active[at] {
+			continue
+		}
+		if at != next {
+			return false
+		}
+		next = nextActive(next + 1)
+	}
+	return next == len(order)
 }
 
 // strataRoundDrafter reports whether a round request drafts with the round's draft layer: a runner holding the pack,

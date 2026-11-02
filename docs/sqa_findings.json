@@ -6285,6 +6285,17 @@
         "plan_steps": [
           "sqa-served/retention-head"
         ]
+      },
+      {
+        "comment": "Landed with sqa-served/sampler-chain. Explicit empty, a missing active stage, a repeat and a wrong order all return false, and default chains and neutral stages stay eligible. No chain is rewritten and the kernels are unchanged. TestStrataRoundSamplesOnlyItsOwnChain holds both sides as a host table.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestStrataRoundSamplesOnlyItsOwnChain"
+        ],
+        "finding_id": "SQA-245",
+        "plan_steps": [
+          "sqa-served/sampler-chain"
+        ]
       }
     ],
     "experiments": {
@@ -6330,8 +6341,8 @@
       "For a capability run with no CodeCommit, the render manifest is the remaining build attribution; recipe/request/output identity does not independently prove its build.213c45c62 deliberately preserves run identities, and still refuses a recorded conflicting commit. No new model-quality claim is credited."
     ],
   "master_lead_triage": {
-    "at": "2026-11-01",
-    "head": "f12a0e853929d81e4fda1c7c5777110ce274adcb",
+    "at": "2026-11-02",
+    "head": "a6556ce832d83cc1f73f599501718332c8ffcbef",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6509,11 +6520,11 @@
         "note": "Only its eligibility part is taken with 275. The wider policy and test consolidation waits for the retained second-open measurements the finding asks for."
       },
       "SQA-245": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-served/sampler-chain"
         ],
-        "note": "Accepted: a declared sampler chain the native round cannot honor must fall back to ordinary sampling. device-numerics/round-sampling extends it to the parameters the kernel ignores, and depends on it."
+        "note": "Landed. strataSamplingOf tells nil from an explicit empty chain through strataChainDeclared, which requires each active stage once, in native order, and leaves neutral stages out of it. A chain that differs in effect stays on the ordinary path. Awaits the reviewer's closure."
       },
       "SQA-218": {
         "action": "filed",

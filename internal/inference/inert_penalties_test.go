@@ -38,3 +38,45 @@ func TestInertPenaltiesStayOnTheCard(t *testing.T) {
 		})
 	}
 }
+
+// TestStrataRoundSamplesOnlyItsOwnChain holds the round's sampler, whose kernels always run top_k, top_p, min_p and
+// temperature once each, to the chains that are that one. A chain that differs in effect stays on the ordinary path,
+// whichever way it differs; stages the config leaves neutral change nothing.
+func TestStrataRoundSamplesOnlyItsOwnChain(t *testing.T) {
+	t.Parallel()
+	const (
+		topK        = sampling.SamplerTopK
+		topP        = sampling.SamplerTopP
+		minP        = sampling.SamplerMinP
+		temperature = sampling.SamplerTemperature
+		xtc         = sampling.SamplerXTC
+	)
+	for _, test := range []struct {
+		name   string
+		config sampling.Config
+		round  bool
+	}{
+		{"the default chain", sampling.Config{Temperature: 1, TopK: 20}, true},
+		{"the native order", sampling.Config{Temperature: 1, TopK: 20, TopP: 0.9, MinP: 0.1, Samplers: []sampling.SamplerStage{topK, topP, minP, temperature}}, true},
+		{"a neutral stage omitted", sampling.Config{Temperature: 1, TopK: 20, Samplers: []sampling.SamplerStage{topK, temperature}}, true},
+		{"a neutral stage out of order", sampling.Config{Temperature: 1, TopK: 20, Samplers: []sampling.SamplerStage{minP, xtc, topK, temperature, topP}}, true},
+		{"an explicit empty chain", sampling.Config{Temperature: 1, TopK: 1, Samplers: []sampling.SamplerStage{}}, false},
+		{"top_k left out", sampling.Config{Temperature: 1, TopK: 1, Samplers: []sampling.SamplerStage{temperature}}, false},
+		{"an active top_p left out", sampling.Config{Temperature: 1, TopK: 20, TopP: 0.9, Samplers: []sampling.SamplerStage{topK, temperature}}, false},
+		{"an active min_p left out", sampling.Config{Temperature: 1, TopK: 20, MinP: 0.1, Samplers: []sampling.SamplerStage{topK, temperature}}, false},
+		{"temperature twice", sampling.Config{Temperature: 0.5, TopK: 20, Samplers: []sampling.SamplerStage{topK, temperature, temperature}}, false},
+		{"temperature before top_k", sampling.Config{Temperature: 1, TopK: 20, Samplers: []sampling.SamplerStage{temperature, topK}}, false},
+		{"top_p after min_p", sampling.Config{Temperature: 1, TopK: 20, TopP: 0.9, MinP: 0.1, Samplers: []sampling.SamplerStage{topK, minP, topP, temperature}}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			sampler, err := sampling.New(test.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, round := strataSamplingOf(GenerateOptions{Sampler: sampler}); round != test.round {
+				t.Fatalf("the round takes this chain: %t, want %t", round, test.round)
+			}
+		})
+	}
+}

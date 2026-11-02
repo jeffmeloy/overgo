@@ -220,19 +220,26 @@ func compileTextHeldout(view SFTEvaluationView, scorer textScorerSpec, cases []H
 		if err != nil {
 			return HeldoutReport{}, err
 		}
-		return report.heldout(), nil
+		return report.heldout(plan), nil
 	}}, nil
 }
 
-// heldout is the report as the held-out judge reads it.
-func (report textTargetReport) heldout() HeldoutReport {
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+// heldout is the report as the held-out judge reads it, its records scored again as they were by the plan's first scorer,
+// the plan compiled for held-out reading having that one.
+func (report textTargetReport) heldout(plan textTargetPlan) HeldoutReport {
+	var records []RecordScore
+	for index, observation := range report.Observations {
+		if value, err := scoreTextObservation(plan.Scorers[0], plan.Cases[index], observation); err == nil {
+			records = append(records, RecordScore{Record: observation.Record, Value: value})
+		}
+	}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
 }
 
 // rescore scores the observations report retains under plan.
 func (plan textTargetPlan) rescore(report textTargetReport) (HeldoutReport, error) {
 	rescored, err := scoreTextTargets(plan, report.Observations)
-	return rescored.heldout(), err
+	return rescored.heldout(plan), err
 }
 
 func scoreTextObservation(scorer textScorerSpec, target textTargetCase, observation textTargetObservation) (float64, error) {

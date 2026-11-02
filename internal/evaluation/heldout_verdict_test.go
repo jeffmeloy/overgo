@@ -233,6 +233,75 @@ func TestHeldoutVerdictRequiresStrictGainOnDeclaredMetric(t *testing.T) {
 	}
 }
 
+// TestAVerdictNeedsAGainItsCasesSupport: one case's improvement is a strict gain and no supported one, a gain across the cases
+// is, and a tie is neither, each reading the least gain its cases can tell from noise. Every plan keeps what the reading
+// needs: a preference plan's loss and an unpaired plan's, record by record.
+func TestAVerdictNeedsAGainItsCasesSupport(t *testing.T) {
+	t.Parallel()
+	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
+	observation := heldoutTraining(t, nil, forecast.objective.Dataset, forecast.view.TrainingMembership)
+	if len(forecast.cases) < minimumGainCases {
+		t.Fatalf("the fixture holds %d cases", len(forecast.cases))
+	}
+	base := forecast.score(t, 2, "falling")
+	shifted := func(offsets func(index int) float64) HeldoutReport {
+		t.Helper()
+		var observations []HeldoutObservation
+		for index, target := range forecast.cases {
+			values := slices.Clone(target.Values)
+			for at := range values {
+				values[at] += offsets(index)
+			}
+			observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: "falling"})
+		}
+		report, err := forecast.plan.Score(observations)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return report
+	}
+	for _, test := range []struct {
+		name              string
+		candidate         HeldoutReport
+		passed, supported bool
+	}{
+		{"one case improves", shifted(func(index int) float64 {
+			if index == 0 {
+				return 1
+			}
+			return 2
+		}), true, false},
+		{"every case improves", shifted(func(index int) float64 { return 1 + 0.01*float64(index) }), true, true},
+		{"every case improves alike", forecast.score(t, 1, "falling"), true, true},
+		{"nothing moves", forecast.score(t, 2, "other"), false, false},
+	} {
+		verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, test.candidate, observation)
+		if err != nil {
+			t.Fatalf("%s: %v", test.name, err)
+		}
+		gain := verdict.ReadGain(base, test.candidate)
+		if verdict.Passed != test.passed || gain.Supported != test.supported || gain.Cases != len(forecast.cases) {
+			t.Errorf("%s: passed %t, gain %+v; want passed %t, supported %t", test.name, verdict.Passed, gain, test.passed, test.supported)
+		}
+	}
+	lone := heldoutVerdict{Direction: runrecord.DirectionMaximize}
+	if gain := lone.ReadGain(HeldoutReport{records: []RecordScore{{Value: 0}}}, HeldoutReport{records: []RecordScore{{Value: 1}}}); gain.Supported {
+		t.Error("one record supported a gain")
+	}
+	if gain := lone.ReadGain(HeldoutReport{records: []RecordScore{{Record: "a"}, {Record: "b"}}}, HeldoutReport{records: []RecordScore{{Record: "c", Value: 1}, {Record: "d", Value: 1}}}); gain.Supported {
+		t.Error("reports over different records supported a gain")
+	}
+	preference := preferenceTargetReport{Records: make([]preferenceRecordResult, 2)}
+	preference.Records[1].Loss = 3
+	if scores := preference.heldout().RecordScores(); len(scores) != 2 || scores[1].Value != 3 {
+		t.Errorf("a preference report keeps %v", scores)
+	}
+	unpaired := unpairedTargetReport{Records: make([]unpairedRecordResult, 2)}
+	if scores := unpaired.heldout([]float64{1, 2}).RecordScores(); len(scores) != 2 || scores[1].Value != 2 {
+		t.Errorf("an unpaired report keeps %v", scores)
+	}
+}
+
 // TestCommittedVerdictRescoresItsReports approves a committed forecast
 // verdict only when each of its reports is what the cases it retains score
 // to: a trained report that omits a held-out case, or one whose mean error

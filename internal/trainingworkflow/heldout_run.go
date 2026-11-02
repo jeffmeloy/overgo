@@ -72,7 +72,9 @@ type HeldoutResult struct {
 	// Samples is the document of generations a sampled run published, and is
 	// zero for a run that did not sample.
 	Samples artifact.ID
-	Passed  bool
+	// Passed is a strict gain its cases support, which Gain reads either way.
+	Passed bool
+	Gain   evaluation.HeldoutGain
 	// Skipped is the conversations a conversation run left out because the model's
 	// template or tokenizer cannot cut them into the stretches it learns, which the
 	// verdict was not judged on and the model was not trained on.
@@ -236,9 +238,10 @@ func publishHeldout(
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return HeldoutResult{}, err
 	}
+	gain := verdict.ReadGain(baseline, candidate)
 	return HeldoutResult{
 		Observation: training.Observation, Trained: training.Trained.ID(), View: view.ID, Plan: plan.ID(),
-		Baseline: baseline.ID(), Candidate: candidate.ID(), Verdict: verdict.ID, Passed: verdict.Passed,
+		Baseline: baseline.ID(), Candidate: candidate.ID(), Verdict: verdict.ID, Passed: verdict.Passed && gain.Supported, Gain: gain,
 	}, nil
 }
 

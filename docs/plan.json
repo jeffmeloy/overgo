@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 700,
+        "nodes": 295,
         "reason": "Moving ConfirmOnPool and poolVerdict alone is 279 production nodes (measured with the gate's count), above the filed 250. About 700 with a reader and wiring, an estimate."
       },
       "steps": [
-        {
-          "id": "verdict-noise",
-          "title": "Require a gain the cases support",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestAVerdictNeedsAGainItsCasesSupport$'",
-          "rationale": "Any strict gain passes (internal/evaluation/heldout_verdict.go:645-650), and one such verdict can approve an objective (internal/trainingworkflow/objective_promotion.go:119-132). README.md:154-155 records gains of 0.508 against 0.500 and 0.729 against 0.724. The records can tell these from noise: a run's gain has noise 0.0025 (docs/verification/change-proposal-qwen25-05b.txt:16), so 0.008 is about 3 noise units, and 24 of 24 runs gained 0.0100 or more (change-corpus-qwen25-05b.txt:20).\nPassed is recomputed in canonicalization from the two values at document version 2 (heldout_verdict.go:637,645-650), so a test over cases cannot live there and stored verdicts must still read. Add a separate reading, ReadHeldoutVerdict already gives record scores, or step the version. An exact binary test does not fit token accuracy, which is numeric per record, and text and preference plans keep no record scores (:152-155), so keep them. Declare the detectable gain and keep the reading either way.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a gain of one case does not pass, and a supported gain does.\nBatch: evaluation lane."
-        },
         {
           "id": "charge-objective",
           "title": "Charge every held-out read",

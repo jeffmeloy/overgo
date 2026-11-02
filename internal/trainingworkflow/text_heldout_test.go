@@ -47,8 +47,13 @@ func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
 // how many held-out prompts the base and trained models answer, generating
 // greedily, and the verdict climbs the objective to approved.
 func TestGenerationObjectiveApprovesOnHeldOutAnswers(t *testing.T) {
+	// Every prompt of two to five letters: a verdict needs held-out cases enough to support its gain.
+	prompts := []string{"a", "b"}
+	for start := 0; len(prompts[len(prompts)-1]) < 5; start++ {
+		prompts = append(prompts, prompts[start]+"a", prompts[start]+"b")
+	}
 	var documents []string
-	for _, prompt := range []string{"aa", "ab", "ba", "bb", "aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"} {
+	for _, prompt := range prompts[2:] {
 		answer := map[byte]string{'a': "cd", 'b': "dc"}[prompt[len(prompt)-1]]
 		document, err := json.Marshal(map[string]any{"prompt": prompt, "answers": []string{answer}})
 		if err != nil {

@@ -190,7 +190,11 @@ func CompilePreferenceHeldoutPlan(objective trainingprogram.ObjectiveDocument, v
 
 // heldout is the report as the held-out judge reads it.
 func (report preferenceTargetReport) heldout() HeldoutReport {
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+	records := make([]RecordScore, len(report.Records))
+	for index, record := range report.Records {
+		records[index] = RecordScore{Record: record.Record, Value: record.Loss}
+	}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
 }
 
 // rescore scores the sequence scores each of report's records retains under

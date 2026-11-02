@@ -141,11 +141,11 @@ func CompileUnpairedHeldoutPlan(objective trainingprogram.ObjectiveDocument, vie
 				Reference: scores.Reference, MismatchedPolicy: scores.MismatchedPolicy, MismatchedReference: scores.MismatchedReference,
 			}
 		}
-		report, err := scoreUnpairedTargets(plan, scored)
+		report, losses, err := scoreUnpairedTargets(plan, scored)
 		if err != nil {
 			return HeldoutReport{}, err
 		}
-		return report.heldout(), nil
+		return report.heldout(losses), nil
 	}}, nil
 }
 
@@ -159,9 +159,9 @@ func (plan unpairedTargetPlan) Batch(key string) (artifact.Batch, error) {
 // scoreUnpairedTargets scores one model's observations, one per plan
 // record, each carrying its record's label and naming the next record in
 // plan order as its partner.
-func scoreUnpairedTargets(plan unpairedTargetPlan, observations []unpairedTargetObservation) (unpairedTargetReport, error) {
+func scoreUnpairedTargets(plan unpairedTargetPlan, observations []unpairedTargetObservation) (unpairedTargetReport, []float64, error) {
 	if err := unpairedTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Records) {
-		return unpairedTargetReport{}, errors.New("evaluation: unpaired observations differ from plan")
+		return unpairedTargetReport{}, nil, errors.New("evaluation: unpaired observations differ from plan")
 	}
 	observations = slices.Clone(observations)
 	slices.SortFunc(observations, func(a, b unpairedTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
@@ -173,7 +173,7 @@ func scoreUnpairedTargets(plan unpairedTargetPlan, observations []unpairedTarget
 		record := plan.Records[index]
 		if observation.Record != record.ID || observation.Desirable != record.Desirable ||
 			observation.Partner != plan.Records[(index+1)%len(plan.Records)].ID {
-			return unpairedTargetReport{}, errors.New("evaluation: unpaired record, label or partner differs from plan")
+			return unpairedTargetReport{}, nil, errors.New("evaluation: unpaired record, label or partner differs from plan")
 		}
 		scores[index] = trainingprogram.UnpairedScores{
 			Desirable: record.Desirable, Policy: observation.Policy, Reference: observation.Reference,
@@ -185,13 +185,14 @@ func scoreUnpairedTargets(plan unpairedTargetPlan, observations []unpairedTarget
 	}
 	result, err := plan.Policy.UnpairedLoss(scores)
 	if err != nil {
-		return unpairedTargetReport{}, err
+		return unpairedTargetReport{}, nil, err
 	}
 	report.KL = result.KL
 	for index, value := range []float64{result.Loss, result.DesirableReward - result.UndesirableReward} {
 		report.Metrics = append(report.Metrics, runrecord.Metric{Name: unpairedMetrics[index].name, Value: value, Direction: unpairedMetrics[index].direction})
 	}
-	return unpairedTargetReportCodec.New(report)
+	identified, err := unpairedTargetReportCodec.New(report)
+	return identified, result.Losses, err
 }
 
 // Batch stages the report with lineage to its plan.
@@ -200,8 +201,12 @@ func (report unpairedTargetReport) Batch(key string) (artifact.Batch, error) {
 }
 
 // heldout is the report as the held-out judge reads it.
-func (report unpairedTargetReport) heldout() HeldoutReport {
-	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+func (report unpairedTargetReport) heldout(losses []float64) HeldoutReport {
+	records := make([]RecordScore, len(losses))
+	for index, loss := range losses {
+		records[index] = RecordScore{Record: report.Records[index].Record, Value: loss}
+	}
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, records: records, batch: report.Batch}
 }
 
 // rescore scores the sequence scores each of report's records retains under
@@ -211,8 +216,8 @@ func (plan unpairedTargetPlan) rescore(report unpairedTargetReport) (HeldoutRepo
 	for index, record := range report.Records {
 		observations[index] = record.unpairedTargetObservation
 	}
-	rescored, err := scoreUnpairedTargets(plan, observations)
-	return rescored.heldout(), err
+	rescored, losses, err := scoreUnpairedTargets(plan, observations)
+	return rescored.heldout(losses), err
 }
 
 func canonicalizeUnpairedTargetPlan(plan *unpairedTargetPlan) error {

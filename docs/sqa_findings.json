@@ -20,6 +20,55 @@
   },
   "findings": [
     {
+      "id": "SQA-288",
+      "status": "open",
+      "severity": "P1",
+      "category": "durability",
+      "classification": "code-contradicts-written-rule",
+      "title": "Keep every acknowledged commit through a crash, and import the store rows that never reached the plan",
+      "evidence_commit": "f7cded0c151ebf38bf37304505ccd46164fc5a48",
+      "sources": [
+        {
+          "path": "internal/overgodb/store.go",
+          "symbol": "sealLocked: os.Rename of the sealed segment, SyncDirectory, then Truncate of the journal"
+        },
+        {
+          "path": "internal/fsatomic/sync_windows.go",
+          "symbol": "SyncDirectory is a no-op; 'Windows callers must publish namespace changes through Replace or flush a surviving hard link through SyncFile'"
+        },
+        {
+          "path": "internal/overgodb/store.go",
+          "symbol": "ReplaceStore: two renames, the first undone only on a failed rename; Create: open(nil, root, openOrStart)"
+        },
+        {
+          "path": "cmd/overgodb/repair.go",
+          "symbol": "'does not replay; restore it from a sealed backup'"
+        },
+        {
+          "path": "C:/Users/jeffm/Downloads/plan.json",
+          "symbol": "rows store-durability (5 steps) and fault-finding (6 steps), written 23:14 EST 2026-11-01, outside the repository"
+        }
+      ],
+      "evidence": "The plan review the owner asked for (session 35d6688b) finished after the merge of its draft. Its first draft landed at e253bd92e at 23:12 EST on 2026-11-01. Its fault review reported two minutes later, and those rows went only to C:/Users/jeffm/Downloads/plan.json. No commit, no row of docs/plan.json and no finding names them, so nothing brings them to the lead. Read from source at this commit, the three store defects stand. (1) sealLocked publishes the sealed segment with os.Rename, calls fsatomic.SyncDirectory, which is a no-op on Windows, and then truncates the journal and syncs that. The comment on SyncDirectory says a Windows caller must publish through Replace or flush a surviving hard link, and this one does neither, so under the repository's own written rule the journal's emptying can reach the disk while the segment's name does not, and the commits the seal held are then in neither place. SQA-254 covered the same pattern for blobs only. (2) ReplaceStore moves the live store aside and then moves the candidate in, undoing the first rename only when the second returns an error. A process killed between them leaves no live store, and Create opens with openOrStart, so it starts an empty store at sequence 0 while store.superseded-* holds the commits. (3) cmd/overgodb/repair.go answers any store that does not replay with 'restore it from a sealed backup', which for a journal ending in zero bytes would discard commits the journal holds intact. The reproductions are the review session's: a zero tail stops every open, the kill between renames leaves the empty store, and a crash test with no production code covered 1,804 crash states and reported acknowledged commits lost by the seal. This session read the code and ran none of them. No power cut was run, and whether NTFS leaves a zero tail is untested, so how likely each crash is remains unmeasured.",
+      "recommended_change": "Import the two rows as the review session gave them: 'go run ./cmd/plan -add -from C:/Users/jeffm/Downloads/plan.json -before <the row now first>', and place fault-finding after store-durability. The file was written for a plan that still held web-ui-repairs and dispatch-truth, both finished, so both placements need a new anchor. store-durability's steps: durable-names publishes every durable name through its owner and adds a repository check; unwritten-tail ends the journal at a frame that never reached the disk; cutover-kill has Create refuse, under the lock, a missing root with a .superseded-* sibling, and name it; crash-points and store-lifecycles keep the crash and generated-sequence tests. Their rationales and verify lines stand in the file.",
+      "displaced_surface": "The plain rename in sealLocked, the openOrStart path of Create beside a superseded store, and repair's restore advice for a journal that holds intact commits.",
+      "impact": "The store holds every model's record, evidence and run. A crash during a seal or a cutover can lose acknowledged commits or start a server on an empty store beside the real one, and the repair command's advice can discard good commits.",
+      "expected_benefit": {
+        "outcome": "No acknowledged commit is lost at any crash point a test can reach, and a store that does not open is repaired without a restore.",
+        "uncertainty": "No power cut was run. The seal's loss is by the repository's written rule rather than an observed crash, and whether NTFS leaves a zero tail is untested. The value of the fault-finding rows that have not been prototyped (checkpoint-cuts, landing-stages) is a hypothesis their own text states."
+      },
+      "likely_effort": "Moderate: the review session reports the crash test needs no production code, and the three repairs are small. Each step's verify line names its test.",
+      "plan_references": [],
+      "plan_coverage": "None: no row in docs/plan.json at f7cded0c1 names it. The rows stand only in C:/Users/jeffm/Downloads/plan.json.",
+      "closure_criteria": [
+        "store-durability and fault-finding stand in docs/plan.json, or the lead records why a step of theirs is dropped.",
+        "TestEveryDurableRenameGoesThroughItsOwner, TestAnUnwrittenTailEndsTheJournal and TestAKillBetweenCutoverRenamesStartsNoEmptyStore pass, and each is seen to fail before its repair.",
+        "Crash-point and lifecycle tests hold the store at every durable operation the scripted workload reaches."
+      ],
+      "comparison": "Code read at the evidence commit. Nothing measured or reproduced by this session; the figures are the review session's.",
+      "raised_by": "Review session e8549e3e, 2026-11-02, on finding the rows of plan review session 35d6688b absent from the plan and the register"
+    },
+    {
       "id": "SQA-286",
       "status": "open",
       "severity": "P2",
@@ -7371,7 +7420,7 @@
       }
     }
   },
-  "next_finding_number": 288,
+  "next_finding_number": 289,
   "publication_context": {
       "checked_head": "98f15bf6275efc1e3942fddbba867a5d674a3207",
       "assessment": "Pinned committed master and plan assessed; concurrent worktree edits excluded. Current report re-read immediately before replacement with implementation-owned and unknown fields preserved exactly.",
@@ -7379,6 +7428,7 @@
       "publication": "Owner-authorized report-only Git commit using existing landing/gate locks and actual hooks; no production gate or security/hook changes."
     },
   "ranked_active_finding_ids": [
+    "SQA-288",
     "SQA-286",
     "SQA-277",
     "SQA-283",

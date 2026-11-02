@@ -150,8 +150,7 @@ func (report HeldoutReport) ID() artifact.ID { return report.id }
 
 // RecordScores is each record's value of the plan's metric, in record order,
 // the values the report's metric is the mean of: what two reports under one
-// plan are compared by, record against record. A numeric or a signal plan
-// keeps them; a plan of another kind returns none.
+// plan are compared by, record against record.
 func (report HeldoutReport) RecordScores() []RecordScore { return slices.Clone(report.records) }
 
 // Batch stages the report with its lineage.
@@ -195,9 +194,10 @@ type HeldoutTraining struct {
 
 // heldoutVerdict judges a trained model against its base model on one
 // objective's held-out view: both are scored by the same target plan, and
-// the verdict passes when the trained model strictly improves the metric
-// the objective declares, in the metric's own direction. No threshold is
-// involved; Passed is recomputed from the recorded values. Trained names the
+// Passed records whether the trained model strictly improved the metric the
+// objective declares, in the metric's own direction, recomputed from the
+// recorded values so stored verdicts still read. A strict gain alone approves
+// nothing: HeldoutGain reads it against its cases. Trained names the
 // checkpoint the trained model published and Inputs the held-out membership
 // as the judged models read it.
 type heldoutVerdict struct {
@@ -266,6 +266,45 @@ func JudgeHeldout(
 	})
 }
 
+// gainDeviates is how many standard errors of its paired differences a gain must stand clear of none, the distance the
+// scorecard holds a decline to (noiseDeviates): a model that changed nothing passes by chance about 1 time in 44.
+const gainDeviates = 2
+
+// HeldoutGain is a verdict's gain read against its own cases, record against record: the gain in the metric's improving
+// direction, the least gain these cases can tell from noise, and whether this one stands clear of it. The detectable gain
+// is the reading of a run that did not pass as much as of one that did, so a failed run says what it would have taken.
+type HeldoutGain struct {
+	Gain, Detectable float64
+	Cases            int
+	Supported        bool
+}
+
+// ReadGain reads the verdict's gain from the two reports it judged. Reports whose records differ, and fewer than two
+// records, have no spread to read a gain against and support none.
+func (verdict heldoutVerdict) ReadGain(baseline, candidate HeldoutReport) HeldoutGain {
+	base, trained := baseline.records, candidate.records
+	if len(trained) < minimumGainCases || len(base) != len(trained) {
+		return HeldoutGain{}
+	}
+	differences := make([]RecordScore, len(trained))
+	var gain float64
+	for index, score := range trained {
+		if score.Record != base[index].Record {
+			return HeldoutGain{}
+		}
+		differences[index].Value = score.Value - base[index].Value
+		gain += differences[index].Value / float64(len(trained))
+	}
+	if verdict.Direction == runrecord.DirectionMinimize {
+		gain = -gain
+	}
+	detectable := gainDeviates * meanError(differences)
+	return HeldoutGain{Gain: gain, Detectable: detectable, Cases: len(trained), Supported: gain > detectable}
+}
+
+// minimumGainCases is the fewest records that have a spread.
+const minimumGainCases = 2
+
 // Content encodes the verdict as its canonical artifact document.
 func (verdict heldoutVerdict) Content() (artifact.Content, error) {
 	return heldoutVerdictCodec.Content(verdict)
@@ -305,7 +344,7 @@ func HeldoutBatch(view SFTEvaluationView, plan HeldoutPlan, baseline, candidate 
 }
 
 // CommittedHeldoutVerdictPassed reads one committed held-out verdict and
-// reports whether it passed for current, re-deriving everything it claims:
+// reports whether it passed for current, by a gain its cases support, re-deriving everything it claims:
 // the objective it judged declares current's contract, its view recompiles
 // from the committed training membership and the held-out one its published
 // split pairs it with, each report rescores to itself from the cases it
@@ -329,13 +368,14 @@ func CommittedHeldoutVerdictPassed(
 	if !trainingprogram.SameContract(objective, current) {
 		return false, fmt.Errorf("evaluation: verdict %s judged a different objective contract", id)
 	}
-	if _, err := reconstructHeldoutVerdict(ctx, reader, verdict, objective); err != nil {
+	reports, err := reconstructHeldoutVerdict(ctx, reader, verdict, objective)
+	if err != nil {
 		return false, err
 	}
 	if !slices.Contains(current.Evidence, verdict.Observation) {
 		return false, fmt.Errorf("evaluation: verdict %s training observation is not evidence of this objective", id)
 	}
-	return verdict.Passed, nil
+	return verdict.Passed && verdict.ReadGain(reports[0], reports[1]).Supported, nil
 }
 
 // reconstructHeldoutVerdict is the shared evidence check for approval and

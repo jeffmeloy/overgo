@@ -174,10 +174,12 @@ type KTOSummary struct {
 	DesirableReward, UndesirableReward float64
 }
 
-// KTOResult is a microbatch's summary and the loss's gradient with respect
-// to each example's summed policy log probability.
+// KTOResult is a microbatch's summary, each example's value of its mean loss,
+// and the loss's gradient with respect to each example's summed policy log
+// probability.
 type KTOResult struct {
 	KTOSummary
+	Losses    []float64
 	Gradients []float64
 }
 
@@ -213,7 +215,7 @@ func (policy PreferencePolicy) UnpairedLoss(examples []UnpairedScores) (KTOResul
 		mismatched += example.MismatchedPolicy.LogProbability - example.MismatchedReference.LogProbability
 	}
 	count := float64(len(examples))
-	result := KTOResult{KTOSummary: KTOSummary{KL: max(0, mismatched/count)}, Gradients: make([]float64, len(examples))}
+	result := KTOResult{KTOSummary: KTOSummary{KL: max(0, mismatched/count)}, Losses: make([]float64, len(examples)), Gradients: make([]float64, len(examples))}
 	for index, example := range examples {
 		reward := example.Policy.LogProbability - example.Reference.LogProbability
 		// λ_y − v is λ_y·σ(−z), z the completion's signed margin: β(r − z0)
@@ -228,7 +230,8 @@ func (policy PreferencePolicy) UnpairedLoss(examples []UnpairedScores) (KTOResul
 			result.UndesirableReward += reward
 		}
 		margin := sign * policy.Scale * (reward - result.KL)
-		result.Loss += weight * sigmoid(-margin) / count
+		result.Losses[index] = weight * sigmoid(-margin)
+		result.Loss += result.Losses[index] / count
 		result.Gradients[index] = -sign * policy.Scale * weight * sigmoid(margin) * sigmoid(-margin) / count
 	}
 	if result.Desirable != 0 {

@@ -139,7 +139,7 @@ func reportProof(output io.Writer, result trainingworkflow.HeldoutResult) error 
 
 // reportVerdict writes what a held-out run published.
 func reportVerdict(output io.Writer, result trainingworkflow.HeldoutResult) error {
-	_, err := fmt.Fprintf(output, "held-out verdict %s passed=%t observation=%s trained=%s view=%s plan=%s baseline=%s candidate=%s\n",
-		result.Verdict, result.Passed, result.Observation, result.Trained, result.View, result.Plan, result.Baseline, result.Candidate)
+	_, err := fmt.Fprintf(output, "held-out verdict %s passed=%t gain=%g detectable=%g cases=%d observation=%s trained=%s view=%s plan=%s baseline=%s candidate=%s\n",
+		result.Verdict, result.Passed, result.Gain.Gain, result.Gain.Detectable, result.Gain.Cases, result.Observation, result.Trained, result.View, result.Plan, result.Baseline, result.Candidate)
 	return err
 }

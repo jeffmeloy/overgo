@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/strataspec"
 )
 
 // Strata's decode round's copies through mapped memory, doorbell, embedding gather, stream broadcast and experts' q8_1
@@ -107,7 +108,7 @@ const (
 	strataArgMaxBlocks       = 128
 	strataArgThreads         = 256
 	strataArgValuesABlock    = 4096
-	strataNonfiniteBlocks    = 16
+	strataNonfiniteBlocks    = strataspec.NonfiniteBlocks
 	strataNonfiniteThreads   = 256
 	strataArgRowHeaderWords  = 4 // ArgRow's counter and its padding
 	strataArgRowWordBytes    = 4

@@ -59,7 +59,7 @@ func TestStrataRoundSamplesOnlyItsOwnChain(t *testing.T) {
 		{"the default chain", sampling.Config{Temperature: 1, TopK: 20}, true},
 		{"the native order", sampling.Config{Temperature: 1, TopK: 20, TopP: 0.9, MinP: 0.1, Samplers: []sampling.SamplerStage{topK, topP, minP, temperature}}, true},
 		{"a neutral stage omitted", sampling.Config{Temperature: 1, TopK: 20, Samplers: []sampling.SamplerStage{topK, temperature}}, true},
-		{"a neutral stage out of order", sampling.Config{Temperature: 1, TopK: 20, Samplers: []sampling.SamplerStage{minP, xtc, topK, temperature, topP}}, true},
+		{"a neutral stage out of order", sampling.Config{Temperature: 1, TopK: 20, TopP: 1, Samplers: []sampling.SamplerStage{minP, xtc, topK, temperature, topP}}, true},
 		{"an explicit empty chain", sampling.Config{Temperature: 1, TopK: 1, Samplers: []sampling.SamplerStage{}}, false},
 		{"top_k left out", sampling.Config{Temperature: 1, TopK: 1, Samplers: []sampling.SamplerStage{temperature}}, false},
 		{"an active top_p left out", sampling.Config{Temperature: 1, TopK: 20, TopP: 0.9, Samplers: []sampling.SamplerStage{topK, temperature}}, false},

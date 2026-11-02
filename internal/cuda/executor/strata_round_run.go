@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/strataspec"
 	"overgo/internal/tensor"
 )
 
@@ -286,6 +287,11 @@ func (e *Executor) RunStrataRound(ctx context.Context, r *StrataRound, tokens []
 	synced := e.worker.Do(context.WithoutCancel(ctx), func(state *device.State) error { return state.Driver.StreamSynchronize(r.cs) })
 	if err := errors.Join(served, synced); err != nil {
 		return err
+	}
+	// The guard ran with the window: a NaN or an infinity ends the round as the host's sampler ends, where the argmax and
+	// the draw would give a token.
+	if row, found := strataspec.NonfiniteRow(r.nonfinite.words(), t); found {
+		return fmt.Errorf("strata round: row %d of the head's logits holds a NaN or an infinity", row)
 	}
 	words := r.out.words()
 	for row := range t {

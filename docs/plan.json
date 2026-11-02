@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "device-numerics",
-      "title": "Report invalid numbers on the device instead of hiding them",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 20,
-        "reason": "Estimate. Kernel source is reported and not counted; Go adds a refusal and fixtures. Output bits for finite input do not move."
-      },
-      "steps": [
-        {
-          "id": "round-sampling",
-          "title": "Refuse what the device sampler cannot honor",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^(TestStrataSamplingRefusesWhatItCannotHonor|TestANonFiniteRowEndsTheRound)$'",
-          "rationale": "strata_sampler.cuh:153-157 ignores min_keep: MinP 0.1 with MinKeep 5 stays on the round, where the host keeps 5 (internal/sampling/sampler.go:834-835). top_p and typical_p of 0 pass on a named chain and differ from the host: 1 token against all 8 over 400 seeds, since internal/sampling/order.go:73-75 idles the stage on an unnamed chain, and serving always names one (runtime_policies.json:36,86, internal/server/server.go:983). The table needs both cases, and each goes to the host path (internal/inference/strata_round_generate.go:67,73-76).\nA NaN or infinite row must return an error as the host does (sampler.go:386,1180; -Inf is a legal ban there, but the device has no bias path, so a flagged -Inf is a fault). The device returns a token today, and greedy gives token 0 when every logit is NaN (strata_round_elementwise.cuh:235).\nThe check already runs and is thrown away. Each window runs strata_logits_nonfinite on bits (internal/cuda/executor/strata_round_window.go:589) into a mapped buffer (strata_round.go:223), and nothing reads r.nonfinite. Read it after the sync (strata_round_run.go:286-293). That covers greedy and sampled rows with no kernel edit and no new device read. Do not take a flag from the top-k maximum: a NaN never enters that list (strata_sampler.cuh:312-313), so a row with one NaN has a finite maximum.\nServes: a request gets the distribution it declared, and a numeric fault ends as an error.\nDisappears: an unread buffer's waste.\nEvidence: a host table and one device row of NaN.\nBatch: serving lane; no kernel change."
-        }
-      ]
-    },
-    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",

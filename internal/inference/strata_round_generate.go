@@ -70,6 +70,11 @@ func strataSamplingOf(options GenerateOptions) (executor.StrataSampling, bool) {
 	if c.Samplers != nil && !strataChainDeclared(c) {
 		return executor.StrataSampling{}, false
 	}
+	// The device's min_p keeps no floor of min_keep tokens, and its top_p at 0 idles where a named stage at 0 keeps one
+	// token on the host: the host's chain is the one the request declared.
+	if c.MinP > 0 && c.MinKeep > 1 || strataNamesAtZero(c, sampling.SamplerTopP, c.TopP) || strataNamesAtZero(c, sampling.SamplerTypicalP, c.TypicalP) {
+		return executor.StrataSampling{}, false
+	}
 	topP := c.TopP
 	if topP <= 0 || topP >= 1 {
 		topP = 1
@@ -78,6 +83,11 @@ func strataSamplingOf(options GenerateOptions) (executor.StrataSampling, bool) {
 		TopK: int32(c.TopK), TopP: topP, MinP: max(0, c.MinP), Temperature: c.Temperature, MinKeep: int32(max(1, c.MinKeep)),
 		PenaltyRepeat: 1, Seed: uint64(c.Seed),
 	}, true
+}
+
+// strataNamesAtZero reports a stage a declared chain names with nothing to keep, which the host runs and the round cannot.
+func strataNamesAtZero(c sampling.Config, stage sampling.SamplerStage, value float32) bool {
+	return value <= 0 && slices.Contains(c.Samplers, stage)
 }
 
 // strataChainDeclared reports whether a declared chain is the one Strata's kernels always run: top_k, top_p, min_p and

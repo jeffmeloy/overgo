@@ -148,32 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-cycle",
-      "title": "Repair the register's measurement-run and landing defects",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 292,
-        "reason": "Corrections to the existing loop, landing and hook owners; no new scheduler."
-      },
-      "steps": [
-        {
-          "id": "run-continuation",
-          "title": "Give the end of a measurement run a responsible owner",
-          "status": "open",
-          "verify": "go test ./internal/loop ./cmd/loop -count=1 -run 'Run'",
-          "rationale": "SQA-258 and SQA-271: the supervising process awaits the run and continues authorized work through the existing cmd/loop owner, rather than a later conversational check noticing it ended.\nServes: a finished or failed run is acted on without a nudge.\nDisappears: detached launcher success read as run success.\nEvidence: the existing run record tests.\nBatch: loop lane."
-        },
-        {
-          "id": "guard-readiness",
-          "title": "Expose guard readiness before a run begins",
-          "status": "open",
-          "verify": "go test ./cmd/longform ./cmd/validate -count=1 -run 'Ready|Fit'",
-          "rationale": "SQA-268: the rung fit itself was repaired in 8e911e1eb; what remains is the producer's own load and fit boundary reported before hours are spent, with no second all-model workload.\nServes: a broken guard is found at the start of a run.\nDisappears: nothing.\nEvidence: the producer's own fixture.\nBatch: validate lane."
-        }
-      ]
-    },
-    {
       "id": "sqa-tests",
       "title": "Repair the register's false test acceptances",
       "owner": "master-lead",
@@ -187,7 +161,7 @@
           "id": "ordered-distances",
           "title": "Reject unordered distances in the numerical parity tests",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor ./internal/latentimage -count=1 -run 'TestResidentImagePipelineRetainsTextAndLatentOnDevice'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestResidentImagePipelineRetainsTextAndLatentOnDevice$'",
           "rationale": "SQA-232: the seven named comparisons accept only ordered distances within their bounds.\nServes: a NaN distance can no longer pass.\nDisappears: nothing.\nEvidence: the retained tests.\nBatch: device lanes."
         },
         {
@@ -201,14 +175,14 @@
           "id": "nextn-oracle",
           "title": "Give the NextN acceptance a real plain oracle",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modelcli -count=1 -run '^TestNextNMTPDeviceSpeculationLossless$'",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestNextNMTPDeviceSpeculationLossless$'",
           "rationale": "SQA-251: the newer test's body folds into the selected acceptance, whose plain arm uses PlainDecode.\nServes: losslessness is compared against plain decoding.\nDisappears: one duplicate test file.\nEvidence: the retained test.\nBatch: device lane."
         },
         {
           "id": "runner-cleanup",
           "title": "Close paired-test runners when answer collection fails",
           "status": "open",
-          "verify": "go vet ./cmd/evaluate ./internal/evaluation",
+          "verify": "go vet -tags 'modeltest pairtest' ./internal/evaluation",
           "rationale": "SQA-273: each of the four paired tests registers t.Cleanup after OpenRunner.\nServes: a failed collection does not spoil the tests after it.\nDisappears: nothing.\nEvidence: compile and vet; the paths are failure paths of model tests.\nBatch: model-test lane."
         }
       ]
@@ -591,7 +565,7 @@
           "title": "Wait for work instead of exiting",
           "status": "open",
           "verify": "go test ./internal/loop -count=1 -run '^TestDriverWaitsForOwnershipToMove$'",
-          "rationale": "Run returns on ReasonWorkWaiting (internal/loop/driver.go:164-167) and nothing restarts it, so one waiting row ends the campaign. Wake on the plan's commit or a released lock, a signal and not a timer, as doctrine requires. WorkerTimeoutMinutes defaulting to 90 (cmd/loop/main.go:214-216) is a fixed timer the same doctrine refuses, and a landing can outlast it: bound by the landing's own signals.\nServes: unattended runtime.\nDisappears: the 90-minute default.\nEvidence: a world that releases a row after one wait.\nBatch: loop lane."
+          "rationale": "Run returns on ReasonWorkWaiting (internal/loop/driver.go:164-167) and nothing restarts it, so one waiting row ends the campaign. Wake on the plan's commit or a released lock, a signal and not a timer, as doctrine requires. WorkerTimeoutMinutes defaulting to 90 (cmd/loop/main.go:214-216) is a fixed timer the same doctrine refuses, and a landing can outlast it: bound by the landing's own signals.\nServes: unattended runtime.\nDisappears: the 90-minute default.\nEvidence: a world that releases a row after one wait.\nBatch: loop lane.\n\nSQA-258 and SQA-271 land here with this row: the supervising process awaits the run through the first-start driver, so a detached launcher exit is never read as run success and a finished or failed run is acted on without a nudge. sqa-cycle/run-continuation was retired into this step, as SQA-271 itself directs, so one owner holds it."
         }
       ]
     },

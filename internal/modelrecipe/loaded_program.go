@@ -27,6 +27,7 @@ type loadedProgramState struct {
 	Inventory    modelartifact.Inventory
 	EvidenceTier recipe.EvidenceTier
 	State        ModelState
+	Derived      *Derivation
 	Program      Plan
 	Policy       RuntimePolicy
 	// Claims are shard identities taken on trust from a claimer: the bytes

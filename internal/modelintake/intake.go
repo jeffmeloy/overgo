@@ -90,23 +90,9 @@ func PrepareInferenceCandidate(
 // candidate recipe is not yet published, the candidate itself: the model
 // is then known to the store as a candidate, not yet servable.
 func RegisterCandidate(ctx context.Context, store artifact.Repository, candidate Candidate) error {
-	// Facts already published are no change, and a registration repeated
-	// for a model the store knows is a registration, not a fault.
-	if err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
-		return err
-	}
-	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)
-	if err != nil {
-		return err
-	}
-	if !published {
-		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+candidate.Definition.ID.String(), candidate.Definition,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+	return modelrecipe.PublishDerivation(ctx, store, modelrecipe.Derivation{
+		Inventory: candidate.Inventory, Resolved: candidate.Resolved, Definition: candidate.Definition,
+	})
 }
 
 // RecordExactSuite generates each prompt greedily and records what the

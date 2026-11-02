@@ -12,6 +12,29 @@ import (
 	"overgo/internal/recipe"
 )
 
+// Derivation is what a program derived from its file holds that the store does not: what a record of its run names.
+type Derivation struct {
+	Inventory  modelartifact.Inventory
+	Resolved   ResolvedModelDefinition
+	Definition recipe.Definition
+}
+
+// PublishDerivation publishes the model's resolved facts and, when its recipe is not yet published, the recipe as a
+// candidate: the model is then known to the store and no more.
+func PublishDerivation(ctx context.Context, store artifact.Repository, derivation Derivation) error {
+	// Facts already published are no change, and a registration repeated
+	// for a model the store knows is a registration, not a fault.
+	if err := PublishResolvedModelDefinition(ctx, store, derivation.Inventory, derivation.Resolved); err != nil {
+		return err
+	}
+	_, published, err := Status(ctx, store, derivation.Definition.ID)
+	if err != nil || published {
+		return err
+	}
+	_, _, err = PublishCandidate(ctx, store, "recipe/candidate/"+derivation.Definition.ID.String(), derivation.Definition)
+	return err
+}
+
 // DeriveInference derives what a recipe would hold of the model in file from the file alone: its definition under
 // profile, the prototype its architecture selects, and the recipe binding it to the decode session its compiled plan
 // allows, or to override where one is named. It publishes nothing.
@@ -90,5 +113,19 @@ func (l *LoadedProgram) bindDerived(ctx context.Context, store artifact.Reader) 
 	if err := l.declarePolicy(ctx, store, policy); err != nil {
 		return err
 	}
-	return l.bindResolved(definition, resolved)
+	derivation := Derivation{Inventory: l.state.Inventory, Resolved: resolved, Definition: definition}
+	if err := l.bindResolved(definition, resolved); err != nil {
+		return err
+	}
+	l.state.Derived = &derivation
+	return nil
+}
+
+// Derived returns what the program was derived from before transfer, and whether it was: a program bound from a stored
+// recipe has none.
+func (l *LoadedProgram) Derived() (Derivation, bool) {
+	if l == nil || l.state == nil || l.state.Derived == nil {
+		return Derivation{}, false
+	}
+	return *l.state.Derived, true
 }

@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1200,
+        "nodes": 814,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "record-identity",
-          "title": "Record a run of a model the store does not hold",
-          "status": "open",
-          "verify": "go test ./internal/modelcli -count=1 -run '^TestAServedOpenRegistersWhatItsRecordsNeed$'",
-          "rationale": "A derived run of a model the store lacks leaves no record: runrecord.PublishServingObservation answers 'lineage parent is unknown' (reproduced; internal/runrecord/serving_observation.go:147-148, internal/overgodb/facets.go:322-323), because bindDerived publishes nothing (internal/modelrecipe/derived_program.go:15-17). The server counts the failure and returns an empty id with no event (internal/server/serving_observation.go:79-85), so the attempt, its failure-rate count and the finding a failed attempt parks all vanish. cmd/evaluate refuses with the same raw store error before asking a case (internal/evaluation/multiple_choice.go:243), which is not one of the refusals SQA-283 keeps. So this row's closure, a run record that states 'not verified', cannot pass until this lands.\nDecided by recommendation: where a derived program's recipe is absent, register its facts and candidate after a successful open through modelintake.RegisterCandidate, as a candidate only, taking the writer then and best-effort as publishDraftVerdict does (internal/modelcli/draft_verdict.go:111), and add its memo row so the next open claims instead of hashing. Nothing records the identity today, so 'hashes on its first open' is every open, and cmd/server hashes an unknown file twice at start (cmd/server/main.go:255,297).\nServes: failure-rate and setup-steps for models that run from their files.\nDisappears: the repeated hash of a known file.\nEvidence: its test, an attempt recorded on a file the store had never seen.\nBatch: recipe lane, before catalog-states."
-        },
         {
           "id": "run-carries-state",
           "title": "Carry a model's state on the chat response and the run record",

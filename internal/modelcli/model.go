@@ -202,9 +202,14 @@ func openRunner(
 			options.ExpertProfile = profile
 		}
 	}
+	derivation, derived := loaded.Derived()
 	runner, err := inference.OpenWithProgram(ctx, &loaded, options)
 	if err == nil {
 		noteModelState(path, runner.ModelState())
+	}
+	if err == nil && derived {
+		// What the store cannot take now, another writer holding it among the causes, it takes at the next open.
+		_ = registerDerived(ctx, repository, derivation)
 	}
 	if err != nil || !judge {
 		return runner, err
@@ -213,6 +218,20 @@ func openRunner(
 		return nil, errors.Join(err, runner.Close())
 	}
 	return runner, nil
+}
+
+// registerDerived publishes what the records of a derived run name, the model's facts and its recipe, as a candidate and
+// no more, and the identities the open already proved, so the next open claims them. The open has proved them by now.
+func registerDerived(ctx context.Context, repository string, derivation modelrecipe.Derivation) error {
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := modelrecipe.PublishDerivation(ctx, store, derivation); err != nil {
+		return err
+	}
+	return discovery.RememberInventory(ctx, store, derivation.Inventory)
 }
 
 // noteModelState says on the standard error what stands in the way of a model's verification; it runs all the same.

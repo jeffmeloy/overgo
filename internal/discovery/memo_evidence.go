@@ -3,12 +3,14 @@ package discovery
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelartifact"
 )
 
 const (
@@ -91,6 +93,31 @@ func LoadMemo(ctx context.Context, reader artifact.Reader) *Memo {
 	}
 	memo.loaded = len(memo.entries)
 	return memo
+}
+
+// RememberInventory publishes the identities an open already hashed, so the next open of these files claims them and
+// reads nothing.
+func RememberInventory(ctx context.Context, repository artifact.Repository, inventory modelartifact.Inventory) error {
+	memo := LoadMemo(ctx, repository)
+	for _, location := range inventory.Locations {
+		if location.Kind != artifact.LocationFile && location.Kind != artifact.LocationDirectory {
+			continue
+		}
+		for _, component := range inventory.Components {
+			if component.ID != location.Artifact {
+				continue
+			}
+			info, err := os.Stat(location.Value)
+			if err == nil && info.IsDir() {
+				info, err = directorySignature(location.Value)
+			}
+			if err != nil {
+				return err
+			}
+			memo.record(location.Value+"\x00"+artifact.KindTensorSet.String(), info, fileIdentity{id: component.ID, size: component.Size, present: true})
+		}
+	}
+	return PublishMemo(ctx, repository, memo)
 }
 
 // PublishMemo commits the memo's identities to the store and rebinds

@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 72,
-        "reason": "served-target measures 194 where the row's estimate took 150 for all four checks; the other three are estimated at about 100 each."
+        "nodes": 102,
+        "reason": "held-out-bytes measures 113 where about 100 was estimated, and tensor-shapes took more of the row than estimated; training-draw is still estimated at about 100."
       },
       "steps": [
-        {
-          "id": "held-out-bytes",
-          "title": "Hold a picture out by its bytes",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestAPictureIsHeldOutByItsBytes$'",
-          "rationale": "Exclusion compares path strings (cmd/train/route_moss_windows.go:242), so a copy under another name or a case difference is judged as unseen. The published 32-frame reading drew from other videos, so nothing recorded is shown wrong. Compare digests of the bytes the run read.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a copy refused.\nBatch: training lane."
-        },
         {
           "id": "training-draw",
           "title": "Draw a training step's noise level from the source's grid",

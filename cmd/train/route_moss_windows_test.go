@@ -112,7 +112,8 @@ func TestMOSSRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(manifest), "held-0.png"), picture, 0o600); err != nil {
+	// A byte past its end leaves the pixels the reading is pinned to and makes it another file: a copy is refused.
+	if err := os.WriteFile(filepath.Join(filepath.Dir(manifest), "held-0.png"), append(picture, 0), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	arguments = append(arguments, "-heldout", heldout, "-report", report)

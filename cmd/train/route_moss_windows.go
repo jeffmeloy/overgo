@@ -5,13 +5,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -85,6 +85,33 @@ func mossManifest(manifest string) ([]mossPicture, error) {
 		return nil, fmt.Errorf("manifest %s names no pictures", manifest)
 	}
 	return pictures, nil
+}
+
+// refuseTrainedHeldOut refuses a held-out picture the run also trains on, by the bytes of both: a copy under another name, or
+// a path that differs only in case, is the same picture, and a held-out reading of it would judge what was trained.
+func refuseTrainedHeldOut(trained, held []mossPicture) error {
+	digest := func(picture mossPicture) ([sha256.Size]byte, error) {
+		data, err := os.ReadFile(picture.path)
+		return sha256.Sum256(data), err
+	}
+	seen := make(map[[sha256.Size]byte]string, len(trained))
+	for _, picture := range trained {
+		sum, err := digest(picture)
+		if err != nil {
+			return err
+		}
+		seen[sum] = picture.path
+	}
+	for _, picture := range held {
+		sum, err := digest(picture)
+		if err != nil {
+			return err
+		}
+		if path, found := seen[sum]; found {
+			return fmt.Errorf("%s is held out and holds the bytes of %s, which is trained on", picture.path, path)
+		}
+	}
+	return nil
 }
 
 // mossPrepare runs the frozen path once over a manifest: each picture through
@@ -243,10 +270,10 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		if err != nil {
 			return err
 		}
+		if err := refuseTrainedHeldOut(pictures, held); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
 		for _, picture := range held {
-			if slices.ContainsFunc(pictures, func(trained mossPicture) bool { return trained.path == picture.path }) {
-				return fmt.Errorf("%s: %s is both trained on and held out", name, picture.path)
-			}
 			reading.Pictures = append(reading.Pictures, filepath.Base(picture.path))
 		}
 		var bound mosstrain.Geometry

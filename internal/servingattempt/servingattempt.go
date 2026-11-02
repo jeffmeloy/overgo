@@ -107,6 +107,7 @@ func Record(ctx context.Context, store artifact.Repository, observation runrecor
 	if _, state, err := modelrecipe.ReadModelState(ctx, store, observation.Model, observation.Task); err == nil {
 		observation.Verification = string(state.Verification)
 	}
+	observation.CodeCommit = runrecord.RunningCommit()
 	published, err := runrecord.PublishServingObservation(ctx, store, observation)
 	if err != nil || published.Outcome != runrecord.OutcomeFailed {
 		return published, err

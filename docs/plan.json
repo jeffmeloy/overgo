@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 211,
+        "nodes": 29,
         "reason": "Estimate after the 675d61b80 recheck: video about 150 to 200, the other three about 60 to 120 each."
       },
       "steps": [
-        {
-          "id": "failure-window",
-          "title": "Count failures over a window of attempts",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestFailureRateCountsTheAttemptsOfItsWindow$'",
-          "rationale": "Counting stops at the newest success (internal/scorecard/scorecard.go:808-824), so a recipe broken 9 times in 10 whose newest attempt worked reads 0. A fixed window of newest attempts shows recurrence; the size is derived from the readings a run makes.\nThe present rule has a reason (:769-773): a fix closes the cell with its first success. With a window, scorecard-failing rows stay open (record.go:779, cmd/validate/scorecard.go:153-155) until failures age out, at about one attempt a cycle, and a fix could not land by its own check. So failures before the fix's commit leave the count once it passes.\nServes: failure-rate.\nDisappears: nothing.\nEvidence: a table of attempt histories, a fix closing its row, and a diff of validate -scorecard before and after.\nBatch: host lane."
-        },
         {
           "id": "stale-quality",
           "title": "Mark a quality reading that this run did not measure",

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime/debug"
 	"strings"
+	"sync"
 )
 
 // ExecutableCodeCommit resolves the source revision embedded by the Go tool.
@@ -35,6 +36,26 @@ func ExecutableCodeCommit(worktree string) (string, error) {
 	}
 	return VerifyingCommit(worktree)
 }
+
+// RunningCommit names the commit this process runs: the one its build embeds,
+// or the checkout's HEAD under go run, whether or not the source has changed
+// since. An attempt records it (ServingObservation.CodeCommit), so a failure a
+// later success did not reach is told from one it fixed. It is empty when
+// neither says, as outside a checkout.
+var RunningCommit = sync.OnceValue(func() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "vcs.revision" {
+				return setting.Value
+			}
+		}
+	}
+	head, err := HeadCommit(".")
+	if err != nil {
+		return ""
+	}
+	return head
+})
 
 // HeadCommit returns the repository HEAD revision with no cleanliness
 // requirement; callers that must bind to committed source use

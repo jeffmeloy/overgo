@@ -97,6 +97,8 @@ type ServingObservation struct {
 	Phases        []PhaseMetric           `json:"phases,omitempty"`
 	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
 	Failure       string                  `json:"failure,omitzero"`
+	// CodeCommit is the commit the attempt ran (RunningCommit). A record from before this field holds none.
+	CodeCommit string `json:"code_commit,omitzero"`
 	// Causal explains why the serving execution occurred.
 	Causal *CausalContext `json:"causal,omitempty"`
 	ID     artifact.ID    `json:"-"`

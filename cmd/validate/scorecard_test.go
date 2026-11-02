@@ -53,8 +53,8 @@ func TestScorecardRowsEveryServableModel(t *testing.T) {
 	if got := forecastRow[2]; got != "20 ms" {
 		t.Errorf("first output = %q, want the newest success's sample, 20 ms", got)
 	}
-	if got := forecastRow[5]; got != "50% (1 failed and 1 cancelled since the last success)" {
-		t.Errorf("failures = %q, want the active recipe's attempts back to its newest success only", got)
+	if got := forecastRow[5]; got != "20% (1 failed and 1 cancelled of the newest 5 attempts)" {
+		t.Errorf("failures = %q, want the newest attempts of the active recipe alone", got)
 	}
 	for _, row := range [][]string{forecastRow, imageRow} {
 		if got := row[8]; got != "3" {

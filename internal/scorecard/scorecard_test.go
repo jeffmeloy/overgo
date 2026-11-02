@@ -85,13 +85,13 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	}
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.failures != 1 {
-		t.Fatalf("serving summary = %+v, want the user's two attempts back to the newest success, not the validation run's nor the failure that success followed", summary)
+		t.Fatalf("serving summary = %+v, want the two attempts of the user, not the validation run's, nor the failure a success with no commit ended", summary)
 	}
 	var none evaluation.BenchmarkSummary
-	if cell := failureCell(summary); cell.Value != 0.5 || cell.Label != "1 failed and 0 cancelled since the last success" || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
+	if cell := failureCell(summary); cell.Value != 0.5 || cell.Label != "1 failed and 0 cancelled of the newest 2 attempts" || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
 		t.Fatalf("failure cell = %+v, want one failure in two attempts, scoped to the recipe's serving attempts", cell)
 	}
-	if cell := failureCell(&servingSummary{attempts: 2, failures: 2}); cell.Value != 1 || cell.Label != "2 failed and 0 cancelled and none succeeded" {
+	if cell := failureCell(&servingSummary{attempts: 2, failures: 2}); cell.Value != 1 || cell.Label != "2 failed and 0 cancelled of the newest 2 attempts, and none succeeded" {
 		t.Fatalf("failure cell of a recipe that never succeeded = %+v, want every attempt failed", cell)
 	}
 	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summary); cell.Value != milliseconds(wholeOutputNS) || cell.Unit != "ms" {

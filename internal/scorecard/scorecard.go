@@ -600,8 +600,10 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 type servingSummary struct {
 	attempts, failures, cancelled    int
 	succeeded, loaded, deviceSampled bool
-	peakDeviceBytes                  uint64
-	latest, measured, recipe         artifact.ID
+	// fixedBy is the commit of the newest success, which a failure older than it ran the same code as or was fixed by.
+	fixedBy                  string
+	peakDeviceBytes          uint64
+	latest, measured, recipe artifact.ID
 	// environment is where the measured attempt ran, or the latest while none has succeeded: a serving value
 	// is read under it, and a baseline measured under another, or naming none, is Unknown, not a change.
 	environment artifact.ID
@@ -613,6 +615,39 @@ type servingSummary struct {
 	lengths map[int]*servingSummary
 	// warm reads, the same way, the successes timed again on the model they had loaded and served.
 	warm *servingSummary
+}
+
+// failureWindow is how many of a recipe's newest attempts its failure rate reads: the readings a cell is judged over
+// (referenceWindow), since a measurement run makes about one attempt of a recipe.
+const failureWindow = referenceWindow
+
+// tally counts one attempt, read newest first, into the failed share of the newest failureWindow attempts, and reports
+// whether it completed. A failure older than the newest success leaves the count unless that success ran the same code, so
+// a fix closes its row with its first success while a recipe failing on and off under one commit reads as failing. A
+// record that names no commit says nothing of its code, and its failures leave at the newest success. A cancelled attempt
+// is neither success nor failure.
+func (summary *servingSummary) tally(observation runrecord.ServingObservation) bool {
+	full := summary.attempts >= failureWindow
+	switch observation.Outcome {
+	case runrecord.OutcomeSucceeded:
+		if !summary.succeeded {
+			summary.succeeded, summary.fixedBy = true, observation.CodeCommit
+		}
+		if !full {
+			summary.attempts++
+		}
+	case runrecord.OutcomeFailed:
+		if fixed := summary.succeeded && (summary.fixedBy == "" || observation.CodeCommit != summary.fixedBy); !fixed && !full {
+			summary.failures++
+			summary.attempts++
+		}
+	default:
+		if !full {
+			summary.cancelled++
+		}
+		return false
+	}
+	return true
 }
 
 // lengthSpan is the share of a prompt length, one over it, that a prompt may be shorter or longer
@@ -786,11 +821,8 @@ func (summary *servingSummary) cell(source artifact.ID, value float64, unit, met
 
 // servingByRecipe reads every serving observation, newest first, into one
 // summary per recipe, so a row counts its own activation's attempts and a
-// fix shipped as a new recipe starts clean. A failure counts until a later
-// attempt of its recipe succeeds: the failure rate is the failed share of
-// the attempts back to the newest success, so a fix shipped in code closes
-// it with the first attempt that succeeds, and a recipe failing now reads
-// as failing whatever it did before. The memory cell reads one attempt, the
+// fix shipped as a new recipe starts clean. The failure rate is the failed
+// share of the recipe's newest attempts (tally). The memory cell reads one attempt, the
 // newest success that timed its load: the cycle measures each recipe that
 // way, from a fresh load on the request its verification ran, and a request
 // served from a resident session does not stand in for it. A timing cell
@@ -828,22 +860,8 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			summary = &servingSummary{latest: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
 			summaries[observation.Recipe] = summary
 		}
-		counted := !summary.succeeded
-		switch observation.Outcome {
-		case runrecord.OutcomeSucceeded:
-			summary.succeeded = true
-		case runrecord.OutcomeFailed:
-			if counted {
-				summary.failures++
-			}
-		default:
-			if counted {
-				summary.cancelled++
-			}
+		if !summary.tally(observation) {
 			return nil
-		}
-		if counted {
-			summary.attempts++
 		}
 		// An attempt timed again on the model it had loaded and served counts as an attempt, and is timed as the
 		// warm request's alone.
@@ -1281,9 +1299,9 @@ func failureCell(observed *servingSummary) Cell {
 	if observed == nil || observed.attempts == 0 {
 		return gap("no completed serving attempts recorded")
 	}
-	since := "since the last success"
+	since := fmt.Sprintf("of the newest %d attempts", observed.attempts)
 	if !observed.succeeded {
-		since = "and none succeeded"
+		since += ", and none succeeded"
 	}
 	cell := observed.cell(observed.latest, float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
 		fmt.Sprintf("%d failed and %d cancelled %s", observed.failures, observed.cancelled, since))

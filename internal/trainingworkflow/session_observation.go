@@ -271,6 +271,7 @@ func (o *Observer) finish(
 	if _, state, err := modelrecipe.ReadModelState(ctx, o.store, model, observation.Task); err == nil {
 		observation.Verification = string(state.Verification)
 	}
+	observation.CodeCommit = runrecord.RunningCommit()
 	if len(result.router) == 0 {
 		published, err = runrecord.PublishServingObservation(ctx, o.store, observation)
 	} else {

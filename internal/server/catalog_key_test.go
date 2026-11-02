@@ -1,0 +1,67 @@
+package server
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"overgo/internal/discovery"
+	"overgo/internal/overgodb"
+)
+
+// TestCatalogTakesTheKeyAndWritesNothing: the catalog shows disk paths, so it takes the key, and neither it nor the scorecard
+// writes to the store on the request's path: each answers while the memo's publication is held, which then runs by itself.
+func TestCatalogTakesTheKeyAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	handler, err := New(Config{
+		ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: testAPIKey, Repository: store,
+		Scorecard: func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return nil, nil },
+	}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	held := make(chan struct{})
+	release := sync.OnceFunc(func() { close(held) })
+	defer release()
+	var published atomic.Int32
+	handler.publishMemo = func(context.Context) error {
+		<-held
+		published.Add(1)
+		return nil
+	}
+	read := func(path, credential string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		if credential != "" {
+			request.Header.Set("Authorization", credential)
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		return response
+	}
+	head, _ := store.Head()
+	if response := read("/catalog/models", ""); response.Code != http.StatusUnauthorized {
+		t.Fatalf("a catalog without the key = %d %s", response.Code, response.Body)
+	}
+	for _, path := range []string{"/catalog/models", "/scorecard"} {
+		if response := read(path, testBearerToken); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d %s", path, response.Code, response.Body)
+		}
+	}
+	if after, _ := store.Head(); after != head {
+		t.Fatal("a read wrote to the store on its request")
+	}
+	release()
+	handler.memoWrites.Wait()
+	if published.Load() == 0 {
+		t.Fatal("what the reads hashed was never published")
+	}
+}

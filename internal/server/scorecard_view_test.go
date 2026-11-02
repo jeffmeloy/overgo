@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -49,7 +50,7 @@ func TestScorecardView(t *testing.T) {
 	read := func(rows []ScorecardRow) (int, string, scorecardResponse) {
 		t.Helper()
 		handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {
-			config.Scorecard = func(_ context.Context, given *overgodb.Store) ([]ScorecardRow, error) {
+			config.Scorecard = func(_ context.Context, given *overgodb.Store, _ *discovery.Memo) ([]ScorecardRow, error) {
 				if given != store {
 					t.Error("the reader was not given the server's store")
 				}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
@@ -39,7 +40,7 @@ func TestWebUIBrowserScorecardView(t *testing.T) {
 		trained("tuned-a", ScorecardCell{Metric: "held-out-quality", Value: 9.1, Label: "perplexity, wikitext (raw)", Measure: "perplexity", Direction: "minimize", Base: &perplexityBase}),
 		trained("tuned-b", ScorecardCell{Metric: "held-out-quality", Value: 0.3, Label: "accuracy, arc (zero-shot)", Measure: "accuracy", Direction: "maximize", Base: &accuracyBase}))
 	scored := httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {
-		config.Scorecard = func(context.Context, *overgodb.Store) ([]ScorecardRow, error) { return rows, nil }
+		config.Scorecard = func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return rows, nil }
 	}))
 	defer scored.Close()
 	plain := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 )
 
@@ -39,8 +40,9 @@ type ScorecardCell struct {
 	Prompt    int         `json:"prompt,omitzero"`
 }
 
-// ScorecardReader reads the user scorecard from the store.
-type ScorecardReader func(context.Context, *overgodb.Store) ([]ScorecardRow, error)
+// ScorecardReader reads the user scorecard from the store, writing nothing: what it hashes it adds to the memo, which the
+// handler keeps.
+type ScorecardReader func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error)
 
 // ScorecardMove is one thing that moved between the two newest published
 // scorecards: a row that came or went, or one of its cells that got better or
@@ -92,7 +94,8 @@ func (h *Handler) scorecardView(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "repository_unavailable", "the scorecard reads the OvergoDB store, and this server has none")
 		return
 	}
-	rows, err := h.config.Scorecard(request.Context(), h.repository)
+	rows, err := h.config.Scorecard(request.Context(), h.repository, h.catalogMemo)
+	h.keepMemo()
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "scorecard_unreadable", err.Error())
 		return

@@ -11,6 +11,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"log"
 	"math"
 	"net/http"
 	"path/filepath"
@@ -519,6 +520,11 @@ type hubWorkspace struct {
 type workbenchWorkspace struct {
 	catalogMemo      *discovery.Memo
 	browseRepository *overgodb.Store
+	// publishMemo commits catalogMemo; memoWriting admits one publication at
+	// a time and memoWrites holds Close until it ends.
+	publishMemo func(context.Context) error
+	memoWriting atomic.Bool
+	memoWrites  sync.WaitGroup
 	// tensorPasses holds each served inventory's measurement pass under the
 	// configured policy, so the Tensors tab measures a model once per process.
 	tensorPasses sync.Map
@@ -739,6 +745,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 		workbenchWorkspace: workbenchWorkspace{
 			catalogMemo:      catalogMemo,
 			browseRepository: browseRepository,
+			publishMemo: func(ctx context.Context) error {
+				return discovery.PublishMemo(ctx, config.Repository, catalogMemo)
+			},
 		},
 	}
 	handler.templateReasoning = sync.OnceValue(handler.probeTemplateReasoning)
@@ -783,6 +792,7 @@ func (h *Handler) Close() error {
 		return nil
 	}
 	h.inflight.shutdown()
+	h.memoWrites.Wait()
 	// A background tensor measurement commits nothing once the handler closes.
 	if h.stopTensorLifetime != nil {
 		h.stopTensorLifetime(errHandlerClosed)
@@ -812,6 +822,20 @@ func (h *Handler) Close() error {
 		closeErrors = append(closeErrors, h.browseRepository.Close())
 	}
 	return errors.Join(closeErrors...)
+}
+
+// keepMemo publishes what a read hashed, off its request: a GET writes nothing to the store, and the next process answers
+// from stat checks instead of hashing again. What a read adds during a publication waits for the next.
+func (h *Handler) keepMemo() {
+	if !h.memoWriting.CompareAndSwap(false, true) {
+		return
+	}
+	h.memoWrites.Go(func() {
+		defer h.memoWriting.Store(false)
+		if err := h.publishMemo(context.Background()); err != nil && !errors.Is(err, overgodb.ErrReadOnly) {
+			log.Printf("catalog: persist identity memo: %v", err)
+		}
+	})
 }
 
 type requestSession = capabilityruntime.SessionLease[Generator]

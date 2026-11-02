@@ -64,6 +64,7 @@ var workspaceFileAllowances = map[string][]string{
 	"response_session.go":            {"serving"},
 	"responses_tools.go":             {"operator", "serving"},
 	"runtime_activity.go":            {"hub", "operator", "serving"},
+	"scorecard_view.go":              {"workbench"},
 	"server.go":                      {"hub", "operator", "serving", "workbench"},
 	"server_admin.go":                {"serving"},
 	"server_completion.go":           {"serving"},

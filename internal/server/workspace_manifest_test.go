@@ -26,9 +26,6 @@ func TestWorkspaceManifest(t *testing.T) {
 	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 || manifest.Tabs[0].ID != "chat" {
 		t.Fatalf("workspace manifest = %+v", manifest)
 	}
-	if routesByPath["/catalog/models"].Authentication != routePublic {
-		t.Error("the header's evidence line reads /catalog/models, which must stay public")
-	}
 	sections := make(map[string]bool, len(manifest.Sections))
 	for _, section := range manifest.Sections {
 		sections[section.ID] = true

@@ -133,11 +133,11 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/slots", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).slotStatus},
 	{Path: "/slots/{id_slot}", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).slotAction},
 	{Path: "/lora-adapters", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost}, Handler: (*Handler).loraAdapters, Inventory: true},
-	{Path: "/catalog/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).catalogModels},
+	{Path: "/catalog/models", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).catalogModels},
 	// Hub search reaches outward and downloads mutate local disk; agent
-	// routes execute tools and expose session transcripts. All of them
-	// require the bearer credential -- only local read-only catalogs and the
-	// health/metrics probes stay public.
+	// routes execute tools and expose session transcripts; the catalog shows
+	// disk paths. All of them require the bearer credential -- only the served
+	// model's own listing and the health/metrics probes stay public.
 	{Path: "/hub/search", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).hubSearch},
 	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
 	{Path: "/library/register", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryRegister, Inventory: true},

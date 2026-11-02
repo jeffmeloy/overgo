@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/webuilane"
 )
@@ -28,7 +29,7 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	rows := testScorecard(t)
 	serve := func(read ScorecardHistoryReader) *httptest.Server {
 		return httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {
-			config.Scorecard = func(context.Context, *overgodb.Store) ([]ScorecardRow, error) { return rows, nil }
+			config.Scorecard = func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return rows, nil }
 			config.ScorecardHistory = read
 		}))
 	}

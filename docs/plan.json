@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 236,
+        "nodes": 9,
         "reason": "agent-attempts took 584 of an estimated 120: a retry carries a new approval, so the receipt chain, the checkpoint, the restore and both approval paths moved with the ordinal. The rest of the row is estimated from the same reading: provider-listing 300, one-address-list 110, public-routes 50, session-list 150."
       },
       "steps": [
-        {
-          "id": "public-routes",
-          "title": "Make the catalog route match SECURITY.md",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestCatalogTakesTheKeyAndWritesNothing$'",
-          "rationale": "SECURITY.md says every API request carries the key once one is set, yet /v1/models and /models and /catalog/models are public (internal/server/routes.go:42,43,136), and the catalog shows disk paths and writes to the store on a GET (hub_workspace.go:51,65, discovery/memo_evidence.go:121). GET /scorecard writes the same memo (cmd/server/scorecard.go:15, scorecard.go:317). A configured key also skips the shared admission (server.go:887), though SECURITY.md:10 says one rule admits a credential-less request.\nThe catalog takes the key, the memo is written off the request path on both routes, and SECURITY.md names what stays public, the idle shell's catalog included (idle_shell.go:51). State which part of the admission applies to a keyed server, which may bind non-loopback.\ninternal/server/workspace_manifest_test.go:29-31 pins the opposite and changes here. The page already turns a 401 into a refusal under the pill (boot.js:1055).\nServes: a stated boundary that holds.\nDisappears: a store write on a GET.\nEvidence: the route table test.\nBatch: serving lane."
-        },
         {
           "id": "session-list",
           "title": "List agent sessions without restoring every one",

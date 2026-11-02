@@ -18,7 +18,9 @@ beyond the server (the proxy's `?swap=` on the health probe, the provider
 listing that sends a key to an endpoint) is admitted as a mutation
 (`AdmitCredentiallessEffect`): cross-site fetch metadata or a foreign
 Origin refuses it, the workbench's own same-origin requests and loopback
-clients without fetch metadata pass.
+clients without fetch metadata pass. A server with a key may bind a
+non-loopback address, so this rule is not what admits a request to it: the
+key is, and a route that stays public answers whoever reaches it.
 
 A provider's variable goes to one endpoint: a declaration binds the pair until
 it retires, and a listing names a declared pair or carries a key of its own,
@@ -29,8 +31,12 @@ holds yet.
 
 ## API keys
 
-- The server accepts an optional bearer key; when configured, every API
-  request must carry it.
+- The server accepts an optional bearer key; when configured, every request
+  must carry it except the routes that name what is served and show nothing
+  of the disk: `/health`, `/healthz`, `/v1/health`, `/metrics`, `/v1/models`
+  and `/models`.
+- The swap proxy's idle shell takes no key: its `/catalog/models` shows disk
+  paths to any client the shared admission passes, which is to say on loopback.
 - The web GUI holds the entered key in memory for the page session.
   Persisting it in browser storage is opt-in via the "remember" control
   next to the key field; unchecking it removes the stored key.

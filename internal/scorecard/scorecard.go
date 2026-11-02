@@ -320,6 +320,19 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
+	return build(ctx, store, entries, truncated)
+}
+
+// BuildOver is Build over a memo the caller keeps: a request reads the scorecard and writes nothing to the store.
+func BuildOver(ctx context.Context, store *overgodb.Store, memo *discovery.Memo) ([]Row, error) {
+	entries, truncated, err := discovery.CapabilityCatalog(ctx, store, catalogLimit, memo)
+	if err != nil {
+		return nil, err
+	}
+	return build(ctx, store, entries, truncated)
+}
+
+func build(ctx context.Context, store *overgodb.Store, entries []discovery.CatalogEntry, truncated bool) ([]Row, error) {
 	if truncated {
 		return nil, fmt.Errorf("scorecard: the activation listing was truncated at %d", catalogLimit)
 	}

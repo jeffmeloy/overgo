@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 	llamaserver "overgo/internal/server"
 )
 
-// serverScorecard reads the user scorecard from the store, each row's cells
+// serverScorecard reads the user scorecard from the store over the server's
+// memo, writing nothing, each row's cells
 // in the order a user meets them.
-func serverScorecard(ctx context.Context, store *overgodb.Store) ([]llamaserver.ScorecardRow, error) {
-	rows, err := scorecard.Build(ctx, store)
+func serverScorecard(ctx context.Context, store *overgodb.Store, memo *discovery.Memo) ([]llamaserver.ScorecardRow, error) {
+	rows, err := scorecard.BuildOver(ctx, store, memo)
 	if err != nil {
 		return nil, err
 	}

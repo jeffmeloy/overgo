@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"slices"
 	"strconv"
@@ -44,11 +43,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
 	}
-	// Identities hashed during this pass persist so the next process
-	// answers from stat checks instead of re-hashing the model bytes.
-	if err := discovery.PublishMemo(request.Context(), h.config.Repository, h.catalogMemo); err != nil {
-		log.Printf("catalog: persist identity memo: %v", err)
-	}
+	h.keepMemo()
 	evidence := h.catalogEvidence(request.Context(), h.workspaceSuiteNames(request.Context()))
 	writeJSON(response, http.StatusOK, map[string]any{
 		"models": catalogListing(entries, evidence), "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),

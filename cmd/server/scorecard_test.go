@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -24,9 +25,13 @@ func TestServerScorecardReadsTheStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	rows, err := serverScorecard(t.Context(), store)
+	head, _ := store.Head()
+	rows, err := serverScorecard(t.Context(), store, discovery.NewMemo())
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("an empty store scored %+v, %v", rows, err)
+	}
+	if after, _ := store.Head(); after != head {
+		t.Fatal("a read of the scorecard wrote to the store")
 	}
 }
 

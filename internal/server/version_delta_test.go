@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 )
 
@@ -57,7 +58,7 @@ func TestWhatGotBetterBetweenVersions(t *testing.T) {
 	read := func(history ScorecardHistoryReader) scorecardResponse {
 		t.Helper()
 		handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {
-			config.Scorecard = func(context.Context, *overgodb.Store) ([]ScorecardRow, error) { return nil, nil }
+			config.Scorecard = func(context.Context, *overgodb.Store, *discovery.Memo) ([]ScorecardRow, error) { return nil, nil }
 			config.ScorecardHistory = history
 		})
 		response := serveTestRequest(handler, http.MethodGet, "/scorecard", "")

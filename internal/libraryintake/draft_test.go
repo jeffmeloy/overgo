@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/overgodb"
+	"overgo/internal/testutil"
 )
 
 // writeArchitectureFixture writes a GGUF declaring architecture in dir.
@@ -39,5 +41,21 @@ func TestDraftBesideTheModel(t *testing.T) {
 	writeArchitectureFixture(t, dir, "second-draft.gguf", "qwen4exp-mtp")
 	if _, err := draftBeside(model); err == nil || !strings.Contains(err.Error(), "2 draft GGUF files") {
 		t.Fatalf("two drafts beside the model: %v", err)
+	}
+}
+
+// TestADraftVerifiesOnlyOverAVerifiedTrunk: a model nothing verifies runs, and no draft verifies over it, the refusal
+// naming the model before the store records anything or a runner opens.
+func TestADraftVerifiesOnlyOverAVerifiedTrunk(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	directory := testutil.Qwen35Directory(t)
+	_, active, err := validateDraft(t.Context(), store, directory, filepath.Join(directory, "draft.gguf"), "revision", nil, 1)
+	if err == nil || active || !strings.Contains(err.Error(), "only over a verified model") || !strings.Contains(err.Error(), directory) {
+		t.Fatalf("a draft over an unverified trunk: active %t, %v", active, err)
 	}
 }

@@ -312,7 +312,7 @@ func ValidateDraft(ctx context.Context, repository *overgodb.Store, path string)
 	return validateDraft(ctx, repository, path, draftPath, revision, policy.Prompts, policy.MaxTokens)
 }
 
-// validateDraft registers a draft beside an activated model, replays the validation prompts speculatively through it,
+// validateDraft refuses a trunk nothing verifies, registers a draft beside an activated model, replays the validation prompts speculatively through it,
 // and activates the speculation recipe when the trunk keeps at least draftAcceptanceFloor of the drafts; it returns
 // the draft's verification gate. A draft that keeps fewer records its failure and stays a candidate: the model
 // serves, decoding a token a step.
@@ -320,6 +320,14 @@ func validateDraft(ctx context.Context, repository *overgodb.Store, path, draftP
 	loaded, err := modelrecipe.ResolveClaimedGGUF(ctx, repository, path, discovery.LoadMemo(ctx, repository).Claim)
 	if err != nil {
 		return artifact.ID{}, false, err
+	}
+	state, err := loaded.State()
+	if err != nil {
+		return artifact.ID{}, false, errors.Join(err, loaded.Close())
+	}
+	// A run needs no verification, and a verification rests on one: the verified tier of a draft speaks for its trunk.
+	if state.Verification == modelrecipe.StateNotVerified || state.Verification == modelrecipe.StateBroken {
+		return artifact.ID{}, false, errors.Join(refusal{fmt.Errorf("library: a draft verifies only over a verified model, and %s is %s", path, state.Verification)}, loaded.Close())
 	}
 	identity, err := loaded.Identity()
 	if err != nil {

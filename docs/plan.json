@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2019,
+        "nodes": 1950,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "draft-trunk",
-          "title": "Verify a draft only over a verified trunk",
-          "status": "open",
-          "verify": "go test ./internal/libraryintake -count=1 -run '^TestADraftVerifiesOnlyOverAVerifiedTrunk$'",
-          "rationale": "validateDraft relied on the loader's refusal, which is gone: it resolves an unverified trunk (internal/libraryintake/intake.go:320) and can activate the speculation recipe at recipe.EvidenceVerified (:363), reachable through cmd/validate/draft.go:26, and ActivateCapability never looks at the trunk (internal/modelrecipe/lifecycle.go:94-148). Refuse on the loaded program's state before the runner opens, so the test needs no device.\nServes: the verified tier means what it says.\nDisappears: nothing.\nEvidence: its test.\nBatch: recipe lane."
-        },
         {
           "id": "keep-recipe",
           "title": "Run a broken model on the recipe its alias names",

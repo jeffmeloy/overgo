@@ -69,9 +69,14 @@
       },
       "likely_effort": "Moderate: one derivation built on InspectImport beside ResolveClaimedGGUF, the state on the catalog and run record, and the workspace opening; the activation and 'never served' tests change with them.",
       "plan_references": [
-        "run-from-files/training-opens",
+        "run-from-files/keep-recipe",
+        "run-from-files/record-identity",
         "run-from-files/run-carries-state",
+        "run-from-files/record-state",
+        "run-from-files/training-opens",
         "run-from-files/named-refusals",
+        "run-from-files/refusal-reason",
+        "run-from-files/directory-identity",
         "run-from-files/scorecard-label",
         "run-from-files/do"
       ],
@@ -705,7 +710,7 @@
       },
       "likely_effort": "Small two-file test merge.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -794,7 +799,7 @@
       },
       "likely_effort": "Small move into an existing test owner; no production development.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -867,7 +872,7 @@
       },
       "likely_effort": "Small existing-call migration; batch with ordinary affected work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -925,7 +930,7 @@
       },
       "likely_effort": "Small test-only migration; batch with adopted inference work under normal affected verification.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -966,7 +971,7 @@
       },
       "likely_effort": "Small local consolidation; batch with ordinary query work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1012,7 +1017,7 @@
       },
       "likely_effort": "Small test-only move during normal onboarding work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1062,7 +1067,7 @@
       },
       "likely_effort": "Small existing-file merge during normal validation work; no extra suite.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1104,7 +1109,7 @@
       },
       "likely_effort": "Small local test rearrangement/deletion.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1287,7 +1292,7 @@
       },
       "likely_effort": "Small table migration, best batched with the already planned decode work so this maintenance change does not incur an isolated device gate.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1341,7 +1346,7 @@
       },
       "likely_effort": "Small local table migration alongside the existing window work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1391,7 +1396,7 @@
       },
       "likely_effort": "Small local test merge.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1436,7 +1441,7 @@
       },
       "likely_effort": "One extension of the existing metrics owner, preserving the new prepared-versus-run distinction.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1465,7 +1470,7 @@
       "likely_effort": "Small-to-medium private test-fixture migration; no production or model change.",
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "recommended_change": "Extend existing decodeStepGraph/buildDecodeStepGraph to take rows []uint32 and derive span/positions; single-token caller passes one row. Remove verifySpanGraph/buildVerifySpanGraph. Share only the private bind/stats/readCaches/logits operations with explicit arguments in that existing Windows test owner. Retain newFixtureExecutor, moePinnedValues/moePinnedQuantize and copyFixtureDeviceBytes. Other cached dense-block builders do not represent this mixed sparse/MoE graph; no new package, options framework or universal fixture.",
       "severity": "P3",
@@ -1538,7 +1543,7 @@
       },
       "likely_effort": "Small-to-medium test-only table migration; no production/kernel change.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1568,7 +1573,7 @@
       "likely_effort": "Small local test refactor; optional adjacent expert-residency maintenance.",
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "recommended_change": "Use Worker.ExecutionStats in both MoE stats paths and the read-back copies closure. Share only the two MoE retained execute/copy/release/stat-delta bodies through one private helper in their existing file. Read-back keeps its small scalar/error helper and different graph fixture; remove its displaced callback and device/driver imports. Preserve newFixtureExecutor/moePinnedCase.prepare and the early cudatest.Require before graph setup. Do not widen unrelated helpers or add a package.",
       "severity": "P3",
@@ -1629,7 +1634,7 @@
       },
       "likely_effort": "Small same-file test-body merge.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1776,7 +1781,7 @@
       },
       "likely_effort": "Trivial local deletion; no new test required.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1845,7 +1850,7 @@
       },
       "likely_effort": "Small changes in two existing test files, with no test retirement or caller migration.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -1899,7 +1904,7 @@
       },
       "likely_effort": "One existing test file; no production change or new self-check needed for unchanged download behavior.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Now explicitly adopted by consolidate/test-reductions. Fresh source still contains the duplicate HTTP/scanner parser; existing runtimeServingProbe owns framed flush and cancellation. Keep the established -127 test-AST proposal and all download cases. No new reduction or execution claimed.",
       "closure_criteria": [
@@ -1973,7 +1978,7 @@
       },
       "likely_effort": "Small two-file test merge; no production work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -2241,7 +2246,7 @@
       },
       "likely_effort": "Small test-only cleanup. No new test needed for sharing the already immutable graph.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
@@ -2335,7 +2340,7 @@
       },
       "likely_effort": "Trivial test cleanup, optional when maintaining the same fixture.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
@@ -2436,7 +2441,7 @@
       },
       "likely_effort": "Small local merge in one existing test; batch with ordinary affected work.",
       "plan_references": [
-        "consolidate/test-reductions"
+        "compact-tests/exact-folds"
       ],
       "plan_coverage": "Advisory only; no new plan row or implementation adoption inferred.",
       "closure_criteria": [
@@ -6610,6 +6615,17 @@
         "plan_steps": [
           "run-from-files/catalog-states"
         ]
+      },
+      {
+        "comment": "A regression of this row, repaired at run-from-files/draft-trunk: validateDraft relied on the loader refusing a model with no recipe, so derive-gguf opened a path to activate a draft at the verified tier over an unverified trunk. Found by the review the owner's plan carried, not by the lead. Other callers that read a load's success as a verification need the same reading; keep-recipe and named-refusals take up the rest.",
+        "disposition": "progress",
+        "evidence": [
+          "TestADraftVerifiesOnlyOverAVerifiedTrunk"
+        ],
+        "finding_id": "SQA-283",
+        "plan_steps": [
+          "run-from-files/draft-trunk"
+        ]
       }
     ],
     "experiments": {
@@ -6655,7 +6671,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "c2f24f16a27d27890f0cc716a4490d72117a8e82",
+    "head": "e253bd92e845117a7d105343e8749b75a4b577bd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6941,11 +6957,11 @@
         "note": "P3 taken when that row reads the scorecard's MOSS samples, since it is the wording of the same cells."
       },
       "SQA-276": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-238": {
         "action": "implemented",
@@ -6967,53 +6983,53 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/blob_pack_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-237": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-236": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-235": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-253": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-269": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-270": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-216": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-217": {
         "action": "none",
@@ -7027,60 +7043,60 @@
         "note": "Lead's judgement: filed. A one-line reuse, batched with its neighbours."
       },
       "SQA-204": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-207": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-209": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-220": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-166": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-188": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-174": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-222": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-224": {
         "action": "none",
@@ -7094,32 +7110,32 @@
         "note": "Landed. Only presence's later holds block goes; the recorded diagnostic stays and the comment says what it does now. Awaits the reviewer's closure."
       },
       "SQA-225": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-226": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-252": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-255": {
-        "action": "existing-row",
+        "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Adopted by the static review's reduction row."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-259": {
         "action": "none",
@@ -7143,9 +7159,9 @@
       "SQA-230": {
         "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Lead's judgement: filed. Worth doing when these fixtures next open; the QSA layer's graph is still built twice at this landing, to keep this change only about its acceptance."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-234": {
         "action": "filed",
@@ -7157,9 +7173,9 @@
       "SQA-233": {
         "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Lead's judgement: filed. One forwarding closure in the GDN fixture, trivial, no assertion changes."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-249": {
         "action": "none",
@@ -7168,9 +7184,9 @@
       "SQA-240": {
         "action": "filed",
         "rows": [
-          "consolidate/test-reductions"
+          "compact-tests/exact-folds"
         ],
-        "note": "Lead's judgement: filed. A test merge with no assertion moving."
+        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-243": {
         "action": "none",
@@ -7251,13 +7267,18 @@
       "SQA-283": {
         "action": "filed",
         "rows": [
-          "run-from-files/training-opens",
+          "run-from-files/keep-recipe",
+          "run-from-files/record-identity",
           "run-from-files/run-carries-state",
+          "run-from-files/record-state",
+          "run-from-files/training-opens",
           "run-from-files/named-refusals",
+          "run-from-files/refusal-reason",
+          "run-from-files/directory-identity",
           "run-from-files/scorecard-label",
           "run-from-files/do"
         ],
-        "note": "Landed so far: state, derive-gguf, derive-safetensors, declared-template, catalog-states. A correction to the lead's own figure: 225 of 237 models without a recipe counted 160 retired hosted models from the browser lane. The catalog now lists 82 models, 43 of them not verified."
+        "note": "Landed so far: state, derive-gguf, derive-safetensors, declared-template, catalog-states, draft-trunk. The owner's merged plan added the steps a review reproduced at 675d61b80. A correction to the lead's own figure: 225 of 237 models without a recipe counted 160 retired hosted models from the browser lane. The catalog lists 82 models, 43 of them not verified."
       }
     }
   },

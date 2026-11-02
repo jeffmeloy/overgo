@@ -257,6 +257,20 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	if err != nil {
 		return err
 	}
+	// What the files alone refuse is refused before a picture reaches the device.
+	timesteps := profile.Sampling.TrainTimesteps
+	if err := mosstrain.CheckTrainingGrid(timesteps, profile.Rotary.TrainingShift); err != nil {
+		return err
+	}
+	var held []mossPicture
+	if *heldout != "" {
+		if held, err = mossManifest(*heldout); err != nil {
+			return err
+		}
+		if err := refuseTrainedHeldOut(pictures, held); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
 	loadStarted := time.Now()
 	examples, largest, err := mossPrepare(ctx, directory, profile, pictures, *size)
 	if err != nil {
@@ -266,13 +280,6 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 	var judged []mosstrain.Example
 	var reading mossHeldout
 	if *heldout != "" {
-		held, err := mossManifest(*heldout)
-		if err != nil {
-			return err
-		}
-		if err := refuseTrainedHeldOut(pictures, held); err != nil {
-			return fmt.Errorf("%s: %w", name, err)
-		}
 		for _, picture := range held {
 			reading.Pictures = append(reading.Pictures, filepath.Base(picture.path))
 		}
@@ -323,10 +330,6 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		return err
 	}
 	fmt.Printf("trainable parameters=%d pictures=%d derived_lr=%.4g derived_momentum=%.4f\n", mosstrain.ParameterCount(spec, options), len(examples), config.BaseLearningRate, config.Momentum)
-	timesteps := profile.Sampling.TrainTimesteps
-	if err := mosstrain.CheckTrainingGrid(timesteps, profile.Rotary.TrainingShift); err != nil {
-		return err
-	}
 	// path draws an example's timestep and noise from a stream, the source's
 	// uniform draw over its training grid.
 	path := func(stream *rand.Rand, example mosstrain.Example) (noised, target []float32, timestep float64) {

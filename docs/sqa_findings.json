@@ -7024,7 +7024,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "d3ef70e8a16b3995c0f9b4ba2a6b12e25d7bfbac",
+    "head": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7657,11 +7657,11 @@
         "note": "The test's repeated parse of the committed bytes is gone: the package initializer already refuses a malformed file before a test can run. The synthetic cases stay, with a target of no order added."
       },
       "SQA-293": {
-        "action": "planned",
+        "action": "implemented",
         "rows": [
           "moss-early-refusals/do"
         ],
-        "note": "Accepted. Both refusals are decidable before the first picture is prepared on the device, and moving them costs one call each. Filed as a row of its own, after the proof."
+        "note": "Both checks now run before the first picture is prepared. The test's trained picture cannot decode, so the old order stops at the device's encoder and the new one on the refusal."
       }
     }
   },

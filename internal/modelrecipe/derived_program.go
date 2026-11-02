@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -112,6 +113,15 @@ func (l *LoadedProgram) bindDerived(ctx context.Context, store artifact.Reader) 
 	}
 	if err := l.declarePolicy(ctx, store, policy); err != nil {
 		return err
+	}
+	// The default recipe of this file may be one the store has already refused, which is the program that now runs: a
+	// person reads that recorded failure before trusting the output.
+	eligibility, err := RecipeEligibility(ctx, store, definition.ID)
+	if err != nil {
+		return err
+	}
+	if eligibility.Refusal != "" {
+		l.state.State.Reason = cmp.Or(l.state.State.Reason, "the store refused this recipe: "+eligibility.Refusal)
 	}
 	derivation := Derivation{Inventory: l.state.Inventory, Resolved: resolved, Definition: definition}
 	if err := l.bindResolved(definition, resolved); err != nil {

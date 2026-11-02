@@ -24,6 +24,7 @@ type heldOpenProcess struct {
 func (p heldOpenProcess) URL() string                     { return p.server.URL }
 func (p heldOpenProcess) Ready(ctx context.Context) error { return ctx.Err() }
 func (p heldOpenProcess) Stop() error                     { close(p.stop); p.server.Close(); return nil }
+func (p heldOpenProcess) Exited() <-chan struct{}         { return nil }
 
 func (heldOpenLauncher) Launch(_ context.Context, servable Servable) (Process, error) {
 	stop := make(chan struct{})

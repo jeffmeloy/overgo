@@ -29,6 +29,8 @@ type Process interface {
 	Ready(ctx context.Context) error
 	// Stop terminates the child.
 	Stop() error
+	// Exited closes when the child has ended, by itself or stopped.
+	Exited() <-chan struct{}
 }
 
 // Launcher starts a child server for one servable.
@@ -98,7 +100,9 @@ type Supervisor struct {
 	idle     time.Duration
 	grace    time.Duration
 	current  *upstream
-	closed   bool
+	// loading is the servable a load outside the lock is bringing up: the device has room for one.
+	loading *Servable
+	closed  bool
 }
 
 // New binds a supervisor to its launcher. A zero idle timeout keeps an
@@ -115,7 +119,8 @@ func New(launcher Launcher, idle time.Duration) (*Supervisor, error) {
 // Acquire returns the lease on the running child for the servable,
 // launching or swapping as needed, which the caller MUST release when its
 // request completes: releases drive draining and the idle clock. Callers
-// block while a different model drains and starts.
+// block while a different model drains and starts, and queue behind a load
+// in progress. A child that has exited is launched again.
 func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, error) {
 	if ctx == nil {
 		return nil, errors.New("model swap: nil acquire context")
@@ -144,6 +149,11 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		if s.closed {
 			return nil, errors.New("model swap: supervisor is closed")
 		}
+		if s.loading != nil {
+			s.drained.Wait()
+			continue
+		}
+		s.dropExitedLocked()
 		if s.current != nil && s.current.servable == servable {
 			return s.leaseLocked(swap), nil
 		}
@@ -175,6 +185,25 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		break
 	}
 	swap.Launched = true
+	s.loading = &servable
+	s.mu.Unlock()
+	process, err := s.load(ctx, servable, &swap)
+	s.mu.Lock()
+	s.loading = nil
+	s.drained.Broadcast()
+	if err != nil {
+		return nil, err
+	}
+	if s.closed {
+		_ = process.Stop()
+		return nil, errors.New("model swap: supervisor is closed")
+	}
+	s.current = &upstream{servable: servable, process: process}
+	return s.leaseLocked(swap), nil
+}
+
+// load brings a child up outside the lock, so Status answers through a load that can take minutes.
+func (s *Supervisor) load(ctx context.Context, servable Servable, swap *SwapTimes) (Process, error) {
 	launching := time.Now()
 	process, err := s.launcher.Launch(ctx, servable)
 	if err != nil {
@@ -187,8 +216,20 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		return nil, fmt.Errorf("model swap: %q did not become ready: %w", servable.Name, err)
 	}
 	swap.Ready = time.Since(readying)
-	s.current = &upstream{servable: servable, process: process}
-	return s.leaseLocked(swap), nil
+	return process, nil
+}
+
+// dropExitedLocked lets go of a child that has ended, whose address answers nothing: a device fault no longer needs a
+// restart by hand or a different model to clear.
+func (s *Supervisor) dropExitedLocked() {
+	if s.current == nil {
+		return
+	}
+	select {
+	case <-s.current.process.Exited():
+		s.stopCurrentLocked()
+	default:
+	}
 }
 
 // leaseLocked retains the running child for one request and hands back its lease.
@@ -200,10 +241,15 @@ func (s *Supervisor) leaseLocked(swap SwapTimes) *Lease {
 	return lease
 }
 
-// Status reports the running child, if any.
+// Status reports the running child, or the one a load is bringing up, if any: a request with no model of its own queues
+// on a load rather than reaching the idle shell.
 func (s *Supervisor) Status() (Servable, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.loading != nil {
+		return *s.loading, true
+	}
+	s.dropExitedLocked()
 	if s.current == nil {
 		return Servable{}, false
 	}

@@ -150,7 +150,7 @@ func (l ServerLauncher) launch(ctx context.Context, servable Servable) (*serverP
 	if err != nil {
 		return nil, err
 	}
-	exited := make(chan error, 1)
+	exited, ended := make(chan error, 1), make(chan struct{})
 	go func() {
 		receipt, waitErr := supervised.Wait(context.WithoutCancel(ctx))
 		if receipt.ExitCode == processcontrol.ResourceBusyExitCode && !receipt.TreeTerminated {
@@ -166,8 +166,9 @@ func (l ServerLauncher) launch(ctx context.Context, servable Servable) (*serverP
 		}
 		exited <- waitErr
 		close(exited)
+		close(ended)
 	}()
-	return &serverProcess{supervised: supervised, exited: exited, announced: announced.Line(), url: "http://" + address}, nil
+	return &serverProcess{supervised: supervised, exited: exited, ended: ended, announced: announced.Line(), url: "http://" + address}, nil
 }
 
 type serverProcess struct {
@@ -178,6 +179,8 @@ type serverProcess struct {
 	// exited delivers the child's Wait result; a child that dies during
 	// startup fails Ready at once.
 	exited chan error
+	// ended closes once the child has ended, for every reader; exited's one value goes to the first.
+	ended chan struct{}
 	// announced delivers the child's listening line once its socket is bound.
 	announced <-chan string
 	url       string
@@ -185,6 +188,9 @@ type serverProcess struct {
 
 // URL is the child's loopback base address.
 func (p *serverProcess) URL() string { return p.url }
+
+// Exited closes when the child has ended.
+func (p *serverProcess) Exited() <-chan struct{} { return p.ended }
 
 // Ready waits for the child's listening announcement, its exit, or the
 // context's end, then confirms the bound listener answers health once --

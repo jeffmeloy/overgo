@@ -15,6 +15,8 @@ type fakeProcess struct {
 	// done closes on the first Stop; a test waits on it for the idle stop.
 	done     chan struct{}
 	stopDone func()
+	// loading holds Ready until it closes; ended closes to say the child ended by itself.
+	loading, ended chan struct{}
 }
 
 func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
@@ -62,8 +64,17 @@ func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
 	}
 }
 
-func (p *fakeProcess) URL() string                     { return p.url }
-func (p *fakeProcess) Ready(ctx context.Context) error { return ctx.Err() }
+func (p *fakeProcess) URL() string             { return p.url }
+func (p *fakeProcess) Exited() <-chan struct{} { return p.ended }
+func (p *fakeProcess) Ready(ctx context.Context) error {
+	if p.loading != nil {
+		select {
+		case <-p.loading:
+		case <-ctx.Done():
+		}
+	}
+	return ctx.Err()
+}
 func (p *fakeProcess) Stop() error {
 	p.stopped.Store(true)
 	p.stopDone()
@@ -75,6 +86,9 @@ type fakeLauncher struct {
 	launched  []string
 	processes map[string]*fakeProcess
 	fail      map[string]error
+	// loading, when set, holds each child's Ready until it closes, and started says a launch began.
+	loading chan struct{}
+	started chan struct{}
 }
 
 func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, error) {
@@ -85,7 +99,10 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 	}
 	l.launched = append(l.launched, servable.Name)
 	done := make(chan struct{})
-	process := &fakeProcess{url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
+	if l.started != nil {
+		l.started <- struct{}{}
+	}
+	process := &fakeProcess{loading: l.loading, ended: make(chan struct{}), url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
 	if l.processes == nil {
 		l.processes = map[string]*fakeProcess{}
 	}
@@ -245,5 +262,91 @@ func TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream(t *testing.T) {
 	stream.HoldOpen()
 	if got := (SwapTimes{Drain: 1500 * time.Millisecond, Launch: 2 * time.Millisecond}).String(); got != "drain=1500;stop=0;launch=2;ready=0" {
 		t.Fatalf("the swap's header value is %q", got)
+	}
+}
+
+// TestAnExitedChildIsLaunchedAgain: a child that ended by itself, a device fault among the causes, is noticed by the next
+// request for it, and its old lease touches nothing of the new one.
+func TestAnExitedChildIsLaunchedAgain(t *testing.T) {
+	t.Parallel()
+	launcher := &fakeLauncher{}
+	supervisor, err := New(launcher, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	model := Servable{Name: "alpha"}
+	first, err := supervisor.Acquire(t.Context(), model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(launcher.processes[model.Name].ended)
+	if _, running := supervisor.Status(); running {
+		t.Fatal("a child that ended still reads as running")
+	}
+	second, err := supervisor.Acquire(t.Context(), model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Release()
+	first.Release()
+	if len(launcher.launched) != 2 {
+		t.Fatalf("launched %v, want the model launched again", launcher.launched)
+	}
+}
+
+// TestStatusAnswersDuringALoad: a load holds no lock, so Status answers with the model it is bringing up, a request for
+// it queues and launches nothing, and a child that finishes after Close is stopped.
+func TestStatusAnswersDuringALoad(t *testing.T) {
+	t.Parallel()
+	launcher := &fakeLauncher{loading: make(chan struct{}), started: make(chan struct{}, 1)}
+	supervisor, err := New(launcher, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := Servable{Name: "alpha"}
+	acquired := make(chan error, 2)
+	acquire := func() {
+		lease, err := supervisor.Acquire(t.Context(), model)
+		if lease != nil {
+			lease.Release()
+		}
+		acquired <- err
+	}
+	go acquire()
+	<-launcher.started
+	if loading, running := supervisor.Status(); !running || loading != model {
+		t.Fatalf("status during a load = %+v, %t", loading, running)
+	}
+	go acquire()
+	close(launcher.loading)
+	for range 2 {
+		if err := <-acquired; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(launcher.launched) != 1 {
+		t.Fatalf("launched %v, want one load shared", launcher.launched)
+	}
+
+	closing := &fakeLauncher{loading: make(chan struct{}), started: make(chan struct{}, 1)}
+	late, err := New(closing, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, err := late.Acquire(t.Context(), model)
+		acquired <- err
+	}()
+	<-closing.started
+	if err := late.Close(); err != nil {
+		t.Fatal(err)
+	}
+	close(closing.loading)
+	if err := <-acquired; err == nil {
+		t.Fatal("a child that finished after Close was handed out")
+	}
+	if !closing.processes[model.Name].stopped.Load() {
+		t.Fatal("a child that finished after Close was left running")
 	}
 }

@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 800,
+        "nodes": 561,
         "reason": "Estimate after the 675d61b80 recheck: agent-attempts 120, child-exit 220, provider-listing 150, one-address-list 110, public-routes 50, session-list 150. The row's filed 500 did not hold the wider fixes."
       },
       "steps": [
-        {
-          "id": "child-exit",
-          "title": "Notice a model server that exited",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -count=1 -run '^(TestAnExitedChildIsLaunchedAgain|TestStatusAnswersDuringALoad)$'",
-          "rationale": "Process has no liveness (internal/modelswap/supervisor.go:25-32), and an exited child stays current (:147-149), so the proxy answers 502 until a different model is requested, or until the idle timer if -idle is set (default 0, cmd/swap/main.go:41). Acquire also holds s.mu through Launch and Ready (:123,179-189), so Status waits for a whole load. Both reproduced.\nThe launcher holds the exit channel (launcher.go:153-180), which carries one value then closes and has two readers (:196,233). Expose it, drop an exited child, and move the load outside the lock.\nThe plain fix alone is wrong: with the load outside the lock Status answers false during a load, routeServable returns errNothingServes (proxy.go:249-255), and a model-less request reaches the idle shell (proxy.go:126-130) instead of queuing. Status reports the loading servable. Close stops a child that finishes after it, and a second Acquire queues rather than launches.\nServes: failure-rate and load-time.\nDisappears: a restart by hand after a device fault.\nEvidence: a fake process that exits, one that loads slowly, and a request during the load.\nBatch: serving lane."
-        },
         {
           "id": "agent-attempts",
           "title": "Let an agent step be attempted again after an error or a restart",

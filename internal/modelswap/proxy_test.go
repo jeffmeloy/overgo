@@ -91,6 +91,7 @@ type upstreamProcess struct{ server *httptest.Server }
 func (p upstreamProcess) URL() string                     { return p.server.URL }
 func (p upstreamProcess) Ready(ctx context.Context) error { return ctx.Err() }
 func (p upstreamProcess) Stop() error                     { p.server.Close(); return nil }
+func (p upstreamProcess) Exited() <-chan struct{}         { return nil }
 
 func (l *upstreamLauncher) Launch(_ context.Context, servable Servable) (Process, error) {
 	name := servable.Name

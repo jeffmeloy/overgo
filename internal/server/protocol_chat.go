@@ -647,12 +647,13 @@ type chatChoice struct {
 }
 
 type chatResponse struct {
-	ID      string          `json:"id"`
-	Object  string          `json:"object"`
-	Created int64           `json:"created"`
-	Model   string          `json:"model"`
-	Choices []chatChoice    `json:"choices"`
-	Usage   completionUsage `json:"usage"`
+	ID           string          `json:"id"`
+	Object       string          `json:"object"`
+	Created      int64           `json:"created"`
+	Model        string          `json:"model"`
+	Verification string          `json:"verification,omitzero"`
+	Choices      []chatChoice    `json:"choices"`
+	Usage        completionUsage `json:"usage"`
 }
 
 func (h *Handler) completeChat(
@@ -711,11 +712,12 @@ func (h *Handler) completeChat(
 		})
 	}
 	writeJSON(response, http.StatusOK, chatResponse{
-		ID:      id,
-		Object:  "chat.completion",
-		Created: time.Now().Unix(),
-		Model:   h.config.ModelID,
-		Choices: choices,
+		ID:           id,
+		Object:       "chat.completion",
+		Created:      time.Now().Unix(),
+		Model:        h.config.ModelID,
+		Verification: string(h.modelState.Verification),
+		Choices:      choices,
 		Usage: completionUsage{
 			PromptTokenDetails: responseInputTokenDetails{CachedTokens: cachedTokens},
 			PromptTokens:       promptTokens,

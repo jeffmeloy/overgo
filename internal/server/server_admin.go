@@ -1167,6 +1167,9 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 				"n_params":    model.ParameterCount,
 				"size":        model.ModelSize,
 				"ftype":       model.FileType,
+
+				"verification":        h.modelState.Verification,
+				"verification_reason": h.modelState.Reason,
 			},
 		}},
 	})

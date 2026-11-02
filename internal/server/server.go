@@ -532,6 +532,9 @@ type workbenchWorkspace struct {
 	tensorPublishes    sync.RWMutex
 }
 
+// modelVerificationHeader carries the served model's verification state on every routed answer.
+const modelVerificationHeader = "X-Overgo-Model-Verification"
+
 // Handler is the assembly root: the shared core (configuration, evidence
 // store, runtime identity, and request accounting) beside one explicit
 // dependency struct per workspace. Field promotion keeps call sites terse;
@@ -552,6 +555,7 @@ type Handler struct {
 	repository         *overgodb.Store
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
+	modelState         modelrecipe.ModelState
 	observationErrors  atomic.Uint64
 	servingEvents      servingEvents
 	events             *eventHub
@@ -742,6 +746,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
+	if stated, ok := generator.(interface{ ModelState() modelrecipe.ModelState }); ok {
+		handler.modelState = stated.ModelState()
+	}
 	if err := handler.seedResponseIdentifiers(context.Background()); err != nil {
 		_ = handler.Close()
 		return nil, fmt.Errorf("server response identity seed: %w", err)
@@ -862,6 +869,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	// change reads it, and the monitor shows it. The static page is no API request.
 	var recorder *statusRecorder
 	if routed {
+		// Every answer says what the store records of the model behind it, before its body, so a stream says so too.
+		if h.modelState.Verification != "" {
+			response.Header().Set(modelVerificationHeader, string(h.modelState.Verification))
+		}
 		recorder = &statusRecorder{ResponseWriter: response, status: http.StatusOK}
 		response = recorder
 		if !route.Unrecorded {
@@ -1172,12 +1183,13 @@ type completionUsage struct {
 }
 
 type completionResponse struct {
-	ID      string             `json:"id"`
-	Object  string             `json:"object"`
-	Created int64              `json:"created"`
-	Model   string             `json:"model"`
-	Choices []completionChoice `json:"choices"`
-	Usage   completionUsage    `json:"usage"`
+	ID           string             `json:"id"`
+	Object       string             `json:"object"`
+	Created      int64              `json:"created"`
+	Model        string             `json:"model"`
+	Verification string             `json:"verification,omitzero"`
+	Choices      []completionChoice `json:"choices"`
+	Usage        completionUsage    `json:"usage"`
 }
 
 // runCompletionChoices runs n choices of each admitted turn in order; the
@@ -1239,11 +1251,12 @@ func (h *Handler) complete(
 		return
 	}
 	writeJSON(response, http.StatusOK, completionResponse{
-		ID:      id,
-		Object:  "text_completion",
-		Created: time.Now().Unix(),
-		Model:   h.config.ModelID,
-		Choices: choices,
+		ID:           id,
+		Object:       "text_completion",
+		Created:      time.Now().Unix(),
+		Model:        h.config.ModelID,
+		Verification: string(h.modelState.Verification),
+		Choices:      choices,
 		Usage: completionUsage{
 			PromptTokens:     promptTokens,
 			CompletionTokens: totalCompletionTokens,

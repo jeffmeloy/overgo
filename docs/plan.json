@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 814,
+        "nodes": 711,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "run-carries-state",
-          "title": "Carry a model's state on the chat response and the run record",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAResponseCarriesItsModelsState$'",
-          "rationale": "SQA-283 (3) and its first closure criterion: the state reaches the chat response and the run record, beside the evidence tier. Runner.ModelState holds it from derive-gguf; nothing past the standard error reads it yet.\nServes: a client and a later reader know what they are reading came from a model nothing verified.\nDisappears: nothing.\nEvidence: its test over one chat response and its record.\nBatch: serving lane."
-        },
         {
           "id": "record-state",
           "title": "Carry a model's state on every record of its run",

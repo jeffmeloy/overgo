@@ -6342,6 +6342,18 @@
         "plan_steps": [
           "sqa-cycle/stop-record"
         ]
+      },
+      {
+        "comment": "Landed with sqa-cycle/commit-queue. The smallest safe ordering: the old checked tree is never published onto a moved trunk, as takeTurnBack compares the tip with the commit the checks ran on and refuses. Re-integrating without re-checking would have been unsafe, so a moved trunk costs a second run of the lanes, which by then wait on nothing. Captured-candidate, quiet and device protections are unchanged, and no scheduler was added. TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn takes the turn during the wait, moves the trunk and holds the landing to a refusal.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn",
+          "TestALandingWaitingOnARunLeavesTheCheckoutFree"
+        ],
+        "finding_id": "SQA-261",
+        "plan_steps": [
+          "sqa-cycle/commit-queue"
+        ]
       }
     ],
     "experiments": {
@@ -6388,7 +6400,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "fb17ae9f0317ff0d5a861656bd1865d35e03b5ef",
+    "head": "34db99153fb5973789b06f2ecfc63082b3e2b168",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6601,11 +6613,11 @@
         "note": "Landed. recordStopBlock returns its failure and runStop lets the stop through when the block cannot be kept, as a block no retry can read back would wedge the session. The unused stopHookActive parameter, its retry row and the two duplicated assertions are gone. Awaits the reviewer's closure."
       },
       "SQA-261": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-cycle/commit-queue"
         ],
-        "note": "Accepted and observed: a landing waiting for the device held the queue for hours. Moderate; needs care not to ship an unchecked parent. Read again at moss-training/route: lanes.go only gains ./internal/mosstrain, so the finding stands."
+        "note": "Landed. A landing that lets the checkout go for the lane turn also gives up the commit turn, and takes it back before anything is published; if the trunk moved meanwhile it refuses and lands again. Accepted and observed: a landing waiting for the device held the queue for hours. Awaits the reviewer's closure."
       },
       "SQA-258": {
         "action": "filed",

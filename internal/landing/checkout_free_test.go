@@ -2,9 +2,13 @@ package landing
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"overgo/internal/clioptions"
+	"overgo/internal/processlock"
 )
 
 // freedLog is a landing's log that says, once, when the landing let the checkout go.
@@ -82,5 +86,68 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	}
 	if trees := fixture.git("worktree", "list", "--porcelain"); strings.Count(trees, "worktree ") != 1 {
 		t.Fatalf("the worktree the lanes read was left:\n%s", trees)
+	}
+}
+
+// TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn holds a landing beside a run to waiting only for the device: while
+// its lanes wait, the repository's commit turn is free for a commit that needs no lane. That commit moves the trunk the
+// landing's checks passed on, so when the lanes finish the landing refuses, publishes nothing and leaves the trunk as
+// the other commit left it.
+func TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn(t *testing.T) {
+	// Serial: it names the lane turn and the lanes the tests take, not the host's own.
+	turn, gated := laneTurn, lanes
+	laneTurn = "overgo-test-commit-turn"
+	lanes = []lane{{name: "fixture", packages: []string{"./internal/p"}, command: func(string) []string { return []string{"test", "-count=1", "./internal/p"} }}}
+	t.Cleanup(func() { laneTurn, lanes = turn, gated })
+	fixture := newRowFixture(t, map[string]string{"internal/p/p.go": "package p\n\nfunc a() string { return \"base\" }\n", "docs/notes.txt": "base\n"})
+	fixture.git("config", "core.autocrlf", "false")
+	fixture.write("internal/p/p.go", "package p\n\nfunc a() string { return \"shipped\" }\n")
+
+	held, let := make(chan struct{}), make(chan struct{})
+	var group sync.WaitGroup
+	group.Go(func() {
+		if err := HoldLaneTurn(func() error {
+			close(held)
+			<-let
+			return nil
+		}); err != nil {
+			t.Error(err)
+		}
+	})
+	<-held
+	freed := make(chan struct{})
+	log := freedLog{freed: sync.OnceFunc(func() { close(freed) })}
+	landed := make(chan error, 1)
+	group.Go(func() {
+		_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Log: log,
+			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")})
+		landed <- err
+	})
+	select {
+	case <-freed:
+	case err := <-landed:
+		close(let)
+		group.Wait()
+		t.Fatalf("the landing ended, %v, without waiting on the lane turn", err)
+	}
+	path := filepath.Join(fixture.repo, processlock.StateDirectory, turnLock)
+	lock, err := processlock.Acquire(path, clioptions.PrivateFileMode)
+	if err == nil {
+		err = lock.Close()
+	}
+	if err != nil {
+		close(let)
+		group.Wait()
+		t.Fatalf("the commit turn stayed held while the landing waited on the device: %v", err)
+	}
+	fixture.git("commit", "--allow-empty", "-m", "another commit")
+	moved := fixture.git("rev-parse", "HEAD")
+	close(let)
+	group.Wait()
+	if err := <-landed; err == nil || !strings.Contains(err.Error(), "while this waited for the device") {
+		t.Fatalf("a landing whose trunk moved during the wait = %v, want it refused", err)
+	}
+	if head := fixture.git("rev-parse", "HEAD"); head != moved {
+		t.Fatalf("the refused landing moved the trunk to %s from %s", head, moved)
 	}
 }

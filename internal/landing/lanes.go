@@ -2,6 +2,7 @@ package landing
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -262,7 +263,38 @@ func (l *landing) letGo(ctx context.Context) error {
 	if _, err := l.runIn(ctx, tree, gitauthority.RepositoryEnvironment(), "git", gitauthority.WriterArguments("read-tree", "-u", "--reset", l.candidate)...); err != nil {
 		return err
 	}
+	// The wait is the device's and no other commit's, so the commit turn goes free for it: on 2026-10-30 a report-only
+	// commit waited hours behind a landing that was itself waiting on a measurement run.
+	if l.turn != nil {
+		release := l.turn
+		l.turn, l.turnLet = nil, true
+		if err := release(); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintf(l.Log, "land: the lane turn is held, so the lanes wait on the change as it stood, in %s: the checkout is free\n", tree)
+	return nil
+}
+
+// takeTurnBack takes the commit turn again after a wait that gave it up. A commit may have landed meanwhile, and the
+// checks passed on the tree as it was, so a trunk that moved refuses the landing rather than publish what nothing
+// checked. It lands again on the trunk as it stands, which takes the lanes again and no longer waits on the device.
+func (l *landing) takeTurnBack(ctx context.Context) error {
+	if !l.turnLet {
+		return nil
+	}
+	turn, err := l.holdTurn(ctx)
+	if err != nil {
+		return err
+	}
+	l.turn, l.turnLet = turn, false
+	tip, err := gitauthority.Query(ctx, l.Repo, "rev-parse", cmp.Or(l.onto, "HEAD"))
+	if err != nil {
+		return err
+	}
+	if moved := strings.TrimSpace(string(tip)); moved != l.builtOn() {
+		return fmt.Errorf("land: %.12s landed while this waited for the device, and the checks passed on %.12s; land again", moved, l.builtOn())
+	}
 	return nil
 }
 
@@ -336,7 +368,7 @@ func (l *landing) lanes(ctx context.Context) error {
 	}
 	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
 	waiting := time.Now()
-	return l.inLaneTurn(ctx, func() error {
+	err = l.inLaneTurn(ctx, func() error {
 		turnWait := time.Since(waiting).Round(time.Millisecond)
 		l.spent.Turn = turnWait
 		ctx, cancel := context.WithCancel(ctx)
@@ -391,6 +423,10 @@ func (l *landing) lanes(ctx context.Context) error {
 		l.details["lanes"] = describeLanes(discovery, turnWait, passed, skipped)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return l.takeTurnBack(ctx)
 }
 
 // passedPackage opens go test's line for a package that passed, in its

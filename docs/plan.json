@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 475,
+        "nodes": 292,
         "reason": "Corrections to the existing loop, landing and hook owners; no new scheduler."
       },
       "steps": [
-        {
-          "id": "commit-queue",
-          "title": "Free the commit queue from a landing waiting for the device",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run 'Turn|Queue'",
-          "rationale": "SQA-261: device waiting separates from the commit turn; reacquiring revalidates against the current head and plan before publication.\nServes: independent commits stop waiting hours behind a run.\nDisappears: nothing.\nEvidence: one native landing fixture.\nBatch: landing lane."
-        },
         {
           "id": "run-continuation",
           "title": "Give the end of a measurement run a responsible owner",

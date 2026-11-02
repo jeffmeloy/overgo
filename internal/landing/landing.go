@@ -103,6 +103,10 @@ type landing struct {
 	quietMachine string
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
+	// turn gives back the repository's commit turn while the run holds it (holdTurn); letGo gives it back for a wait
+	// on the device, and turnLet says the lanes must take it again before anything is published (takeTurnBack).
+	turn    func() error
+	turnLet bool
 	// tree is the worktree of its own the candidate is checked out in once the landing lets the checkout go while
 	// its lanes wait for a turn another holds (letGo), where the stages from the lanes on read it; empty while they
 	// read the checkout.
@@ -159,11 +163,14 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 	}()
 	// A run that may commit takes the repository's one turn first, and holds it to its end.
 	if !options.Preflight {
-		release, err := l.holdTurn(ctx)
-		if err != nil {
+		if l.turn, err = l.holdTurn(ctx); err != nil {
 			return "", err
 		}
-		defer func() { _ = release() }()
+		defer func() {
+			if l.turn != nil {
+				_ = l.turn()
+			}
+		}()
 		// Under the turn the trunk stands still: a worktree that is behind it is brought up to it.
 		if err := l.integrate(ctx); err != nil {
 			return "", err

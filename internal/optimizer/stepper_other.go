@@ -16,7 +16,9 @@ func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper
 }
 
 func (s *hostStepper) Step() error {
-	s.optimizer.Step()
+	if s.optimizer.Step().Nonfinite {
+		return ErrNonfiniteDirection
+	}
 	return nil
 }
 

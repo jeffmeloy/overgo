@@ -251,6 +251,11 @@ func (o *deviceOps) runNewtonSchulz(
 		return 0, err
 	}
 	norm := math.Sqrt(float64(normSquared[0]))
+	// A squared norm past the f32 range reads +Inf here, where the host's f64 would step: its scale of zero would be a
+	// silent update of nothing, and a gradient that large has diverged.
+	if math.IsNaN(norm) || math.IsInf(norm, 0) {
+		return 0, ErrNonfiniteDirection
+	}
 	if norm < hostoptimizer.NewtonSchulzFrobeniusGuard {
 		return dX, nil
 	}

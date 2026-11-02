@@ -53,15 +53,20 @@ func NewtonSchulz(input []float64, rows, cols int) {
 
 // Every output element sums its products in one fixed order on one worker,
 // so the fan-out and the contiguous read orders are bit-identical to the
-// serial loops.
-func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) {
+// serial loops. It reports false, input as it was, for a matrix whose norm is
+// not finite: such a matrix has no direction, and the guard below reads false
+// for a NaN.
+func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) bool {
 	var normSquared float64
 	for _, value := range input {
 		normSquared += value * value
 	}
 	norm := math.Sqrt(normSquared)
+	if math.IsNaN(norm) || math.IsInf(norm, 0) {
+		return false
+	}
 	if norm < NewtonSchulzFrobeniusGuard {
-		return
+		return true
 	}
 	for index := range input {
 		input[index] /= norm
@@ -91,6 +96,7 @@ func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch)
 		}
 		copy(input, output)
 	}
+	return true
 }
 
 func transpose(dst, matrix []float64, rows, cols int) {

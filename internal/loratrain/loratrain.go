@@ -368,7 +368,9 @@ func (trainer *Trainer) Step(tokens []int, trained []bool, learningRate, momentu
 	if err := trainer.pack.GatherGradients(trainer.gradients); err != nil {
 		return 0, err
 	}
-	trainer.optimizer.Step()
+	if trainer.optimizer.Step().Nonfinite {
+		return 0, fmt.Errorf("lora: loss %g: %w", loss, optimizer.ErrNonfiniteDirection)
+	}
 	trainer.pack.Scatter()
 	if trainer.average != nil {
 		factors, _ := trainer.pack.Slabs()

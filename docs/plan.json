@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
+        "nodes": 80,
         "reason": "Estimate. A finite check, two state fields and a rate count in existing owners."
       },
       "steps": [
-        {
-          "id": "nonfinite-stop",
-          "title": "Stop a training step on a non-finite direction",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer ./internal/densecausal -count=1 -run 'StopsOnANonFiniteDirection$'",
-          "rationale": "norm \u003c guard is false for NaN (internal/hostoptimizer/newton_schulz.go:63; internal/optimizer/newton_schulz_cuda_windows.go:254), so one NaN makes the group and its momentum NaN. Checkpoints catch that at publish (internal/trainingprogram/checkpoint.go:373) and route runs stop on the step (cmd/train/shared_run.go:90,93, with the misleading text 'carried no gradient'), but the dense token paths have no check (workflow.go:504, densecausal/train.go:103), so a NaN at step 1 spends every remaining step.\nMomentum is written before any check (optimizer.go:106, muon_step_cuda_windows.go:90-95), so the stop must end the run. The guard refuses +Inf too: on the device a gradient of norm at or above about 1.85e19 gives normSquared +Inf, scale 0 and a silent zero update where the host steps normally (newton_schulz_cuda_windows.go:249-257, by reading).\nStep has about 15 direct callers, so prefer a field on the step's result, checked at the two dense sites, about 40 nodes, over an error return, about 200. The norm is already read as a scalar, so no transfer is added. MOSS shares this guard and its route contains it.\nServes: hours not spent training a broken model.\nDisappears: a misleading error text.\nEvidence: a planted NaN gradient on the host and device paths.\nBatch: training lanes."
-        },
         {
           "id": "schedule-recorded",
           "title": "Record and judge the resident training schedule",

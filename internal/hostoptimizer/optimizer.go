@@ -31,7 +31,13 @@ type StepResult struct {
 	LearningRate float64
 	GradientL2   float64
 	UpdateL2     float64
+	// Nonfinite says a group's direction was not finite. Its weights stood, and the run stops (ErrNonfiniteDirection).
+	Nonfinite bool
 }
+
+// ErrNonfiniteDirection is a training step whose direction is not finite. The run ends there, since its momentum has
+// taken the value and no later step would be finite, and a run that went on would spend every step it has left.
+var ErrNonfiniteDirection = errors.New("the step's direction is not finite, so training stops")
 
 // Optimizer is the flat CPU adaptive Muon optimizer.
 type Optimizer struct {
@@ -75,6 +81,7 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
 	rate := o.config.LearningRate(o.step)
 	var gradientSquared, updateSquared float64
+	nonfinite := false
 	for _, group := range o.plan.groups {
 		if !include(group) {
 			continue
@@ -83,18 +90,19 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 			clear(o.gradients[group.Start:group.End])
 			continue
 		}
-		gradient, update := o.stepMuon(group, rate)
+		gradient, update, finite := o.stepMuon(group, rate)
 		gradientSquared += gradient
 		updateSquared += update
+		nonfinite = nonfinite || !finite
 	}
-	return StepResult{Step: o.step, LearningRate: rate, GradientL2: math.Sqrt(gradientSquared), UpdateL2: math.Sqrt(updateSquared)}
+	return StepResult{Step: o.step, LearningRate: rate, GradientL2: math.Sqrt(gradientSquared), UpdateL2: math.Sqrt(updateSquared), Nonfinite: nonfinite}
 }
 
 // Momentum exposes the live momentum buffer for parity checks against a
 // device stepper; callers must not retain or modify it.
 func (o *Optimizer) Momentum() []float64 { return o.momentum }
 
-func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, updateSquared float64) {
+func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, updateSquared float64, finite bool) {
 	length := group.End - group.Start
 	o.scratch.ensure(o.plan.maxMatrix, o.plan.maxSquare)
 	direction := o.scratch.input[:length]
@@ -106,7 +114,10 @@ func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, update
 		o.momentum[index] = momentum
 		direction[offset] = nesterovDirection
 	}
-	newtonSchulz(direction, group.Rows, group.Cols, &o.scratch)
+	if !newtonSchulz(direction, group.Rows, group.Cols, &o.scratch) {
+		clear(o.gradients[group.Start:group.End])
+		return gradientSquared, 0, false
+	}
 	scale := math.Sqrt(float64(max(group.Rows, group.Cols))) * StepRMS(o.config.Momentum) * rate
 	for offset := range length {
 		index := group.Start + offset
@@ -115,7 +126,7 @@ func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, update
 		o.weights[index] -= float32(update)
 		o.gradients[index] = 0
 	}
-	return gradientSquared, updateSquared
+	return gradientSquared, updateSquared, true
 }
 
 func nesterov(momentum, previous, gradient float64) (next, direction float64) {

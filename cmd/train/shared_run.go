@@ -90,7 +90,10 @@ func (run boundedRun) descend(ctx context.Context) error {
 		if !checked.Finite64(result.Loss) {
 			return fmt.Errorf("%s: step %d loss is non-finite", run.name, step+1)
 		}
-		if !(result.GradientL2 > 0) {
+		if !checked.Finite64(result.GradientL2) {
+			return fmt.Errorf("%s: step %d gradient is non-finite", run.name, step+1)
+		}
+		if result.GradientL2 <= 0 {
 			return fmt.Errorf("%s: step %d carried no gradient", run.name, step+1)
 		}
 		if err := run.plan.AdmitStepWall(wall); step == 0 && err != nil {

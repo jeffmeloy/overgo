@@ -29,6 +29,9 @@ type Plan = hostoptimizer.Plan
 // Config is hostoptimizer.Config.
 type Config = hostoptimizer.Config
 
+// ErrNonfiniteDirection is hostoptimizer.ErrNonfiniteDirection.
+var ErrNonfiniteDirection = hostoptimizer.ErrNonfiniteDirection
+
 const (
 	// ScheduleConstant is hostoptimizer.ScheduleConstant.
 	ScheduleConstant = hostoptimizer.ScheduleConstant

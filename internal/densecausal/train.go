@@ -92,8 +92,12 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 			return nil, optimizer.State{}, err
 		}
 		trajectory = append(trajectory, loss)
-		if _, err := update.step(grads); err != nil {
+		stepped, err := update.step(grads)
+		if err != nil {
 			return nil, optimizer.State{}, err
+		}
+		if stepped.Nonfinite {
+			return nil, optimizer.State{}, fmt.Errorf("densecausal: step %d of %d, loss %g: %w", firstStep+step+1, firstStep+len(batches), loss, optimizer.ErrNonfiniteDirection)
 		}
 		if average != nil {
 			if err := average.Update(weights); err != nil {

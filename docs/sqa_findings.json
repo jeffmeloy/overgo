@@ -6815,7 +6815,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "16d397070176fa1249469cea2ec008c01f6dd00c",
+    "head": "83f4df1fcce26d50067e59c5cf8a8b7621212165",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7373,7 +7373,8 @@
       },
       "SQA-110": {
         "action": "none",
-        "note": "Deferred stands; its trigger has not occurred. Title-level triage, not re-verified at this head."
+        "rows": [],
+        "note": "Assessed at heldout-verdict/pool-reader, which moved ConfirmOnPool from a test file into production, so the finding's reconsideration trigger on confirmation ownership holds by the letter. The deferral stands: confirmOnPart, which charges and reads exposure, is unchanged and already ran in production through instruction_acceptance.go, and no mixed-digest inventory or legacy importer has been observed."
       },
       "SQA-124": {
         "action": "none",

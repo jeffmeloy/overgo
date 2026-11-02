@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
+	"overgo/internal/evaluation"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/loratrain"
 	"overgo/internal/optimizer"
@@ -104,6 +105,9 @@ type TextHeldoutRequest struct {
 	// runs that differ in nothing else are two changes of one base. The
 	// held-out records and their order do not depend on it.
 	Order uint64
+	// Acceptance, when set, names the held-out pool the trained model answers on, in place of a verdict on the objective's
+	// held-out records (HeldoutResult.Confirmation).
+	Acceptance artifact.ID
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -174,6 +178,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.CheckpointEvery < 0 || request.CheckpointEvery > 0 && request.CheckpointKeep < 1 || (request.CheckpointEvery > 0 || request.Resume != "") && !request.Host {
 		return HeldoutResult{}, errors.New("training workflow: a run that saves checkpoints, every positive number of updates and keeping at least one, or resumes from one trains on the host")
 	}
+	if request.Acceptance.Valid() && (request.Proof || request.Conversations) {
+		return HeldoutResult{}, errors.New("training workflow: a pool reads every token of a whole document, so a conversation run, which learns only some, and a proof run, which reads nothing, name no pool")
+	}
 	if request.SampleEvery < 0 || request.SampleEvery > 0 && !request.Conversations {
 		return HeldoutResult{}, errors.New("training workflow: samples are generated after the prompts of a conversation run, every positive number of steps")
 	}
@@ -199,15 +206,17 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	// The load is the model, its tokenizer, the objective's records and the
 	// plan they train under, as the dense workflow's is.
 	loadStarted := time.Now()
-	var model *densecausal.Model
-	if request.LoRA != nil && request.LoRA.Quantized {
-		var hold func(string) bool
-		if hold, err = request.LoRA.frozenWeights(); err == nil {
-			model, err = loadFrozenModel(request.ModelDirectory, hold)
+	loadBase := func() (*densecausal.Model, error) {
+		if request.LoRA == nil || !request.LoRA.Quantized {
+			return loadTrainableModel(request.ModelDirectory)
 		}
-	} else {
-		model, err = loadTrainableModel(request.ModelDirectory)
+		hold, err := request.LoRA.frozenWeights()
+		if err != nil {
+			return nil, err
+		}
+		return loadFrozenModel(request.ModelDirectory, hold)
 	}
+	model, err := loadBase()
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -275,8 +284,14 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			return HeldoutResult{}, err
 		}
 	}
+	var confirm func(context.Context, artifact.ID) (evaluation.PoolConfirmation, uint64, error)
+	if request.Acceptance.Valid() {
+		if confirm, err = poolConfirm(ctx, store, request.Acceptance, objective.ID, modelID, model, loadBase, records); err != nil {
+			return HeldoutResult{}, err
+		}
+	}
 	result, err := runHeldout(ctx, store, HeldoutRun{
-		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof,
+		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof, Confirm: confirm,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
 			var flags [][]bool

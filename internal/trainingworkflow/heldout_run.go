@@ -62,6 +62,9 @@ type HeldoutRun struct {
 	// is scored and no verdict publishes, so the newest verdict, which the
 	// recipe's held-out quality reads, stays a full run's.
 	Proof bool
+	// Confirm, when set, is asked of the trained model in place of a verdict, and neither model reads the objective's
+	// held-out records: the answer is a held-out pool's, returned with what the pool's budget has left.
+	Confirm func(ctx context.Context, trained artifact.ID) (evaluation.PoolConfirmation, uint64, error)
 }
 
 // HeldoutResult names what a held-out run published: the session
@@ -77,6 +80,10 @@ type HeldoutResult struct {
 	Gain   evaluation.HeldoutGain
 	// Reads is how many trained candidates the held-out membership has answered, this one among them.
 	Reads uint64
+	// Confirmation is what a held-out pool answered in place of a verdict, and ConfirmationsLeft what its budget can still
+	// answer (HeldoutRun.Confirm); zero for a run that names no pool.
+	Confirmation      evaluation.PoolConfirmation
+	ConfirmationsLeft uint64
 	// Skipped is the conversations a conversation run left out because the model's
 	// template or tokenizer cannot cut them into the stretches it learns, which the
 	// verdict was not judged on and the model was not trained on.
@@ -177,7 +184,7 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 		return HeldoutResult{}, err
 	}
 	var baseline evaluation.HeldoutReport
-	if !run.Proof {
+	if !run.Proof && run.Confirm == nil {
 		if baseline, err = predictHeldout(plan, cases, run); err != nil {
 			return HeldoutResult{}, err
 		}
@@ -198,6 +205,14 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 	}
 	if run.Proof {
 		return HeldoutResult{Observation: observation, Trained: trained.ID()}, observer.Verify(ctx, recipeID, observation, trained.ID())
+	}
+	if run.Confirm != nil {
+		confirmation, left, err := run.Confirm(ctx, trained.ID())
+		if err != nil {
+			return HeldoutResult{}, err
+		}
+		result := HeldoutResult{Observation: observation, Trained: trained.ID(), Confirmation: confirmation, ConfirmationsLeft: left}
+		return result, observer.Verify(ctx, recipeID, observation, trained.ID(), confirmation.ID)
 	}
 	reads, err := evaluation.ChargeHeldoutRead(ctx, store, objective, heldout.ID, trained.ID())
 	if err != nil {

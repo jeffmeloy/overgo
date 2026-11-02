@@ -76,6 +76,7 @@ func run() error {
 	loraQuantized := flag.Bool("lora-quantized", false, "with -lora-rank and a GGUF -model: keep each adapted projection as the file stores it, quantized, dequantizing it as its layer reads it, so the run needs far less memory; the model published is then the base as stored, with the adapter in its adapter directory")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	orderSeed := flag.Uint64("order-seed", 0, "with -objective: read the training records in the order this seed draws rather than in membership order, so a run of fewer updates than the text holds windows trains on other text for each seed")
+	acceptance := flag.String("acceptance", "", "with -objective: held-out pool acceptance artifact ID, as training-objective -pool wrote it: the trained model answers once on the pool's promotion part, charged to its budget, in place of a verdict")
 	pilot := flag.String("pilot", "", "instruction acceptance artifact ID, as training-objective -pilot wrote it: train the pilot's reward arm and its control from -model under -out to each checkpoint its training specification names, freeze one checkpoint an arm on the selection groups, charge and read each comparison the acceptance named on the promotion groups, and say whether the reward arm is adopted")
 	keep := flag.String(keepFlag, "", "with -pilot: keep the checkpoints the pilot wrote, for the reason given, which the record states; without it they are removed once the record is written under -out, unless the reward arm is adopted")
 	flag.Parse()
@@ -111,6 +112,9 @@ func run() error {
 	if *orderSeed != 0 && *objective == "" {
 		return fmt.Errorf("train: -order-seed needs -objective, because the seed orders the training records of an objective's run")
 	}
+	if *acceptance != "" && *objective == "" {
+		return fmt.Errorf("train: a pool confirms an -objective run; -acceptance needs -objective")
+	}
 	if *pilot != "" && *host {
 		return fmt.Errorf("train: -pilot trains its arms through the weighted step, which the device takes; the host has no reward trainer, so -pilot takes no -host")
 	}
@@ -137,7 +141,7 @@ func run() error {
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Recipe: *recipeID, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
 			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora, Average: *average, SaveEvery: *saveEvery, Keep: *keepLast, ResumeRun: *resumeRun,
-			Order: *orderSeed,
+			Order: *orderSeed, Acceptance: *acceptance,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

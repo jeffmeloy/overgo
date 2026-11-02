@@ -167,25 +167,6 @@
       ]
     },
     {
-      "id": "heldout-verdict",
-      "title": "Make a held-out verdict mean a real gain",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 530,
-        "reason": "charge-objective adds 420 for one budget and two run paths; pool-reader is estimated at 530: moving ConfirmOnPool is 279 as measured, with a log-likelihood reader, a flag and a refusal."
-      },
-      "steps": [
-        {
-          "id": "pool-reader",
-          "title": "Read a pool's documents in production",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAPoolConfirmsAnObjectiveRun$'",
-          "rationale": "ConfirmOnPool, poolVerdict and RequireHeldoutPool still live in internal/evaluation/heldout_confirmation_test.go, so no production code reads a pool's documents. heldout-verdict/charge-objective charged every objective read and did not move them: the gate refuses a declaration no command reaches, and a pool's measure is mean token log-likelihood per document (internal/evaluation/heldout_pool.go:42), which HeldoutRun.Predict does not give.\nA run that names an acceptance needs a reader of that measure for the base and the trained model, candidate less base, per document of the promotion part. The base is read before training and the candidate after the charge, so confirmOnPart's order holds.\nAn objective's charged reads (objectiveReadUnit) are not yet counted by exposure, which reads only confirmation grants on a partition's promotion and audit parts, so a pool built later over a held-out membership that has answered starts whole. Count them, or refuse such a pool by name.\nServes: held-out-quality that can be believed.\nDisappears: the test-only path.\nEvidence: a pool confirming a run, and a pool over a read set charged what it answered.\nBatch: evaluation lane."
-        }
-      ]
-    },
-    {
       "id": "scorecard-truth",
       "title": "Make scorecard readings say what a user would see",
       "owner": "master-lead",

@@ -480,6 +480,13 @@ type registeredText struct {
 // objective over it judged by metric.
 func registerTextObjective(t *testing.T, documents []string, metric trainingprogram.EvaluationMetric) registeredText {
 	t.Helper()
+	return registerScoredText(t, documents, metric, 0)
+}
+
+// registerScoredText is registerTextObjective for an objective whose verdicts score the first scored held-out records,
+// all of them at zero.
+func registerScoredText(t *testing.T, documents []string, metric trainingprogram.EvaluationMetric, scored uint32) registeredText {
+	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
@@ -539,7 +546,7 @@ func registerTextObjective(t *testing.T, documents []string, metric trainingprog
 		Name: "texts", Kind: trainingprogram.ObjectiveTokenPrediction, Signature: textSignature,
 		Dataset: registered.Dataset, Split: training, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
-		Metric: metric, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
+		Metric: metric, HeldoutRecords: scored, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
 	if err != nil {

@@ -37,6 +37,8 @@ type objectiveRun struct {
 	ResumeRun       string
 	// Order, when not zero, seeds the order the run reads its training records in.
 	Order uint64
+	// Acceptance, when set, names the held-out pool the trained model answers on, in place of a verdict.
+	Acceptance string
 }
 
 // loraFlags are the -lora flags as parsed.
@@ -110,11 +112,18 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 			return fmt.Errorf("training recipe: %w", err)
 		}
 	}
+	var acceptance artifact.ID
+	if run.Acceptance != "" {
+		var err error
+		if acceptance, err = artifact.ParseID(run.Acceptance); err != nil {
+			return fmt.Errorf("pool acceptance: %w", err)
+		}
+	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
 		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
 		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
-		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun, Order: run.Order,
+		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun, Order: run.Order, Acceptance: acceptance,
 	})
 	if err != nil {
 		return err
@@ -127,7 +136,17 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 			return err
 		}
 	}
+	if result.Confirmation.ID.Valid() {
+		return reportConfirmation(output, result)
+	}
 	return reportVerdict(output, result)
+}
+
+// reportConfirmation writes what a held-out pool answered for the trained model, and nothing of the reading it answered from.
+func reportConfirmation(output io.Writer, result trainingworkflow.HeldoutResult) error {
+	_, err := fmt.Fprintf(output, "pool confirmation %s verdict=%q confirmations_left=%d observation=%s trained=%s\n",
+		result.Confirmation.ID, result.Confirmation.Verdict, result.ConfirmationsLeft, result.Observation, result.Trained)
+	return err
 }
 
 // reportProof writes what a proof run published: its session and the model it

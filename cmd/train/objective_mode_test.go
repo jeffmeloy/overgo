@@ -87,3 +87,17 @@ func TestPreferenceRunsSayWhenUnjudged(t *testing.T) {
 		t.Fatalf("a resumed DPO run = (%q, %v), want it said to be not judged", output.String(), err)
 	}
 }
+
+// TestTrainReportsAPoolConfirmation: a pool's answer is reported as its verdict and what the budget has left.
+func TestTrainReportsAPoolConfirmation(t *testing.T) {
+	t.Parallel()
+	var result trainingworkflow.HeldoutResult
+	result.Confirmation.Verdict, result.ConfirmationsLeft = "not enough evidence", 2
+	var output strings.Builder
+	if err := reportConfirmation(&output, result); err != nil {
+		t.Fatal(err)
+	}
+	if got := output.String(); !strings.Contains(got, `verdict="not enough evidence" confirmations_left=2`) {
+		t.Fatalf("report = %q", got)
+	}
+}

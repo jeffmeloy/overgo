@@ -54,8 +54,30 @@ func TestEveryIncludedKernelSourceIsPinned(t *testing.T) {
 	}
 }
 
+// fixtureCompiler is the line nvcc writes into a PTX file, naming the toolchain the fixture manifest records.
+const fixtureCompiler = "// Cuda compilation tools, release 12.9, V12.9.86\n"
+
+// TestRecordedToolchainMatchesCompiledCode: a PTX file naming another release is refused, as one that names none is, and
+// the committed assets name what the manifest records.
+func TestRecordedToolchainMatchesCompiledCode(t *testing.T) {
+	t.Parallel()
+	recorded := manifest{CUDAToolkit: "12.9", NVCC: "12.9.86"}
+	if err := requireToolchain(recorded, "x.ptx", []byte(fixtureCompiler)); err != nil {
+		t.Fatal(err)
+	}
+	for name, ptx := range map[string]string{
+		"another release": "// Cuda compilation tools, release 13.0, V13.0.1\n",
+		"another build":   "// Cuda compilation tools, release 12.9, V12.9.99\n",
+		"no compiler":     ".version 8.8\n",
+	} {
+		if err := requireToolchain(recorded, "x.ptx", []byte(ptx)); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}
+
 func TestPTXEntriesSorted(t *testing.T) {
-	got := ptxEntries([]byte(".visible .entry z(\n.visible .entry a(\n"))
+	got := ptxEntries([]byte(fixtureCompiler + ".visible .entry z(\n.visible .entry a(\n"))
 	if !slices.Equal(got, []string{"a", "z"}) {
 		t.Fatalf("entries = %v", got)
 	}
@@ -112,7 +134,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(root, "asset", "x.ptx"),
-		[]byte(".visible .entry x(\n\t.param .u64 x_param_0\n)\n"),
+		[]byte(fixtureCompiler+".visible .entry x(\n\t.param .u64 x_param_0\n)\n"),
 		0o644,
 	); err != nil {
 		t.Fatal(err)
@@ -169,7 +191,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(root, "asset", "x.ptx"),
-		[]byte(".visible .entry x(\n\t.param .u32 x_param_0\n)\n"),
+		[]byte(fixtureCompiler+".visible .entry x(\n\t.param .u32 x_param_0\n)\n"),
 		0o644,
 	); err != nil {
 		t.Fatal(err)

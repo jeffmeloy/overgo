@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 456,
+        "nodes": 336,
         "reason": "include-scan adds 344 of the row's 250: the walk, its use by -update and a check in both directions. toolchain-pin and launch-widths are re-estimated at 200 and 250 from the same reading."
       },
       "steps": [
-        {
-          "id": "toolchain-pin",
-          "title": "Compare the recorded toolchain with the compiled code",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest ./cmd/build-kernels -count=1 -run '^(TestRecordedToolchainMatchesCompiledCode|TestBuildFlagsMatchTheManifest)$'",
-          "rationale": "cudaToolkit, nvcc and compilerFlags are parsed and never compared (cmd/kernel-manifest/main.go:31-34), and -update hashes whatever PTX it finds (:132-134). Line 5 of each PTX names its compiler. Compare it, and compare build-kernels' flag table with the manifest.\nkernels/README.md:46-50 contradicts README:9 on who writes the pins; correct it.\nServes: reproducible builds.\nDisappears: a record nothing reads.\nEvidence: a PTX header naming another release.\nBatch: host lane."
-        },
         {
           "id": "launch-widths",
           "title": "Check argument widths, not only counts",

@@ -26,6 +26,9 @@ const manifestPath = "kernels/manifest.json"
 // includePattern is a project header's include: a system header's angle brackets name nothing the manifest pins.
 var includePattern = regexp.MustCompile(`(?m)^\s*#\s*include\s+"([^"]+)"`)
 
+// compilerPattern is the line a PTX file names the compiler that wrote it on.
+var compilerPattern = regexp.MustCompile(`(?m)^// Cuda compilation tools, (release \S+, V\S+)\s*$`)
+
 var entryPattern = regexp.MustCompile(`(?m)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\(`)
 var entryABIPattern = regexp.MustCompile(`(?ms)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\((.*?)^\)`)
 var parameterPattern = regexp.MustCompile(`\.param\s+((?:\.align\s+\d+\s+)?\.[A-Za-z0-9_]+)\s+[A-Za-z_][A-Za-z0-9_]*(\[[^\]]+\])?`)
@@ -132,6 +135,10 @@ func run(root string, update bool) error {
 		if err != nil {
 			return err
 		}
+		// An update hashes what it finds, so it is refused too: the manifest would record code it did not describe.
+		if err := requireToolchain(document, item.Asset, assetData); err != nil {
+			return err
+		}
 		sum := sha256.Sum256(assetData)
 		assetHash := hex.EncodeToString(sum[:])
 		if update {
@@ -194,6 +201,18 @@ func run(root string, update bool) error {
 		return err
 	}
 	return clioptions.WriteOutputFile(manifestFile, append(output, '\n'))
+}
+
+// requireToolchain holds a compiled asset to the toolchain the manifest records.
+func requireToolchain(document manifest, asset string, data []byte) error {
+	named := compilerPattern.FindSubmatch(data)
+	if named == nil {
+		return fmt.Errorf("kernel manifest: %q names no compiler", asset)
+	}
+	if recorded := "release " + document.CUDAToolkit + ", V" + document.NVCC; string(named[1]) != recorded {
+		return fmt.Errorf("kernel manifest: %q was compiled by %s, and the manifest records %s", asset, named[1], recorded)
+	}
+	return nil
 }
 
 // includedSources walks a kernel source's project includes, each relative to the file that names it, so a header compiled

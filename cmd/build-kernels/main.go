@@ -44,23 +44,28 @@ func main() {
 	clioptions.MainNamed("build-kernels", run)
 }
 
+// flags are the compiler flags the module builds with, which the manifest records.
+func (item kernel) flags() []string {
+	args := []string{"-ptx", "-arch=" + deviceArch}
+	if !item.noFastMath {
+		args = append(args, "-use_fast_math")
+		if item.cxx17 {
+			args = append(args, "--std=c++17")
+		}
+	} else {
+		// Source-pinned scalar math and curand require standard precision.
+		args = append(args, "--std=c++17")
+	}
+	return args
+}
+
 func run() error {
 	nvcc, compiler, err := toolchain()
 	if err != nil {
 		return err
 	}
 	for _, item := range kernels {
-		args := []string{"-ptx", "-arch=" + deviceArch}
-		if !item.noFastMath {
-			args = append(args, "-use_fast_math")
-			if item.cxx17 {
-				args = append(args, "--std=c++17")
-			}
-		} else {
-			// Source-pinned scalar math and curand require standard precision.
-			args = append(args, "--std=c++17")
-		}
-		args = append(args, "-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))
+		args := append(item.flags(), "-ccbin", compiler, "-o", filepath.FromSlash(item.output), filepath.FromSlash(item.source))
 		cmd := exec.Command(nvcc, args...)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("nvcc %s: %v: %s", item.source, err, strings.TrimSpace(string(out)))

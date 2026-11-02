@@ -43,8 +43,10 @@ Verify checked-in assets without modifying them with:
 go run ./cmd/kernel-manifest
 ```
 
-The Go host pins the manifest ABI identity and the PTX hashes in
-`internal/cuda/kernel/validation.go`. Module loading validates the embedded
-bytes before calling the CUDA driver. After an intentional kernel rebuild,
-review the ABI change and update those pins; the manifest verifier will reject
-an accidental host/kernel mismatch.
+The Go host's pins of the manifest ABI identity and the PTX hashes are
+generated into `internal/cuda/kernel/manifest_generated.go` by
+`cmd/build-kernels`; nobody edits them. Module loading validates the embedded
+bytes before calling the CUDA driver, and the manifest verifier rejects a
+host/kernel mismatch, compiled code from a toolchain other than the one
+recorded here, and a header compiled in and not pinned. After an intentional
+kernel rebuild, review the ABI change.

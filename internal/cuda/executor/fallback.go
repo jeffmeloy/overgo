@@ -106,6 +106,9 @@ func launchGridSharedABI(
 		if value.Kind() != reflect.Pointer || value.IsNil() {
 			panic("CUDA ABI argument must be a non-nil pointer")
 		}
+		if err := validateKernelArgumentWidth(function, index, value.Type().Elem().Size()); err != nil {
+			return err
+		}
 		pointers[index] = value.UnsafePointer()
 	}
 	if trace := state.Trace; trace != nil && trace.Census != nil {
@@ -172,6 +175,18 @@ func validateKernelArgumentCount(function boundKernel, count int) error {
 	return fmt.Errorf(
 		"CUDA kernel %q received %d ABI arguments; want %d",
 		kernelFunctionNames[function.id], count, function.argumentCount,
+	)
+}
+
+// validateKernelArgumentWidth refuses an argument of another width than its PTX parameter: the kernel would read past it or
+// read half of it, and nothing else would say so.
+func validateKernelArgumentWidth(function boundKernel, index int, size uintptr) error {
+	if widths := kernelFunctionArgumentWidths[function.id]; index >= len(widths) || uintptr(widths[index]) == size {
+		return nil
+	}
+	return fmt.Errorf(
+		"CUDA kernel %q received %d bytes at ABI argument %d; want %d",
+		kernelFunctionNames[function.id], size, index, kernelFunctionArgumentWidths[function.id][index],
 	)
 }
 

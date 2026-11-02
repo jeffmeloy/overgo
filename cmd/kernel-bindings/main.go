@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -155,6 +156,7 @@ func generateBindings(document []byte) ([]byte, error) {
 	var functions []string
 	functionModules := make(map[string]int)
 	argumentCounts := make(map[string]int)
+	argumentWidths := make(map[string][]string)
 	seenNames := make(map[string]struct{})
 	seenIDs := make(map[string]string)
 	for _, module := range manifest.Modules {
@@ -187,6 +189,13 @@ func generateBindings(document []byte) ([]byte, error) {
 					return nil, fmt.Errorf("CUDA kernel manifest repeats argument layout for %q", name)
 				}
 				argumentCounts[name] = len(layout.Parameters)
+				for _, parameter := range layout.Parameters {
+					width, err := parameterWidth(parameter)
+					if err != nil {
+						return nil, err
+					}
+					argumentWidths[name] = append(argumentWidths[name], strconv.Itoa(width))
+				}
 			}
 		}
 	}
@@ -231,6 +240,13 @@ func generateBindings(document []byte) ([]byte, error) {
 	}
 	fmt.Fprintln(&output, "}")
 	fmt.Fprintln(&output)
+	fmt.Fprintln(&output, "// kernelFunctionArgumentWidths holds each function's parameters' widths in bytes, as its PTX declares them.")
+	fmt.Fprintln(&output, "var kernelFunctionArgumentWidths = [...][]uint16{")
+	for _, name := range functions {
+		fmt.Fprintf(&output, "\t{%s},\n", strings.Join(argumentWidths[name], ", "))
+	}
+	fmt.Fprintln(&output, "}")
+	fmt.Fprintln(&output)
 	fmt.Fprintln(&output, "// kernelModuleCount is the executor's kernel modules, each function's module its index in that order:")
 	fmt.Fprintf(&output, "// %s.\n", strings.Join(executorModules, ", "))
 	fmt.Fprintf(&output, "const kernelModuleCount = %d\n", len(executorModules))
@@ -265,6 +281,30 @@ func generateBindings(document []byte) ([]byte, error) {
 	fmt.Fprintln(&output, "\treturn result, nil")
 	fmt.Fprintln(&output, "}")
 	return format.Source(output.Bytes())
+}
+
+// bitsPerByte turns a parameter's element bits into bytes.
+const bitsPerByte = 8
+
+// parameterWidth is the bytes a PTX parameter takes, as the manifest records it: a scalar such as .u32, or a by-value array
+// such as .align 8 .b8[72].
+func parameterWidth(parameter string) (int, error) {
+	unknown := fmt.Errorf("CUDA kernel manifest has a parameter of no known width: %q", parameter)
+	kind := parameter[strings.LastIndexByte(parameter, ' ')+1:]
+	element, length, array := strings.Cut(strings.TrimSuffix(kind, "]"), "[")
+	bits, err := strconv.Atoi(strings.TrimLeft(element, ".abcdefghijklmnopqrstuvwxyz"))
+	if err != nil {
+		return 0, unknown
+	}
+	width := bits / bitsPerByte
+	if array {
+		count, err := strconv.Atoi(length)
+		if err != nil {
+			return 0, unknown
+		}
+		width *= count
+	}
+	return width, nil
 }
 
 // executorModules are the PTX modules whose functions the executor binds, in the order it loads them: the operation

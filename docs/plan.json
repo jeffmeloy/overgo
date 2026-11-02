@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "kernel-proof",
-      "title": "Prove compiled kernels come from their source",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 336,
-        "reason": "include-scan adds 344 of the row's 250: the walk, its use by -update and a check in both directions. toolchain-pin and launch-widths are re-estimated at 200 and 250 from the same reading."
-      },
-      "steps": [
-        {
-          "id": "launch-widths",
-          "title": "Check argument widths, not only counts",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-bindings ./internal/cuda/executor -count=1 -run '^(TestBindingsRecordArgumentWidths|TestAWrongArgumentWidthIsRefused)$'",
-          "rationale": "Bindings keep parameter counts (cmd/kernel-bindings/main.go:189) and launches take any (internal/cuda/executor/fallback.go:93-104, count check :168), so a *uint32 at a .u64 slot passes. Seven paths skip even counts (vector_add.go:91, cuda_scope_windows.go:296, gated_delta_net_cuda_windows.go:91, layer_resident_ops_cuda_windows.go:143, vae_session.go:217, newton_schulz_cuda_windows.go:167, stream_cuda_windows.go:76).\nThose paths take []unsafe.Pointer, so a width is invisible there: closing them retypes about 51 call sites, MOSS's trainer included, and touches device lanes. An audit of 191 launch sites found no live mismatch, so this is prevention. Take the host check first; retype the seven paths only as their files open for other work.\nServes: an ABI slip is found at test time.\nDisappears: the seven unchecked paths, over time.\nEvidence: a planted wrong width.\nBatch: host lane."
-        }
-      ]
-    },
-    {
       "id": "device-numerics",
       "title": "Report invalid numbers on the device instead of hiding them",
       "owner": "master-lead",

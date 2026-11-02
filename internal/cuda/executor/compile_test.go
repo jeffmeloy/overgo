@@ -461,6 +461,32 @@ func TestCompiledMultiRoPERetainsPolicy(t *testing.T) {
 	}
 }
 
+// TestAWrongArgumentWidthIsRefused: a *uint32 at a .u64 slot is refused before anything launches, as a wrong count is.
+func TestAWrongArgumentWidthIsRefused(t *testing.T) {
+	t.Parallel()
+	kernel := boundKernel{id: kernelAddF32, argumentCount: kernelFunctionArgumentCounts[kernelAddF32]}
+	widths := kernelFunctionArgumentWidths[kernelAddF32]
+	if len(widths) != int(kernel.argumentCount) {
+		t.Fatalf("%d widths for %d arguments", len(widths), kernel.argumentCount)
+	}
+	for index, width := range widths {
+		if err := validateKernelArgumentWidth(kernel, index, uintptr(width)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := validateKernelArgumentWidth(kernel, 0, uintptr(widths[0])/2); err == nil {
+		t.Fatal("an argument of half its parameter's width was accepted")
+	}
+	narrow := uint32(0)
+	arguments := make([]any, kernel.argumentCount)
+	for index := range arguments {
+		arguments[index] = &narrow
+	}
+	if err := launchGridSharedABI(nil, kernel, driver.Dim3{}, driver.Dim3{}, 0, arguments...); err == nil {
+		t.Fatal("a launch with a *uint32 at a .u64 slot was accepted")
+	}
+}
+
 func TestGeneratedKernelArgumentCountValidation(t *testing.T) {
 	kernel := boundKernel{
 		id:            kernelAddF32,

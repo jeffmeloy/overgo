@@ -6513,6 +6513,17 @@
         "plan_steps": [
           "run-from-files/derive-safetensors"
         ]
+      },
+      {
+        "comment": "Landed with run-from-files/declared-template, by the finding's own expression: DoSample gains || !checked.Finite64(declared.Temperature). The test now holds NaN and -Inf to a refusal beside the zero temperature that still asks for greedy decoding.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestFilesSamplingRecommendationOverlaysTheCatalog"
+        ],
+        "finding_id": "SQA-238",
+        "plan_steps": [
+          "run-from-files/declared-template"
+        ]
       }
     ],
     "experiments": {
@@ -6559,7 +6570,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "675d61b80e0f1b9193bdf2a147746e6b869ae6fd",
+    "head": "fc50b5ec2fed5b515c03d61096876f291869d344",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6852,11 +6863,11 @@
         "note": "Adopted by the static review's reduction row."
       },
       "SQA-238": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "run-from-files/declared-template"
         ],
-        "note": "Lead's judgement: filed where it now matters. A derived run trusts the file's own sampling, so malformed metadata must fail validation instead of silently selecting greedy."
+        "note": "Landed. A nonfinite temperature keeps DoSample true, so withDeclaredSampling preserves it and the policy's validation refuses it. Awaits the reviewer's closure."
       },
       "SQA-215": {
         "action": "none",

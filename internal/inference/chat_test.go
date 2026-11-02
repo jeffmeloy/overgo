@@ -128,6 +128,26 @@ func TestFormatChatML(t *testing.T) {
 	}
 }
 
+// TestADeclaredTemplateOutranksTheBuiltInFormats: the template a model's files declare decides its prompt, over the
+// built-in format its vocabulary would select; the built-in stands only where its files declare none.
+func TestADeclaredTemplateOutranksTheBuiltInFormats(t *testing.T) {
+	t.Parallel()
+	vocab := chatTestVocab(t)
+	messages := []ChatMessage{{Role: ChatRoleUser, Content: "Hello"}}
+	declared := &Runner{preparedModel: preparedModel{vocab: vocab, file: &gguf.File{Metadata: []gguf.Metadata{{
+		Key:   "tokenizer.chat_template",
+		Value: gguf.Value{Type: gguf.ValueTypeString, Data: `{% for message in messages %}[{{ message['role'] }}]{{ message['content'] }}{% endfor %}`},
+	}}}}}
+	if prompt, err := declared.FormatChat(messages); err != nil || prompt != "[user]Hello" {
+		t.Fatalf("declared prompt = %q, %v", prompt, err)
+	}
+	builtIn := &Runner{preparedModel: preparedModel{vocab: vocab, file: &gguf.File{}}}
+	prompt, err := builtIn.FormatChat(messages)
+	if want := "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n"; err != nil || prompt != want {
+		t.Fatalf("built-in prompt = %q, %v, want %q", prompt, err, want)
+	}
+}
+
 func TestFormatChatUsesGGUFJinjaTemplateWithoutFilesystemIncludes(t *testing.T) {
 	template := `{{ bos_token }}{% for message in messages %}` +
 		`[{{ message['role'] }}]{{ message['content'] }}{{ eos_token }}` +

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
@@ -41,7 +42,8 @@ func ResolveModelConfig(ctx context.Context, store overgodb.DocumentReader, mode
 
 // fileDeclaredSampling is the sampling a GGUF file recommends in llama.cpp's general.sampling keys, which its
 // converter writes from the checkpoint's generation config (Flash-Next's: temperature 1, top-p 0.95, top-k 20); nil
-// where the file names none. A temperature of zero or less asks for greedy decoding.
+// where the file names none. A temperature of zero or less asks for greedy decoding, and one that is no number goes on
+// to the policy's validation, which refuses it.
 func fileDeclaredSampling(file *gguf.File) *modelartifact.GenerationSampling {
 	named := false
 	number := func(key string) float64 {
@@ -64,7 +66,7 @@ func fileDeclaredSampling(file *gguf.File) *modelartifact.GenerationSampling {
 		return nil
 	}
 	_, temperature := file.MetadataValue("general.sampling.temp")
-	declared.DoSample = !temperature || declared.Temperature > 0
+	declared.DoSample = !temperature || declared.Temperature > 0 || !checked.Finite64(declared.Temperature)
 	return declared
 }
 

@@ -106,11 +106,20 @@ func ResolveClaimedGGUF(
 	return loaded, nil
 }
 
-// declarePolicy takes policy as the program's, the model's own declared sampling (its generation config or model card)
-// overlaid on it, else the sampling its file recommends; a store without typed document projections cannot hold a
-// declaration, so the file's stands.
+// declarePolicy takes policy as the program's, the model's own declared sampling overlaid on it: its generation config
+// or model card as the store records them, else as a directory holds them, else the sampling its file recommends. A
+// store without typed document projections cannot hold a declaration, so the files' stands.
 func (l *LoadedProgram) declarePolicy(ctx context.Context, store artifact.Reader, policy RuntimePolicy) error {
 	declared := fileDeclaredSampling(l.state.File)
+	if directory := l.state.File.ViewDirectory(); directory != "" {
+		_, generation, _, err := modelartifact.ReadModelConfigComponents(directory)
+		if err != nil {
+			return err
+		}
+		if generation != nil && generation.Sampling != nil {
+			declared = generation.Sampling
+		}
+	}
 	if documents, ok := store.(overgodb.DocumentReader); ok {
 		config, found, err := ResolveModelConfig(ctx, documents, l.state.Inventory.Manifest.ID)
 		if err != nil {

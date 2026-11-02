@@ -103,6 +103,12 @@ func TestFilesSamplingRecommendationOverlaysTheCatalog(t *testing.T) {
 	if err != nil || greedy.Serving.Sampling.Temperature != 0 {
 		t.Fatalf("a file's zero temperature = %+v, %v", greedy.Serving.Sampling, err)
 	}
+	for _, malformed := range []float32{float32(math.NaN()), float32(math.Inf(-1))} {
+		declared := fileDeclaredSampling(open(testutil.GGUFScalar("general.sampling.temp", gguf.ValueTypeFloat32, malformed)))
+		if policy, err := withDeclaredSampling(catalog, declared); err == nil {
+			t.Fatalf("a file's temperature %v was accepted as %+v", malformed, policy.Serving.Sampling)
+		}
+	}
 }
 
 func TestDeclaredSamplingPreservesPolicyIdentity(t *testing.T) {

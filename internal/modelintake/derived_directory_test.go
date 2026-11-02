@@ -12,8 +12,8 @@ import (
 )
 
 // TestASafetensorsDirectoryNothingRecordsResolves: a Hugging Face directory the store has never seen resolves from its
-// own config.json and the prototype compiled for its architecture, and says it is not verified; a directory whose model
-// type nothing maps to a prototype is refused by that name.
+// own config.json and the prototype compiled for its architecture, takes its sampling from its own generation_config.json
+// and says it is not verified; a directory whose model type nothing maps to a prototype is refused by that name.
 func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
@@ -21,7 +21,9 @@ func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, testutil.Qwen35Directory(t))
+	directory := testutil.Qwen35Directory(t)
+	testutil.WriteTextFile(t, directory, "generation_config.json", `{"do_sample":true,"temperature":0.25}`)
+	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,6 +34,13 @@ func TestASafetensorsDirectoryNothingRecordsResolves(t *testing.T) {
 	}
 	if state.Verification != modelrecipe.StateNotVerified {
 		t.Fatalf("state = %+v", state)
+	}
+	policy, err := loaded.RuntimePolicy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy.Serving.Sampling.Temperature != 0.25 {
+		t.Fatalf("the directory's sampling did not reach the policy: %+v", policy.Serving.Sampling)
 	}
 	unmapped := t.TempDir()
 	testutil.WriteTextFile(t, unmapped, "config.json", `{"model_type":"needle"}`)

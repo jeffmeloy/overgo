@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2079,
+        "nodes": 2019,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "declared-template",
-          "title": "Take the prompt template and sampling from the model's own files",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1 -run '^TestADeclaredTemplateOutranksTheBuiltInFormats$'",
-          "rationale": "SQA-283 (2): chat_template.jinja, tokenizer_config.json or tokenizer.chat_template, the built-in formats only where the files declare none; sampling from generation_config.json or the file. Read what already holds before adding anything: hfconvert and chat_jinja.go exist, and the overlay in ResolveClaimedGGUF reads a stored config.\nServes: a derived run formats its prompt as its model expects.\nDisappears: nothing.\nEvidence: its test, one model with a declared template and one without.\nBatch: recipe lane.\n\nSQA-238 joins this step: a derived run trusts the file's own sampling, so a NaN or -Inf general.sampling.temp must reach the policy's validation instead of silently selecting greedy."
-        },
         {
           "id": "catalog-states",
           "title": "List every present model with its state",

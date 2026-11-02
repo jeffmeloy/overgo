@@ -14,6 +14,7 @@ package loop
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"overgo/internal/scorecard"
@@ -133,8 +134,9 @@ type CycleTrigger interface {
 var ErrWorkWaiting = errors.New("loop: waiting for work ownership")
 
 // Run drives the cycle until a terminal condition. It returns an error only
-// when the world itself fails (plan unreadable, worker unlaunchable); a parked
-// step is a terminal outcome, not an error, so the operator decides.
+// when the world itself fails (plan unreadable, worker unlaunchable). A parked
+// step is no error: the rows behind it run, and the outcome names it, so the
+// operator decides; the run ends parked when only parked rows remain.
 func Run(world World, config Config) (Outcome, error) {
 	if config.MaxAttemptsPerStep <= 0 || config.MaxInvocations <= 0 {
 		return Outcome{}, errors.New("loop: attempt and invocation budgets are required")
@@ -163,6 +165,9 @@ func Run(world World, config Config) (Outcome, error) {
 		}
 		if errors.Is(err, ErrWorkWaiting) {
 			outcome.Reason = ReasonWorkWaiting
+			if len(outcome.Parked) != 0 {
+				outcome.Reason = ReasonParked
+			}
 			return outcome, nil
 		}
 		if err != nil {
@@ -195,6 +200,11 @@ func Run(world World, config Config) (Outcome, error) {
 				continue
 			}
 		}
+		// A world that hands a parked row back holds no record of it, and the run ends loudly.
+		if slices.Contains(outcome.Parked, step.Key()) {
+			outcome.Reason = ReasonParked
+			return outcome, nil
+		}
 		if step.Key() != lastKey {
 			lastKey, attempts, feedback = step.Key(), 0, ""
 		}
@@ -205,8 +215,7 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, fmt.Errorf("loop: park %s: %w", step.Key(), err)
 			}
 			outcome.Parked = append(outcome.Parked, step.Key())
-			outcome.Reason = ReasonParked
-			return outcome, nil
+			continue
 		}
 		if outcome.Invocations >= config.MaxInvocations {
 			outcome.Reason = ReasonBudget
@@ -238,6 +247,9 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, nil
 		}
 		after, open, err := world.Current()
+		if errors.Is(err, ErrWorkWaiting) {
+			continue
+		}
 		if err != nil {
 			return outcome, fmt.Errorf("loop: re-read plan: %w", err)
 		}

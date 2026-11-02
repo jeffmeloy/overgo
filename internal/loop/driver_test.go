@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -147,5 +148,52 @@ func TestLoopDriverCycle(t *testing.T) {
 	// Zero budgets refuse to run.
 	if _, err := Run(&fakeWorld{}, Config{}); err == nil {
 		t.Fatal("unbounded driver accepted")
+	}
+}
+
+// parkingWorld passes over a parked row, as dispatch does.
+type parkingWorld struct {
+	fakeWorld
+	away []string
+}
+
+func (w *parkingWorld) Current() (Step, bool, error) {
+	if len(w.steps) == 0 {
+		return Step{}, false, nil
+	}
+	for _, step := range w.steps {
+		if !slices.Contains(w.away, step.Key()) {
+			return step, true, nil
+		}
+	}
+	return Step{}, false, ErrWorkWaiting
+}
+
+func (w *parkingWorld) Park(step Step, reason string) error {
+	w.away = append(w.away, step.Key())
+	return w.fakeWorld.Park(step, reason)
+}
+
+// TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt: a row that exhausts its attempts is parked once and the row behind it
+// runs, and the run ends parked, naming it, when nothing else is left.
+func TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt(t *testing.T) {
+	t.Parallel()
+	fail := func(*fakeWorld, Step, string) string { return "still failing" }
+	world := &parkingWorld{fakeWorld: fakeWorld{
+		steps: []Step{{Item: "failing", ID: "do"}, {Item: "behind", ID: "do"}},
+		behavior: []func(w *fakeWorld, step Step, feedback string) string{fail, fail, func(w *fakeWorld, _ Step, _ string) string {
+			w.steps = w.steps[:1]
+			return ""
+		}},
+	}}
+	outcome, err := Run(world, Config{MaxAttemptsPerStep: 2, MaxInvocations: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Reason != ReasonParked || !slices.Equal(outcome.Parked, []string{"failing/do"}) || len(world.parked) != 1 {
+		t.Fatalf("outcome = %+v, parked %v; want one row parked once", outcome, world.parked)
+	}
+	if !slices.Contains(world.prompts, "behind/do") {
+		t.Fatalf("the row behind never ran: %v", world.prompts)
 	}
 }

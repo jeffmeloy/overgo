@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "dispatch-truth",
-      "title": "Make a decision's answer govern the rows it names",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 281,
-        "reason": "decision-answers adds 469 of an estimated 60: the holding rule reaches dispatch, Advance, the prompt and a new plan -doctrine. failing-row is re-estimated at 280: the driver, a state file and dispatch."
-      },
-      "steps": [
-        {
-          "id": "failing-row",
-          "title": "Pass over a row that keeps failing",
-          "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestARowThatKeepsFailingDoesNotHoldTheRowsBehindIt$'",
-          "rationale": "Dispatch has no parked state: a ready row that keeps failing parks and ends the run (internal/loop/driver.go:201-209), and the next start dispatches it again (internal/plan/dispatch.go:219-225), so nothing behind it runs. Of 67 open steps, 61 stood ahead of the rows awaiting decisions, so the rows that serve the system's purpose can starve. Record a parked row in state a commit clears, and report it once.\nServes: unattended runtime.\nDisappears: nothing.\nEvidence: a world with one failing row and one ready row behind it.\nBatch: loop lane."
-        }
-      ]
-    },
-    {
       "id": "commit-rules",
       "title": "Make the commit rules hold for every harness and spend fewer commits",
       "owner": "master-lead",

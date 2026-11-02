@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/processcontrol"
@@ -62,5 +63,44 @@ func TestLoopViewAndStop(t *testing.T) {
 	}
 	if again, err := ReadStop(t.Context(), repository, "", ExecutionUnattended); err != nil || again.ID != held.ID {
 		t.Fatalf("a second stop replaced the first: %+v, %v", again, err)
+	}
+}
+
+// TestAParkedRowWaitsForACommit: dispatch passes over a parked row for the one behind it and says when only that row is
+// left, and a commit brings it back.
+func TestAParkedRowWaitsForACommit(t *testing.T) {
+	t.Parallel()
+	row := func(id string) Item {
+		return Item{ID: id, Title: id, Status: StatusOpen, Steps: []Step{{ID: "do", Title: id, Status: StatusOpen, Verify: "true"}}}
+	}
+	repository := planRepository(t, Plan{Campaign: "loop", Items: []Item{row("failing"), row("behind")}})
+	resolve := func() Dispatch {
+		t.Helper()
+		dispatch, err := ResolveDispatch(t.Context(), repository, DispatchRequest{Mode: ExecutionInteractive})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return dispatch
+	}
+	if dispatch := resolve(); dispatch.Item != "failing" {
+		t.Fatalf("before parking, dispatch = %+v", dispatch)
+	}
+	for _, parked := range []string{"failing/do", "failing/do"} {
+		if err := ParkRow(t.Context(), repository, parked); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if dispatch := resolve(); dispatch.Item != "behind" {
+		t.Fatalf("with failing parked, dispatch = %+v", dispatch)
+	}
+	if err := ParkRow(t.Context(), repository, "behind/do"); err != nil {
+		t.Fatal(err)
+	}
+	if dispatch := resolve(); dispatch.Item != "" || !strings.Contains(dispatch.Waiting, "parked until a commit: failing/do, behind/do") {
+		t.Fatalf("with both parked, dispatch = %+v", dispatch)
+	}
+	git(t, repository, "commit", "-q", "--allow-empty", "-m", "a commit")
+	if dispatch := resolve(); dispatch.Item != "failing" {
+		t.Fatalf("after a commit, dispatch = %+v", dispatch)
 	}
 }

@@ -129,6 +129,9 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
+	if document.parked, err = readParked(repository, head); err != nil {
+		return Dispatch{}, err
+	}
 	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
@@ -183,7 +186,7 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 		}
 		visited[ref.String()] = true
 		if ready[ref.String()] {
-			if eligible(item) {
+			if eligible(item) && !slices.Contains(document.parked, ref.String()) {
 				ordered = append(ordered, ref)
 			}
 			return
@@ -225,7 +228,8 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		return stepDispatch(item, step), nil
 	}
 	awaiting := awaitingDecision(document)
-	if item, _, open := Current(document, role); open && !awaiting[item.ID] && reference == "" {
+	if item, step, open := Current(document, role); open && !awaiting[item.ID] && reference == "" &&
+		!slices.Contains(document.parked, item.ID+"/"+step.ID) {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
 	}
@@ -248,6 +252,7 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 			held = append(held, item.ID+" is held by decision "+decision.ID+": "+decision.holds())
 		}
 	}
+	held = append(held, parkedNote(document)...)
 	if len(held) != 0 {
 		return finishDispatch(Dispatch{Waiting: strings.Join(held, "; ")}), nil
 	}
@@ -311,6 +316,14 @@ func holdingDecision(document Plan, item string) (Decision, bool) {
 		return Decision{}, false
 	}
 	return document.Decisions[at], true
+}
+
+// parkedNote says which rows wait for a commit.
+func parkedNote(document Plan) []string {
+	if len(document.parked) == 0 {
+		return nil
+	}
+	return []string{"parked until a commit: " + strings.Join(document.parked, ", ")}
 }
 
 // holds says why a holding decision holds its rows.

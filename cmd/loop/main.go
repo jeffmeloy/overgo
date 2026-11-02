@@ -394,6 +394,9 @@ func (w *execWorld) Verify(loop.Step) (string, error) {
 }
 
 func (w *execWorld) Park(step loop.Step, reason string) error {
+	if err := plan.ParkRow(context.Background(), loopWorktree, step.Key()); err != nil {
+		return fmt.Errorf("park row: %w", err)
+	}
 	out, err := runTool("go", "run", "./cmd/finding",
 		"-title", "loop parked "+step.Key()+" after exhausted worker attempts",
 		"-severity", "high",

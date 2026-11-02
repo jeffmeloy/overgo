@@ -130,6 +130,8 @@ type Plan struct {
 	// rather than prose in a rationale: plan -decisions lists the open
 	// ones with how long they have waited.
 	Decisions []Decision `json:"decisions,omitempty"`
+	// parked are the rows dispatch passes over at this commit (ParkRow); they are the worktree's state, not the plan's.
+	parked []string
 }
 
 // decisionOptions is the fewest options a decision offers: one option is

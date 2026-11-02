@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
-        "reason": "Estimate. Checks in cmd/kernel-manifest and cmd/kernel-bindings; a scan replaces a hand-kept dependency list."
+        "nodes": 456,
+        "reason": "include-scan adds 344 of the row's 250: the walk, its use by -update and a check in both directions. toolchain-pin and launch-widths are re-estimated at 200 and 250 from the same reading."
       },
       "steps": [
-        {
-          "id": "include-scan",
-          "title": "Derive kernel source dependencies from the includes",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestEveryIncludedKernelSourceIsPinned$'",
-          "rationale": "strata_prompt_gr.cuh is included at kernels/cuda/strata_qsa.cu:1680 and absent from kernels/manifest.json, the only one of 16 project headers missing, so editing it leaves TestKernelManifestIsCurrent green on stale compiled code. Dependencies are hand-listed (cmd/kernel-manifest/main.go:138-159). SBOM.cdx.json reads the manifest and misses it too, so the landing regenerates it.\nServes: a kernel change cannot pass unbuilt.\nDisappears: the hand-kept list.\nEvidence: a planted include missing from the manifest.\nBatch: host lane; before every kernel step."
-        },
         {
           "id": "toolchain-pin",
           "title": "Compare the recorded toolchain with the compiled code",

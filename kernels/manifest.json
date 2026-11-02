@@ -2275,24 +2275,28 @@
           "sha256": "c124b6a8f3a6c197ae4076814bd3432411641de9dec7f5d253d8a294330714d4"
         },
         {
-          "path": "kernels/cuda/strata_round_elementwise.cuh",
-          "sha256": "eda09d601ff9faa7bb7b7bc62f24aab90ec123024e18d5afaeee163b7bff1590"
-        },
-        {
-          "path": "kernels/cuda/strata_sampler.cuh",
-          "sha256": "088e300497f296197145f7505a3e441786aad3abc3fed44646d9134f35bfed4f"
-        },
-        {
-          "path": "kernels/cuda/strata_mtp.cuh",
-          "sha256": "2b0e93a957faae9c164462e97e627d2bd5b57eca429ba090215325795e5e76b0"
+          "path": "kernels/cuda/strata_gdn.cuh",
+          "sha256": "fca928179eb7e04ee0136df0bc7f28d17d05fd53f2504c0c41eef8e48b58504d"
         },
         {
           "path": "kernels/cuda/strata_iq_experts.cuh",
           "sha256": "4a665a9f536f240aabc9b6131693321d8ad21bc61c090f8ac30bfec6a2cb4922"
         },
         {
-          "path": "kernels/cuda/strata_gdn.cuh",
-          "sha256": "fca928179eb7e04ee0136df0bc7f28d17d05fd53f2504c0c41eef8e48b58504d"
+          "path": "kernels/cuda/strata_mtp.cuh",
+          "sha256": "2b0e93a957faae9c164462e97e627d2bd5b57eca429ba090215325795e5e76b0"
+        },
+        {
+          "path": "kernels/cuda/strata_prompt_gr.cuh",
+          "sha256": "d05470bbbb4fcbc0d37c3964496b8eeb839741791773fb19af827bfd785fe9ed"
+        },
+        {
+          "path": "kernels/cuda/strata_round_elementwise.cuh",
+          "sha256": "eda09d601ff9faa7bb7b7bc62f24aab90ec123024e18d5afaeee163b7bff1590"
+        },
+        {
+          "path": "kernels/cuda/strata_sampler.cuh",
+          "sha256": "088e300497f296197145f7505a3e441786aad3abc3fed44646d9134f35bfed4f"
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
@@ -3287,24 +3291,24 @@
           "sha256": "64bebbc7d8e21ee5834f8626238c5dd0cb8d3f0205f3dde375b756c7b8bdd06e"
         },
         {
-          "path": "kernels/cuda/strata_native_ple.cuh",
-          "sha256": "321e13ee746d057a4f285a103ac3b931f980e8e2192eae9b3af60002c6ccaf26"
-        },
-        {
-          "path": "kernels/cuda/strata_native_router.cuh",
-          "sha256": "efa078f8345fdcc9912baea5e7d64153332cd5412a1cf4dc95770b760f5561a4"
-        },
-        {
-          "path": "kernels/cuda/strata_native_qsa.cuh",
-          "sha256": "3a2c660a78aa1e20a4c7767bd1d64ae5f78630bd796490c3f1a615a0977c3c09"
+          "path": "kernels/cuda/strata_native_mmvq.cuh",
+          "sha256": "8bc5b3dcea59b0269c3829185ab32914c27add77b1f1ec383f5147107e2561ff"
         },
         {
           "path": "kernels/cuda/strata_native_moe.cuh",
           "sha256": "d97eabdd14729bba35e6b12eaba174f64e7eda0f0fd1c2d9c1061ed9f3ac88ee"
         },
         {
-          "path": "kernels/cuda/strata_native_mmvq.cuh",
-          "sha256": "8bc5b3dcea59b0269c3829185ab32914c27add77b1f1ec383f5147107e2561ff"
+          "path": "kernels/cuda/strata_native_ple.cuh",
+          "sha256": "321e13ee746d057a4f285a103ac3b931f980e8e2192eae9b3af60002c6ccaf26"
+        },
+        {
+          "path": "kernels/cuda/strata_native_qsa.cuh",
+          "sha256": "3a2c660a78aa1e20a4c7767bd1d64ae5f78630bd796490c3f1a615a0977c3c09"
+        },
+        {
+          "path": "kernels/cuda/strata_native_router.cuh",
+          "sha256": "efa078f8345fdcc9912baea5e7d64153332cd5412a1cf4dc95770b760f5561a4"
         }
       ],
       "asset": "internal/cuda/kernel/strata_native.ptx",

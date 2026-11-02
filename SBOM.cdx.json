@@ -284,6 +284,17 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:kernels/cuda/strata_prompt_gr.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d05470bbbb4fcbc0d37c3964496b8eeb839741791773fb19af827bfd785fe9ed"
+        }
+      ],
+      "name": "kernels/cuda/strata_prompt_gr.cuh",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:kernels/cuda/strata_qsa.cu",
       "hashes": [
         {
@@ -354,7 +365,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "cab92836e35a97ec40e07e803da31d030322c5ac19e053f7babb2254cda2110f"
+          "content": "5663e691e034d37d8518c5494c0dc00abc72b63169d476d4714a8639a7300970"
         }
       ],
       "name": "kernels/manifest.json",
@@ -514,6 +525,7 @@
         "file:kernels/cuda/strata_native_ple.cuh",
         "file:kernels/cuda/strata_native_qsa.cuh",
         "file:kernels/cuda/strata_native_router.cuh",
+        "file:kernels/cuda/strata_prompt_gr.cuh",
         "file:kernels/cuda/strata_qsa.cu",
         "file:kernels/cuda/strata_qsa_native.cuh",
         "file:kernels/cuda/strata_round_elementwise.cuh",

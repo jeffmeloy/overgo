@@ -5,10 +5,54 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	cudaKernel "overgo/internal/cuda/kernel"
 )
+
+// TestEveryIncludedKernelSourceIsPinned: every header a module compiles in is pinned, whichever file includes it, so a
+// planted include refuses the manifest, and a pin of a header no longer included does too.
+func TestEveryIncludedKernelSourceIsPinned(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		file := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("kernels/cuda/main.cu", "#include <stdint.h>\n  #include \"first.cuh\"\n// #include is prose here\n")
+	write("kernels/cuda/first.cuh", "#  include \"nested/second.cuh\"\n")
+	write("kernels/cuda/nested/second.cuh", "#include \"../first.cuh\"\n")
+	included, err := includedSources(root, "kernels/cuda/main.cu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kernels/cuda/first.cuh", "kernels/cuda/nested/second.cuh"}; !slices.Equal(included, want) {
+		t.Fatalf("included = %v, want %v", included, want)
+	}
+	item := &module{Source: "kernels/cuda/main.cu", SourceDependencies: pinnedAs(included, nil)}
+	if err := requirePinned(item, included); err != nil {
+		t.Fatal(err)
+	}
+	write("kernels/cuda/first.cuh", "#include \"planted.cuh\"\n#include \"nested/second.cuh\"\n")
+	write("kernels/cuda/planted.cuh", "\n")
+	planted, err := includedSources(root, "kernels/cuda/main.cu")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := requirePinned(item, planted); err == nil || !strings.Contains(err.Error(), "planted.cuh") {
+		t.Fatalf("a planted include: %v", err)
+	}
+	if err := requirePinned(item, included[:1]); err == nil || !strings.Contains(err.Error(), "does not include") {
+		t.Fatalf("a pin of a header no longer included: %v", err)
+	}
+}
 
 func TestPTXEntriesSorted(t *testing.T) {
 	got := ptxEntries([]byte(".visible .entry z(\n.visible .entry a(\n"))
@@ -60,7 +104,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "x.cu"), []byte("kernel"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "src", "x.cu"), []byte("#include \"x.cuh\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "src", "x.cuh"), []byte("table"), 0o644); err != nil {

@@ -8,7 +8,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -20,6 +22,9 @@ import (
 )
 
 const manifestPath = "kernels/manifest.json"
+
+// includePattern is a project header's include: a system header's angle brackets name nothing the manifest pins.
+var includePattern = regexp.MustCompile(`(?m)^\s*#\s*include\s+"([^"]+)"`)
 
 var entryPattern = regexp.MustCompile(`(?m)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\(`)
 var entryABIPattern = regexp.MustCompile(`(?ms)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\((.*?)^\)`)
@@ -77,8 +82,8 @@ func main() {
 }
 
 func run(root string, update bool) error {
-	path := filepath.Join(root, filepath.FromSlash(manifestPath))
-	data, err := os.ReadFile(path)
+	manifestFile := filepath.Join(root, filepath.FromSlash(manifestPath))
+	data, err := os.ReadFile(manifestFile)
 	if err != nil {
 		return err
 	}
@@ -135,15 +140,17 @@ func run(root string, update bool) error {
 		} else if item.SourceSHA256 != sourceHash || item.AssetSHA256 != assetHash {
 			return fmt.Errorf("kernel manifest: hashes for %q are stale", item.Asset)
 		}
+		included, err := includedSources(root, item.Source)
+		if err != nil {
+			return err
+		}
+		if update {
+			item.SourceDependencies = pinnedAs(included, item.SourceDependencies)
+		} else if err := requirePinned(item, included); err != nil {
+			return err
+		}
 		for dependencyIndex := range item.SourceDependencies {
 			dependency := &item.SourceDependencies[dependencyIndex]
-			if dependency.Path == "" {
-				return fmt.Errorf("kernel manifest: %q has an empty source dependency", item.Source)
-			}
-			if _, duplicate := seenSource[dependency.Path]; duplicate {
-				return fmt.Errorf("kernel manifest: duplicate source %q", dependency.Path)
-			}
-			seenSource[dependency.Path] = struct{}{}
 			dependencyHash, dependencyErr := fileHash(root, dependency.Path)
 			if dependencyErr != nil {
 				return dependencyErr
@@ -186,7 +193,70 @@ func run(root string, update bool) error {
 	if err != nil {
 		return err
 	}
-	return clioptions.WriteOutputFile(path, append(output, '\n'))
+	return clioptions.WriteOutputFile(manifestFile, append(output, '\n'))
+}
+
+// includedSources walks a kernel source's project includes, each relative to the file that names it, so a header compiled
+// into a module is pinned without anyone listing it.
+func includedSources(root, source string) ([]string, error) {
+	seen := map[string]bool{}
+	var walk func(file string) error
+	walk = func(file string) error {
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(file)))
+		if err != nil {
+			return err
+		}
+		for _, match := range includePattern.FindAllSubmatch(data, -1) {
+			included := path.Join(path.Dir(file), string(match[1]))
+			if seen[included] {
+				continue
+			}
+			seen[included] = true
+			if err := walk(included); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(source); err != nil {
+		return nil, err
+	}
+	return slices.Sorted(maps.Keys(seen)), nil
+}
+
+// pinnedAs is the included files as dependencies, each keeping its pin until the update hashes it.
+func pinnedAs(included []string, pinned []sourceDependency) []sourceDependency {
+	dependencies := make([]sourceDependency, 0, len(included))
+	for _, file := range included {
+		at := slices.IndexFunc(pinned, func(dependency sourceDependency) bool { return dependency.Path == file })
+		if at >= 0 {
+			dependencies = append(dependencies, pinned[at])
+		} else {
+			dependencies = append(dependencies, sourceDependency{Path: file})
+		}
+	}
+	return dependencies
+}
+
+// requirePinned refuses a module whose pins and includes differ: an unpinned header could change the compiled code with the
+// manifest still reading current.
+func requirePinned(item *module, included []string) error {
+	pinned := make([]string, 0, len(item.SourceDependencies))
+	for _, dependency := range item.SourceDependencies {
+		pinned = append(pinned, dependency.Path)
+	}
+	slices.Sort(pinned)
+	for _, file := range included {
+		if !slices.Contains(pinned, file) {
+			return fmt.Errorf("kernel manifest: %q includes %q, which the manifest does not pin; run kernel-manifest -update", item.Source, file)
+		}
+	}
+	for _, file := range pinned {
+		if !slices.Contains(included, file) {
+			return fmt.Errorf("kernel manifest: %q pins %q, which it does not include; run kernel-manifest -update", item.Source, file)
+		}
+	}
+	return nil
 }
 
 func verifyArgumentLayouts(item *module, got map[string][]string) error {

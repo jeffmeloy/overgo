@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2102,
+        "nodes": 2079,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "derive-safetensors",
-          "title": "Run a safetensors directory with nothing recorded from config.json and its prototype",
-          "status": "open",
-          "verify": "go test ./internal/modelintake -count=1 -run '^TestASafetensorsDirectoryNothingRecordsResolves$'",
-          "rationale": "SQA-283 (1): the same derivation for a directory, through the facts InspectImport reads, config.json sizing the prototype.\nServes: an HF directory runs as a GGUF does.\nDisappears: nothing.\nEvidence: its test, a directory the store has never seen.\nBatch: recipe lane."
-        },
         {
           "id": "declared-template",
           "title": "Take the prompt template and sampling from the model's own files",

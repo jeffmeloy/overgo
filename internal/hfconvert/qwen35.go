@@ -94,6 +94,9 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	}, nil
 }
 
+// qwen35ModelType is the model_type of a Qwen 3.5 checkpoint's config.json.
+const qwen35ModelType = "qwen3_5"
+
 // View opens a Hugging Face directory of a text architecture the converter
 // writes, a Qwen 3.5 checkpoint or one of a profile (archProfiles), as the
 // GGUF Convert would write from it, named name where one is given: the same
@@ -111,6 +114,9 @@ func View(directory, name string) (*gguf.File, error) {
 	}
 	if _, profiled := archProfiles[config.ModelType]; profiled {
 		return viewProfile(directory, name, config)
+	}
+	if config.ModelType != qwen35ModelType {
+		return nil, fmt.Errorf("HF converter: model type %q has no mapping from its files to a prototype", config.ModelType)
 	}
 	repository, err := hfrepo.Open(directory)
 	if err != nil {
@@ -132,7 +138,7 @@ func Viewed(directory string) bool {
 		return false
 	}
 	_, profiled := archProfiles[config.ModelType]
-	return config.ModelType == "qwen3_5" || profiled
+	return config.ModelType == qwen35ModelType || profiled
 }
 
 // init makes gguf.Open serve a directory as its View, so a model registered

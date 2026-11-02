@@ -6502,6 +6502,17 @@
         "plan_steps": [
           "sqa-tests/runner-cleanup"
         ]
+      },
+      {
+        "comment": "Progress at run-from-files/derive-safetensors, and a limit the finding should know. A real directory the store has never seen ran on the device and printed not verified, but only the model types llama, qwen2 and qwen3_5 map from a directory, not the 137 profiles. On disk that covers Carbon-500M, MiniCPM5-1B, Qwen2.5-0.5B and Qwen3.5-4B; gemma4_unified and needle are refused by name, each needing its tensors ported. The 137 profiles describe GGUF architectures, so a GGUF of any of them derives, and whether it then runs well is what its state warns of.",
+        "disposition": "progress",
+        "evidence": [
+          "TestASafetensorsDirectoryNothingRecordsResolves"
+        ],
+        "finding_id": "SQA-283",
+        "plan_steps": [
+          "run-from-files/derive-safetensors"
+        ]
       }
     ],
     "experiments": {
@@ -6548,7 +6559,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "7028a38f9f96c0cd585aead82b6f976c4cc607cf",
+    "head": "675d61b80e0f1b9193bdf2a147746e6b869ae6fd",
     "findings": {
       "SQA-004": {
         "action": "none",

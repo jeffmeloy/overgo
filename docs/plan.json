@@ -161,7 +161,7 @@
           "id": "stop-record",
           "title": "Honor the stop escape when its refusal record cannot be kept",
           "status": "open",
-          "verify": "go test ./cmd/hooks ./internal/loop -count=1 -run 'Stop'",
+          "verify": "go test ./cmd/loophook -count=1 -run 'Stop'",
           "rationale": "SQA-264: runStop checks the write of its refusal record and honors the escape when the baseline cannot be kept.\nServes: a session cannot wedge on a full or denied state directory.\nDisappears: nothing.\nEvidence: one existing fixture extended.\nBatch: hook lane."
         },
         {

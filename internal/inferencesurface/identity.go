@@ -100,14 +100,16 @@ var resultSettings = []string{"CUDA_PATH", "CUDA_VISIBLE_DEVICES", "ProgramFiles
 // when no search path holds it: what that changes is the library found, and
 // the place and the files found there are counted with the libraries below.
 // One reads a remote provider's key (internal/remoteprovider), which decides
-// whether the provider is asked, not what a local capability computes. Two
-// are a command's own (internal/clioptions): where it writes its final error,
-// and whether it stops at its preflight, before anything is computed.
+// whether the provider is asked, not what a local capability computes. One
+// passes an agent tool the variables its manual names (internal/agenttool),
+// which reach that tool and no capability. Two are a command's own
+// (internal/clioptions): where it writes its final error, and whether it stops
+// at its preflight, before anything is computed.
 // A read that is neither here nor a result setting leaves every identity that
 // reaches it uncounted, since nothing says whether an answer depends on it.
 var neutralReads = []string{
 	`"OVERGO_LEDGER_TRACE"`, `"OVERGO_MEMORY_PLAN"`, `"OVERGO_OP_COUNTS"`, `"OVERGO_VAE_PROFILE"`,
-	"CampaignEnvironment", "inheritedResourcesEnvironment", "Env", "boundEnvironment", "provider.KeyEnvironment",
+	"CampaignEnvironment", "inheritedResourcesEnvironment", "Env", "boundEnvironment", "provider.KeyEnvironment", "toolVariable",
 	"ErrorFileEnvironment", "PreflightEnvironment",
 }
 

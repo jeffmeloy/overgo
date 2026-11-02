@@ -279,12 +279,15 @@ recorded runs.
 
 A [tool manual](internal/agenttool/manual.go) declares a tool's arguments,
 effect class, and transport: Go functions, HTTP endpoints, fixed programs
-without a shell, MCP tools, sequenced JSON streams.
+without a shell, which receive only the variables their manual names over a
+small base, MCP tools, sequenced JSON streams.
 [cmd/agent-tool](cmd/agent-tool/main.go) publishes manuals to the store. The
 [agent loop](internal/agentloop/coordinator.go) checks registration and
 execution bounds; mutations need a completed inspection and exact approval and
-record a durable receipt first. The serving executor refuses loopback, private,
-and link-local destinations; the operator executor admits private ones.
+record a durable receipt first. The serving executor refuses every destination
+[outside public unicast](internal/agenttool/security.go), the list the media
+fetcher uses: loopback, private, link-local, multicast, carrier-grade NAT,
+documentation and reserved ranges. The operator executor admits them.
 
 ## Development and verification
 

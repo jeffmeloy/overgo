@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 )
 
 // Endpoint reachability is decided at dial time against resolved
@@ -20,12 +21,34 @@ func refuseRedirect(request *http.Request, _ []*http.Request) error {
 	return fmt.Errorf("agent tool: endpoint redirected to %q; manuals bind one endpoint", request.URL)
 }
 
-// privateAddress reports whether the address is loopback, private,
-// link-local, or unspecified -- the ranges a server-side fetch must
-// not reach on behalf of a manual.
-func privateAddress(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-		ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+// PublicAddress reports whether a server-side fetch may reach the address: global unicast and in no refused network. A
+// tool's endpoint and a media source answer to this one list.
+func PublicAddress(address netip.Addr) bool {
+	address = address.Unmap()
+	if !address.IsValid() || !address.IsGlobalUnicast() {
+		return false
+	}
+	for _, prefix := range refusedNetworks {
+		if prefix.Contains(address) {
+			return false
+		}
+	}
+	return true
+}
+
+var refusedNetworks = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("169.254.0.0/16"), netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"), netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("224.0.0.0/4"), netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("::/128"), netip.MustParsePrefix("::1/128"),
+	netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001::/23"), netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"),
+	netip.MustParsePrefix("ff00::/8"),
 }
 
 // guardedDialContext resolves the host and dials only an address the
@@ -44,7 +67,8 @@ func guardedDialContext(allowPrivate bool) func(context.Context, string, string)
 		}
 		var refused error
 		for _, candidate := range resolved {
-			if !allowPrivate && privateAddress(candidate.IP) {
+			address, parsed := netip.AddrFromSlice(candidate.IP)
+			if !allowPrivate && (!parsed || !PublicAddress(address)) {
 				refused = fmt.Errorf(
 					"agent tool: endpoint %q resolves to the private address %s; private networks are refused",
 					host, candidate.IP)

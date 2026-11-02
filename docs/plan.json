@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 366,
+        "nodes": 236,
         "reason": "agent-attempts took 584 of an estimated 120: a retry carries a new approval, so the receipt chain, the checkpoint, the restore and both approval paths moved with the ordinal. The rest of the row is estimated from the same reading: provider-listing 300, one-address-list 110, public-routes 50, session-list 150."
       },
       "steps": [
-        {
-          "id": "one-address-list",
-          "title": "Keep one list of refused addresses and a bounded tool environment",
-          "status": "open",
-          "verify": "go test ./internal/agenttool -count=1 -run '^(TestOneRefusedAddressList|TestAToolReceivesOnlyWhatItsManualNames)$'",
-          "rationale": "internal/agenttool/security.go:26-29 admits 13 of the 23 prefixes internal/server/media_policy.go:372-385 refuses (measured), not the 4 first listed: 100.64/10, 198.18/15, 0/8, 64:ff9b::/96, 192.0.0/24, 192.0.2/24, 198.51.100/24, 203.0.113/24, 240/4, 100::/64, 2001::/23, 2001:db8::/32 and ff00::/8. 224.0.1.1, 239.1.1.1 and 255.255.255.255 are admitted too. One list serves both, and README.md:280-281 grows with it.\nArgv tools inherit the whole environment (internal/agenttool/transport.go:197-202, Env nil at processcontrol/supervisor.go:80,93), provider keys included. The manual names what a tool receives, over a base of named constants, since Windows programs likely need SystemRoot and PATH (hypothesis, settled by an argv tool test). A Manual field takes omitzero so existing identities hold.\nServes: the agent boundary README states.\nDisappears: privateAddress and its copy of the rule.\nEvidence: one table over both callers.\nBatch: serving lane."
-        },
         {
           "id": "public-routes",
           "title": "Make the catalog route match SECURITY.md",

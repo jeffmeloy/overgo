@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"overgo/internal/agenttool"
 )
 
 func TestRemoteMediaPolicyRejectsOversizedDocument(t *testing.T) {
@@ -150,9 +152,9 @@ func TestRemoteMediaPolicyRequiresExplicitAllowlist(t *testing.T) {
 	if _, err := newRemoteMediaFetcher(policy); err == nil {
 		t.Fatal("enabled policy without host allowlist accepted")
 	}
-	if publicMediaIP(netip.MustParseAddr("127.0.0.1")) ||
-		publicMediaIP(netip.MustParseAddr("192.0.2.1")) ||
-		!publicMediaIP(netip.MustParseAddr("8.8.8.8")) {
+	if agenttool.PublicAddress(netip.MustParseAddr("127.0.0.1")) ||
+		agenttool.PublicAddress(netip.MustParseAddr("192.0.2.1")) ||
+		!agenttool.PublicAddress(netip.MustParseAddr("8.8.8.8")) {
 		t.Fatal("public media IP classification is incorrect")
 	}
 }

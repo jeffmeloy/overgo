@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -189,6 +191,23 @@ func WithOutputObserver(ctx context.Context, observe func([]byte)) context.Conte
 	return context.WithValue(ctx, outputObserverKey{}, observe)
 }
 
+// toolBaseEnvironment is what a program needs to find its files and the programs it runs, on either system: a provider's
+// key stays in the server unless the manual names it.
+var toolBaseEnvironment = []string{
+	"PATH", "PATHEXT", "SystemRoot", "SystemDrive", "windir", "ComSpec", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE", "LANG",
+}
+
+// toolEnvironment is an argv tool's whole environment, never nil since nil inherits the server's.
+func toolEnvironment(named []string) []string {
+	environment := []string{}
+	for _, toolVariable := range slices.Concat(toolBaseEnvironment, named) {
+		if value, set := os.LookupEnv(toolVariable); set {
+			environment = append(environment, toolVariable+"="+value)
+		}
+	}
+	return environment
+}
+
 func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	bounded, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -199,6 +218,7 @@ func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.Raw
 		Args:   manual.Transport.Args,
 		Stdin:  bytes.NewReader(arguments),
 		Stdout: &stdout,
+		Env:    toolEnvironment(manual.Transport.Environment),
 	})
 	if stdout.overflow {
 		return nil, &OutputLimitError{Receipt: receipt, RetainedBytes: len(stdout.data)}

@@ -992,13 +992,13 @@
      "contains": "func (f *remoteMediaFetcher) fetch(",
      "path": "internal/server/media_policy.go",
      "role": "source",
-     "identity": "file:sha256:8441ab2c76fdf5f20613c6a98c00535202547fa3e9240f6a3a4c8d204d3c2f94"
+     "identity": "file:sha256:8a9e70a7d6e203e25721274d43991a9337a8fdcebb3269f903e83f583d9f935a"
     },
     {
      "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
      "path": "internal/server/media_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8995466d5b9bf496542b0eed781c1939b46faa46501892192e4c6032a9927c72"
+     "identity": "evidence:sha256:0abb981e46c272b30d3ca6f6a2972fa33f79afbd08ac20227e1dc81fad7dc482"
     }
    ],
    "id": "bounded-remote-media",

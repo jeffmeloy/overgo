@@ -134,6 +134,9 @@ type Transport struct {
 	// words for the argv transport; the call payload rides on stdin.
 	Program string   `json:"program,omitzero"`
 	Args    []string `json:"args,omitempty"`
+	// Environment names the variables an argv program receives over the
+	// base any program needs; nothing else of the server's reaches it.
+	Environment []string `json:"environment,omitempty"`
 	// Target binds an MCP manual to one remote tool. Protocol identifies the
 	// adapter contract when the manual is capability-bound. Both are authority.
 	Target   string `json:"target,omitzero"`
@@ -304,6 +307,14 @@ func manualTransportMatchesCapability(transport Transport, capability runrecord.
 }
 
 func (transport Transport) validate(name string) error {
+	if len(transport.Environment) != 0 && transport.Kind != TransportArgv {
+		return fmt.Errorf("agent tool: manual %q names an environment for a transport that runs no program", name)
+	}
+	for _, variable := range transport.Environment {
+		if variable == "" || !textcheck.Bounded(variable, len(variable), "=\x00\r\n") {
+			return fmt.Errorf("agent tool: argv manual %q names an invalid variable", name)
+		}
+	}
 	switch transport.Kind {
 	case TransportBuiltin:
 		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" ||

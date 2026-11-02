@@ -56,7 +56,7 @@ func ResolveClaimedGGUF(
 	path string,
 	claimer modelartifact.Claimer,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path, claimer)
+	loaded, err := loadGGUFFacts(ctx, path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -68,6 +68,12 @@ func ResolveClaimedGGUF(
 		return fail(err)
 	}
 	loaded.state.State = state
+	// A claim is proved by the open, which hashes and comes back here on a mismatch: only bytes hashed can be refused.
+	if state.Verification == StateNotVerified && len(loaded.state.Claims) == 0 {
+		if err := loaded.refuseReplaced(ctx, store); err != nil {
+			return fail(err)
+		}
+	}
 	reads := &observedReader{Reader: store}
 	if activation.Definition.ID != (artifact.ID{}) {
 		err := loaded.bindActivation(ctx, store, reads, activation)
@@ -76,9 +82,8 @@ func ResolveClaimedGGUF(
 			return fail(reads.failure)
 		case err == nil:
 			return loaded, nil
-		case state.Verification != StateBroken:
-			return fail(err)
 		}
+		loaded.state.State = ModelState{StateBroken, err.Error()}
 	}
 	// Nothing the alias names can be bound: the model's own file says what it is.
 	if err := loaded.bindDerived(ctx, store); err != nil {
@@ -159,7 +164,7 @@ func ResolveCandidateGGUF(
 	resolved ResolvedModelDefinition,
 	claimer modelartifact.Claimer,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path, claimer)
+	loaded, err := loadGGUFFacts(context.Background(), path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -224,7 +229,7 @@ func (l *LoadedProgram) RuntimePolicy() (RuntimePolicy, error) {
 	return l.state.Policy, nil
 }
 
-func loadGGUFFacts(path string, claimer modelartifact.Claimer) (LoadedProgram, error) {
+func loadGGUFFacts(ctx context.Context, path string, claimer modelartifact.Claimer) (LoadedProgram, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return LoadedProgram{}, err
@@ -233,7 +238,7 @@ func loadGGUFFacts(path string, claimer modelartifact.Claimer) (LoadedProgram, e
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, file.Close())
 	}
-	loaded.state.Inventory, loaded.state.Claims, err = modelartifact.FromGGUFClaimed(file, artifact.KindModel, claimer)
+	loaded.state.Inventory, loaded.state.Claims, err = modelartifact.FromGGUFClaimedContext(ctx, file, artifact.KindModel, claimer)
 	if err != nil {
 		return fail(err)
 	}

@@ -186,14 +186,11 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 	}
 
 	replaceInPlace(unknown)
-	runner, err, stderr = open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(stderr, "remembered identity") || runner.ModelState().Verification != modelrecipe.StateNotVerified {
-		t.Fatalf("stale memo over bytes no recipe names: stderr %q, state %+v, want hashed and not verified", stderr, runner.ModelState())
-	}
-	if err := runner.Close(); err != nil {
-		t.Fatal(err)
+	runner, err, _ = open(path)
+	if err == nil || !strings.Contains(err.Error(), original.String()) || !strings.Contains(err.Error(), identityOf(unknown).String()) {
+		if runner != nil {
+			_ = runner.Close()
+		}
+		t.Fatalf("an activated path holding other bytes: %v, want a refusal naming both identities", err)
 	}
 }

@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
+	"overgo/internal/overgodb"
+	"overgo/internal/pathidentity"
 	"overgo/internal/recipe"
 )
 
@@ -91,11 +95,7 @@ func (l *LoadedProgram) bindDerived(ctx context.Context, store artifact.Reader) 
 	if err != nil {
 		return err
 	}
-	registered, found := model.LookupArchitecture(spec.Architecture)
-	if !found {
-		return fmt.Errorf("model recipe: architecture %q has no prototype", spec.Architecture)
-	}
-	profile, err := NewProfileDocument(registered)
+	profile, err := NewProfileDocument(spec.Profile())
 	if err != nil {
 		return err
 	}
@@ -119,6 +119,74 @@ func (l *LoadedProgram) bindDerived(ctx context.Context, store artifact.Reader) 
 	}
 	l.state.Derived = &derivation
 	return nil
+}
+
+// activationPage is the aliases refuseReplaced reads at a time.
+const activationPage = 256
+
+// activationLister is a store's listing of its activations, which a plain reader does not offer.
+type activationLister interface {
+	Query(context.Context, overgodb.Query) (overgodb.QueryResult, error)
+}
+
+// refuseReplaced refuses a file whose path an activation records for other bytes: weights that do not match their
+// recorded hash, which no derivation puts right. A path merely remembered, or that nothing activated, runs as what it
+// holds now.
+func (l *LoadedProgram) refuseReplaced(ctx context.Context, store artifact.Reader) error {
+	lister, listed := store.(activationLister)
+	if !listed {
+		return nil
+	}
+	path, err := pathidentity.Canonical(l.state.Path)
+	if err != nil {
+		return err
+	}
+	query := overgodb.Query{Kind: artifact.KindRecipe, MaxResults: activationPage, Projection: overgodb.ProjectAliases}
+	for {
+		result, err := lister.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		for _, alias := range result.Aliases {
+			modelID, _, active := ParseActiveAlias(alias.Name)
+			if !active || modelID == l.state.Inventory.Manifest.ID {
+				continue
+			}
+			recorded, err := recordsPath(ctx, store, modelID, path)
+			if err != nil {
+				return err
+			}
+			if recorded {
+				return fmt.Errorf("model recipe: %s is recorded as %s and now holds %s; restore its bytes, or move them to a path of their own",
+					path, modelID, l.state.Inventory.Manifest.ID)
+			}
+		}
+		if result.Next == nil {
+			return nil
+		}
+		query.Cursor = result.Next
+	}
+}
+
+// recordsPath reports whether the store records path as a location of the model's own bytes.
+func recordsPath(ctx context.Context, store artifact.Reader, modelID artifact.ID, path string) (bool, error) {
+	manifest, found, err := store.Manifest(ctx, modelID)
+	if err != nil || !found {
+		return false, err
+	}
+	for _, component := range manifest.Components {
+		locations, err := store.Locations(ctx, component.Artifact)
+		if err != nil {
+			return false, err
+		}
+		for _, location := range locations {
+			local := location.Kind == artifact.LocationFile || location.Kind == artifact.LocationDirectory
+			if local && strings.EqualFold(filepath.ToSlash(filepath.Clean(location.Value)), filepath.ToSlash(path)) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // Derived returns what the program was derived from before transfer, and whether it was: a program bound from a stored

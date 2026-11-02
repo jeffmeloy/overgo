@@ -14,6 +14,19 @@ import (
 	"overgo/internal/testutil"
 )
 
+// assertRunsBroken holds a load whose recipe cannot bind to running from its own file, its state saying why.
+func assertRunsBroken(t *testing.T, store artifact.Reader, path, reason string) {
+	t.Helper()
+	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	if state := loaded.state.State; state.Verification != StateBroken || !strings.Contains(state.Reason, reason) {
+		t.Fatalf("state = %+v, want broken over %q", state, reason)
+	}
+}
+
 func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 	path := t.TempDir() + "/model.gguf"
 	writeServingDefinitionGGUF(t, path, false)
@@ -29,8 +42,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 			t.Fatal(err)
 		}
 		activateProgram(t, store, definition)
-		_, err = ResolveActiveGGUF(t.Context(), store, path)
-		assertProgramError(t, err, "no model definition")
+		assertRunsBroken(t, store, path, "no model definition")
 	})
 
 	t.Run("mismatched", func(t *testing.T) {
@@ -48,8 +60,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 			t.Fatal(err)
 		}
 		activateProgram(t, store, definition)
-		_, err = ResolveActiveGGUF(t.Context(), store, path)
-		assertProgramError(t, err, "differs from active model definition")
+		assertRunsBroken(t, store, path, "differs from active model definition")
 	})
 }
 

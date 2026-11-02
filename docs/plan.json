@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 628,
+        "nodes": 208,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "named-refusals",
-          "title": "Refuse a run only for what it cannot run without, and name it",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOnlyMissingPartsRefuseARun$'",
-          "rationale": "SQA-283 (6): the refusals left are weights missing or not matching their recorded hash, an architecture with no prototype, and an absent remote key, each naming what is missing. Verification and activation stay; neither gates a run.\nDecided by recommendation: refuse only where an activation's own location now holds other bytes, naming both digests, and run a merely remembered path with a reason. internal/modelcli/open_claimed_test.go:188-198 asserts replaced bytes run, against this step, and changes with it. Only llama, qwen2 and qwen3_5 map from a directory, 3 of 137 prototypes, so a closure of 'an architecture with no prototype' must also name a prototype with no directory mapping; funding more mappings, and media tasks, which still need an active recipe, are rows of their own. Pass the context to loadGGUFFacts (internal/modelrecipe/loaded_program.go:203,212), since the loader's hash ignores cancellation. Delete the dead check at derived_program.go:71-74.\nServes: a refusal says what to fix.\nDisappears: whatever refusal remains that the owner's rule does not keep.\nEvidence: its test over each refusal, and a broken verification running.\nBatch: recipe lane."
-        },
         {
           "id": "refusal-reason",
           "title": "Say why a model reads not verified",

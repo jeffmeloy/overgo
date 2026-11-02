@@ -146,6 +146,11 @@ func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inve
 	return fromGGUFClaimed(context.Background(), file, kind, claimer)
 }
 
+// FromGGUFClaimedContext is FromGGUFClaimed with cancellation between hash reads.
+func FromGGUFClaimedContext(ctx context.Context, file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
+	return fromGGUFClaimed(ctx, file, kind, claimer)
+}
+
 func fromGGUFClaimed(ctx context.Context, file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
 	if file == nil {
 		return Inventory{}, nil, errors.New("model artifact: nil GGUF")

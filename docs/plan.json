@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
+        "nodes": 55,
         "reason": "sampling-identity measures 240, a field through two recording paths; about 150 left for candidate-closure and declared-penalty."
       },
       "steps": [
-        {
-          "id": "candidate-closure",
-          "title": "Compare candidate plans in one order, and validate what runs",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^(TestACandidateValidatesInEveryDeclaredOrder|TestAnUnloadableRecipeIsNotRunnable)$'",
-          "rationale": "ValidateIdentity compares hash-sorted trial lists with declared-order lists (internal/modelrecipe/candidate_compile.go:147-148,872-876). Measured over 200 label sets: one component with one ablation 0 refused, two components 148, one component with two ablations 91. So a single same-base candidate with two deltas is refused too (composition/candidate_plugin.go:237-241), reached from cmd/loop/evidence.go:405 through evaluation/candidate_attribution.go:192. Tests use one.\nValidateCandidateRecipe skips capability compile for inference (candidate_validation.go:62), so it reports an unloadable recipe as runnable. Compile refuses inference by design (compile.go:606-608) and a load check needs a file, so 'unloadable' means the structure check at compile.go:625-633.\nBridge recipes are refused 'unknown module model.capture-representation' (measured) by the catalog choice at candidate_validation.go:39 and again at compile.go:609-610; both change.\nServes: candidates reach evaluation.\nDisappears: a false verdict.\nEvidence: two components, and two ablations of one, in every order.\nBatch: host lane."
-        },
         {
           "id": "declared-penalty",
           "title": "A declared penalty reaches the sampler, measured before it lands",

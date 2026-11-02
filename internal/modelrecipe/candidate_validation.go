@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
-	"overgo/internal/workflowrecipe"
 )
 
 const (
@@ -35,11 +34,7 @@ type CandidateRecipeClosure struct {
 // module catalogs and policy validators and returns the typed closure.
 func ValidateCandidateRecipe(definition recipe.Definition) CandidateRecipeClosure {
 	closure := CandidateRecipeClosure{Definition: definition.ID, Task: definition.Task}
-	catalogForTask := catalog
-	if definition.Task == recipe.TaskProjection || definition.Task == recipe.TaskTraining {
-		catalogForTask = workflowrecipe.Catalog()
-	}
-	if err := definition.Validate(catalogForTask); err != nil {
+	if err := definition.Validate(capabilityCatalog(definition)); err != nil {
 		closure.Refusals = append(closure.Refusals, "module graph: "+err.Error())
 	}
 	for _, node := range definition.Nodes {
@@ -59,10 +54,12 @@ func ValidateCandidateRecipe(definition recipe.Definition) CandidateRecipeClosur
 				fmt.Sprintf("dependency %s lacks an exact artifact identity", dependency.Role))
 		}
 	}
-	if definition.Task != recipe.TaskInference {
-		if _, err := CompileCapability(definition); err != nil {
-			closure.Refusals = append(closure.Refusals, "capability compile: "+err.Error())
+	if definition.Task == recipe.TaskInference {
+		if err := inferencePathComplete(definition); err != nil {
+			closure.Refusals = append(closure.Refusals, "inference path: "+err.Error())
 		}
+	} else if _, err := CompileCapability(definition); err != nil {
+		closure.Refusals = append(closure.Refusals, "capability compile: "+err.Error())
 	}
 	closure.Runnable = len(closure.Refusals) == 0
 	return closure

@@ -140,6 +140,9 @@ func (value CandidateCompilation) ValidateIdentity() error {
 		}
 		ablationIDs[index] = ablation.ID
 	}
+	// The trial and its plan hold these sorted, and the compilation as they were declared.
+	slices.SortFunc(componentIDs, artifact.CompareID)
+	slices.SortFunc(ablationIDs, artifact.CompareID)
 	trial, plan := value.Trial, value.EvaluationPlan
 	if trial.EvaluationPlan != plan.ID || trial.Candidate != plan.Candidate ||
 		trial.Admission != plan.Admission || trial.Subject != plan.Subject ||

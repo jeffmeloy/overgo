@@ -606,10 +606,31 @@ func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
 	if definition.Task == recipe.TaskInference {
 		return recipe.Program{}, fmt.Errorf("model recipe: unsupported runtime task %q", definition.Task)
 	}
-	if definition.Task == recipe.TaskProjection || definition.Task == recipe.TaskTraining {
-		return recipe.CompileProgram(definition, workflowrecipe.Catalog())
+	return recipe.CompileProgram(definition, capabilityCatalog(definition))
+}
+
+// capabilityCatalog is the catalog that holds a recipe's modules: a projection or training recipe is a workflow's, except
+// a representation bridge, whose stages this package's own catalog holds.
+func capabilityCatalog(definition recipe.Definition) *recipe.Catalog {
+	bridge := slices.ContainsFunc(definition.Nodes, func(node recipe.Node) bool { return node.Module == ModuleCaptureRepresentation })
+	if !bridge && (definition.Task == recipe.TaskProjection || definition.Task == recipe.TaskTraining) {
+		return workflowrecipe.Catalog()
 	}
-	return recipe.CompileProgram(definition, catalog)
+	return catalog
+}
+
+// inferencePathComplete says a recipe holds the stages an inference program runs, which needs no model file to tell.
+func inferencePathComplete(definition recipe.Definition) error {
+	foundCompile, foundDecode, foundForward := false, false, false
+	for _, node := range definition.Nodes {
+		foundCompile = foundCompile || node.Module == ModuleCompileModelPlan
+		foundDecode = foundDecode || node.Module == ModuleCompileDecodePlan
+		foundForward = foundForward || node.Module == ModuleForwardTokens
+	}
+	if !foundCompile || !foundDecode || !foundForward {
+		return errors.New("model recipe: inference path is incomplete")
+	}
+	return nil
 }
 
 func compileDefinition(
@@ -622,14 +643,8 @@ func compileDefinition(
 	if definition.Task != recipe.TaskInference {
 		return Plan{}, fmt.Errorf("model recipe: unsupported task %q", definition.Task)
 	}
-	foundCompile, foundDecode, foundForward := false, false, false
-	for _, node := range definition.Nodes {
-		foundCompile = foundCompile || node.Module == ModuleCompileModelPlan
-		foundDecode = foundDecode || node.Module == ModuleCompileDecodePlan
-		foundForward = foundForward || node.Module == ModuleForwardTokens
-	}
-	if !foundCompile || !foundDecode || !foundForward {
-		return Plan{}, errors.New("model recipe: inference path is incomplete")
+	if err := inferencePathComplete(definition); err != nil {
+		return Plan{}, err
 	}
 	modelPlan, err := compileModel()
 	if err != nil {

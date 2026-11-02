@@ -948,7 +948,8 @@
       if (name === "agent.output" && running && value.session === (options.agent() ? options.agent() + ":" : "") + options.session()) running.output(value.text);
     });
     async function step(approving) {
-      const request = body();
+      let request;
+      try { request = body(); } catch (err) { options.onError(new Error("The tool's arguments are not valid JSON: " + err.message)); return; }
       if (approving) request.approval = previewed && previewed.operation;
       const card = options.thread().toolCard({ name: request.tool, arguments: request.arguments });
       running = card;
@@ -967,8 +968,8 @@
       }
     }
     review.addEventListener("click", () => preview().catch(options.onError));
-    execute.addEventListener("click", () => step(false));
-    approve.addEventListener("click", () => step(true));
+    execute.addEventListener("click", () => step(false).catch(options.onError));
+    approve.addEventListener("click", () => step(true).catch(options.onError));
     host.append(el("div", { class: "row" }, select, review, execute, approve, guard, ...(options.controls || [])), args, decisionHost);
     return { setAgent, guard };
   }

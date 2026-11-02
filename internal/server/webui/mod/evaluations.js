@@ -112,7 +112,8 @@
 
       let operation = null;
       cancel.addEventListener("click", async () => {
-        if (operation) await overgo.cancelOperation(operation);
+        if (!operation) return;
+        try { await overgo.cancelOperation(operation); } catch (err) { status.replaceChildren(overgo.failure(err)); }
       });
       run.addEventListener("click", async () => {
         const plans = [...fields].filter(([, input]) => input.checked).map(([plan]) => plan);

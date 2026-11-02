@@ -80,6 +80,16 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 })()`)
 	settle(`[...document.querySelectorAll('.msg.user')].some(message => message.textContent.includes('hello agent')) && [...document.querySelectorAll('.msg.assistant .body')].some(body => body.textContent.trim() !== '') && !document.querySelector('.send-button').disabled`)
 
+	// Arguments that are not JSON say so, and run nothing.
+	check(`(() => {
+  agentTool('store.head');
+  agentSurface().querySelector('textarea[aria-label="Tool arguments (JSON)"]').value = '{not json';
+  agentButton('Execute inspection').click();
+  return true;
+})()`)
+	settle(`document.querySelector('#panel-chat').textContent.includes('not valid JSON') && agentCards('store.head').length === 0`)
+	check(`(() => { agentSurface().querySelector('textarea[aria-label="Tool arguments (JSON)"]').value = ''; return true; })()`)
+
 	// An inspection runs as a tool card with the session's remaining steps.
 	check(`(() => { agentTool('store.head'); agentButton('Execute inspection').click(); return true; })()`)
 	settle(`agentCards('store.head').length === 1 && agentCardState(agentCards('store.head')[0]).startsWith('done') && agentGuard().startsWith('steps 1 / ') && agentGuard().endsWith(' remaining')`)

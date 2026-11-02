@@ -417,7 +417,7 @@
         cancel.addEventListener("click", async () => {
           if (operation) {
             cancel.disabled = true;
-            await overgo.cancelOperation(operation);
+            try { await overgo.cancelOperation(operation); } catch (err) { cancel.disabled = false; status.replaceChildren(overgo.failure(err)); }
           }
         });
         function renderOperation(current) {

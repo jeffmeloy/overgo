@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "shown-errors",
-          "title": "Show every error a person's action produced",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserShowsActionErrors'",
-          "rationale": "A Cancel that returns an error leaves a disabled button until the operation ends and no message (internal/server/webui/workflow.js:417-422,454), and evaluation Cancel has the same fault with no try (mod/evaluations.js:114-116). Invalid tool arguments throw outside the try (composer.js:928,951,955), Execute and Approve have no catch (composer.js:970-971), and a manifest read error on a Chat click shows nothing (boot.js:904,1371,939,1384).\nboot.js:41 turns a non-JSON 200 into null, and boot.js:257 reports any TypeError as an unreachable server, including a bug in the page's own code (reproduced with the real readJSON and friendlyError).\nMark fetch failures once in tracked (boot.js:57-60) rather than reading err.name at :257, since browsers word that TypeError differently. readJSON keeps an empty body as null.\nServes: a person can tell what went wrong.\nDisappears: nothing.\nEvidence: the existing stubs extended to workflow and evaluation Cancel.\nBatch: web interface lane."
-        },
-        {
           "id": "render-cost",
           "title": "Bound what a long session costs the browser",
           "status": "open",

@@ -37,8 +37,8 @@
   // Parse a JSON body; surface the server's error message on failure.
   async function readJSON(response) {
     const text = await response.text();
-    let body = null;
-    try { body = text ? JSON.parse(text) : null; } catch (_) { /* non-JSON */ }
+    let body = null, parsed = !text;
+    try { if (text) { body = JSON.parse(text); parsed = true; } } catch (_) { /* non-JSON */ }
     if (!response.ok) {
       const message = (body && body.error && (body.error.message || body.error)) ||
         (body && body.message) || text || ("HTTP " + response.status);
@@ -48,6 +48,7 @@
       error.type = body && body.error && body.error.type;
       throw error;
     }
+    if (!parsed) throw new Error("The server answered with something other than JSON.");
     return body;
   }
 
@@ -56,7 +57,11 @@
   let inFlight = 0;
   async function tracked(request) {
     inFlight++;
-    try { return await request; } finally { inFlight--; }
+    // fetch rejects with a TypeError only when no answer came; marked here, a TypeError in the page's own code is not it.
+    try { return await request; } catch (err) {
+      if (err instanceof TypeError) err.unanswered = true;
+      throw err;
+    } finally { inFlight--; }
   }
   // requestNumbers: the number each submission whose last try went unanswered was sent under, by what it asked
   // for; newRequestNumber is a UUID where the browser makes one and 128 random bits in hex where it does not.
@@ -254,7 +259,7 @@
   function friendlyError(err) {
     if (err && err.status === 401) return "API key required — open Settings and enter it under Connection.";
     if (err && err.status === 500) return "The server could not complete this request (HTTP 500).";
-    if (err && !err.status && err.name === "TypeError") return "The server could not be reached. Check that it is running.";
+    if (err && err.unanswered) return "The server could not be reached. Check that it is running.";
     return String((err && err.message) || err);
   }
   // failure: the one banner for a failed request: friendlyError's words, the server's own text
@@ -904,6 +909,12 @@
       return api.get("/workspace/manifest").then((next) => {
         if (tab.mountAttempt !== attempt || location.hash !== hash) return false;
         return JSON.stringify(next) === JSON.stringify(workspaceManifest) ? activate(id, true) : remountActive(next, id);
+      }).catch(async (err) => {
+        // The tab opens on the manifest it has, saying the fresh one could not be read.
+        if (tab.mountAttempt !== attempt || location.hash !== hash) return false;
+        await activate(id, true);
+        tab.panel.prepend(failure(err));
+        return false;
       });
     }
     window.dispatchEvent(new Event("overgo-panel-change"));

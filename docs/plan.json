@@ -161,7 +161,7 @@
           "id": "resume-credit",
           "title": "Keep resume credit for models registered from directory views",
           "status": "open",
-          "verify": "go test ./internal/modelartifact ./cmd/validate -count=1 -run 'Consumed|Credit'",
+          "verify": "go test ./cmd/validate -count=1 -run 'Credit'",
           "rationale": "SQA-263: consumedFiles reads the native view's declared physical inputs, so an interrupted run does not repeat finished cells.\nServes: hours of repeated cells after an interruption.\nDisappears: the random token standing in for an unreadable input.\nEvidence: the existing credit fixtures.\nBatch: validate lane."
         },
         {

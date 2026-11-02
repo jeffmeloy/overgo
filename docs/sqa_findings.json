@@ -14,6 +14,84 @@
   },
   "findings": [
     {
+      "id": "SQA-283",
+      "status": "open",
+      "severity": "P1",
+      "category": "capability",
+      "classification": "owner-direction-code-contradicts",
+      "title": "Run a model from its own files and its prototype, and note its verification state instead of refusing",
+      "evidence_commit": "ad58f169d8fa4d7f8365c24bed86462f1b67315d",
+      "sources": [
+        {
+          "path": "internal/modelrecipe/loaded_program.go",
+          "symbol": "ResolveClaimedGGUF: 'active inference recipe is absent'; ResolveRuntimePolicy before any load"
+        },
+        {
+          "path": "internal/modelrecipe/runtime_policy.go",
+          "symbol": "ResolveRuntimePolicy: 'active recipe has no runtime policy'; CatalogRuntimePolicy: the shared policy for a task"
+        },
+        {
+          "path": "internal/modelrecipe/lifecycle.go",
+          "symbol": "ActiveRecord: an activation without verified evidence reads as an error"
+        },
+        {
+          "path": "internal/discovery/servable.go",
+          "symbol": "ServableWithMemo: a model with no active recipe is skipped with no report; Entry.Stale: 'reported, never served'"
+        },
+        {
+          "path": "internal/server/training_workspace.go",
+          "symbol": "NewTrainingWorkspace: ResolveActiveCapability or no workspace"
+        },
+        {
+          "path": "internal/modelintake/import.go",
+          "symbol": "InspectImport: structural facts of a local GGUF, HF model or pipeline from its own files"
+        },
+        {
+          "path": "internal/model/architecture_profiles.json",
+          "symbol": "137 architecture profiles"
+        },
+        {
+          "path": "internal/hfconvert/chat_template.go",
+          "symbol": "tokenizer_config.json, chat_template.jinja and tokenizer.chat_template"
+        },
+        {
+          "path": "internal/inference/chat.go",
+          "symbol": "the built-in turn formats chosen by the vocabulary's markers"
+        }
+      ],
+      "evidence": "Owner 2026-11-01: inference and training are not refused because a model is not validated in the store, its state is noted; and a model runs from the available model prototype and the information its files carry (config.json beside safetensors, config items in a .gguf), prompt templates included. The code does the opposite at three points. The loader refuses a model with no active recipe ('model recipe: active inference recipe is absent', loaded_program.go) and refuses one without a stored runtime policy bound to that recipe (runtime_policy.go). The catalog skips a model with no active recipe without a word, and a stale one is 'reported, never served' (servable.go). The server's training workspace does not open without an active training recipe (training_workspace.go); only cmd/train's -bootstrap-recipe runs a recipe before verification, and a success activates it. An activation needs a verification run, a decision and evidence that verifies (lifecycle.go, ActiveRecord), so verification decides whether a model runs at all, where the rule 'expose missing, invalid and partial state' asks only that it be shown. The parts the owner names exist and are not reachable from the load: InspectImport reads a GGUF, an HF directory or a pipeline's components into structural facts; the architecture catalog holds 137 profiles; hfconvert reads tokenizer_config.json, chat_template.jinja and tokenizer.chat_template, inference/chat_jinja.go executes them, and generation_config.json or the file's own sampling already overlays the policy in ResolveClaimedGGUF; CatalogRuntimePolicy returns a shared policy for a task. What is missing is the path from those facts to a run without a stored recipe.",
+      "recommended_change": "(1) At load, a model with no active recipe has its definition derived in memory from the facts InspectImport reads: the prototype its architecture selects, sized by config.json or the GGUF's metadata. (2) The prompt template comes from chat_template.jinja, tokenizer_config.json or tokenizer.chat_template; the built-in formats stand only where the files declare none. Sampling comes from generation_config.json or the file; the runtime policy is the catalog's unless one is bound. Nothing authored by hand is needed to run. A stored recipe still wins where one exists, so a model's tuned path stays. (3) The state is a fact of the run, not a condition of it: verified, not verified, evidence out of date, or verification broken, carried beside the existing evidence tier into the catalog, the response and the run record. (4) The catalog lists every present model with its state, in place of the silent skip and 'never served'. (5) Training opens the same way, as -bootstrap-recipe already does for one case, with the state recorded on the run. (6) A run stays refused only where it cannot run correctly: weights missing or not matching their recorded hash, an architecture with no prototype (naming it), or a remote model whose key is absent. Verification stays and activation stays as the mark of what was measured; neither gates a run.",
+      "displaced_surface": "The silent skip and the 'never served' rule in discovery, the per-recipe runtime policy requirement in the loader, and the active-recipe requirement of the training workspace.",
+      "impact": "A model on disk with a known architecture cannot be run or trained until a recipe is published, verified and activated and a policy bound by hand, and a model with no active recipe does not appear in the list at all, so a person sees no reason.",
+      "expected_benefit": {
+        "outcome": "A GGUF or safetensors directory of any architecture with a prototype runs and trains at once through its own template, with its state shown.",
+        "uncertainty": "A model needing a tuned path (Flash-Next's experts and draft layer) runs on defaults until it has a recipe, and a derived run can be wrong with nothing to say so but its state. Only the prototypes a served model has exercised are known to work; the 137 profiles are not all proven runnable."
+      },
+      "likely_effort": "Moderate: one derivation built on InspectImport beside ResolveClaimedGGUF, the state on the catalog and run record, and the workspace opening; the activation and 'never served' tests change with them.",
+      "plan_references": [
+        "run-from-files/state",
+        "run-from-files/derive-gguf",
+        "run-from-files/derive-safetensors",
+        "run-from-files/declared-template",
+        "run-from-files/catalog-states",
+        "run-from-files/training-opens",
+        "run-from-files/named-refusals",
+        "run-from-files/scorecard-label",
+        "run-from-files/do"
+      ],
+      "plan_coverage": "None: no row in docs/plan.json at ad58f169d names it.",
+      "closure_criteria": [
+        "A GGUF and a safetensors directory of a prototype-known architecture, with nothing recorded about them in the store, answer a chat request through their own declared template, and the response and run record state 'not verified'.",
+        "A model whose verification is broken or whose evidence is out of date runs when asked, with that state shown.",
+        "The catalog names every present model with its state; none is absent without a reason.",
+        "Training opens on a derived recipe and records the state on its run.",
+        "The only refusals left are missing or mismatched weights, an architecture with no prototype, and an absent remote key, and each names what is missing.",
+        "A scorecard reading from a model that is not verified is labelled as such."
+      ],
+      "comparison": "Read from source at ad58f169d; nothing measured by the reviewer.",
+      "raised_by": "Review session e8549e3e at the owner's request, 2026-11-01 (owner: \"we shouldn't refuse inferencing or training if not validated in store? just note its state?\"; \"should use the available model prototype and info from the safetensors files like config.json or config items in the .gguf file to run the model, including any prompt templates\")"
+    },
+    {
       "id": "SQA-254",
       "status": "open",
       "severity": "P2",
@@ -883,7 +961,7 @@
       },
       "likely_effort": "Bounded existing-producer comparison first; runtime redesign cost unpriced.",
       "plan_references": [],
-      "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: sqa-cycle/guard-readiness. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
+      "plan_coverage": "None. sqa-cycle/guard-readiness was retired with no code at 889e1fad2: it asked for a readiness the producer can give only by loading each model, which this finding's own criteria forbade, and the fit it asked about was repaired in 8e911e1eb. clioptions.Ready still stands before any model is loaded, so a model that breaks on load is found only at its cell. The owner's question stays unanswered by any row.",
       "closure_criteria": [
         "Identify the exact guard setup operation refusing capacity and retain its error before unrelated long work without implying catalog preflight exercised it.",
         "Any reused readiness prefix preserves actual recipe/layout/device lifetime and does not duplicate every model's load/request.",
@@ -6391,6 +6469,18 @@
         "plan_steps": [
           "sqa-tests/qsa-bound"
         ]
+      },
+      {
+        "comment": "Landed with sqa-tests/nextn-oracle. One runner and fixture: a default generation with drafts observed, a PlainDecode=true generation as the oracle, then ownDraftsRefused set, SpeculatesByDefault required false, and an explicit request required to draft anyway. Both speculative results are compared with the plain one by slices.Equal and exact text. The raw readiness checks stay for the disabled and explicit options. own_draft_layer_windows_test.go is deleted, and the empty-runner assertion in TestOwnDraftsRefusedWhereFewAreKept is gone with all four tally cases kept. The test name and its three selector consumers are unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestNextNMTPDeviceSpeculationLossless",
+          "TestOwnDraftsRefusedWhereFewAreKept"
+        ],
+        "finding_id": "SQA-251",
+        "plan_steps": [
+          "sqa-tests/nextn-oracle"
+        ]
       }
     ],
     "experiments": {
@@ -6437,7 +6527,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "efae230f5511bf9adefcd63c7bdc98a0f1219238",
+    "head": "ad58f169d8fa4d7f8365c24bed86462f1b67315d",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6612,7 +6702,7 @@
         "rows": [
           "sqa-served/draft-host"
         ],
-        "note": "Only its eligibility part is taken with 275. The wider policy and test consolidation waits for the retained second-open measurements the finding asks for."
+        "note": "No change to its obligations. It cites own_draft_layer_windows_test.go, which this landing deletes; the forced-override case it wants retained now lives in TestNextNMTPDeviceSpeculationLossless, on the fixture's short prompt."
       },
       "SQA-245": {
         "action": "implemented",
@@ -6698,11 +6788,11 @@
         "note": "Landed. The composed layer test's indexer keys stand on separated rungs, so both sides select the same cells, and every attention output is held to 1e-4 of the scale with the excusing branch gone. Awaits the reviewer's closure."
       },
       "SQA-251": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-tests/nextn-oracle"
         ],
-        "note": "Accepted: the selected acceptance's plain arm is not plain."
+        "note": "Landed. The default test's body folds into TestNextNMTPDeviceSpeculationLossless, whose plain arm is now a real PlainDecode generation; the default and the explicit-override generations are each compared with it, tokens and text. Awaits the reviewer's closure."
       },
       "SQA-273": {
         "action": "filed",
@@ -7014,10 +7104,25 @@
           "scorecard-unscored-image-gen/do"
         ],
         "note": "Landed. The training, parity and resources subtests are gone and complete stays the single owner, with its helpers unchanged. Awaits the reviewer's closure."
+      },
+      "SQA-283": {
+        "action": "filed",
+        "rows": [
+          "run-from-files/state",
+          "run-from-files/derive-gguf",
+          "run-from-files/derive-safetensors",
+          "run-from-files/declared-template",
+          "run-from-files/catalog-states",
+          "run-from-files/training-opens",
+          "run-from-files/named-refusals",
+          "run-from-files/scorecard-label",
+          "run-from-files/do"
+        ],
+        "note": "Lead's judgement: filed at once as a P1 at the owner's direction, its own row next in the plan. One step for each part of the recommendation and each closure criterion. The stated uncertainty stands: only prototypes a served model has exercised are known to work, so the closing step says which ran."
       }
     }
   },
-  "next_finding_number": 283,
+  "next_finding_number": 284,
   "publication_context": {
       "checked_head": "213c45c622d486943d715c1ec2f87fc38403fdc9",
       "assessment": "Reconcile previously blocked closures with new driver-store repair,89-node duplicate-check reduction and existing221 attribution evidence.",
@@ -7025,6 +7130,7 @@
       "publication": "Re-read current report, parse candidate and compare owner fields raw-exact immediately before writing; path-limited report commit under existing nonblocking locks."
     },
   "ranked_active_finding_ids": [
+    "SQA-283",
     "SQA-254",
     "SQA-272",
     "SQA-275",

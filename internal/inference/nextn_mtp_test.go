@@ -78,9 +78,6 @@ func TestOwnDraftsRefusedWhereFewAreKept(t *testing.T) {
 			if runner.ownDraftsRefused.Load() != test.refused {
 				t.Fatalf("refused %v after %d of %d drafts kept, want %v", runner.ownDraftsRefused.Load(), runner.ownKept, runner.ownDrafted, test.refused)
 			}
-			if test.refused && runner.ownDraftLayer() {
-				t.Fatal("a refused layer still drafts by default")
-			}
 		})
 	}
 }

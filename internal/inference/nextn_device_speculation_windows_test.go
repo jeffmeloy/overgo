@@ -3,6 +3,7 @@
 package inference
 
 import (
+	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -12,56 +13,71 @@ import (
 
 // TestNextNMTPDeviceSpeculationLossless proves the composed speculative
 // loop on the hermetic hybrid: greedy generation with NextN MTP speculation
-// emits token-for-token what plain greedy device decode emits — speculation
-// changes throughput, never output.
+// emits token-for-token and byte-for-byte what plain greedy device decode
+// emits, by default and, once the layer's drafts are refused, by request -
+// speculation changes throughput, never output.
 func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
+	// Serial: device fixtures share the one card.
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticQwen35GGUF(t)
-	runner, err := openF32FixtureRunner(path, OpenOptions{})
+	runner, err := openF32FixtureRunner(writeHermeticQwen35GGUF(t), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
+	if !runner.SpeculatesByDefault() {
+		t.Fatal("the model's own next-token layer does not speculate by default")
+	}
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	prompt := []tokenizer.TokenID{1, 4, 5}
-	options := GenerateOptions{
-		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true,
-		SpeculativeDecode: true, PromptTokenIDs: prompt,
+	drafted := 0
+	byDefault := GenerateOptions{
+		MaxNewTokens: 8, Sampler: greedy, DeviceGreedy: true, PromptTokenIDs: []tokenizer.TokenID{1, 4, 5},
+		OnDraftSpan: func(drafts, _ int) { drafted += drafts },
 	}
-	if !runner.deviceSpeculationReady(options) {
-		t.Fatal("hybrid fixture does not admit NextN device speculation")
+	if runner.deviceSpeculationReady(byDefault) {
+		t.Fatal("a request that does not ask to speculate is admitted before Generate defaults it")
 	}
-	speculated, speculatedText, err := runner.Generate(t.Context(), "", options)
+	speculated, speculatedText, err := runner.Generate(t.Context(), "", byDefault)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Plain-loop oracle: the same generation without the opt-in.
-	plainOptions := options
-	plainOptions.SpeculativeDecode = false
-	if runner.deviceSpeculationReady(plainOptions) {
-		t.Fatal("plain generation unexpectedly admits speculation")
+	if drafted == 0 {
+		t.Fatal("a request that says nothing drafted no token")
 	}
+
+	// The oracle: the same generation decoded plainly.
+	plainOptions := byDefault
+	plainOptions.PlainDecode, plainOptions.OnDraftSpan = true, nil
 	plain, plainText, err := runner.Generate(t.Context(), "", plainOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(speculated) != len(plain) {
-		t.Fatalf("token counts differ: speculative=%v plain=%v", speculated, plain)
+	if !slices.Equal(speculated, plain) || speculatedText != plainText {
+		t.Fatalf("the default request emits %v %q, the plain one %v %q", speculated, speculatedText, plain, plainText)
 	}
-	for index := range plain {
-		if speculated[index] != plain[index] {
-			t.Fatalf(
-				"speculative output diverged at %d: %v vs %v",
-				index, speculated, plain,
-			)
-		}
+
+	// A refused layer no longer speculates by default, and a request that asks to still does.
+	runner.ownDraftsRefused.Store(true)
+	if runner.SpeculatesByDefault() {
+		t.Fatal("a refused layer still speculates by default")
 	}
-	if speculatedText != plainText {
-		t.Fatalf("decoded text differs: %q vs %q", speculatedText, plainText)
+	requested := byDefault
+	requested.SpeculativeDecode = true
+	if !runner.deviceSpeculationReady(requested) {
+		t.Fatal("hybrid fixture does not admit NextN device speculation")
+	}
+	drafted = 0
+	speculated, speculatedText, err = runner.Generate(t.Context(), "", requested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drafted == 0 {
+		t.Fatal("a request that asked to speculate past the refusal drafted no token")
+	}
+	if !slices.Equal(speculated, plain) || speculatedText != plainText {
+		t.Fatalf("the requested speculation emits %v %q, the plain one %v %q", speculated, speculatedText, plain, plainText)
 	}
 }

@@ -36,7 +36,8 @@ description: The rules for Overgo development, written as one logical statement 
 - never defer a change for fear of breaking what the framework checks
 - refused landing = information != failure (check: internal/landing TestRecoveryDrills)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
-- boundaries = scope, budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
+- boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
+- a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
 - keep correctness and quality
 - simpler implementation > larger one (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestWrittenCodeIsCountedByKind)
 - ambition = size of the gain != size of the change

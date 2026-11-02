@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 295,
+        "nodes": 42,
         "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
       },
       "steps": [
-        {
-          "id": "terms-visible",
-          "title": "Show every change to a row's check or count",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAChangedCheckOrCountIsWrittenInTheCommit$'",
-          "rationale": "A plan-only commit runs only the check (internal/landing/landing.go:216-218) and is judged by the plan it carries (:410), so acceptance is frozen for one commit. A change can raise its own count (landing.go:468, rules.go:61), which contradicts skill.md:39,149.\nA landing writes each old and new check and count as trailers, and the doctrine says what the count is: a declared estimate, reported, not a limit.\nServes: an honest record; bold changes stay allowed.\nDisappears: a sentence of doctrine that does not hold.\nEvidence: a planted weakened check appears in the message.\nBatch: host lane."
-        },
         {
           "id": "row-with-work",
           "title": "Let a new row land with its own work",

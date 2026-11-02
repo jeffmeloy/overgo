@@ -164,6 +164,42 @@ func TestLandingRaisesItsOwnCount(t *testing.T) {
 	}
 }
 
+// TestAChangedCheckOrCountIsWrittenInTheCommit: a change that weakens a row's check or raises a count is free to, and its
+// commit says so, old beside new; a row it adds has nothing to compare, and a row it leaves alone says nothing.
+func TestAChangedCheckOrCountIsWrittenInTheCommit(t *testing.T) {
+	t.Parallel()
+	row := func(id, verify string, nodes int) plan.Item {
+		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Budget: plan.Budget{Nodes: nodes, Reason: "the first estimate"},
+			Steps: []plan.Step{{ID: "do", Title: id, Status: plan.StatusOpen, Verify: verify}}}
+	}
+	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
+	document := plan.Plan{Campaign: "fixture", Items: []plan.Item{row("weakened", "go test ./strict", 2), row("untouched", "true", 2)}}
+	if err := plan.Save(fixture.planPath(), document); err != nil {
+		t.Fatal(err)
+	}
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "plan of two rows")
+	document.Items[0].Steps[0].Verify = "true"
+	document.Items[0].Budget = plan.Budget{Nodes: 9, Reason: "it took more"}
+	document.Items = append(document.Items, row("added", "true", 1))
+	if err := plan.Save(fixture.planPath(), document); err != nil {
+		t.Fatal(err)
+	}
+	fixture.write("a.txt", "changed\n")
+	message := fixture.candidateOf("weakened/do").message()
+	for _, want := range []string{
+		`Changed-Check: weakened/do: "go test ./strict" -> "true"`,
+		`Changed-Count: weakened: 2 -> 9: "it took more"`,
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("the commit does not say %q:\n%s", want, message)
+		}
+	}
+	if strings.Contains(message, "untouched") || strings.Contains(message, "added") {
+		t.Fatalf("the commit speaks of a row whose terms did not change:\n%s", message)
+	}
+}
+
 // TestLandingFixRegeneratesTheAPIManifest holds the fix stage to the
 // derived API manifest: a Go change regenerates it with the repository's own
 // command, and the regenerated file joins the ship set the checks validate.

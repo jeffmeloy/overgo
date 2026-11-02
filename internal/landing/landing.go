@@ -90,6 +90,8 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
+	// changedTerms are the trailers that state each row's check and count this change alters.
+	changedTerms []string
 	// trunk is the directory of the repository's main worktree and branch the
 	// branch it has checked out; onto is that branch when this checkout is
 	// not the one that has it, and the commit publishes onto it.
@@ -410,14 +412,22 @@ func (l *landing) row(ctx context.Context) error {
 		return err
 	}
 	l.terms = document
+	held, heldErr := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.head+":"+plan.Path)
 	if len(l.merging) == 0 && !l.planOnly() {
-		held, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.head+":"+plan.Path)
-		if err != nil {
-			return err
+		if heldErr != nil {
+			return heldErr
 		}
 		if l.terms, err = plan.Parse(held); err != nil {
 			return err
 		}
+	}
+	// A plan the commit it builds on does not hold has no terms to change.
+	if heldErr == nil {
+		before, err := plan.Parse(held)
+		if err != nil {
+			return err
+		}
+		l.changedTerms = termsChanged(before, document)
 	}
 	named, err := rows(l.Ref)
 	if err != nil {
@@ -798,7 +808,7 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 // message is the authored message, what the gate measured, and the trailers:
 // the scorecard slices, then the landed row.
 func (l *landing) message() string {
-	trailers := slices.Clone(l.trailers)
+	trailers := slices.Concat(l.trailers, l.changedTerms)
 	named, _ := rows(l.Ref)
 	for _, row := range named {
 		trailers = append(trailers, plan.LandedRowTrailer+": "+row.String())

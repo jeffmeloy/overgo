@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "web-ui-repairs",
-      "title": "Keep the workbench responsive and honest about errors",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "JavaScript only; no production Go grows."
-      },
-      "steps": [
-        {
-          "id": "render-cost",
-          "title": "Bound what a long session costs the browser",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserLongSessionStaysBounded'",
-          "rationale": "Reported by the review, unmeasured: tool output grows through textContent += with a scroll per piece (composer.js:307-308), restore renders each message twice (mod/chat.js:1069,1073), the chat DOM has no cap, and each operation event aborts the previous detail read (operations_shell.js:242,309,315) where mod/inbox.js:60-64 keeps one read and one queued.\nTool output is bounded at 64 MiB (internal/artifact/content.go:11), and only mod/chat.js:768 passes subscribe, so the Agent tab never streams it.\nMeasure first on a long conversation. Then use scrollSoon (composer.js:229), which fixed this class for tokens, set the response fields before the first render so the second goes (chat.js:1073 exists to draw the head), cap the live DOM and reuse the inbox's pattern.\nServes: browser memory and responsiveness in long sessions.\nDisappears: the double render.\nEvidence: DOM node count and heap before and after, one long-conversation fixture.\nBatch: web interface lane."
-        }
-      ]
-    },
-    {
       "id": "serving-repairs",
       "title": "Repair proxy, agent and provider defects in the served path",
       "owner": "master-lead",

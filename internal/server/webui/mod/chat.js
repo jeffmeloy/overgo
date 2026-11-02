@@ -1078,11 +1078,10 @@
           for (const message of chain.messages || []) {
             if (message.role !== "user" && message.role !== "assistant") continue;
             if (inflight && message.role === "assistant" && message.response === inflight) continue;
-            const shown = thread.add(message.role, message.content);
-            shown.response = message.response;
-            shown.media = message.media; shown.tool_calls = message.tool_calls;
-            shown.incompleteReason = message.incomplete_details?.reason;
-            thread.renderMessage(shown, false);
+            thread.add(message.role, message.content, {
+              response: message.response, media: message.media, tool_calls: message.tool_calls,
+              incompleteReason: message.incomplete_details?.reason,
+            });
           }
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }

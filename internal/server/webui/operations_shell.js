@@ -238,6 +238,17 @@
     renderStrip(host);
   }
 
+  // refreshDetail follows the selected operation's events one read at a time with at most one queued, as the inbox does:
+  // a read aborted by each event would never finish while the operation runs.
+  let detailReading = null, detailQueued = false;
+  function refreshDetail(host) {
+    if (detailReading) { detailQueued = true; return; }
+    detailReading = loadDetail(host, selected).finally(() => {
+      detailReading = null;
+      if (detailQueued) { detailQueued = false; if (selected) refreshDetail(host); }
+    });
+  }
+
   async function loadDetail(host, id, focus) {
     if (detailRequest) detailRequest.abort();
     const controller = new AbortController();
@@ -306,13 +317,13 @@
         for (const [id, item] of operations) if (!item.local) operations.delete(id);
         for (const item of value || []) operations.set(item.id, item);
         renderStrip(host);
-        if (selected) loadDetail(host, selected);
+        if (selected) refreshDetail(host);
       }
       if (name === "operation") {
         operations.set(value.status.id, value.status);
         note(value.status, value.stage && value.stage.node ? "stage " + value.stage.node + " " + (value.stage.state || "") : "");
         renderStrip(host);
-        if (selected === value.status.id) loadDetail(host, selected);
+        if (selected === value.status.id) refreshDetail(host);
       }
       if (name === 'stream.ready' || name === 'stream.idle') { connectionError = null; renderConnection(); }
       if (name === "stream.error") { connectionError = value; renderConnection(); }

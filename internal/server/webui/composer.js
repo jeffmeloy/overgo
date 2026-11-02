@@ -196,6 +196,9 @@
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
   // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
   // options.stopped(note): a stopped turn's note, where the page offers to continue it.
+  // toolOutputTail is the characters of a running tool's output the page keeps.
+  const toolOutputTail = 1 << 20;
+
   function thread(host, options) {
     const reuse = options && options.reuse;
     const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
@@ -266,9 +269,10 @@
       scrollSoon();
     }
 
-    function add(role, content) {
+    // add appends a message, fields being what its first render reads besides its text, so a restored one renders once.
+    function add(role, content, fields) {
       if (role === "user") following = true;
-      const message = { role, content: content || "" };
+      const message = { ...fields, role, content: content || "" };
       messages.push(message);
       renderMessage(message, false);
       return message;
@@ -295,22 +299,31 @@
       log.appendChild(card);
       scroll();
       const started = Date.now();
-      let streamed = null;
+      let streamed = null, streamedSize = 0, trimmed = null;
       return {
-        // output: a running tool's output as it arrives, shown open until its result replaces it.
+        // output: a running tool's output as it arrives, shown open until its result replaces it. Each piece is a text node
+        // of its own and shares its frame's scroll, and the page keeps a tail: rewriting the whole text with a layout for
+        // each piece took 32.9 seconds over 4 MiB, measured, and a tool may write 64 MiB.
         output(text) {
           if (!streamed) {
             streamed = el("pre", { class: "mono tool-output" });
             bodyNode.append(streamed);
             bodyNode.hidden = false; header.setAttribute("aria-expanded", "true"); arrow.classList.add("open");
           }
-          streamed.textContent += text;
-          scroll();
+          streamed.append(text);
+          streamedSize += text.length;
+          while (streamedSize > toolOutputTail && streamed.childNodes.length > 1) {
+            streamedSize -= streamed.firstChild.length;
+            streamed.firstChild.remove();
+            if (!trimmed) { trimmed = el("div", { class: "note", text: "Showing the end of this tool's output." }); streamed.before(trimmed); }
+          }
+          scrollSoon();
         },
         // end: a tool run's result, or a model's completed call (final arguments, no result). A card
         // restored from the store reads its outcome alone: its wall is not this page's.
         end(result, finalArguments) {
           if (streamed) { streamed.remove(); streamed = null; }
+          if (trimmed) { trimmed.remove(); trimmed = null; }
           const elapsed = call.restored ? "" : " · " + ((Date.now() - started) / 1000).toFixed(1) + "s";
           if (finalArguments !== undefined) input.textContent = typeof finalArguments === "string" ? finalArguments : JSON.stringify(finalArguments, null, 2);
           if (result === undefined) {

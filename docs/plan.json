@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "line-ends",
-          "title": "Render any line ending without locking up the tab",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserMarkdownLineEnds'",
-          "rationale": "Reproduced again at 675d61b80 with the real md.js in Node. A line that opens a heading or fence and holds CR, U+2028 or U+2029 after the marker matches no pattern (internal/server/webui/md.js:149,166), while the paragraph guard accepts it (md.js:190-191), so the position never advances: 5 million nodes in 1.5 seconds. Plain CRLF text, lists and tables are safe. The only md() caller is composer.js:237 and a restore reaches it through mod/chat.js:1069, so a reload repeats the lock-up.\nmd() normalizes CR, CRLF, U+2028 and U+2029 at its top, and the paragraph branch always advances at least one line.\nWhile the file is open, stop an unclosed [ costing quadratic time (md.js:62,70): 160,000 of them took 7.2 s against a stub DOM, 40,000 about 0.5 s, and a model stuck repeating is a realistic source.\nServes: failure-rate as a person meets it; a reload repeats the lock-up today.\nDisappears: nothing.\nEvidence: browser cases for each line ending and for a long unclosed bracket.\nBatch: web interface lane."
-        },
-        {
           "id": "agent-history",
           "title": "Keep each agent's history under that agent",
           "status": "open",
@@ -644,6 +637,39 @@
             "heldout-verdict/charge-objective",
             "recipe-repairs/policy-moves"
           ]
+        }
+      ]
+    },
+    {
+      "id": "model-reach",
+      "title": "Reach the models run-from-files left out",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 900,
+        "reason": "Estimate: heldout-state 80, directory-mappings 500, media-derived 320. To be replaced by each step's measurement."
+      },
+      "steps": [
+        {
+          "id": "heldout-state",
+          "title": "Keep a candidate's held-out reading out of a row it did not earn",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAHeldOutReadingKeepsTheStateItRanUnder$'",
+          "rationale": "run-from-files/scorecard-label covers attempts, and a held-out reading takes another path: results land in EvaluationsByRecipe by recipe and hold no state (internal/scorecard/scorecard.go:375), and a verdict's base reading is credited to every served recipe of the model. A candidate read before it activates can therefore still reach a verified row.\nCarry the state on the evaluation record as record-state did on an attempt, omitted when empty so old identities hold.\n\nServes: held-out-quality says what it measured.\nDisappears: nothing.\nEvidence: its test, a reading from before activation left out of the row.\nBatch: scorecard lane."
+        },
+        {
+          "id": "directory-mappings",
+          "title": "Map the text directories that are refused by name",
+          "status": "open",
+          "verify": "go test ./internal/hfconvert -count=1 -run '^TestAGemma4DirectoryIsTheBytesItsConversionWrites$'",
+          "rationale": "Only llama, qwen2 and qwen3_5 run from a directory, 3 of 137 prototypes. On disk gemma4_unified and needle are refused by name. Measure first what a mapping costs: gemma4_unified's tensors against the profile a served GGUF of it already uses. needle follows only if its files are wanted as a served model.\n\nServes: setup-steps for a model held as safetensors.\nDisappears: a refusal.\nEvidence: its test, and one real directory answering.\nBatch: recipe lane."
+        },
+        {
+          "id": "media-derived",
+          "title": "Say what a media model with no recipe would need to run",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestAMediaModelWithNoRecipeSaysWhatItNeeds$'",
+          "rationale": "generation_store_workspace.go and transcription_workspace.go still resolve an active recipe, so the owner's rule stops at text. Their recipes bind source profiles a file does not state, so a derivation may not exist. Read those two owners first, and at least name what is missing where a model cannot run instead of leaving it off the page.\n\nServes: the owner's direction reaches media as far as files allow.\nDisappears: a silent absence.\nEvidence: its test.\nBatch: serving lane."
         }
       ]
     },

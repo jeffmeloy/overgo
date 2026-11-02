@@ -59,7 +59,8 @@
     { re: /^__([^_]+)__/, make: (m) => wrap("strong", m[1]) },
     { re: /^\*([^*]+)\*/, make: (m) => wrap("em", m[1]) },
     { re: /^_([^_]+)_/, make: (m) => wrap("em", m[1]) },
-    { re: /^\[([^\]]+)\]\(([^)\s]+)\)/, make: (m) => linkNode(m[1], m[2]) },
+    // Link text is bounded: unbounded, each "[" of a run rescans all the text behind it, a quadratic cost a stuck model reaches.
+    { re: /^\[([^\]]{1,1000})\]\(([^)\s]+)\)/, make: (m) => linkNode(m[1], m[2]) },
   ];
 
   function renderInline(parent, text) {
@@ -142,7 +143,8 @@
   function md(text) {
     const root = document.createElement("div");
     root.className = "md";
-    const lines = String(text == null ? "" : text).split("\n");
+    // Every line ending the patterns below stop at reads as a newline: "." refuses CR, U+2028 and U+2029.
+    const lines = String(text == null ? "" : text).replace(/\r\n?|\u2028|\u2029/g, "\n").split("\n");
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
@@ -186,7 +188,9 @@
         continue;
       }
       if (/^\s*$/.test(line)) { i++; continue; }
-      const para = [];
+      // A paragraph takes its first line whatever it reads as, so the walk always advances.
+      const para = [line];
+      i++;
       while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^```/.test(lines[i]) &&
         !/^#{1,6}\s+/.test(lines[i]) && !isListLine(lines[i]) && !tableHeader(lines, i)) {
         para.push(lines[i]);

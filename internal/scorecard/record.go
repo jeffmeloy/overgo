@@ -266,7 +266,7 @@ func (c *Cell) borrow(column metric.Name, shares []float64) {
 // took the place of, hold of it, each read by read.
 func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(Row) Cell) Cell {
 	var readings []float64
-	for _, one := range readingsOf(earlier, row, cell, read) {
+	for _, one := range readingsOf(earlier, row, cell, read, func(reading Cell) bool { return reading.Value != 0 }) {
 		readings = append(readings, one.Value)
 	}
 	if len(readings) < fewestReadings {
@@ -289,8 +289,8 @@ func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(
 }
 
 // readingsOf is what the earlier records hold of a reference's cell (Reference): the newest referenceWindow readings on its
-// contract, environment and direction, each source once and oldest first.
-func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell) []Cell {
+// contract, environment and direction that counts takes, each source once and oldest first.
+func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell, counts func(Cell) bool) []Cell {
 	var readings []Cell
 	seen := make(map[artifact.ID][]float64)
 	for _, record := range earlier {
@@ -299,7 +299,7 @@ func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell) []Cel
 			continue
 		}
 		one := read(record.Rows[at])
-		if one.Measured() && one.Value != 0 && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+		if one.Measured() && counts(one) && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
 			readings = append(readings, one)
 			if one.Source.Valid() {
 				seen[one.Source] = append(seen[one.Source], one.Value)
@@ -311,6 +311,7 @@ func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell) []Cel
 
 // held is a reference's held-out quality as the best of its newest readings, so a run of small declines is judged against
 // where the cell stood before them, and by the cases of that reading (judgeQuality), not by the one step from the last.
+// A zero counts: it is no sample of a timing, and the best a word error rate can read.
 func held(earlier []Record, row Row, cell Cell) Cell {
 	direction := cmp.Or(cell.Direction, columnDirections[metric.Quality])
 	readings := readingsOf(earlier, row, cell, func(one Row) Cell {
@@ -319,7 +320,7 @@ func held(earlier []Record, row Row, cell Cell) Cell {
 			return measured[at]
 		}
 		return Cell{}
-	})
+	}, func(Cell) bool { return true })
 	for _, reading := range readings {
 		if advantage, _ := direction.Advantage(reading.Value, cell.Value); advantage > 0 {
 			cell = reading

@@ -426,6 +426,17 @@ func TestATrainedModelIsMeasuredOnce(t *testing.T) {
 	if got := measuredCells(only.Run, acquired); len(got) != 0 {
 		t.Fatalf("a model with a cell not acquired reads as measured: %+v", got)
 	}
+	// A run narrowed to one validation acquires all it was asked for, which is not the model's measurement.
+	narrow, err := pending.OnlyModel("trained", func(mv ModelValidation) bool { return mv.Model == model && mv.Validation == servingValidation })
+	if err != nil || len(narrow.Run) != 1 {
+		t.Fatalf("a run of one validation holds %+v (%v)", narrow.Run, err)
+	}
+	if got := measuredCells(narrow.Run, map[artifact.ID]int{model: 1}); len(got) != 0 {
+		t.Fatalf("one validation of three reads as the model's measurement: %+v", got)
+	}
+	if left := pending.OnlyTrained(); len(left.Run) != len(only.Run) {
+		t.Fatalf("after a narrowed run the model still owes %d cells, want %d", len(left.Run), len(only.Run))
+	}
 	acquired[model]++
 	if got := measuredCells(only.Run, acquired); len(got) != 1 || got[0].Model != model {
 		t.Fatalf("a model whose cells were all acquired reads %+v, want it once", got)

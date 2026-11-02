@@ -62,17 +62,14 @@ func unadmittedTrained(ctx context.Context, repository string) (paths []string, 
 	return paths, nil
 }
 
-// measuredCells keeps the trained models whose every cell of this run was acquired, each with the task and recipe its
-// mark names; a model with a cell that failed has not had its measurement, and the next run measures it.
+// measuredCells keeps the trained models whose every owed cell was acquired by this run, each with the task and recipe its
+// mark names. A model with a cell that failed, or that a run narrowed to one validation did not ask for, has not had its
+// measurement, and the next run measures it.
 func measuredCells(cells []Selected, acquired map[artifact.ID]int) []ModelValidation {
-	counted := map[artifact.ID]int{}
-	for _, sel := range cells {
-		counted[sel.Model]++
-	}
 	var measured []ModelValidation
 	seen := map[artifact.ID]bool{}
 	for _, sel := range cells {
-		if sel.Trained && !sel.Measured && sel.Kind == recipe.TaskInference && !seen[sel.Model] && acquired[sel.Model] == counted[sel.Model] {
+		if sel.Trained && !sel.Measured && sel.Kind == recipe.TaskInference && !seen[sel.Model] && acquired[sel.Model] == sel.Owed {
 			seen[sel.Model] = true
 			measured = append(measured, sel.ModelValidation)
 		}

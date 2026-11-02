@@ -237,7 +237,9 @@
         "uncertainty": "Source proof only. Counts are a complete affected-owner estimate and must be replaced with actual implementation AST; a full real-device run is unnecessary to decide this selection bug."
       },
       "likely_effort": "Small completion-fact propagation within existing validation Plan and one retained native selection test.",
-      "plan_references": [],
+      "plan_references": [
+        "review-repairs/do"
+      ],
       "plan_coverage": "New advisory on completed trained-models/do; no live plan row adopted at this pin. SQA does not modify the plan or reopen a row.",
       "closure_criteria": [
         "A first serving-only run leaves the model pending while any original eligible cell is unacquired.",
@@ -289,7 +291,9 @@
         "uncertainty": "The admitted history was traced in source, not executed. Passing the metric only through two existing callers was parsed, not full-package typechecked. No claim that the historical44-scorecard replay contained this case."
       },
       "likely_effort": "Small shared-owner predicate correction and one existing native quality-history boundary case.",
-      "plan_references": [],
+      "plan_references": [
+        "review-repairs/do"
+      ],
       "plan_coverage": "New advisory on completed scorecard-truth/quality-level. Subsequent failure-window and stale-quality landings leave readingsOf unchanged; no live row adopts this zero boundary.",
       "closure_criteria": [
         "A zero minimized-quality reading within the retained window remains the reference after later nonzero readings, for headline and secondary quality.",
@@ -6993,7 +6997,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "0b80394917c471cdd1dd3ada43edc33f623d758b",
+    "head": "3bc44c75abd55b099d70a8aa985cc0da18c79634",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7596,6 +7600,20 @@
           "run-from-files/do"
         ],
         "note": "Landed across the row run-from-files. Each closure criterion is answered in the comment beside this note, with what is not covered. Awaits the reviewer's closure."
+      },
+      "SQA-289": {
+        "action": "implemented",
+        "rows": [
+          "review-repairs/do"
+        ],
+        "note": "Bug in trained-models/do. Each selected cell now carries how many cells the model's one measurement owes, set before any filter, so a run narrowed to one validation acquires all it asked for and marks nothing. The next full run or validate -trained selects every cell, and a complete acquisition marks once. Held by TestATrainedModelIsMeasuredOnce, through OnlyModel as the finding asks."
+      },
+      "SQA-290": {
+        "action": "implemented",
+        "rows": [
+          "review-repairs/do"
+        ],
+        "note": "Bug in scorecard-truth/quality-level. readingsOf takes what counts as a reading: a timing's zero stays out before its window, and a quality's zero is a reading. Held by TestAPerfectZeroIsAQualitysLevel on the headline and a second suite, with a timing's zero still left out."
       }
     }
   },

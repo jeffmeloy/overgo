@@ -1,12 +1,16 @@
 package scorecard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testutil"
 )
 
 // TestASlowQualityDeclineIsFiledAgainstItsLevel: a model that loses one case a run never loses enough from one reading to
@@ -60,5 +64,47 @@ func TestASlowQualityDeclineIsFiledAgainstItsLevel(t *testing.T) {
 		if !strings.Contains(gap.Detail, "6 of the 40 cases") || gap.Target != records[0].Rows[0].Cells[metric.Quality].Value {
 			t.Fatalf("the decline reads %+v, want it judged from the first reading", gap)
 		}
+	}
+}
+
+// TestAPerfectZeroIsAQualitysLevel: a rate of errors that read zero stays the level a later rise is judged against, on the
+// headline and on a model's other suites, where a zero is no reading of a timing and leaves its window.
+func TestAPerfectZeroIsAQualitysLevel(t *testing.T) {
+	t.Parallel()
+	model := testutil.ArtifactID(t, artifact.KindModel, "speech")
+	contract := func(suite string) Contract {
+		return Contract{Metric: "word_error_rate", Origin: originEvaluation, Suite: suite, Comparison: testutil.ArtifactID(t, artifact.KindProfile, suite)}
+	}
+	read := func(suite string, value float64) Cell {
+		return Cell{
+			Value: value, Direction: runrecord.DirectionMinimize, Contract: contract(suite),
+			Source: testutil.ArtifactID(t, artifact.KindEvaluation, fmt.Sprintf("%s %g", suite, value)),
+		}
+	}
+	var records []Record
+	for _, value := range []float64{0, 0.01, 0.02} {
+		cells := map[metric.Name]Cell{metric.Quality: read("store/first", value)}
+		records = append(records, Record{Rows: []Row{{
+			Model: model, Name: "speech", Task: recipe.TaskSpeech, Cells: cells, Heldout: []Cell{read("store/second", value)},
+		}}})
+	}
+	reference := Reference(records)
+	headline := reference.Rows[0].Cells[metric.Quality]
+	if headline.Value != 0 || headline.Source != records[0].Rows[0].Cells[metric.Quality].Source {
+		t.Fatalf("the headline's level is %+v, want the zero it read first", headline)
+	}
+	if other := reference.Rows[0].Heldout; len(other) != 1 || other[0].Value != 0 {
+		t.Fatalf("the other suite's level is %+v, want the zero it read first", other)
+	}
+	// A timing's zero sampled nothing, and is no level.
+	timing := func(value float64) Cell {
+		return Cell{Value: value, Contract: Contract{Metric: "time", Origin: originServing}, Source: testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("time %g", value))}
+	}
+	var timed []Record
+	for _, value := range []float64{0, 10, 11, 12, 13, 14} {
+		timed = append(timed, Record{Rows: []Row{{Model: model, Task: recipe.TaskSpeech, Cells: map[metric.Name]Cell{metric.FirstOutput: timing(value)}}}})
+	}
+	if cell := Reference(timed).Rows[0].Cells[metric.FirstOutput]; cell.Value == 0 {
+		t.Fatalf("a timing's level is %+v, want the zero left out", cell)
 	}
 }

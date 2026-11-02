@@ -56,6 +56,8 @@ type Selected struct {
 	ModelValidation
 	Reason    string `json:"reason"`
 	Promotion string `json:"promotion,omitzero"`
+	// Owed is how many cells a trained model's one measurement holds, whichever of them a narrower run was asked for.
+	Owed int `json:"owed,omitzero"`
 }
 
 // Inputs are the resolved facts the selection reduces: every registered
@@ -177,6 +179,15 @@ func SelectValidation(in Inputs) Plan {
 			sel.Reason = "run: re-acquired every cycle"
 			plan.schedule(sel, in.Scorecard)
 		}
+	}
+	owed := map[artifact.ID]int{}
+	for _, sel := range plan.Run {
+		if sel.Trained && !sel.Measured {
+			owed[sel.Model]++
+		}
+	}
+	for index := range plan.Run {
+		plan.Run[index].Owed = owed[plan.Run[index].Model]
 	}
 	for _, bucket := range [][]Selected{plan.Run, plan.Background, plan.OperatorOwned, plan.RegisteredInactive, plan.SkipInappropriate, plan.MeasuredOnce} {
 		slices.SortStableFunc(bucket, func(a, b Selected) int {

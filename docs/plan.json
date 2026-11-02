@@ -161,7 +161,7 @@
           "id": "sampler-chain",
           "title": "Keep declared sampler chains the native round cannot implement on the ordinary path",
           "status": "open",
-          "verify": "go test ./internal/sampling ./internal/modelcli -count=1 -run 'Sampl'",
+          "verify": "go test ./internal/inference -count=1 -run '^(TestStrataRoundSamplesOnlyItsOwnChain|TestInertPenalties.*)$'",
           "rationale": "SQA-245: strataSamplingOf tells an explicit empty chain from the default and refuses a chain whose effective order differs from the native one.\nServes: a request gets the distribution it declared.\nDisappears: nothing.\nEvidence: a host table.\nBatch: serving lane."
         },
         {

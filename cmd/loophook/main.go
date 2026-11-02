@@ -114,8 +114,8 @@ const (
 // stopDecision is the pure verdict the Stop hook renders. planComplete is the
 // only plan-derived allow; a landed commit changes the message, never the
 // verdict.
-func stopDecision(stopHookActive, operatorStopped, gateRunning, planComplete, dirtyWork bool) string {
-	if stopHookActive || operatorStopped || gateRunning || planComplete {
+func stopDecision(operatorStopped, gateRunning, planComplete, dirtyWork bool) string {
+	if operatorStopped || gateRunning || planComplete {
 		return stopAllow
 	}
 	if dirtyWork {
@@ -141,7 +141,7 @@ func runStop(hookJSON string) int {
 	dispatch := nextDispatch()
 	operatorStopped := dispatch.Stop != nil && dispatch.Stop.Blocked
 	dirtyWork := hasTurnCreatedDirt(session)
-	verdict := stopDecision(false, operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork)
+	verdict := stopDecision(operatorStopped, gateCommitting(), dispatch.Complete, dirtyWork)
 	// A turn that ends with nothing left for the session to do here gives the
 	// worktree back to the next implementing session; a turn a valve lets end,
 	// or one that leaves work uncommitted, keeps it.
@@ -167,7 +167,11 @@ func runStop(hookJSON string) int {
 	if run := measurementRun(); run != "" {
 		fmt.Fprintln(os.Stderr, "  "+run)
 	}
-	recordStopBlock(session)
+	// A block no retry can read back would hold the session for good: it is let through instead.
+	if err := recordStopBlock(session); err != nil {
+		fmt.Fprintf(os.Stderr, "stop: this block could not be kept, so the stop passes: %v\n", err)
+		return 0
+	}
 	return 2
 }
 
@@ -190,16 +194,21 @@ func stopBlockFile(session string) string {
 	return filepath.Join(processlock.StateDirectory, guard.SessionState(session)+"-blocked")
 }
 
-// recordStopBlock records the HEAD and the dirty set a block found.
-func recordStopBlock(session string) {
+// recordStopBlock records the HEAD and the dirty set a block found, and says when it could not.
+func recordStopBlock(session string) error {
 	facts, err := currentDirtyFacts()
+	if err != nil {
+		return err
+	}
 	path := stopBlockFile(session)
-	if err != nil || path == "" {
-		return
+	if path == "" {
+		return errors.New("no state directory")
 	}
-	if data, err := json.Marshal(stopBlock{Head: gitHead(), Facts: facts}); err == nil {
-		_ = os.WriteFile(path, append(data, '\n'), stateFileMode)
+	data, err := json.Marshal(stopBlock{Head: gitHead(), Facts: facts})
+	if err != nil {
+		return err
 	}
+	return os.WriteFile(path, append(data, '\n'), stateFileMode)
 }
 
 // stuckSinceBlock reports whether a retry finds the session as its last block did. A session whose state cannot be

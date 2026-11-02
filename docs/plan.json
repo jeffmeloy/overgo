@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 501,
+        "nodes": 475,
         "reason": "Corrections to the existing loop, landing and hook owners; no new scheduler."
       },
       "steps": [
-        {
-          "id": "stop-record",
-          "title": "Honor the stop escape when its refusal record cannot be kept",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run 'Stop'",
-          "rationale": "SQA-264: runStop checks the write of its refusal record and honors the escape when the baseline cannot be kept.\nServes: a session cannot wedge on a full or denied state directory.\nDisappears: nothing.\nEvidence: one existing fixture extended.\nBatch: hook lane."
-        },
         {
           "id": "commit-queue",
           "title": "Free the commit queue from a landing waiting for the device",

@@ -6330,6 +6330,18 @@
         "plan_steps": [
           "sqa-cycle/resume-credit"
         ]
+      },
+      {
+        "comment": "Landed with sqa-cycle/stop-record. A first stop with no baseline yet is still judged as before; only a block that could not be written passes. TestAStopAfterWorkSinceItsBlockIsBlockedAgain gains a block path occupied by a directory, and the stop passes with a line saying why. The state comparison and the explicit stop, review, non-holder, gate and complete exemptions are unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestAStopAfterWorkSinceItsBlockIsBlockedAgain",
+          "TestStopDecision"
+        ],
+        "finding_id": "SQA-264",
+        "plan_steps": [
+          "sqa-cycle/stop-record"
+        ]
       }
     ],
     "experiments": {
@@ -6376,7 +6388,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "4655414ac4332a110781193308d7fcaeffcd0934",
+    "head": "fb17ae9f0317ff0d5a861656bd1865d35e03b5ef",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6582,11 +6594,11 @@
         "note": "Landed. consumedFiles reads a view's directory: each regular file's own bytes key the credit, so a view's virtual image is never passed off as a file's digest. The finding preferred the inventory's exact consumed set; every file in the directory is a superset of it, so a changed README costs a credit and no change is missed. Awaits the reviewer's closure."
       },
       "SQA-264": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-cycle/stop-record"
         ],
-        "note": "Accepted for the remaining I/O path only; the original incident path is already fixed."
+        "note": "Landed. recordStopBlock returns its failure and runStop lets the stop through when the block cannot be kept, as a block no retry can read back would wedge the session. The unused stopHookActive parameter, its retry row and the two duplicated assertions are gone. Awaits the reviewer's closure."
       },
       "SQA-261": {
         "action": "filed",

@@ -17,25 +17,24 @@ import (
 // sanctioned pause is a recorded stop, which arms the freshStop valve).
 func TestStopDecision(t *testing.T) {
 	cases := []struct {
-		name                                                          string
-		stopHookActive, freshStop, gateRunning, planComplete, dirtyGo bool
-		want                                                          string
+		name                                          string
+		freshStop, gateRunning, planComplete, dirtyGo bool
+		want                                          string
 	}{
-		{"retry valve", true, false, false, false, true, stopAllow},
-		{"fresh recorded stop", false, true, false, false, true, stopAllow},
-		{"gate in flight", false, false, true, false, true, stopAllow},
+		{"fresh recorded stop", true, false, false, true, stopAllow},
+		{"gate in flight", false, true, false, true, stopAllow},
 		// loop-hardening-7 accepted residual: during the gate's go-run COMPILE
 		// phase gateRunning is momentarily false, so a wait-turn BLOCKS on dirty
 		// .go (safe direction); the next attempt's retry valve allows.
-		{"gate compile-window (pre-retry)", false, false, false, false, true, stopOrphan},
-		{"plan complete", false, false, false, true, true, stopAllow},
-		{"uncommitted go", false, false, false, false, true, stopOrphan},
-		{"committed progress, open rows remain", false, false, false, false, false, stopContinue},
-		{"answered prompt, no progress", false, false, false, false, false, stopContinue},
-		{"open row, idle turn", false, false, false, false, false, stopContinue},
+		{"gate compile-window (pre-retry)", false, false, false, true, stopOrphan},
+		{"plan complete", false, false, true, true, stopAllow},
+		{"uncommitted go", false, false, false, true, stopOrphan},
+		{"committed progress, open rows remain", false, false, false, false, stopContinue},
+		{"answered prompt, no progress", false, false, false, false, stopContinue},
+		{"open row, idle turn", false, false, false, false, stopContinue},
 	}
 	for _, c := range cases {
-		got := stopDecision(c.stopHookActive, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo)
+		got := stopDecision(c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo)
 		if got != c.want {
 			t.Errorf("%s: stopDecision=%q want %q", c.name, got, c.want)
 		}
@@ -47,12 +46,6 @@ func TestStopDecision(t *testing.T) {
 // marker to consume; a bounded turn with no committed progress still draws
 // the continue block, and only a valve (e.g. a recorded user stop) allows it.
 func TestBoundedRequestScopesAnswerNotTurn(t *testing.T) {
-	if got := stopDecision(false, false, false, false, false); got != stopContinue {
-		t.Fatalf("bounded no-progress turn = %q, want the continue block", got)
-	}
-	if got := stopDecision(false, true, false, false, false); got != stopAllow {
-		t.Fatalf("recorded user stop = %q, want allow", got)
-	}
 	if !boundedRequestText("automation plan completed?") || !boundedRequestText("summarize work completed") || !boundedRequestText("should we add a doc check?") {
 		t.Fatal("bounded question/status request was not classified")
 	}
@@ -88,7 +81,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
 		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
 	}
-	if got := stopDecision(false, false, true, false, len(turnCreatedDirt(parked, parked)) > 0); got != stopAllow {
+	if got := stopDecision(false, true, false, len(turnCreatedDirt(parked, parked)) > 0); got != stopAllow {
 		t.Fatalf("progressed turn with only parked parallel-lane dirt = %q, want allow", got)
 	}
 
@@ -97,7 +90,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
 	}
-	if got := stopDecision(false, false, false, false, len(created) > 0); got != stopOrphan {
+	if got := stopDecision(false, false, false, len(created) > 0); got != stopOrphan {
 		t.Fatalf("turn that created dirt = %q, want the orphan block", got)
 	}
 
@@ -162,7 +155,7 @@ func TestPersistentStopHook(t *testing.T) {
 	if err != nil || status.Blocked || status.State != "resumed" {
 		t.Fatalf("hook scope did not resume: %+v %v", status, err)
 	}
-	if stopDecision(false, status.Blocked, false, false, false) != stopContinue {
+	if stopDecision(status.Blocked, false, false, false) != stopContinue {
 		t.Fatal("resumed hook retained a stale stop")
 	}
 }

@@ -201,4 +201,16 @@ func TestAStopAfterWorkSinceItsBlockIsBlockedAgain(t *testing.T) {
 	if got := retry(); got != 2 {
 		t.Fatalf("a retry after an edit since the block = %d, want the block", got)
 	}
+	// A block that cannot be kept could never be read back, so the stop passes rather than wedge the session.
+	path := stopBlockFile("lead")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write("internal/edited.go", "package internal\n\n// changed again\n")
+	if got := retry(); got != 0 {
+		t.Fatalf("a stop whose block cannot be kept = %d, want it let through", got)
+	}
 }

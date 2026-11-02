@@ -12,7 +12,6 @@
 package guard
 
 import (
-	"bufio"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -27,10 +26,6 @@ import (
 )
 
 const commandBoundary = "(?:^|[\\n;|&(`])\\s*"
-
-// GateEnv set to "1" marks a commit issued by cmd/gate itself; the raw-commit
-// rule stands down for exactly that process tree and nothing wider.
-const GateEnv = "OVERGO_COMMIT_GATE"
 
 var (
 	doubleQuoted = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
@@ -152,7 +147,7 @@ func Verdict(call ToolCall, root string) (message string, wrapped bool) {
 		return message, false
 	}
 	for index, command := range payloads(call.ToolInput.Command, 0) {
-		if m := ruleVerdict(command, root); m != "" {
+		if m := ruleVerdict(command); m != "" {
 			return m, index > 0
 		}
 	}
@@ -246,7 +241,7 @@ func executableText(raw string) string {
 	return out.String()
 }
 
-func ruleVerdict(command, root string) string {
+func ruleVerdict(command string) string {
 	raw := command
 	executable := executableText(raw)
 	stripped := doubleQuoted.ReplaceAllString(raw, `""`)
@@ -275,7 +270,7 @@ func ruleVerdict(command, root string) string {
 			"weights; retire the lane with 'git branch -d' and leave the directory. A helper copy whose commit is on the " +
 			"trunk is cleared by 'go run ./cmd/loop -leftovers -delete helper-copy', which follows no link"
 	}
-	if os.Getenv(GateEnv) != "1" && !mergeInProgress(root) && rawCommit.MatchString(stripped) {
+	if rawCommit.MatchString(stripped) {
 		return "raw git commit bypasses the small gate (format, vet, rules, tests, lanes, the row's verify); run " +
 			"'go run ./cmd/loop -land <item>/<step> -message-file -' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
@@ -318,43 +313,6 @@ func buildsCommandHere(command string) bool {
 		}
 		if !output && len(packages) == 1 && strings.Count(strings.TrimSuffix(strings.TrimPrefix(packages[0], "./"), "/"), "/") == 1 &&
 			strings.HasPrefix(strings.TrimPrefix(packages[0], "./"), "cmd/") {
-			return true
-		}
-	}
-	return false
-}
-
-// mergeInProgress: MERGE_HEAD exists only while a merge is actually in
-// progress; a merge commit cannot go through the gate by construction, so the
-// exemption window is exactly the ungateable case. Linked worktrees keep
-// MERGE_HEAD in the gitdir their .git file points at.
-func mergeInProgress(root string) bool {
-	for _, base := range []string{root, filepath.Dir(root)} {
-		gitPath := filepath.Join(base, ".git")
-		if info, err := os.Stat(gitPath); err == nil && info.IsDir() {
-			if _, err := os.Stat(filepath.Join(gitPath, "MERGE_HEAD")); err == nil {
-				return true
-			}
-			continue
-		}
-		file, err := os.Open(gitPath)
-		if err != nil {
-			continue
-		}
-		scanner := bufio.NewScanner(file)
-		line := ""
-		if scanner.Scan() {
-			line = strings.TrimSpace(scanner.Text())
-		}
-		_ = file.Close()
-		if !strings.HasPrefix(line, "gitdir:") {
-			continue
-		}
-		gitDir := strings.TrimSpace(strings.TrimPrefix(line, "gitdir:"))
-		if !filepath.IsAbs(gitDir) {
-			gitDir = filepath.Join(filepath.Dir(gitPath), gitDir)
-		}
-		if _, err := os.Stat(filepath.Join(gitDir, "MERGE_HEAD")); err == nil {
 			return true
 		}
 	}

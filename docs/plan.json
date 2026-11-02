@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 250,
+        "nodes": 460,
         "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
       },
       "steps": [
-        {
-          "id": "merge-exemption",
-          "title": "Remove the raw commit exemption during a merge",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestARawCommitDuringAMergeIsRefused$'",
-          "rationale": "internal/guard/guard.go:278 allows raw git commit while MERGE_HEAD exists, and its comment (:327-330) says a merge cannot go through the gate. Merges do (skill.md:117, internal/landing/landing.go:302-325). The first check, TestGuardCorpus, passes today, so it proved nothing.\nThe guard's Bash rule names only git commit (:60): cherry-pick, merge --no-edit, revert, rebase and update-ref pass with no merge in progress (measured); commit-rules/git-hook closes those. OVERGO_COMMIT_GATE has no production writer, so its branch is dead (guard.go:31-33,278).\nServes: no unchecked commit.\nDisappears: mergeInProgress, about 36 lines, and GateEnv.\nEvidence: the corpus case reversed.\nBatch: host lane."
-        },
         {
           "id": "git-hook",
           "title": "Refuse a raw move of the trunk in Git itself",

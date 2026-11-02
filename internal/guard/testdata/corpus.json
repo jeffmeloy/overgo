@@ -159,17 +159,9 @@
       "rule": "commit-gate"
     },
     {
-      "name": "gate-issued-commit-is-exempt",
-      "command": "git commit -m \"quick fix\"",
-      "gate_env": true,
-      "expect": "ALLOW",
-      "rule": "commit-gate"
-    },
-    {
       "name": "git-commit-completing-a-merge",
       "command": "git commit --no-edit",
-      "merge_in_progress": true,
-      "expect": "ALLOW",
+      "expect": "DENY",
       "rule": "commit-gate"
     },
     {

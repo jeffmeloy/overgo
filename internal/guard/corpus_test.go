@@ -3,6 +3,7 @@ package guard
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -29,18 +30,34 @@ func TestBuildAdviceNamesBin(t *testing.T) {
 // repos or minimal variants of one.
 
 type corpusCase struct {
-	Name            string `json:"name"`
-	Tool            string `json:"tool,omitzero"`
-	Command         string `json:"command"`
-	Expect          string `json:"expect"`
-	Rule            string `json:"rule"`
-	GateEnv         bool   `json:"gate_env,omitzero"`
-	MergeInProgress bool   `json:"merge_in_progress,omitzero"`
+	Name    string `json:"name"`
+	Tool    string `json:"tool,omitzero"`
+	Command string `json:"command"`
+	Expect  string `json:"expect"`
+	Rule    string `json:"rule"`
 }
 
 type corpus struct {
 	Note  string       `json:"_note"`
 	Cases []corpusCase `json:"cases"`
+}
+
+// TestARawCommitDuringAMergeIsRefused: a merge lands through the gate like any change, so a merge in progress admits no raw
+// commit, and the refusal says how to land it.
+func TestARawCommitDuringAMergeIsRefused(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".git", "MERGE_HEAD"), []byte("deadbeef\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	call := ToolCall{ToolName: "Bash"}
+	call.ToolInput.Command = "git commit --no-edit"
+	if message, _ := Verdict(call, root); !strings.Contains(message, "cmd/loop -land") {
+		t.Fatalf("a raw commit during a merge: %q", message)
+	}
 }
 
 func TestGuardCorpus(t *testing.T) {
@@ -56,20 +73,6 @@ func TestGuardCorpus(t *testing.T) {
 	for _, tc := range c.Cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			root := t.TempDir()
-			gitDir := root + "/.git"
-			if err := os.Mkdir(gitDir, 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if tc.MergeInProgress {
-				if err := os.WriteFile(gitDir+"/MERGE_HEAD", []byte("deadbeef\n"), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if tc.GateEnv {
-				t.Setenv(GateEnv, "1")
-			} else {
-				t.Setenv(GateEnv, "")
-			}
 			call := ToolCall{ToolName: tc.Tool}
 			if call.ToolName == "" {
 				call.ToolName = "Bash"

@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 306,
+        "nodes": 72,
         "reason": "served-target measures 194 where the row's estimate took 150 for all four checks; the other three are estimated at about 100 each."
       },
       "steps": [
-        {
-          "id": "tensor-shapes",
-          "title": "Refuse a tensor of another shape before placing it",
-          "status": "open",
-          "verify": "go test ./internal/mosstrain -count=1 -run '^TestATensorOfAnotherShapeIsRefused$'",
-          "rationale": "mosstrain.New places what it reads (internal/mosstrain/trainer_windows.go:149-155,182-193), and affine slices by the spec's width (:365-376), so a config that disagrees with its weights panics or reads past a device buffer. Hold each tensor's shape to the spec in the route's tensors closure, as inference does (internal/latentimage/resident_graph_cuda_windows.go:77).\nServes: failure-rate on a mismatched checkpoint.\nDisappears: nothing.\nEvidence: its test.\nBatch: training lane."
-        },
         {
           "id": "held-out-bytes",
           "title": "Hold a picture out by its bytes",

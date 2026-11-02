@@ -270,10 +270,17 @@ func trainMOSS(ctx context.Context, flags *flag.FlagSet, args []string) (err err
 		return err
 	}
 	defer source.Close()
+	shapes, err := latentimage.RotaryWeightShapes(spec)
+	if err != nil {
+		return err
+	}
 	tensors := func(name string) ([]float32, error) {
 		tensor, known := source.Tensors[name]
 		if !known {
 			return nil, errors.New("the checkpoint holds no such tensor")
+		}
+		if err := mosstrain.CheckShape(shapes, name, tensor.Shape); err != nil {
+			return nil, err
 		}
 		return safetensors.ReadF32(tensor)
 	}

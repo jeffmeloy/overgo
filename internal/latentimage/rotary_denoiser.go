@@ -120,6 +120,22 @@ func (p *rotaryDenoiserProgram) feeds(latent, context []float32, timestep float3
 	}, nil
 }
 
+// RotaryWeightShapes is the shape the denoiser's graph reads each of its weights at, as a checkpoint stores it, so a trainer
+// of those weights holds them to what inference does. It compiles the smallest program, whose weights are every program's.
+func RotaryWeightShapes(t TransformerSpec) (map[string][]uint64, error) {
+	program, err := compileRotaryDenoiserProgram(t, mossRefinementEpsilon, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, nil, dtype.F32)
+	if err != nil {
+		return nil, err
+	}
+	shapes := make(map[string][]uint64, len(program.weightInputs))
+	for _, node := range program.weightInputs {
+		shape := slices.Clone(node.Shape.Slice())
+		slices.Reverse(shape)
+		shapes[node.Name] = shape
+	}
+	return shapes, nil
+}
+
 // CoordinateRotary is the pinned rotary table of a picture and its text: for each
 // token, the sines then the cosines of its four coordinates over the bands.
 func CoordinateRotary(head, height, width, text int, base float64) ([]float32, error) {

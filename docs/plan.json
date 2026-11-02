@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 450,
+        "nodes": 211,
         "reason": "Estimate after the 675d61b80 recheck: video about 150 to 200, the other three about 60 to 120 each."
       },
       "steps": [
-        {
-          "id": "quality-level",
-          "title": "Judge a quality decline against the level the model held",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestASlowQualityDeclineIsFiledAgainstItsLevel$'",
-          "rationale": "Quality is outside repeated (internal/scorecard/record.go:278), so it is compared only with the newest reading (:325-343). With no offsetting gains, five lost cases give a tail of 0.03125 against pairedTail 0.02275 (record.go:832,859; six lost cases file), and Propose only prints it (cmd/loop/improve.go:292-295). The next run compares with the lower value, so a slow decline never files. Timings already guard against this (record.go:150-153,264-270).\nCompare with the best recent level and pair the cases of that reading. Non-headline qualities in row.Heldout take the same path (record.go:344-351,453), so the level covers them too, or a slow decline in a second suite still escapes.\nReplay the recorded scorecards first to count what it would have filed, and whether the 0.0228 test across every cell needs a family correction.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the replay and a table of slow declines.\nBatch: host lane."
-        },
         {
           "id": "failure-window",
           "title": "Count failures over a window of attempts",

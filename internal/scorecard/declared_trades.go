@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"cmp"
 	_ "embed"
 	"fmt"
 	"math"
@@ -99,7 +100,7 @@ func Declare(rows []Row, key, bought string) (Trade, error) {
 	if !found {
 		return Trade{}, fmt.Errorf("scorecard: no measured cell carries the key %s", key)
 	}
-	trade := Trade{Model: row.Model, Name: row.Name, Task: row.Task, Column: column, Contract: cell.Contract, Level: cell.Value, Unit: cell.Unit, Bought: bought}
+	trade := Trade{Model: row.Model, Name: row.Name, Task: row.Task, Column: column, Contract: cell.Contract, Level: cell.Value, Unit: cmp.Or(cell.Unit, cell.Contract.Metric), Bought: bought}
 	if cell.Contract.Origin == originServing {
 		trade.Contract.Scope = artifact.ID{}
 	}

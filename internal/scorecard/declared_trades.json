@@ -90,6 +90,22 @@
       "level": 1411.4699,
       "unit": "ms",
       "bought": "Granite's transcription served from its GPU-resident recipe (77f131776, 2026-10-18), which declared load-time worse by about 306 ms (1079.6 to 1385.8 ms) for a first complete request of 592.8 ms resident; declared in scorecard-regressed-52e09bb29afba8ca/do"
+    },
+    {
+      "model": "model:sha256:68ad1881ffcedc9ed797346b8ecd0784e59162a3de2db8daa92acb014c1251ee",
+      "name": "pocket-tts",
+      "task": "speech",
+      "column": "held-out-quality",
+      "contract": {
+        "metric": "word_error_rate",
+        "origin": "evaluation",
+        "suite": "dataset:sha256:fd1ccc539452b1a79d5413eb87917b79f82330f5160047299fc807fab9c94422",
+        "protocol": "raw-completion",
+        "comparison": "profile:sha256:003a74fb6d22635a51867f837c55f10b1b543a9ea3a12048047d250cb20f55fa"
+      },
+      "level": 0.05154639175257732,
+      "unit": "word_error_rate",
+      "bought": "the served path ending speech as the model's own code ends it, three frames after the end of speech is first seen (d18891dc0): 45 words heard wrongly of 873 where 44 were, one word; declared in 834e7a8e5 and 2859145eb, in commit messages alone"
     }
   ]
 }

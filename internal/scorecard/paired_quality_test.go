@@ -38,19 +38,10 @@ func (model answerer) ScoreContinuations(_ context.Context, prompt string, _ []s
 	return scores, nil
 }
 
-// TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently holds a decline of a
-// held-out quality to what its two readings rest on. One model answers one
-// suite of 40 cases at four commits into a temporary store, and each later
-// reading is set against the first, 30 cases right, case by case. One case
-// answered wrong that was answered right moves the share by more than the
-// scorecard prints, and is no decline. Eight answered wrong are one. Eight
-// answered wrong and four answered right that were wrong move the share by four
-// cases, and is none either: so many answered differently go both ways by
-// chance. Readings whose reports the store does not hold are judged by their
-// stated standard errors, a move within them filing nothing; a reading with
-// none, or a store that cannot be opened, is judged by its value, as it was.
-func TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently(t *testing.T) {
-	t.Parallel()
+// pairedReadings is a store one model answers a suite of 40 cases into: its root, the store, the model, and what answers
+// the suite once more at a commit of its own, wrong on the cases from first up to last.
+func pairedReadings(t *testing.T) (string, *overgodb.Store, artifact.ID, func(commit string, first, last int) Cell) {
+	t.Helper()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := overgodb.Create(root)
@@ -105,6 +96,24 @@ func TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently(t *testing.T) {
 		return Cell{Value: value, Source: result.Evaluation, Direction: runrecord.DirectionMaximize, Cases: cases, Noise: shareError(value, cases), Contract: contract,
 			Compared: "internal/fixture TestPairedPathMatchesItsReference"}
 	}
+	return root, store, identity.Model, read
+}
+
+// TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently holds a decline of a
+// held-out quality to what its two readings rest on. One model answers one
+// suite of 40 cases at four commits into a temporary store, and each later
+// reading is set against the first, 30 cases right, case by case. One case
+// answered wrong that was answered right moves the share by more than the
+// scorecard prints, and is no decline. Eight answered wrong are one. Eight
+// answered wrong and four answered right that were wrong move the share by four
+// cases, and is none either: so many answered differently go both ways by
+// chance. Readings whose reports the store does not hold are judged by their
+// stated standard errors, a move within them filing nothing; a reading with
+// none, or a store that cannot be opened, is judged by its value, as it was.
+func TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	root, store, model, read := pairedReadings(t)
 	baseline := read("a", 0, 10)
 	oneLost := read("b", 0, 11)
 	eightLost := read("c", 0, 18)
@@ -119,7 +128,7 @@ func TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently(t *testing.T) {
 			cells[column] = inapplicable("not measured in this fixture")
 		}
 		cells[metric.Quality] = quality
-		return Row{Model: identity.Model, Name: "paired", Task: recipe.TaskInference, Cells: cells}
+		return Row{Model: model, Name: "paired", Task: recipe.TaskInference, Cells: cells}
 	}
 	// judge files the move from then to now as Gaps does, which reads any move the scorecard prints as a decline, and judges it at root.
 	judge := func(root string, then, now Cell) ([]Gap, []string) {

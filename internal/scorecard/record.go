@@ -162,7 +162,9 @@ func (record Record) explained() error {
 // so a model new to the records, or one whose readings a change of recipe has just begun,
 // is judged from its second reading; with no judged cell in its column it is Unknown,
 // never holding. A level leaves with the window, so a decline that stands is a decline
-// until then. Nil when no record is earlier.
+// until then. A held-out quality repeats to the digit, so it has no noise to take a median
+// over: it is judged against the best of the same newest readings (held). Nil when no record
+// is earlier.
 func Reference(records []Record) *Record {
 	reference := Earlier(records)
 	if reference == nil {
@@ -194,6 +196,12 @@ func Reference(records []Record) *Record {
 				}
 				return one.Warm[at]
 			})
+		}
+		if cell := row.Cells[metric.Quality]; cell.Measured() {
+			row.Cells[metric.Quality] = held(earlier, row, cell)
+		}
+		for index, cell := range row.Heldout {
+			row.Heldout[index] = held(earlier, row, cell)
 		}
 	}
 	shares := map[metric.Name][]float64{}
@@ -241,21 +249,9 @@ func (c *Cell) borrow(column metric.Name, shares []float64) {
 // took the place of, hold of it, each read by read.
 func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(Row) Cell) Cell {
 	var readings []float64
-	seen := make(map[artifact.ID][]float64)
-	for _, record := range earlier {
-		at := predecessor(record.Rows, row)
-		if at < 0 {
-			continue
-		}
-		one := read(record.Rows[at])
-		if one.Measured() && one.Value != 0 && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
-			readings = append(readings, one.Value)
-			if one.Source.Valid() {
-				seen[one.Source] = append(seen[one.Source], one.Value)
-			}
-		}
+	for _, one := range readingsOf(earlier, row, cell, read) {
+		readings = append(readings, one.Value)
 	}
-	readings = readings[max(0, len(readings)-referenceWindow):]
 	if len(readings) < fewestReadings {
 		cell.unjudged = fmt.Sprintf("%d earlier readings on its contract, fewer than the %d that say what it holds and how far it moves", len(readings), fewestReadings)
 		return cell
@@ -270,6 +266,46 @@ func judged(earlier []Record, row Row, column metric.Name, cell Cell, read func(
 		held := median(slices.Clone(readings[from : from+levelReadings]))
 		if advantage, _ := direction.Advantage(held, cell.Value); advantage > 0 {
 			cell.Value = held
+		}
+	}
+	return cell
+}
+
+// readingsOf is what the earlier records hold of a reference's cell (Reference): the newest referenceWindow readings on its
+// contract, environment and direction, each source once and oldest first.
+func readingsOf(earlier []Record, row Row, cell Cell, read func(Row) Cell) []Cell {
+	var readings []Cell
+	seen := make(map[artifact.ID][]float64)
+	for _, record := range earlier {
+		at := predecessor(record.Rows, row)
+		if at < 0 {
+			continue
+		}
+		one := read(record.Rows[at])
+		if one.Measured() && one.Value != 0 && one.Contract.measures(cell.Contract) && one.Environment == cell.Environment && one.Direction == cell.Direction && (!one.Source.Valid() || !slices.Contains(seen[one.Source], one.Value)) {
+			readings = append(readings, one)
+			if one.Source.Valid() {
+				seen[one.Source] = append(seen[one.Source], one.Value)
+			}
+		}
+	}
+	return readings[max(0, len(readings)-referenceWindow):]
+}
+
+// held is a reference's held-out quality as the best of its newest readings, so a run of small declines is judged against
+// where the cell stood before them, and by the cases of that reading (judgeQuality), not by the one step from the last.
+func held(earlier []Record, row Row, cell Cell) Cell {
+	direction := cmp.Or(cell.Direction, columnDirections[metric.Quality])
+	readings := readingsOf(earlier, row, cell, func(one Row) Cell {
+		measured := one.Measured(metric.Quality)
+		if at := slices.IndexFunc(measured, func(other Cell) bool { return other.Contract.measures(cell.Contract) }); at >= 0 {
+			return measured[at]
+		}
+		return Cell{}
+	})
+	for _, reading := range readings {
+		if advantage, _ := direction.Advantage(reading.Value, cell.Value); advantage > 0 {
+			cell = reading
 		}
 	}
 	return cell

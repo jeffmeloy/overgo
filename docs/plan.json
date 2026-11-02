@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 158,
+        "nodes": 148,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "directory-identity",
-          "title": "Give a directory one identity",
-          "status": "open",
-          "verify": "go test ./internal/libraryintake -count=1 -run '^TestARegisteredDirectoryRunsUnderItsRegisteredIdentity$'",
-          "rationale": "Library registration publishes the HF inventory (internal/libraryintake/intake.go:177-184) and the run identifies the view (internal/modelartifact/inventory.go:221-255), and they differ for all three types (reproduced). A directory registered from the library therefore runs as a model the store has never seen, and catalog-states would list it twice. For a directory hfconvert.Viewed reads, register through PrepareInferenceCandidate, as a GGUF does.\nServes: setup-steps; a registered model keeps its identity at run.\nDisappears: the structural-only branch for viewed directories.\nEvidence: its test.\nBatch: recipe lane."
-        },
         {
           "id": "scorecard-label",
           "title": "Label a scorecard reading from a model that is not verified",

@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
 )
 
 func TestComponentImportInspectionRoutes(t *testing.T) {
@@ -56,5 +58,36 @@ func TestComponentImportInspectionRoutes(t *testing.T) {
 	after, _ = store.Head()
 	if after != beforeCorruption {
 		t.Fatal("corrupt import changed prior registration")
+	}
+}
+
+// TestARegisteredDirectoryRunsUnderItsRegisteredIdentity: a directory the view serves is the one model whether it is
+// registered or run, so the catalog lists it once.
+func TestARegisteredDirectoryRunsUnderItsRegisteredIdentity(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Create(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
+		t.Fatal(err)
+	}
+	directory := testutil.Qwen35Directory(t)
+	receipt, err := Register(t.Context(), store, directory, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	identity, err := loaded.Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.Model != receipt["model"] {
+		t.Fatalf("ran as %v, registered as %v", identity.Model, receipt["model"])
 	}
 }

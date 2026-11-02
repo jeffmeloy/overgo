@@ -20,6 +20,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/gguf"
+	"overgo/internal/hfconvert"
 	"overgo/internal/hfrepo"
 	"overgo/internal/inference"
 	"overgo/internal/mediacapability"
@@ -174,14 +175,18 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 			}
 			return map[string]any{"path": path, "model": modelID, "recipe": definition.ID, "qualification": "candidate"}, nil
 		}
-		inspection, err := modelintake.InspectImport(ctx, path, "")
-		if err != nil {
-			return nil, refusal{err}
+		// A directory the view serves registers as a GGUF does, under the identity it runs by: the HF inventory would name
+		// another model, and the catalog would list the one directory twice.
+		if !hfconvert.Viewed(path) {
+			inspection, err := modelintake.InspectImport(ctx, path, "")
+			if err != nil {
+				return nil, refusal{err}
+			}
+			if err := modelintake.RegisterImport(ctx, repository, inspection); err != nil {
+				return nil, err
+			}
+			return map[string]any{"path": path, "model": inspection.Inventory.Manifest.ID, "inspection": inspection.Content.Descriptor.ID, "qualification": "structural-only"}, nil
 		}
-		if err := modelintake.RegisterImport(ctx, repository, inspection); err != nil {
-			return nil, err
-		}
-		return map[string]any{"path": path, "model": inspection.Inventory.Manifest.ID, "inspection": inspection.Content.Descriptor.ID, "qualification": "structural-only"}, nil
 	}
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, repository, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {

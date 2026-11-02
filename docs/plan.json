@@ -172,8 +172,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 42,
-        "reason": "training-target measures 658, a verdict's support carried through evaluation and the scorecard to a target file, where 150 was estimated; judged-proof adds a record and little code."
+        "nodes": 59,
+        "reason": "the real run found two things the estimate did not hold: a trained directory read as its base (61) and a target whose command read the data in file order, about 40 more."
       },
       "steps": [
         {

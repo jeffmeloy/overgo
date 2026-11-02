@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 // TestModelInventory holds the inventory to starting from the directories on
@@ -89,5 +90,39 @@ func TestModelInventory(t *testing.T) {
 	}
 	if filepath.Base(read[1].Path) != "notes" || read[1].Weights || read[1].ModelType != "" {
 		t.Fatalf("directory without weights = %+v", read[1])
+	}
+}
+
+// TestATrainedModelIsTiedByWhereItIs: a trained directory holds the config of the model it was trained from, whose content
+// ties neither way. Tied, the base would read as the trained model, refusing its admission, and a conversion of the base
+// would read as a conversion of these weights, which admitting the directory retires.
+func TestATrainedModelIsTiedByWhereItIs(t *testing.T) {
+	t.Parallel()
+	base := testutil.ArtifactID(t, artifact.KindModel, "base")
+	conversion := testutil.ArtifactID(t, artifact.KindModel, "conversion")
+	trained := testutil.ArtifactID(t, artifact.KindModel, "trained")
+	const shared = "the digest of the config training kept"
+	cells := []ModelValidation{
+		{Model: base, Location: `C:\models\Base`, Validation: "guard"},
+		{Model: conversion, Location: `C:\checkpoints\Base.gguf`, Validation: "guard"},
+		{Model: trained, Location: `C:\checkpoints\Tuned`, Trained: true},
+	}
+	directories := []modelDirectory{
+		{Path: "C:/checkpoints/Tuned", Weights: true, ConfigDigests: []string{shared}},
+		{Path: "C:/models/Base", Weights: true, ConfigDigests: []string{shared}},
+	}
+	recorded := map[artifact.ID][]string{base: {shared}, conversion: {shared}, trained: {shared}}
+	inventory := buildInventory(directories, cells, recorded, "C:/stores/selected")
+	models := func(entry DirectoryInventory) (tied []artifact.ID) {
+		for _, model := range entry.Models {
+			tied = append(tied, model.Model)
+		}
+		return tied
+	}
+	if got := models(inventory[0]); !slices.Equal(got, []artifact.ID{trained}) {
+		t.Fatalf("the trained directory is tied to %v, want its own model alone", got)
+	}
+	if got := models(inventory[1]); !slices.Equal(got, []artifact.ID{base, conversion}) {
+		t.Fatalf("the base's directory is tied to %v, want the base and its conversion", got)
 	}
 }

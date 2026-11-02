@@ -139,7 +139,9 @@ func convertedSources(ctx context.Context, store overgodb.DocumentReader) (map[a
 // buildInventory ties the registered cells to the directories and states each
 // directory's standing. A model is tied by its location beneath the directory,
 // or by a recorded config file whose content is the directory's own; never by
-// a name. A model with a cell that lacks an activation, or a stale one, is
+// a name. A trained model holds the config of the model it was trained from,
+// so content ties it to nothing, either way: that model's conversions are no
+// conversion of these weights. A model with a cell that lacks an activation, or a stale one, is
 // registered; one whose cells are all activated is activated. Whether its
 // evidence holds is the cycle's to say, which re-acquires every activated
 // cell. A directory takes the standing of its best model, because a
@@ -154,13 +156,17 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 		}
 		prefix := strings.ToLower(filepath.ToSlash(directory.Path)) + "/"
 		tied := map[artifact.ID]int{}
+		located := func(cell ModelValidation) bool {
+			return strings.HasPrefix(strings.ToLower(filepath.ToSlash(cell.Location))+"/", prefix)
+		}
+		trained := slices.ContainsFunc(cells, func(cell ModelValidation) bool { return cell.Trained && located(cell) })
 		for _, cell := range cells {
 			link := ""
 			switch {
 			// A model served from the directory's own files is located at the directory itself.
-			case strings.HasPrefix(strings.ToLower(filepath.ToSlash(cell.Location))+"/", prefix):
+			case located(cell):
 				link = linkLocation
-			case slices.ContainsFunc(converted[cell.Model], func(digest string) bool { return slices.Contains(directory.ConfigDigests, digest) }):
+			case !trained && !cell.Trained && slices.ContainsFunc(converted[cell.Model], func(digest string) bool { return slices.Contains(directory.ConfigDigests, digest) }):
 				link = linkConverted
 			default:
 				continue

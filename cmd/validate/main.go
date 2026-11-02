@@ -346,7 +346,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 			name = filepath.Base(entry.Location)
 		}
 		if !entry.Present || len(entry.Capabilities) == 0 {
-			cells = append(cells, ModelValidation{Model: entry.Model, ModelName: name, Location: entry.Location})
+			cells = append(cells, ModelValidation{Model: entry.Model, ModelName: name, Location: entry.Location, Trained: entry.Trained, Measured: entry.Measured})
 			continue
 		}
 		modality := declaredModality(ctx, store, entry.Model)

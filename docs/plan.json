@@ -172,23 +172,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 201,
-        "reason": "policy-moves measures 339: a recorded move with its own document, and a store parameter through the verification path; the estimate held no record. About 200 for the three steps left."
+        "nodes": 150,
+        "reason": "sampling-identity measures 240, a field through two recording paths; about 150 left for candidate-closure and declared-penalty."
       },
       "steps": [
-        {
-          "id": "sampling-identity",
-          "title": "Bring declared sampling into what a run records",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestDeclaredSamplingIsBoundToTheRun$'",
-          "rationale": "The newest stored model config overlays sampling at load (internal/modelrecipe/loaded_program.go:83,112-126; second caller derived_program.go:90), can be recorded after activation, and is outside the recipe's identity (compile.go:709-726). A file's general.sampling is inside the model's identity, so only the store document (model_config_sampling.go:24-35) escapes. Verification forces greedy (internal/evaluation/exact.go:127), so it never sees it.\nThe effective policy already gets its own id (:108), and only internal/evaluation/transcription_projected.go:128-130 binds it to a run: generalize that. The test compares run identities, since policy ids already differ.\nA declared repetition penalty is also inert: model_config_sampling.go:103-105 sets it, runtime_policies.json:21,71 keep repeat_last_n 0, and sampling/order.go:56 idles the stage. Recheck this against run-from-files/declared-template, which moved this code.\nServes: replay and comparison across a config change.\nDisappears: nothing.\nEvidence: two configs give two run identities.\nBatch: host lane."
-        },
         {
           "id": "candidate-closure",
           "title": "Compare candidate plans in one order, and validate what runs",
           "status": "open",
           "verify": "go test ./internal/modelrecipe -count=1 -run '^(TestACandidateValidatesInEveryDeclaredOrder|TestAnUnloadableRecipeIsNotRunnable)$'",
           "rationale": "ValidateIdentity compares hash-sorted trial lists with declared-order lists (internal/modelrecipe/candidate_compile.go:147-148,872-876). Measured over 200 label sets: one component with one ablation 0 refused, two components 148, one component with two ablations 91. So a single same-base candidate with two deltas is refused too (composition/candidate_plugin.go:237-241), reached from cmd/loop/evidence.go:405 through evaluation/candidate_attribution.go:192. Tests use one.\nValidateCandidateRecipe skips capability compile for inference (candidate_validation.go:62), so it reports an unloadable recipe as runnable. Compile refuses inference by design (compile.go:606-608) and a load check needs a file, so 'unloadable' means the structure check at compile.go:625-633.\nBridge recipes are refused 'unknown module model.capture-representation' (measured) by the catalog choice at candidate_validation.go:39 and again at compile.go:609-610; both change.\nServes: candidates reach evaluation.\nDisappears: a false verdict.\nEvidence: two components, and two ablations of one, in every order.\nBatch: host lane."
+        },
+        {
+          "id": "declared-penalty",
+          "title": "A declared penalty reaches the sampler, measured before it lands",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestADeclaredPenaltyReachesTheSampler$'",
+          "rationale": "A declared repetition or presence penalty does nothing: withDeclaredSampling sets the penalty, runtime_policies.json keeps repeat_last_n 0, and sampling.PenaltiesIdle reads a window of 0 as idle. A maker's generation_config.json means the penalty to apply over the text so far, so what a model serves differs from what its maker declared.\nTurning it on is one line, a window of -1 when a declared penalty is not neutral, and it changes what is served: the penalty stage leaves the raw greedy path, so throughput may fall, and the output of every model that declares one changes. So measure first: read the models that declare a penalty, then one model's serving and quality cells with it on against off, and land it only if the quality holds.\nServes: held-out-quality, and a model served as its maker declared.\nDisappears: a declaration that reads as applied and is not.\nEvidence: a test that a declared penalty reaches the sampler, and the cells of one declaring model before and after.\nBatch: one device run."
         }
       ]
     },

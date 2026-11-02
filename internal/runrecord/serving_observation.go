@@ -101,6 +101,9 @@ type ServingObservation struct {
 	UserSize bool `json:"user_size,omitzero"`
 	// CodeCommit is the commit the attempt ran (RunningCommit). A record from before this field holds none.
 	CodeCommit string `json:"code_commit,omitzero"`
+	// Policy is the runtime policy the attempt ran under, the model's declared sampling overlaid on the catalog's, which the
+	// recipe's identity does not carry and a later declaration can change. A record from before this field holds none.
+	Policy artifact.ID `json:"policy,omitzero"`
 	// Causal explains why the serving execution occurred.
 	Causal *CausalContext `json:"causal,omitempty"`
 	ID     artifact.ID    `json:"-"`
@@ -304,6 +307,9 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 		!value.Task.Valid() || value.RealizedResidency != "" && !value.RealizedResidency.Valid() ||
 		value.StartedUnixNS <= 0 || value.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid serving observation authority")
+	}
+	if value.Policy.Valid() && value.Policy.Kind() != artifact.KindProfile {
+		return errors.New("run record: invalid serving policy")
 	}
 	if value.Operation.Valid() && (value.Operation.Kind() != artifact.KindEvidence || value.Operation == value.Environment) {
 		return errors.New("run record: invalid serving operation")

@@ -40,6 +40,7 @@ type servedModel interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
 	ModelProperties() inference.ModelProperties
 	TokenizeSamplingText(string) ([]tokenizer.TokenID, error)
+	RuntimePolicy() modelrecipe.RuntimePolicy
 	Close() error
 }
 
@@ -145,7 +146,9 @@ func measureInference(ctx context.Context, repository, path string, open func(co
 		return evaluation.ExactResult{}, artifact.ID{}, err
 	}
 	var lengths []runrecord.ServingObservation
+	var policy modelrecipe.RuntimePolicy
 	observation, result, cause := observeInference(ctx, open, requests[0], os.Stderr, func(loaded servedModel) {
+		policy = loaded.RuntimePolicy()
 		lengths = append(observeLengths(ctx, loaded, os.Stderr), observeWarm(ctx, loaded, os.Stderr)...)
 	})
 	store, err := overgodb.Open(repository)
@@ -155,6 +158,9 @@ func measureInference(ctx context.Context, repository, path string, open func(co
 	var recorded runrecord.ServingObservation
 	for index, attempt := range append([]runrecord.ServingObservation{observation}, lengths...) {
 		attempt.Model, attempt.Recipe = model, active
+		if policy.ID.Valid() {
+			cause = errors.Join(cause, modelrecipe.BindServingPolicy(context.WithoutCancel(ctx), store, &attempt, policy))
+		}
 		published, recordErr := recordInference(context.WithoutCancel(ctx), store, attempt)
 		if index == 0 {
 			recorded = published

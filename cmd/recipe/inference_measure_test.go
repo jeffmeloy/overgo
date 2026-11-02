@@ -105,6 +105,11 @@ func (*servedFixture) DeviceMemoryStats(context.Context) (driver.MemoryStats, er
 // Close releases nothing.
 func (*servedFixture) Close() error { return nil }
 
+func (*servedFixture) RuntimePolicy() modelrecipe.RuntimePolicy {
+	policy, _, _ := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	return policy
+}
+
 // servingAttempts reads every serving attempt the store at directory holds,
 // newest first.
 func servingAttempts(t *testing.T, directory string) []runrecord.ServingObservation {
@@ -212,6 +217,9 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 		t.Fatalf("measurement = %+v, %v after prompts %q; want the first verified case answered", result, err, model.prompts)
 	}
 	observed := servingAttempts(t, directory)
+	if len(observed) == 1 && observed[0].Policy != model.RuntimePolicy().ID {
+		t.Fatalf("the attempt ran under %v, and records %v", model.RuntimePolicy().ID, observed[0].Policy)
+	}
 	if len(observed) != 1 || observed[0].ID != attempt || observed[0].Recipe != active || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
 		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the recipe with output tokens", observed)
 	}

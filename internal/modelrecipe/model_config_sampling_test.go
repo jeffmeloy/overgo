@@ -8,9 +8,11 @@ import (
 	"reflect"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
 )
@@ -142,5 +144,47 @@ func TestDeclaredSamplingPreservesPolicyIdentity(t *testing.T) {
 		if original.ValidateIdentity() != nil {
 			t.Fatal("failed overlay mutated catalog policy")
 		}
+	}
+}
+
+// TestDeclaredSamplingIsBoundToTheRun: a model's declared sampling is outside its recipe's identity and can change after
+// activation, so two attempts of one recipe under two declarations are two records, each naming a policy the store holds.
+func TestDeclaredSamplingIsBoundToTheRun(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store := openProgramStore(t)
+	defer store.Close()
+	catalog, found, err := CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		t.Fatalf("catalog policy: %v", err)
+	}
+	attempt := func(temperature float64) runrecord.ServingObservation {
+		t.Helper()
+		policy, err := withDeclaredSampling(catalog, &modelartifact.GenerationSampling{Origin: "generation_config.json", DoSample: true, Temperature: temperature})
+		if err != nil {
+			t.Fatal(err)
+		}
+		observation := runrecord.ServingObservation{
+			Version: artifact.InitialDocumentVersion, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1,
+			Model:       testutil.ArtifactID(t, artifact.KindModel, "declared"),
+			Recipe:      testutil.ArtifactID(t, artifact.KindRecipe, "one recipe"),
+			Environment: testutil.ArtifactID(t, artifact.KindEvidence, "one machine"),
+		}
+		if err := BindServingPolicy(ctx, store, &observation, policy); err != nil {
+			t.Fatal(err)
+		}
+		if observation, err = runrecord.NewServingObservation(observation); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := runtimePolicyCodec.Require(ctx, store, observation.Policy); err != nil {
+			t.Fatalf("the attempt names a policy the store does not hold: %v", err)
+		}
+		return observation
+	}
+	if warm, cool := attempt(0.9), attempt(0.3); warm.ID == cool.ID || warm.Policy == cool.Policy {
+		t.Fatalf("two declarations made one record: %v and %v", warm.ID, cool.ID)
+	}
+	if first, again := attempt(0.9), attempt(0.9); first.ID != again.ID {
+		t.Fatalf("one declaration made two records: %v and %v", first.ID, again.ID)
 	}
 }

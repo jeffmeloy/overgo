@@ -10,6 +10,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 )
 
@@ -68,6 +69,24 @@ func fileDeclaredSampling(file *gguf.File) *modelartifact.GenerationSampling {
 	_, temperature := file.MetadataValue("general.sampling.temp")
 	declared.DoSample = !temperature || declared.Temperature > 0 || !checked.Finite64(declared.Temperature)
 	return declared
+}
+
+// BindServingPolicy records on an attempt the policy it ran under and publishes that policy beside it, so that two attempts
+// of one recipe under different declarations are two records, and either can be replayed.
+func BindServingPolicy(ctx context.Context, store artifact.Repository, observation *runrecord.ServingObservation, policy RuntimePolicy) error {
+	content, err := policy.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch("runtime-policy/effective/"+policy.ID.String(), []artifact.Content{content}, nil, nil)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
+		return err
+	}
+	observation.Policy = policy.ID
+	return nil
 }
 
 // withDeclaredSampling overlays a model's declared sampling onto both

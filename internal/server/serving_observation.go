@@ -76,6 +76,11 @@ func (h *Handler) publishServing(ctx context.Context, observation runrecord.Serv
 	}); ok {
 		observation.RealizedResidency = observer.RealizedResidency()
 	}
+	if provider, ok := h.generator.(runtimePolicyProvider); ok && provider.RuntimePolicy().ID.Valid() {
+		if err := modelrecipe.BindServingPolicy(context.WithoutCancel(ctx), h.repository, &observation, provider.RuntimePolicy()); err != nil {
+			h.observationErrors.Add(1)
+		}
+	}
 	published, err := servingattempt.Record(context.WithoutCancel(ctx), h.repository, observation)
 	if err != nil {
 		h.observationErrors.Add(1)

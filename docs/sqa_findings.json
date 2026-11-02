@@ -6481,6 +6481,17 @@
         "plan_steps": [
           "sqa-tests/nextn-oracle"
         ]
+      },
+      {
+        "comment": "Landed with sqa-tests/runner-cleanup. The registration follows the existing TestFlashNextSpeculationHoldsIFEval pattern and relies on Runner.Close's closed guard for the normal path's second call. No helper, no retry, no change to stores, suites or acceptance. Checked by go vet with the modeltest and pairtest tags; the failure path itself was not exercised, as the finding's closure allows.",
+        "disposition": "implemented",
+        "evidence": [
+          "go vet -tags 'modeltest pairtest' ./internal/evaluation"
+        ],
+        "finding_id": "SQA-273",
+        "plan_steps": [
+          "sqa-tests/runner-cleanup"
+        ]
       }
     ],
     "experiments": {
@@ -6527,7 +6538,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "ad58f169d8fa4d7f8365c24bed86462f1b67315d",
+    "head": "68274d24a1d9c06ec9dbed7165fa46a85ca41b37",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6795,11 +6806,11 @@
         "note": "Landed. The default test's body folds into TestNextNMTPDeviceSpeculationLossless, whose plain arm is now a real PlainDecode generation; the default and the explicit-override generations are each compared with it, tokens and text. Awaits the reviewer's closure."
       },
       "SQA-273": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "sqa-tests/runner-cleanup"
         ],
-        "note": "Accepted: a failed collection leaves a model loaded and spoils the tests after it. Four t.Cleanup lines."
+        "note": "Landed. Each of the four paired tests registers t.Cleanup right after OpenRunner, and the explicit checked Close stays so the first model frees the card before its comparison loads. Compiled and vetted only: these are failure paths of model tests, so no failed collection was run. Awaits the reviewer's closure."
       },
       "SQA-277": {
         "action": "none",

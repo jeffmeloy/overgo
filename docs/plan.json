@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "sqa-tests",
-      "title": "Repair the register's false test acceptances",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Test-only: production nodes do not grow."
-      },
-      "steps": [
-        {
-          "id": "runner-cleanup",
-          "title": "Close paired-test runners when answer collection fails",
-          "status": "open",
-          "verify": "go vet -tags 'modeltest pairtest' ./internal/evaluation",
-          "rationale": "SQA-273: each of the four paired tests registers t.Cleanup after OpenRunner.\nServes: a failed collection does not spoil the tests after it.\nDisappears: nothing.\nEvidence: compile and vet; the paths are failure paths of model tests.\nBatch: model-test lane."
-        }
-      ]
-    },
-    {
       "id": "run-from-files",
       "title": "Run and train a model from its own files, noting its state",
       "owner": "master-lead",

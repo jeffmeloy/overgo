@@ -100,6 +100,11 @@ func TestQwen35CellsHoldHeldOut(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				t.Cleanup(func() {
+					if err := runner.Close(); err != nil {
+						t.Error(err)
+					}
+				})
 				right[f32] = map[string]map[string]bool{}
 				for family, suite := range suites {
 					right[f32][family] = answerCells(t, suite, cellsRuntime{runner})

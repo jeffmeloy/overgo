@@ -80,6 +80,11 @@ func TestPromptTensorCoresHoldHeldOut(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				t.Cleanup(func() {
+					if err := runner.Close(); err != nil {
+						t.Error(err)
+					}
+				})
 				right[tensorCores] = map[string]map[string]bool{}
 				for family, suite := range parts {
 					var runtime Runtime = rawRuntime{runner}

@@ -265,38 +265,93 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 			break
 		}
 		session.Steps, session.Interaction = step, interaction.ID
-		transcript, err := runrecord.RequireInteractionTranscript(ctx, c.store, interaction.Message)
+		effect, known, err := c.stepInspection(ctx, interaction)
 		if err != nil {
 			return nil, err
 		}
-		for _, message := range transcript.Messages {
-			for _, call := range message.ToolCalls {
-				// Resolve the EXACT tool the step ran by its recorded
-				// manual identity, so a later effect-class change on the
-				// name alias cannot rewrite whether this step inspected.
-				// Records written before manual.ID existed fall back to the
-				// name alias, the best identity they carry.
-				var manual agenttool.Manual
-				if call.Manual.Valid() {
-					manual, err = agenttool.LoadManual(ctx, c.store, call.Manual)
-				} else {
-					manual, err = agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
-				}
-				if err == nil {
-					if manual.Effect == agenttool.EffectMutation {
-						session.Inspection, session.InspectionEffect = artifact.ID{}, artifact.ID{}
-						continue
-					}
-					effect, effectErr := agenttool.DeriveInvocationEffect(manual, json.RawMessage(call.Arguments), nil)
-					if effectErr != nil {
-						return nil, effectErr
-					}
-					session.Inspection, session.InspectionEffect = interaction.ID, effect.ID
-				}
-			}
+		if known && effect.Valid() {
+			session.Inspection, session.InspectionEffect = interaction.ID, effect
+		} else if known {
+			session.Inspection, session.InspectionEffect = artifact.ID{}, artifact.ID{}
 		}
 	}
 	return session, nil
+}
+
+// stepInspection reads what one recorded step left of the inspection fact: the effect of an inspection, none after a
+// mutation, and known is false where no tool of the step can be read, which leaves the fact as it stood.
+func (c *Coordinator) stepInspection(ctx context.Context, interaction runrecord.Interaction) (effect artifact.ID, known bool, err error) {
+	transcript, err := runrecord.RequireInteractionTranscript(ctx, c.store, interaction.Message)
+	if err != nil {
+		return artifact.ID{}, false, err
+	}
+	for _, message := range transcript.Messages {
+		for _, call := range message.ToolCalls {
+			// Resolve the EXACT tool the step ran by its recorded
+			// manual identity, so a later effect-class change on the
+			// name alias cannot rewrite whether this step inspected.
+			// Records written before manual.ID existed fall back to the
+			// name alias, the best identity they carry.
+			var manual agenttool.Manual
+			var resolveErr error
+			if call.Manual.Valid() {
+				manual, resolveErr = agenttool.LoadManual(ctx, c.store, call.Manual)
+			} else {
+				manual, resolveErr = agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
+			}
+			if resolveErr != nil {
+				continue
+			}
+			known = true
+			effect = artifact.ID{}
+			if manual.Effect != agenttool.EffectMutation {
+				derived, err := agenttool.DeriveInvocationEffect(manual, json.RawMessage(call.Arguments), nil)
+				if err != nil {
+					return artifact.ID{}, false, err
+				}
+				effect = derived.ID
+			}
+		}
+	}
+	return effect, known, nil
+}
+
+// SessionTip is a recorded session as a list shows it.
+type SessionTip struct {
+	Steps       int
+	Interaction artifact.ID
+	Inspected   bool
+}
+
+// ReadSessionTip reads what RestoreSession would find of a session whose last step is the one given, walking back only as
+// far as a step whose tool can be read: a list of every session costs a read of each one's end, and builds none.
+func (c *Coordinator) ReadSessionTip(ctx context.Context, id string, last int) (SessionTip, error) {
+	if ctx == nil || id == "" {
+		return SessionTip{}, errors.New("agent loop: nil context or empty session id")
+	}
+	var tip SessionTip
+	tip.Steps = min(last, c.maxSteps)
+	for step := tip.Steps; step >= 1; step-- {
+		interaction, found, err := runrecord.ResolveInteraction(ctx, c.store, fmt.Sprintf("%s-step-%d", id, step))
+		if err != nil {
+			return SessionTip{}, err
+		}
+		if !found {
+			continue
+		}
+		if !tip.Interaction.Valid() {
+			tip.Interaction = interaction.ID
+		}
+		effect, known, err := c.stepInspection(ctx, interaction)
+		if err != nil {
+			return SessionTip{}, err
+		}
+		if known {
+			tip.Inspected = effect.Valid()
+			break
+		}
+	}
+	return tip, nil
 }
 
 // ApproveMutation durably records the operator's grant for the

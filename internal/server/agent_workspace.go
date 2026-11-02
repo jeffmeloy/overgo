@@ -227,9 +227,10 @@ func wireArguments(arguments []string) []string {
 
 // agentSessionList projects every durable agent session from the
 // interaction alias namespace: the session identity, its recorded
-// step count, the interaction tip, and -- restored through the same
-// path a restart uses -- its inspection state against the step bound.
-// A restarted server lists exactly what the ledger remembers.
+// step count, the interaction tip, and its inspection state against the
+// step bound, each read from the session's end, so a list builds no
+// session and an agent step never waits on one. A restarted server lists
+// exactly what the ledger remembers.
 func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.Request) {
 	names, err := responseInteractionNames(request.Context(), h.repository)
 	if err != nil {
@@ -251,14 +252,14 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 		}
 	}
 	sessions := make([]map[string]any, 0, len(steps))
-	for id := range steps {
-		session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, id)
+	for id, last := range steps {
+		tip, err := h.agentCoordinator.ReadSessionTip(request.Context(), id, last)
 		if err != nil {
 			continue
 		}
 		sessions = append(sessions, map[string]any{
-			"id": id, "steps": session.Steps, "bound": h.config.MaxStoredResponses, "inspected": session.Inspection.Valid(),
-			"interaction": idText(session.Interaction),
+			"id": id, "steps": tip.Steps, "bound": h.config.MaxStoredResponses, "inspected": tip.Inspected,
+			"interaction": idText(tip.Interaction),
 		})
 	}
 	slices.SortFunc(sessions, func(left, right map[string]any) int {

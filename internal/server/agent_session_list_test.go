@@ -81,3 +81,50 @@ func TestAgentSessionList(t *testing.T) {
 		t.Fatalf("resumed step status=%d body=%s", resumed.Code, resumed.Body.String())
 	}
 }
+
+// TestListingAgentSessionsRestoresNone: a restarted server lists what the first one listed, and no session was built to do
+// it, so a list on a long-lived store costs a read of each session's end.
+func TestListingAgentSessionsRestoresNone(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	generator := responseRecipeGenerator(t, &fakeGenerator{})
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key: "agent/session-list-restores-none", Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manuals, err := agenttool.StandardManuals()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
+		t.Fatal(err)
+	}
+	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
+		if response := serveTestRequest(first, http.MethodPost, "/agents/step", step); response.Code != http.StatusOK {
+			t.Fatalf("step status=%d body=%s", response.Code, response.Body.String())
+		}
+	}
+	listed := serveTestRequest(first, http.MethodGet, "/agents/sessions", "")
+	restarted, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restarted.Close()
+	again := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
+	if again.Code != http.StatusOK || again.Body.String() != listed.Body.String() {
+		t.Fatalf("the restarted list = %d %s, the first = %s", again.Code, again.Body.String(), listed.Body.String())
+	}
+	if built := len(restarted.agentSessions.sessions); built != 0 {
+		t.Fatalf("a list built %d sessions", built)
+	}
+}

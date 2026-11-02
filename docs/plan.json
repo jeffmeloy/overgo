@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "serving-repairs",
-      "title": "Repair proxy, agent and provider defects in the served path",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 9,
-        "reason": "agent-attempts took 584 of an estimated 120: a retry carries a new approval, so the receipt chain, the checkpoint, the restore and both approval paths moved with the ordinal. The rest of the row is estimated from the same reading: provider-listing 300, one-address-list 110, public-routes 50, session-list 150."
-      },
-      "steps": [
-        {
-          "id": "session-list",
-          "title": "List agent sessions without restoring every one",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestListingAgentSessionsRestoresNone$'",
-          "rationale": "The first GET /agents/sessions after a start restores every stored session, one at a time under the map lock (internal/server/agent_workspace.go:37,45,248-249): O(sessions times steps) store reads, and agent steps wait on that lock between restores. Read the list from the store without building sessions.\nServes: load-time of the workbench on a long-lived store.\nDisappears: the restore on a list.\nEvidence: a count of restores during a list.\nBatch: serving lane."
-        }
-      ]
-    },
-    {
       "id": "dispatch-truth",
       "title": "Make a decision's answer govern the rows it names",
       "owner": "master-lead",

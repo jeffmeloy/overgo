@@ -188,3 +188,36 @@ func TestACancelledMutationClosesItsReceipt(t *testing.T) {
 		t.Fatalf("a cancelled mutation could not be tried again: %v", err)
 	}
 }
+
+// TestASessionTipReadsWhatARestoreFinds: after an inspection the tip says inspected and after a mutation it does not, as a
+// restored session does.
+func TestASessionTipReadsWhatARestoreFinds(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	coordinator, store := coordinatorFixture(t)
+	attemptTools(t, store, func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"done":true}`)) })
+	session := &Session{ID: "tip"}
+	agrees := func(step int) {
+		t.Helper()
+		tip, err := coordinator.ReadSessionTip(ctx, session.ID, step)
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, err := coordinator.RestoreSession(ctx, session.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tip.Steps != restored.Steps || tip.Interaction != restored.Interaction || tip.Inspected != restored.Inspection.Valid() {
+			t.Fatalf("tip %+v, restored %+v", tip, restored)
+		}
+	}
+	if _, err := coordinator.Propose(ctx, session, "attempt.look", noArguments); err != nil {
+		t.Fatal(err)
+	}
+	agrees(1)
+	approveChange(t, coordinator, session)
+	if _, err := coordinator.Propose(ctx, session, "attempt.change", noArguments); err != nil {
+		t.Fatal(err)
+	}
+	agrees(fixtureSessionSteps)
+}

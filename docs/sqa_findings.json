@@ -1,23 +1,20 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "No fresh safe net reduction proved. Add 289 for filtered validation completing a whole trained model and 290 for zero quality disappearing from its held level. Credit 221's aggregate sample wording repair; retain its existing quality denominator/equivalence residual.",
-      "priority": "Address the existing store durability/cutover hazard288 before dependent training/evidence work. Preserve286 shutdown cancellation and277 evidence correction priorities. Then fix289 completion scope and290 quality history in their existing owners; existing270/242/287 reductions remain bounded opportunities.",
+      "assessment": "Close221/289/290; credit absent-gradient and served-target prerequisites. Prove one small new safe test reduction291 rather than adding an abstraction. No new safe production reduction established.",
+      "priority": "Keep288 data durability first, then286 shutdown cancellation/277 evidence correction and existing automation obligations. New291 is P3 and fits ordinary test compaction; do not launch extra confidence runs for it.",
       "declined_candidates": [
-        "Do not merge slow-quality regression and paired-outcome tests merely because both call pairedReadings: one owns cumulative headline/secondary history and declared trades; the other owns lost/gained case counts, strict prompts and fallback/error behavior.",
-        "Do not retire GGUF versus directory training-listing cases: they use different publication/loading formats and both must remain listed with no hand activation. Their two marked calls exercise retry semantics; do not infer no duplicate record from a final boolean alone.",
-        "Do not remove pool confirmation setup: wrong-base/proof refusal before output, charged promotion partition, absent ordinary verdict and likelihood direction are distinct requirements.",
-        "Keep48 distinct committed frames in the batch-reader fixture; no new runtime-saving claim from replacing them with one commit. Its existing exact-equality reduction is already SQA-242.",
-        "No new scheduler, notification layer or credit registry. The new post-training validate invocation removes a manual handoff, but it is not proof of unattended completion or an excuse to mark partial acquisition complete.",
-        "Host and Windows device nonfinite tests are distinct: host preserves a broken group's weights and steps a finite neighbor; device refuses f32 squared-norm overflow and returns an error. Dense integration owns stop propagation.",
-        "Failed-evaluation recording/publication and pure scorecard gap tests own different boundaries; request conversion, validation command admission and retained video summaries do too. Similar literals alone do not justify a merged fixture or deleted test."
+        "Do not merge JSON and Hermes protocol bodies, retention graph cases, or GUI live-stream and restart tests merely because setup resembles another test. Keep their different syntax, data safety and recovery obligations.",
+        "Do not replace already-shared stepAbsentGradient or streamingAgentFixture with another helper. Host/device gradient presence, f64/f32 arithmetic and platform/build-tag lifetimes remain distinct.",
+        "Do not infer supervised continuation from RecordRefusal or runRecorder.end. Existing271/258 already cover that gap; no duplicate scheduler recommendation.",
+        "Do not combine served-target preflight with the heavier sharded adapter fixture merely to share directory creation. Admission and successful publication have different contracts; no complete reduction demonstrated."
       ]
     },
   "committed_plan": {
-    "git_blob": "692f21ef38f870da00e7d2c82bb08d246530e969",
+    "git_blob": "2cf1acb1575d14c8b1b139c68a4a1e60ac13fe50",
     "path": "docs/plan.json",
-    "revision": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-    "sha256": "cfd9ee0b3657c6ea09c06d3dda84950d7ac056b57f1b19f544692f38ced898ae",
+    "revision": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+    "sha256": "96b495f5060ea2d31c02f153422a09a565ff76869e2197dec1f9ea60f247d5fa",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -181,126 +178,6 @@
         "One existing acceptance/coverage owner distinguishes current and historical evidence; count acquisition and code/test maintenance honestly."
       ],
       "comparison": "Read the six selected quality ModelDefinition/CodeCommit values against ActiveRecord and the retained producer first. Reuse identity-matching records if present; implementation acquires only missing required evidence via existing suites. No SQA execution."
-    },
-    {
-      "id": "SQA-289",
-      "status": "open",
-      "severity": "P2",
-      "category": "automation-completeness",
-      "classification": "source-established-admitted-counterexample",
-      "title": "Do not mark a trained model fully measured after one filtered validation",
-      "evidence_commit": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-      "sources": [
-        {
-          "path": "cmd/validate/main.go",
-          "symbol": "runArgs: modelNamed -> Plan.OnlyModel -> executeRun"
-        },
-        {
-          "path": "cmd/validate/scorecard.go",
-          "symbol": "modelNamed validation conjunct"
-        },
-        {
-          "path": "cmd/validate/selection.go",
-          "symbol": "Plan.OnlyModel; OnlyTrained; SelectValidation measured-once branch"
-        },
-        {
-          "path": "cmd/validate/run.go",
-          "symbol": "executeMeasured acquiredOf -> measuredCells(cells, acquiredOf) -> markMeasured"
-        },
-        {
-          "path": "cmd/validate/trained.go",
-          "symbol": "measuredCells; markMeasured"
-        },
-        {
-          "path": "internal/modelrecipe/trained.go",
-          "symbol": "MarkMeasured; measured alias"
-        },
-        {
-          "path": "internal/discovery/capability.go",
-          "symbol": "RegisteredCatalog measured model map"
-        },
-        {
-          "path": "cmd/validate/selection_test.go",
-          "symbol": "TestATrainedModelIsMeasuredOnce"
-        },
-        {
-          "path": "cmd/validate/only_model_test.go",
-          "symbol": "TestOneModelsCellsOfOneValidationAreMeasuredAlone"
-        }
-      ],
-      "evidence": "An admitted trained, not-yet-measured model has guard, serving and quality cells. validate -run -model <model> -validation serving is an existing supported command: modelNamed/OnlyModel reduces Plan.Run to serving. executeMeasured passes that filtered cells slice to measuredCells. After the serving command succeeds, counted[model]==1 and acquired[model]==1, so markMeasured publishes the model-wide alias although guard/quality were never acquired. RegisteredCatalog reads the mark, SelectValidation puts every cell into MeasuredOnce, and OnlyTrained excludes them. The existing test checks partial acquisition only within an unfiltered three-cell plan; it never combines OnlyModel filtering with completion. This is a source-established counterexample, not an executed model failure.",
-      "recommended_change": "Keep whole-model completeness in the existing Plan/completion owner: retain the original eligible trained-model obligations before OnlyModel narrows execution and compare acquisition against those obligations, rather than against the filtered run's length. Carry that existing plan fact through OnlyModel/OnlyTrained and use it in the shared completion calculation reached by executeMeasured. Do not mark a whole model from a strict subset. Preserve explicit targeted runs, existing same-cycle credit and retries; no new scheduler, selector, alias/schema, option or second ledger.",
-      "displaced_surface": "Replace the filtered-count denominator, not the measured-once product behavior. Retain measuredCells/markMeasured and the existing model alias/selection owners; no test or fixture retired. Current compared production trained.go473+selection.go1402+run.go3828+modelrecipe/trained.go292=5995 AST; estimated full obligation propagation/completion replacement+40..120 nodes (6035..6115), including any field/argument/wiring rather than hiding it in a helper. Existing selection_test3415+only_model_test654=4069; one extension in the first owner's pure fixture estimated+70..140 (4139..4209). Total10064->10174..10324(+110..260), provisional implementation cost, not parsed candidate. No static fixture growth, extra model/store/device setup or new gate leg. Keep all existing CLI/task/format/cancellation/error and resource-lifetime cases.",
-      "impact": "A successful narrow measurement can permanently suppress missing first measurements during unattended full runs, leaving training quality/guard obligations unfulfilled while the catalog says measured. No model-weight corruption or confidentiality breach asserted. The intended once-only policy is preserved only after its full obligation is met.",
-      "expected_benefit": {
-        "outcome": "Correct completion identity and automatic recovery of remaining first-measurement work; no net reduction or measured time saving claimed.",
-        "uncertainty": "Source proof only. Counts are a complete affected-owner estimate and must be replaced with actual implementation AST; a full real-device run is unnecessary to decide this selection bug."
-      },
-      "likely_effort": "Small completion-fact propagation within existing validation Plan and one retained native selection test.",
-      "plan_references": [
-        "review-repairs/do"
-      ],
-      "plan_coverage": "New advisory on completed trained-models/do; no live plan row adopted at this pin. SQA does not modify the plan or reopen a row.",
-      "closure_criteria": [
-        "A first serving-only run leaves the model pending while any original eligible cell is unacquired.",
-        "OnlyTrained/full runs still select the remainder; an actual complete acquisition marks once, and explicit named reruns retain their behavior.",
-        "The existing selection test reaches the same completion owner after OnlyModel filtering; count all state/wiring/test additions and add no second credit or scheduling framework."
-      ],
-      "comparison": "During implementation extend TestATrainedModelIsMeasuredOnce with its existing three-cell fixture, apply the real OnlyModel validation predicate path, then one successful acquisition and full completion. Require no whole-model mark for the subset and one mark for complete acquisition. Existing pure native test suffices; no new model/workload, store fixture or SQA execution."
-    },
-    {
-      "id": "SQA-290",
-      "status": "open",
-      "severity": "P2",
-      "category": "numerical-history",
-      "classification": "source-established-admitted-zero-boundary",
-      "title": "Retain a perfect zero quality when selecting the model's held level",
-      "evidence_commit": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-      "sources": [
-        {
-          "path": "internal/scorecard/record.go",
-          "symbol": "Reference; readingsOf; held; judged; referenceWindow"
-        },
-        {
-          "path": "internal/scorecard/scorecard.go",
-          "symbol": "Cell.Measured; Row.Measured"
-        },
-        {
-          "path": "internal/evaluation/transcription_read.go",
-          "symbol": "WER summary, cases/noise and DirectionMinimize"
-        },
-        {
-          "path": "internal/evaluation/transcription.go",
-          "symbol": "transcription metrics allow zero WordErrorRate"
-        },
-        {
-          "path": "internal/scorecard/quality_level_test.go",
-          "symbol": "TestASlowQualityDeclineIsFiledAgainstItsLevel"
-        },
-        {
-          "path": "internal/scorecard/paired_quality_test.go",
-          "symbol": "pairedReadings; existing paired decision owner"
-        }
-      ],
-      "evidence": "The new held quality path shares readingsOf with judged timing. readingsOf still requires one.Value!=0 before choosing the newest9 readings. Zero is a valid measured minimum for WER; Cell.Measured uses Reason, not Value. With identical model/contract/environment/direction and distinct sources, earlier WER readings0 and0.01 followed by current0.02 are admitted. Earlier supplies0.01; readingsOf removes0, so held returns0.01 instead of the perfect0 baseline. Cumulative deterioration is understated after the first nonzero reading. The test samples only maximizing accuracy around0.75, so does not cover this boundary. No executed evaluation failure asserted.",
-      "recommended_change": "Keep the existing readingsOf owner but distinguish its two callers' metric domains before the window is applied: pass the existing metric.Name from judged and metric.Quality from held; accept measured zeros for quality while retaining timing's nonzero filter. Preserve identity/direction/environment filtering, duplicate-source handling, the9-reading window, paired numerical acceptance and original source cases. Narrow the existing zero-exclusion comment to timing. No new threshold, statistical framework, wrapper or option.",
-      "displaced_surface": "Displace the universal Value!=0 assumption; no helper/test/fixture is deleted. Actual parsed whole-file production candidate record.go5289->5305(+16), including the metric parameter and both callers. Existing quality_level_test452+paired_quality_test1367=1819 test nodes; one boundary extension estimated70..140 ->1889..1959. Full compared7108->7194..7264(+86..156), so this is correctness growth, not a reduction. No imports/exports/schema/static fixture bytes or model setup added. Use an existing synthetic history case, with no extra pairedReadings store/evaluation runs; current7+4 durable fixture readings remain. Preserve errors, cancellation, platform tags, reference source identity and finite arithmetic order.",
-      "impact": "A formerly perfect minimized quality loses its restoration target, weakening slow-decline detection and potentially allowing more deterioration than the declared best-in-window contract. No timing performance or model-weight change; no data/confidentiality impact.",
-      "expected_benefit": {
-        "outcome": "Correct zero-boundary history without changing calibrated timing behavior. Production repair+16 AST is measured syntactically; test growth is estimated.",
-        "uncertainty": "The admitted history was traced in source, not executed. Passing the metric only through two existing callers was parsed, not full-package typechecked. No claim that the historical44-scorecard replay contained this case."
-      },
-      "likely_effort": "Small shared-owner predicate correction and one existing native quality-history boundary case.",
-      "plan_references": [
-        "review-repairs/do"
-      ],
-      "plan_coverage": "New advisory on completed scorecard-truth/quality-level. Subsequent failure-window and stale-quality landings leave readingsOf unchanged; no live row adopts this zero boundary.",
-      "closure_criteria": [
-        "A zero minimized-quality reading within the retained window remains the reference after later nonzero readings, for headline and secondary quality.",
-        "Timing zero exclusion still occurs before its own window; source identity, environment/direction and window semantics remain unchanged.",
-        "Retain current positive/maximizing and paired significance cases; count full production/test growth without a new suite or statistical acceptance rule."
-      ],
-      "comparison": "Extend the existing quality-level test with same-contract minimized0,0.01,0.02 history and require the original zero source/target; use existing timing-history coverage to retain zero timing behavior. No evaluation/model run or new fixture is needed. No SQA test executed."
     },
     {
       "id": "SQA-283",
@@ -910,80 +787,6 @@
         "Retain retrieval, cancellation/recovery, image coexistence and resource bounds in the existing modeltest owner. Record added calibration/setup/test/runtime cost; no duplicate full-model suite."
       ],
       "comparison": "Use the existing no-generation count endpoint to establish the request's exact geometry, then the existing model-tagged acceptance is the deciding implementation check. A deliberately smaller context ceiling above the old exercised size but below the required size should not earn 262K acceptance. Retained counts suffice to identify this gap; SQA runs no model or calibration."
-    },
-    {
-      "id": "SQA-221",
-      "status": "open",
-      "severity": "P3",
-      "category": "measurement-provenance",
-      "classification": "partially-addressed-prose-residual",
-      "title": "Finish MOSS quality denominator and parity attribution after the sample-wording repair",
-      "evidence_commit": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-      "sources": [
-        {
-          "path": "cmd/validate/media_selection.go",
-          "symbol": "measuredSampleSelection:90-113; loadMediaSampleSelection; mediaSampleSelection.includes"
-        },
-        {
-          "path": "cmd/validate/media.go",
-          "symbol": "mediaReportScope.MeasuredAttempts comment:28-31; resolveMediaReportScope"
-        },
-        {
-          "path": "cmd/validate/samples.go",
-          "symbol": "exportMediaSamples; visitRecipeSamples; exportRecipeSamples; sampleRef"
-        },
-        {
-          "path": "internal/scorecard/scorecard.go",
-          "symbol": "servingSummary.timed:544-567; firstOutputCell:762; peakMemoryCell:1104"
-        },
-        {
-          "path": "internal/scorecard/scorecard_test.go",
-          "symbol": "TestServingTimingsReadTheMedianOfTheNewestMeasuredAttempts:121-268"
-        },
-        {
-          "path": "README.md",
-          "symbol": "Sample outputs introduction and time/peak claims"
-        },
-        {
-          "path": "cmd/validate/image_video_report_contract_test.go",
-          "symbol": "TestImageVideoReportContract measured-scope admission:135"
-        },
-        {
-          "path": "docs/verification/moss-image-resources.json",
-          "symbol": "native.requests first(seed42,101.4561856s),new-seed(seed7,95.119052s)"
-        },
-        {
-          "path": "docs/verification/moss-image-parity.json",
-          "symbol": "full-english seed42 -> output cfab6e10..."
-        },
-        {
-          "path": "docs/MOSS_IMAGE.md",
-          "symbol": "Quality paragraph:64 captions,415 questions and extrapolation from four parity cases"
-        },
-        {
-          "path": "README.md",
-          "symbol": "MOSS quality table says415 prompts; default sample attribution unchanged"
-        }
-      ],
-      "evidence": "e360c6cb6 corrects README's sample introduction, mediaReportScope and measuredSampleSelection: each sample is a representative output; timing is an aggregate median and memory the newest attempt's, neither necessarily that output's own. This satisfies the original exact-joint-measurement correction without changing exporter or arithmetic. The remaining wording already identified in this finding is unchanged: README's MOSS row says '0.91 on 415 prompts', while committed MOSS_IMAGE.md describes 64 captions and 415 questions. That page still infers a full upstream quality reading from four retained native/upstream parity cases; no upstream 415-question evaluation was inspected. The 95 s sample figure is now explicitly qualified by the aggregate introduction; no fresh sample-specific timing is requested. No model run or live-store lookup was made.",
-      "recommended_change": "Retain the completed representative-sample wording and existing export/median/source owners. Finish only the residual quality prose: use 64 captions/415 questions and identify upstream full-suite equivalence as an inference beyond four retained parity cases, unless existing exact upstream evidence supports it. No additional measurement, schema, helper, exporter mode or test.",
-      "impact": "The sample/aggregate distinction is corrected. Remaining prose can overstate the number of independent prompts and the scope of upstream quality evidence. No generated bytes, data, execution, or confidentiality behavior changes.",
-      "displaced_surface": "Completed: three exact-joint-measurement statements disappear in favor of aggregate wording. Remaining: replace the MOSS prompt denominator and qualify full-suite upstream equivalence. Executable production/test AST, fixtures, setup executions, gate legs and runtime resources stay unchanged; no code/test owner is retired.",
-      "expected_benefit": {
-        "outcome": "Accurate denominator and evidence scope using existing records, with zero executable production/test AST, fixture, setup or gate growth. No speed/memory saving.",
-        "uncertainty": "No independently measured upstream 415-question suite was inspected; four retained parity cases do not alone establish full-suite equivalence."
-      },
-      "likely_effort": "Small remaining prose correction; core representative-sample wording already implemented.",
-      "plan_references": [
-        "optimizer-truth/rate-judged"
-      ],
-      "plan_coverage": "scorecard-truth/video-user-size landed e360c6cb6 and was pruned. The implemented owner annotation remains verbatim. Reviewer accepts the central wording repair but retains only the already-recorded P3 denominator/upstream-equivalence residual; no new row or run requested.",
-      "closure_criteria": [
-        "Retain the representative-output versus aggregate-time/newest-memory distinction.",
-        "MOSS wording states 64 captions/415 questions and separates four-case parity from independently measured full upstream quality.",
-        "Preserve existing exporter and median/source/memory tests; no new workload, schema or suite."
-      ],
-      "comparison": "Read existing 303ae00b9 and docs/MOSS_IMAGE.md for the denominator. Four pinned parity cases support their own protocol; no new generation or confidence run is needed."
     },
     {
       "id": "SQA-276",
@@ -3120,6 +2923,196 @@
         "Retain shared native fixture, tensor/header/padding and directory-open coverage with no new setup or suite."
       ],
       "comparison": "The in-memory full-file replacement already counts all imports, caller messages and deleted helper:433->367. Exact-declaration go/types confirms the original helper uses only standard byte equality and length/index operations. Ordinary implementation validation suffices; no new SQA test or benchmark."
+    },
+    {
+      "id": "SQA-291",
+      "status": "open",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-and-in-memory-ast-established-net-reduction",
+      "title": "Move zero-timing coverage into the existing eligibility boundary and delete its ineffective fixture",
+      "evidence_commit": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "sources": [
+        {
+          "path": "internal/scorecard/quality_level_test.go",
+          "symbol": "TestAPerfectZeroIsAQualitysLevel: final timing closure/records/nonzero assertion"
+        },
+        {
+          "path": "internal/scorecard/reference_test.go",
+          "symbol": "TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence: four-earlier-reading Unknown case; timed and judged closures"
+        },
+        {
+          "path": "internal/scorecard/record.go",
+          "symbol": "Reference; Earlier; judged; readingsOf; fewestReadings"
+        }
+      ],
+      "evidence": "The quality test builds timing history0,10,11,12,13,14 then asserts only Reference's value is nonzero. With current zero exclusion, four positive earlier readings leave the earlier value13 unjudged. If zero is wrongly admitted, five earlier readings allow a best three-reading median10. Both values pass the assertion; source establishes no failure signal for the claimed zero-exclusion fault. The existing reference test already owns the true eligibility boundary: four positive earlier values100,101,99,100 followed by current300 must remain Unknown with four readings. Prepending0 to that existing case catches the same fault because erroneous zero admission makes five. Both callers exercise the same Reference/judged/readingsOf timing predicate; quality, source, direction and contract behavior is otherwise distinct and retained.",
+      "recommended_change": "Delete the timing closure, six-record construction and nonzero check from TestAPerfectZeroIsAQualitysLevel. Prepend0 to the existing reference fixture's timed(100,101,99,100,300) case and clarify its existing comment. Its Unknown/four-readings assertion becomes the retained owner for zero exclusion. Keep headline/secondary zero quality and source identity checks in the quality test. No helper, wrapper, suite, dependency, selector or numerical-policy change.",
+      "displaced_surface": "Actual in-memory whole-file parse: quality_level_test852->724(-128); reference_test1511->1512(+1); tests2363->2236(-127). Production record.go5324->5324; complete compared7687->7560(-127). Migration cost included. Imports remain used; helpers/wrappers/exports/config/platform changes0. Remove6 synthetic records, add1 to existing timed fixture: net5 fewer record constructions; both top-level test functions remain. Static fixture files/bytes0, temporary stores/model/device setup0, gate legs0; one existing boundary owns the requirement.",
+      "impact": "Smaller test surface with a realistic failure signal for timing-zero eligibility. Zero quality, paired acceptance, identity/environment/source uniqueness, window and restoration requirements remain. Pure synchronous host fixtures have no cancellation/error/lifetime difference; no user-visible/data/confidentiality contract is removed.",
+      "expected_benefit": {
+        "outcome": "127 fewer test AST nodes and five fewer synthetic record setups; production unchanged. Less maintenance with stronger eligibility coverage.",
+        "uncertainty": "Complete candidate parsed, not executed or full-package typechecked. No elapsed/allocation saving measured. Counterfactual values and Unknown eligibility traced in source, not an executed mutation."
+      },
+      "likely_effort": "Small deletion and one literal/comment change in two existing native tests.",
+      "plan_references": [
+        "compact-tests/fatal-check"
+      ],
+      "plan_coverage": "Existing test-compaction row can absorb this assertion simplification; advisory only, no plan edit or new work framework.",
+      "closure_criteria": [
+        "Delete the ineffective timing-only fixture from the quality test.",
+        "Existing reference boundary contains zero plus four positive earlier readings and still requires Unknown/four; accepting zero would fail it.",
+        "Retain all distinct quality/reference cases; total production/test/helper/fixture/setup surface falls without extra gate work."
+      ],
+      "comparison": "During implementation use the existing native scorecard fixture to confirm the zero-plus-four eligibility case and existing quality cases. Parsed full replacement establishes -127 AST; no new test suite, benchmark, model workload or SQA confidence run is needed."
+    },
+    {
+      "id": "SQA-221",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "measurement-provenance",
+      "classification": "source-and-retained-evidence-resolved",
+      "title": "MOSS sample attribution and quality denominator now match retained evidence",
+      "evidence_commit": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "sources": [
+        {
+          "path": "README.md",
+          "symbol": "Sample outputs introduction; MOSS quality table"
+        },
+        {
+          "path": "docs/MOSS_IMAGE.md",
+          "symbol": "Quality paragraph; native reading versus four parity cases"
+        },
+        {
+          "path": "cmd/validate/media_selection.go",
+          "symbol": "measuredSampleSelection"
+        },
+        {
+          "path": "cmd/validate/media.go",
+          "symbol": "mediaReportScope"
+        }
+      ],
+      "evidence": "The earlier representative-output versus aggregate-time/newest-memory repair remains. 526e5a48a changes README to415 questions about64 captions and MOSS_IMAGE.md explicitly says the0.91 score is native, upstream was not run on those questions, and four parity generations are separate evidence. The previous denominator/equivalence residual is gone at this pin. No exporter, measurement or schema changed and no fresh evaluation was required.",
+      "recommended_change": "No remaining implementation requested for this finding. Retain exact sample/aggregate attribution and separate native quality from limited parity evidence.",
+      "impact": "Readers can distinguish representative sample, aggregate measurement, native question score and limited parity scope; no runtime, data or confidentiality behavior changes.",
+      "displaced_surface": "Misleading quality denominator and unsupported full-suite equivalence prose removed. Production/test AST, helpers, wrappers, static fixtures, setup executions and gate legs attributable to this wording repair+0; exporter and numerical owners retained. Other rate-judged changes are accounted separately.",
+      "expected_benefit": {
+        "outcome": "Correct evidence attribution; no processing or memory gain claimed.",
+        "uncertainty": "No upstream415-question run inspected or implied. Four parity cases retain their limited scope."
+      },
+      "likely_effort": "Completed prose repair.",
+      "plan_references": [],
+      "plan_coverage": "Completed optimizer-truth/rate-judged at526e5a48a; row pruned from current committed plan. Owner triage retained verbatim.",
+      "closure_criteria": [
+        "Representative output remains distinct from aggregate time/newest memory.",
+        "Quality denominator says415 questions about64 captions.",
+        "Native quality and four parity cases no longer imply an unrun upstream full-suite result."
+      ],
+      "comparison": "Source wording at the pinned revision and retained parity/quality scope satisfy closure; no new model test or evaluation needed."
+    },
+    {
+      "id": "SQA-289",
+      "status": "resolved",
+      "severity": "P2",
+      "category": "automation-completeness",
+      "classification": "source-and-retained-native-test-resolved",
+      "title": "Whole-model obligations survive a filtered first validation",
+      "evidence_commit": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "sources": [
+        {
+          "path": "cmd/validate/main.go",
+          "symbol": "runArgs: modelNamed -> Plan.OnlyModel -> executeRun"
+        },
+        {
+          "path": "cmd/validate/scorecard.go",
+          "symbol": "modelNamed validation conjunct"
+        },
+        {
+          "path": "cmd/validate/selection.go",
+          "symbol": "Plan.OnlyModel; OnlyTrained; SelectValidation measured-once branch"
+        },
+        {
+          "path": "cmd/validate/run.go",
+          "symbol": "executeMeasured acquiredOf -> measuredCells(cells, acquiredOf) -> markMeasured"
+        },
+        {
+          "path": "cmd/validate/trained.go",
+          "symbol": "measuredCells; markMeasured"
+        },
+        {
+          "path": "internal/modelrecipe/trained.go",
+          "symbol": "MarkMeasured; measured alias"
+        },
+        {
+          "path": "internal/discovery/capability.go",
+          "symbol": "RegisteredCatalog measured model map"
+        },
+        {
+          "path": "cmd/validate/selection_test.go",
+          "symbol": "TestATrainedModelIsMeasuredOnce"
+        },
+        {
+          "path": "cmd/validate/only_model_test.go",
+          "symbol": "TestOneModelsCellsOfOneValidationAreMeasuredAlone"
+        }
+      ],
+      "evidence": "5721eddcc stamps each selected trained-model cell with Owed, counted across all eligible pending cells before OnlyModel or OnlyTrained filters the plan. Copies retain it; measuredCells compares acquired[model] with sel.Owed instead of counting the filtered slice. A serving-only acquisition therefore cannot publish the whole-model measured alias. TestATrainedModelIsMeasuredOnce now uses the real OnlyModel serving filter, rejects its single acquisition and retains full acquisition/skip/rerun/OnlyTrained cases. Next full run still selects unmeasured cells; no claim of persistent cross-run partial credit. Retained gate passed; no SQA test executed.",
+      "recommended_change": "No further completion repair requested here. Retain the pre-filter obligation and existing measured alias/admission owners; no second ledger, selector or scheduler.",
+      "displaced_surface": "Filtered-slice denominator removed. Actual selection.go1402->1462(+60), trained.go473->453(-20); run.go3828 and modelrecipe/trained.go292 unchanged: affected production5995->6035(+40). selection_test3415->3533(+118), only_model_test654 unchanged: tests4069->4187. Total10064->10222(+158), correctness growth. Owed field/serialization and full wiring counted; no fixture files/model/store/device setup or new gate leg.",
+      "impact": "A narrow successful first validation no longer suppresses missing model obligations. No model-weight or confidentiality change, no measured time/memory gain.",
+      "expected_benefit": {
+        "outcome": "Correct whole-model completion through the existing selection owner.",
+        "uncertainty": "Source and retained native gate evidence; no full real-device continuation run. Full eligible cells remain pending until a complete acquisition, rather than durable accumulation from separate narrow runs."
+      },
+      "likely_effort": "Completed shared-owner repair with one existing selection-test extension.",
+      "plan_references": [],
+      "plan_coverage": "Completed review-repairs/do at5721eddcc; row pruned from current plan. Owner implementation statement preserved verbatim.",
+      "closure_criteria": [
+        "Original whole-model obligation survives filtering.",
+        "A serving subset cannot mark the model; complete acquisition can.",
+        "Existing selection owner covers the actual filtered path with no new ledger or scheduler."
+      ],
+      "comparison": "Implemented native selection fixture supplies the deciding subset/full comparison. Retained commit records the undo check and gate; no new SQA workload."
+    },
+    {
+      "id": "SQA-290",
+      "status": "resolved",
+      "severity": "P2",
+      "category": "numerical-history",
+      "classification": "source-and-retained-native-test-resolved",
+      "title": "Held quality includes valid zero while timing retains its own admission rule",
+      "evidence_commit": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "sources": [
+        {
+          "path": "internal/scorecard/record.go",
+          "symbol": "readingsOf; judged; held; Reference"
+        },
+        {
+          "path": "internal/scorecard/quality_level_test.go",
+          "symbol": "TestAPerfectZeroIsAQualitysLevel; TestASlowQualityDeclineIsFiledAgainstItsLevel"
+        },
+        {
+          "path": "internal/scorecard/paired_quality_test.go",
+          "symbol": "pairedReadings and paired significance coverage"
+        }
+      ],
+      "evidence": "5721eddcc adds a counts predicate to the existing readingsOf owner: judged passes Value!=0; held accepts all measured quality values. Admission happens before the newest-reading window, preserving identity/environment/direction/source uniqueness. The new native0/.01/.02 minimized-quality fixture retains zero for headline and secondary suite and checks headline source. Existing maximizing and paired decision coverage remains. Source and retained gate support production closure. The added timing tail tests only a nonzero result and cannot distinguish zero inclusion; track that smaller test-removal opportunity separately as291.",
+      "recommended_change": "No remaining production zero-quality repair requested. Retain predicate-before-window semantics and paired numerical acceptance. Simplify the ineffective timing tail through291 without retiring its requirement.",
+      "displaced_surface": "Universal zero-exclusion assumption replaced in one shared owner with two existing callers. Actual record.go5289->5324(+35), quality_level_test452->852(+400), paired_quality_test1367 unchanged. Compared7108->7543(+435), correctness growth, more than the earlier proposed+86..156 estimate. No new store/model/device setup, fixture files, statistical framework or numerical threshold. The full review-repairs landing including289 is+75 production/+518 tests.",
+      "impact": "A formerly perfect minimized quality retains its restoration target; timing still rejects non-readings before windowing. No model-weight/data/confidentiality change or measured performance saving.",
+      "expected_benefit": {
+        "outcome": "Correct zero-boundary history for both headline and secondary quality.",
+        "uncertainty": "Retained implementation gate, not new SQA execution. The timing assertion's failure signal is weak, so closure is not claimed from that assertion; source predicate establishes unchanged production behavior."
+      },
+      "likely_effort": "Completed shared-history repair;291 is a separate small test simplification.",
+      "plan_references": [],
+      "plan_coverage": "Completed review-repairs/do at5721eddcc; row pruned. Owner triage retained raw-exact.",
+      "closure_criteria": [
+        "Measured zero quality remains eligible in the retained window.",
+        "Timing zero exclusion remains before its window.",
+        "Headline/secondary zero and existing positive/paired cases retain native owners; full growth is counted."
+      ],
+      "comparison": "The retained0/.01/.02 quality fixture and source-domain predicates decide the repair; keep stronger timing eligibility coverage through the existing reference fixture under291. No evaluation/model run requested."
     },
     {
       "id": "SQA-268",
@@ -6024,175 +6017,157 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA validation run. Native Go caching, existing affected lanes, cycle credit/resume and exact evidence identity remain the retained owners.",
+      "execution": "No SQA validation execution. Credit native Go caching, affected lane selection and existing exact-credit/resume; retained implementation results only.",
       "sample_cost": {
-        "revision": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-        "comparison_revision": "f7cded0c151ebf38bf37304505ccd46164fc5a48",
-        "files": 33,
-        "functions": 172,
-        "parser_local_bindings": 8253,
-        "production_ast_before": 19082,
-        "production_ast_after": 21890,
-        "production_ast_delta": 2808,
-        "test_ast_before": 9766,
-        "test_ast_after": 15962,
-        "test_ast_delta": 6196,
-        "total_ast_after": 37852,
-        "scope": "18 previously existing files plus 15 new files. Whole selected files counted; not a census.",
+        "revision": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+        "comparison_revision": "7a15b009c558087a02235da79345a4b06e0ecf77",
+        "files": 27,
+        "functions": 178,
+        "parser_local_bindings": 7145,
+        "production_ast_before": 20414,
+        "production_ast_after": 20817,
+        "production_ast_delta": 403,
+        "test_ast_before": 11508,
+        "test_ast_after": 13273,
+        "test_ast_delta": 1765,
+        "total_ast_after": 34090,
+        "scope": "23 previously existing and4 new test files; whole selected files, not a census.",
         "files_and_ast": {
-          "cmd/validate/trained.go": 473,
-          "cmd/validate/selection.go": 1402,
-          "cmd/validate/selection_test.go": 3415,
-          "cmd/validate/only_model_test.go": 654,
-          "cmd/validate/run.go": 3828,
-          "internal/modelrecipe/trained.go": 292,
-          "internal/trainingworkflow/pool_confirm.go": 412,
-          "internal/trainingworkflow/pool_confirm_test.go": 727,
-          "internal/trainingworkflow/trained_listing_test.go": 564,
-          "internal/evaluation/heldout_read.go": 347,
-          "internal/evaluation/heldout_verdict.go": 3724,
-          "internal/evaluation/heldout_verdict_test.go": 2998,
-          "internal/scorecard/record.go": 5289,
-          "internal/scorecard/quality_level_test.go": 452,
-          "internal/scorecard/paired_quality_test.go": 1367,
-          "internal/overgodb/blob_pack.go": 1581,
-          "internal/overgodb/batch_reader_test.go": 423,
-          "internal/server/stream_events.go": 66,
-          "internal/server/one_event_stream_test.go": 601,
-          "internal/inference/strata_round_pool.go": 1518,
-          "internal/inference/chat_reasoning_stream.go": 590,
-          "internal/inference/chat_reasoning_stream_test.go": 1419,
-          "internal/strataspec/nonfinite.go": 61,
-          "internal/hostoptimizer/optimizer.go": 1003,
-          "internal/hostoptimizer/newton_schulz.go": 972,
-          "internal/hostoptimizer/nonfinite_test.go": 335,
-          "internal/optimizer/nonfinite_stop_cuda_windows_test.go": 247,
-          "cmd/validate/failed_evaluations.go": 332,
-          "cmd/validate/failed_evaluations_test.go": 414,
-          "internal/scorecard/failure_window_test.go": 1272,
-          "cmd/recipe/user_size_test.go": 145,
-          "cmd/validate/video_user_size_test.go": 257,
-          "internal/optimizer/resident_schedule_cuda_windows_test.go": 672
+          "internal/optimizer/tensor_pack.go": 1426,
+          "internal/landing/refusal.go": 364,
+          "internal/mosstrain/publish_test.go": 755,
+          "internal/inference/chat_stream_test.go": 339,
+          "cmd/validate/selection_test.go": 3533,
+          "internal/server/agent_session_recovery_test.go": 1572,
+          "internal/hostoptimizer/optimizer.go": 1044,
+          "internal/mosstrain/publish.go": 540,
+          "cmd/validate/selection.go": 1462,
+          "internal/inference/continuous_batch_test.go": 1457,
+          "internal/scorecard/record.go": 5324,
+          "internal/scorecard/quality_level_test.go": 852,
+          "cmd/train/route_moss_windows.go": 2163,
+          "internal/trainingprogram/optimizer_policy.go": 593,
+          "internal/inference/device_batch_packed.go": 2463,
+          "internal/landing/trunk_hook_test.go": 998,
+          "internal/optimizer/absent_gradient_test.go": 372,
+          "internal/scorecard/reference_test.go": 1511,
+          "internal/optimizer/absent_gradient_cuda_windows_test.go": 127,
+          "internal/inference/chat_stream.go": 2357,
+          "cmd/validate/trained.go": 453,
+          "internal/overgodb/retention.go": 1512,
+          "internal/landing/recovery_drills_test.go": 262,
+          "internal/server/agent_session_recovery.go": 1116,
+          "internal/overgodb/retention_test.go": 1101,
+          "internal/trainingprogram/trained_parameter_count_test.go": 80,
+          "internal/hostoptimizer/absent_gradient_test.go": 314
         }
       },
-      "complete_change_cost": "Ten retained implementation gates since prior SQA report +5217 production/+7185 test AST (+12402). First five +3732/+3219; failure-window +182/+780; stale-quality +528/+837; video-user-size +551/+899; nonfinite-stop +170/+751; schedule-recorded +54/+699. Gate-reported fixture files/bytes, record schema counts and CUDA source/entry points +0; the last landing nevertheless adds serialized optimizer State.Schedule, whose code/migration cost belongs in the production total. Full-change costs differ from this sample's +9004. Moving test code to production is not a saving.",
-      "completed_reductions": "No newly demonstrated net source reduction. Automatic trained-model measurement removes a manual activation handoff and intends to avoid subsequent full-run measurements; no measured whole-cycle saving. Shared pairedReadings avoids copying setup, while quality-level still adds515 test nodes overall.",
+      "complete_change_cost": "Five retained gates: momentum-absent +317 production/+813 test; review-repairs +75/+518; rate-judged +4/+80; served-target +194/+263; landing-repairs +0/+91 plus3 shell lines (two comments/one equality guard). Total Go+590/+1765=+2355 AST. Gate-reported schemas, static fixture files/bytes and CUDA source/entry points+0. Selected-file total+2168 excludes187 production nodes elsewhere. Necessary correctness coverage grows honestly.",
+      "completed_reductions": "No net implementation reduction in these five landings. New291 candidate counts complete production and both test owners:7687->7560, with all migration included; no timing/memory claim.",
       "sampled_tests": [
         {
           "classification": "retain",
           "tests": "TestATrainedModelIsMeasuredOnce",
-          "retained_owner": "Existing pure validation selection/completion test.",
-          "unique_cases": "Unmeasured trained cells, all-cell completion, full-run skip, explicit model rerun, and OnlyTrained behavior. Extend this owner with the actual OnlyModel validation-filtered completion counterexample in289.",
-          "cost": "selection_test.go2916->3415(+499); required repair extension estimated70..140 nodes, no new model/store setup or top-level suite."
-        },
-        {
-          "classification": "merge",
-          "tests": "TestOneModelsCellsAreMeasuredAlone; TestOneModelsCellsOfOneValidationAreMeasuredAlone",
-          "retained_owner": "First existing model-selection test, as already specified inSQA-270.",
-          "unique_cases": "Keep bbh/mmlu/serving-only, unknown model, no-lane, original-plan and orphan flag cases; use actual modelNamed.",
-          "cost": "File unchanged654 at this pin; retained parsed proposal561(-93), no new duplicate finding. Production selection changed1238->1402 since that proposal; it is not part of the test saving. Completion repair289 must be counted separately."
+          "retained_owner": "cmd/validate/selection_test.go",
+          "unique_cases": "Whole-model completion, measured-once skip, explicit rerun, OnlyTrained and the actual OnlyModel serving filter now share this existing owner.",
+          "cost": "3533 AST, +118 since prior review; no store/model/device fixture added. Completion production +40 across selection/trained."
         },
         {
           "classification": "simplify",
-          "tests": "TestHighFanoutReadsAreBatched",
-          "retained_owner": "Existing batch-reader test underSQA-242.",
-          "unique_cases": "Exact full caller order, batch/open counts, absent content and mixed presence. Current visited-only loop still lacks a length check.",
-          "cost": "File unchanged423; retained proposal421(-2) with slices already imported.48 commits, one store, twoReadContents and onePresentContents remain; no new test or workload."
+          "tests": "TestAPerfectZeroIsAQualitysLevel; TestScorecardUsesCompatibleFixedReferencesAndMetricSpecificEvidence",
+          "retained_owner": "Existing reference test's four-earlier-reading Unknown case owns timing eligibility; quality test owns headline/secondary zero and source identity.",
+          "unique_cases": "Move zero timing exclusion to the reference eligibility boundary; remove only the ineffective timing closure, six records and nonzero assertion. Keep every quality and reference contract/environment/source/window/restore case.",
+          "cost": "SQA-291: two complete files 2363->2236 (-127 parsed test AST), production unchanged5324; five fewer synthetic records overall, no new fixture/helper/gate."
         },
         {
           "classification": "retain",
-          "tests": "TestASlowQualityDeclineIsFiledAgainstItsLevel; TestAQualityMoveIsJudgedByTheCasesAnsweredDifferently",
-          "retained_owner": "Shared pairedReadings fixture already serves both tests.",
-          "unique_cases": "Cumulative headline/secondary quality, frozen restoration target/trade unit versus exact paired losses/gains, strict prompt and fallback evidence. Add the zero minimized-quality boundary in290 to existing quality-level owner.",
-          "cost": "Complete two-test files1819 AST; distinct two durable stores and7+4 suite readings retained. No merged fixture claimed; repair extension estimated70..140 nodes."
+          "tests": "Absent-gradient tests in internal/hostoptimizer and internal/optimizer",
+          "retained_owner": "Host optimizer and shared stepAbsentGradient used by host-pack and Windows device callers.",
+          "unique_cases": "Absent group preserves weights and momentum, present zero remains a received gradient, finite neighbor and reintroduced group continue; direct slab APIs retain always-received behavior. Windows/device arithmetic and lifetime coverage remain distinct.",
+          "cost": "314+372+127 test AST. Full landing +317 production/+813 test; no new fixture files/schema/CUDA source. Existing shared helper already removes duplication."
         },
         {
           "classification": "retain",
-          "tests": "TestAPoolConfirmsAnObjectiveRun",
-          "retained_owner": "Existing text training/pool confirmation fixture.",
-          "unique_cases": "Pool never overlaps objective verdict records; wrong-base and proof refusal before output; charged promotion read; gain sign; no ordinary verdict/reads and exact remaining budget.",
-          "cost": "New727-node test file, existing fixture helpers retained. Training60 steps and two objective stores are fixture behavior, not new SQA runs; no statistical confidence claim from synthetic related prompts."
+          "tests": "TestRateReadsThePlansParameterCount",
+          "retained_owner": "internal/trainingprogram/trained_parameter_count_test.go and policy.Config",
+          "unique_cases": "The declared whole-plan parameter count includes frozen lexical weights and chooses the held-out-judged rate.",
+          "cost": "80 new test AST/+4 production in complete landing. Calibration fixture, not proof of all-model representativeness; no new workload."
+        },
+        {
+          "classification": "simplify",
+          "tests": "TestJSONChatOutputStreamDeltas; TestHermesChatOutputStreamDeltas",
+          "retained_owner": "Existing assertChatStreamDeltas already serves both formats.",
+          "unique_cases": "Keep distinct JSON/Hermes syntax, escaping, typed parameters, incremental pieces and final call. Existing SQA-239 owns native slice equality; no duplicate finding or merger of protocol requirements.",
+          "cost": "Whole current file339 AST; production chat_stream2357. No new reduction counted beyond291."
         },
         {
           "classification": "retain",
-          "tests": "TestATrainedModelIsListedWhenItsTrainingEnds",
-          "retained_owner": "One existing table for GGUF and directory formats.",
-          "unique_cases": "Both publication paths, immediate trained/present flags, measured mark and retry.",
-          "cost": "New564-node test file; two independent store/model fixtures and one update each retained. No fixture files/bytes added in landing; no end-to-end device continuation proof."
+          "tests": "Continuous batch cancellation/close/admission cases",
+          "retained_owner": "internal/inference/continuous_batch_test.go",
+          "unique_cases": "Owner versus storage release on cancellation, pending cleanup, idempotent close, duplicate/zero/preloaded admission are different failure boundaries.",
+          "cost": "1457 test AST; packed production2463 counted. No extra model setup or inferred saving."
         },
         {
           "classification": "retain",
-          "tests": "Held-out verdict gain cases inheldout_verdict_test.go",
-          "retained_owner": "Existing numeric forecast fixture and heldout report owner.",
-          "unique_cases": "One-case improvement unsupported, broad improvement supported, equal gain, no move, fewer than2 and mismatched record identities.",
-          "cost": "Whole file2449->2998(+549); no new standard-error framework. Synthetic record independence is not empirical calibration."
+          "tests": "TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias",
+          "retained_owner": "Existing retentionContent fixture and retention graph tests.",
+          "unique_cases": "Typed parents versus untyped JSON, alias replacement, missing/aliasless pins, unpin and store-local refusal with unchanged head protect different data lifetimes.",
+          "cost": "1101 test/1512 production AST; three distinct store/graph setups retained. Inline-content boundary derived from format owner; no fixture expansion."
         },
         {
           "classification": "retain",
-          "tests": "TestOneWorkbenchEventStream",
-          "retained_owner": "Existing download registry plus runtime stream integration.",
-          "unique_cases": "Whole-percent/file-change publication, initial snapshot, admission and cancellation reachingSSE. ExistingSQA-252 covers fixture consolidation; no duplicate.",
-          "cost": "601 AST; no new server started by review. Source uses callbacks/SSE, not recurring polling."
+          "tests": "Agent stream-before-completion and restart/thread recovery tests",
+          "retained_owner": "internal/server/agent_session_recovery_test.go; streamingAgentFixture also serves webui_browser_agent_recovery_test.go",
+          "unique_cases": "Actual first-chunk delivery before child release versus durable rehydration, prefix collisions, exact limits and monotone sequence/resumed step are distinct. Keep both live and restart coverage.",
+          "cost": "1572 test/1116 production AST; no browser/server/child process started by review. Shared streaming fixture already exists."
         },
         {
           "classification": "retain",
-          "tests": "TestChatReasoningStreamPromptState",
-          "retained_owner": "Existing native token/output stream fixture.",
-          "unique_cases": "Control-token delivery, tool markup inside reasoning, prepared prompt state and split UTF-8/tool arguments.",
-          "cost": "Whole file1419 AST; distinct cases retained. No extra rendered-browser or model test proposed."
+          "tests": "TestRecoveryDrills",
+          "retained_owner": "internal/landing/recovery_drills_test.go and RecordRefusal",
+          "unique_cases": "External quarantine shared across rows, same-row/other-row recurrence, lane failure and changed tree own different classification/recovery histories.",
+          "cost": "262 test/364 production AST. Temp histories are native fixtures, not real gate/Defender runs; logging a refusal does not dispatch recovery."
         },
         {
           "classification": "retain",
-          "tests": "TestAStepReportsANonFiniteDirection; TestDeviceMuonStopsOnANonFiniteDirection",
-          "retained_owner": "Existing host optimizer and Windows device step owners.",
-          "unique_cases": "Host NaN/infinity, broken-group weights preserved and finite neighboring group stepped; device NaN, finite gradient with f32 norm overflow and ordinary finite step. Retain platform tags and error propagation.",
-          "cost": "335 host +247 device test AST. One device worker/three fresh buffer cases. Full landing test growth +751; no new setup or merge proposed."
+          "tests": "TestAServedTargetIsRefusedBeforeTraining; TestPublishServedHoldsOneShardIndex",
+          "retained_owner": "internal/mosstrain/publish_test.go",
+          "unique_cases": "Early existing/empty/absent target admission and reversible hard-link probe differ from successful adapter merge, one shard index and shared VAE. Other-volume failure is source-supported, not exercised in retained test.",
+          "cost": "Whole file492->755 (+263); complete served-target landing +194 production/+263 tests. New tiny temp-directory fixture; no static fixture bytes or model/device work. No safe merge established."
         },
         {
           "classification": "retain",
-          "tests": "TestAFailedBenchmarkReachesItsPublication",
-          "retained_owner": "Current run record and scorecard publication.",
-          "unique_cases": "Actual recording, model/family match, unaffected suite/model, gap publication and unreadable record refusal. Pure scorecard owner covers secondary cells.",
-          "cost": "414 test/332 production AST in its two files; one run-record fixture plus existing scorecardFixture. Full landing +528 production/+837 tests; no duplicated gate."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestFailureRateCountsTheAttemptsOfItsWindow; TestAVideoIsReadAtTheSizeAPersonAsksFor",
-          "retained_owner": "Existing servingSummary/retained serving-attempt store.",
-          "unique_cases": "Same-code recurrence, changed-code reset, legacy identity, cancellations/window, gap presentation and recorder stamp; separate user-size time/peak without replacing small-request values.",
-          "cost": "1272 AST combined file and two distinct stores; no safe fixture merge established."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestAUserSizeRequestLeavesItsSizeToTheModel; TestVideoCellsTimeAUserSizeRequest",
-          "retained_owner": "Existing recipe conversion and validation command/selection.",
-          "unique_cases": "Prompt/seed retained; omit dimensions/steps for defaults; absent size and invalid JSON; video-only/timed cell, selected store/directory and missing-directory refusal.",
-          "cost": "145+257 test AST, pure fixtures without store/model/device setup. Whole video change +551 production/+899 tests includes separate summary coverage."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestResidentScheduleIsRecordedAndJudged; TestTrainDeviceResidentQwen2BiasMatchesHost schedule assertion",
-          "retained_owner": "Existing resident plan, actual training State and deviceNewtonSchulz helper; host NewtonSchulz now accepts the schedule for both parity callers.",
-          "unique_cases": "Training/ordinary plan schedule distinction; actual returned State stamping; reflected 64x32 rank-32 1/i spectrum judged against matched 4+2 host oracle with a 2% relative bound; shorter direction versus 8+2. Existing FP32 8+2 parity and serial-order tests stay.",
-          "cost": "New file 672 AST, one device worker/ops/buffer setup plus two plan constructions. Complete landing +54 production/+699 tests. No safe cross-test setup deletion proved; no new fixture files or SQA device run."
+          "tests": "TestAResetThatMovesNothingPasses and existing trunk refusal/allowed operations",
+          "retained_owner": "internal/landing/trunk_hook_test.go uses hookedRepository",
+          "unique_cases": "Same-ref no-op must pass, while actual unauthorized moves still refuse and report-only commits remain allowed. Same old/new identity is an exact no-change contract, not a timing assumption.",
+          "cost": "Whole test907->998(+91), one additional native temporary Git fixture. Hook adds3 lines, production Go+0. A further fixture merge was not parsed/proved in this bounded review; no extra gate run."
         }
       ],
-      "retained_measurements": [
-        "4257dabc1: broad tests2m47.064s; device10m26.643s; webui2m54.333s; CUDA2m54.428s,4 executed/15 cached.",
-        "83f4df1fc: tests2m27.843s; device skipped; webui3m9.217s; CUDA3m39.225s,4 executed/15 cached.",
-        "e57e7236f: tests3m52.156s; device skipped; webui3m14.735s; CUDA4m12.261s,4 executed/15 cached. Two model instances during pool confirmation are an admitted host-memory cost, not measured here.",
-        "844469537: tests3m5.938s; device15.795s; webui2m58.502s; CUDA4m29.977s,9 executed/10 cached. Implementation explicitly reports no actual trained-model/device validate -trained lifecycle run.",
-        "a0f99a655: tests2m5.238s; device/webui/CUDA skipped. Retained44-scorecard replay changed49 candidate moves/3 standing to170/23 standing on the same3 cells; it reports no historical slow decline missed. This is retained replay evidence, not a new workload.",
-        "Retained Bonsai slice after844469537 uses identityaab9f12d012eac83d94d033df9154062c893702f340aacf6cb84e4a2c1ce845c and unchanged output4d9f9909fc4ccbc027189a2d3a9a42769508730637749bc8fca1fc8f2acb44c0. Peak5347.3MiB unchanged, first1357.3985ms,55.7320tok/s,load2603.7318ms. No runtime speed or memory improvement inferred.",
-        "9864a47d1: tests 3m11.886s; lanes 17m14.737s, CUDA 19 executed/0 cached. Store comparison: 43 failure cells remain 0%; historical attempts lack commit identity, so recurrence improves only for future recorded attempts.",
-        "0b8039491: tests 2m16.258s; device/webui/CUDA skipped. Failed evaluation now becomes a publication gap; no real-store reading improvement claimed.",
-        "e360c6cb6: tests 3m7.17s; lanes 17m11.488s, CUDA 19 executed/0 cached. User-size video would add about six minutes for Wan; no actual new user-size device request ran in this commit's evidence. Model defaults supply dimensions, not copied thresholds.",
-        "caaa9d9ff: tests 2m58.102s; lanes 16m36.457s, CUDA 13 executed/6 cached. Same Bonsai identity aab9f12d012eac83d94d033df9154062c893702f340aacf6cb84e4a2c1ce845c/output 4d9f9909fc4ccbc027189a2d3a9a42769508730637749bc8fca1fc8f2acb44c0; peak 5347.3 MiB unchanged, first 1359.6601 ms, throughput 55.81974 tok/s, load 2561.4695 ms. Adjacent readings are not a controlled speedup.",
-        "00a7dba56: tests 2m57.501s; lanes 16m47.683s, CUDA 13 executed/6 cached; Bonsai outputs identical and peak unchanged. Retained experiment compared already-existing 4+2 and 8+2 schedules: 13.3 versus 18.0 seconds for 40 resident steps on Qwen2.5-0.5B, two held-out windows, three rates, repeated runs; 4+2 remained. This is a bounded comparison, not a new runtime speedup from recording the schedule. Its 0.72 overall/0.46 worst-group update ratio and worse rescaled loss are retained evidence, not SQA measurements; generalization beyond that short single-model experiment is unproven."
+      "retained_results": [
+        {
+          "commit": "3bc44c75abd55b099d70a8aa985cc0da18c79634",
+          "result": "Host test2m55.459s, lanes15m32.782s; CUDA11 executed/8 cached. Bonsai output and peak5347.3MiB unchanged; first1358.423ms,55.714tokens/s,load2635.7302ms. Presence semantics improve, no controlled speedup."
+        },
+        {
+          "commit": "5721eddccacc79e17a49255c9ad3fc7c34069572",
+          "result": "Test2m4.948s; device lanes skipped; verify17.959s. Commit records undo checks for both repaired faults. Correctness evidence retained, not rerun."
+        },
+        {
+          "commit": "526e5a48a89abd8db605df703134e2e1bbbfeafe",
+          "result": "Test3m3.866s, lanes17m13.072s; CUDA19 executed/0 cached. Bonsai unchanged output/peak; first1357.7953ms,55.679557tokens/s,load2569.5671ms. Rate experiment: whole-plan494m gives6.08e-6, heldout3.8421/3.8454; trained358m gives7.37e-6, heldout3.8547/3.8551. Two runs each,200 resident steps,537 training windows/30 held-out, one model; no universal policy optimum claimed."
+        },
+        {
+          "commit": "8fc3452c368115142a2aae84a8be6cdbdf3bdacc",
+          "result": "Served-target test3m53.936s, lanes50.562s; CUDA2 executed/17 cached; verify1.889s, scorecard not reached. Existing target refused before device work. Cross-volume case unexecuted; same os.Link admission operation establishes the source expectation."
+        },
+        {
+          "commit": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+          "result": "Landing outcome repair: test1m52.042s, lane discovery833ms with device/webui/CUDA skipped, verify12.194s, scorecard not reached. No-op reference update passes before changed-path check; actual moves retain existing admission. This corrects a false refusal after committing, not a delivered wakeup."
+        }
       ],
-      "sequencing": "Training now releases its workload before synchronously invoking validate -trained; registered pending models remain for later validation after admission/cell failure. Pool objective/base incompatibility and proof-with-pool are checked before training/output; confirmation charge precedes callback model likelihood evaluation. Those are concrete improvements. A filtered execution can nevertheless set the whole-model completion alias (289). Initial driver ErrWorkWaiting still returns, so existing271/258 continuation residuals remain. Existing288 missing plan adoption is a separate high-priority sequencing gap: durable store fixes precede dependent evidence/training expansion. No new scheduler, telemetry or manual polling loop recommended. Failed benchmarks now reach the run record before scorecard publication. Nonfinite directions stop dense/LoRA and existing device steppers; the commit explicitly leaves other direct host callers unchanged, so no universal trainer-stop claim. Existing state/checkpoint validation remains. No new scheduler, notification framework or telemetry recommended."
+      "automation_sequence": "Trace: trainMOSS parses input/manifest -> resolves base -> CheckServedTarget before weights/store/session/device -> retained training -> publishPlanned checkpoint -> optional adapter/PublishServed -> held-out judge/report. Known existing-target/hard-link failures now move before costly work; this does not reserve the target against later races or prove all publication failures impossible. Driver Run still returns ReasonWorkWaiting at initial Current ownership contention; after-worker contention continues then reaches that initial check. RecordRefusal records shared causes across rows, not retry dispatch. HoldLaneTurn keeps device waiting separate from independent host work. Existing271/258 remain the continuation owners, preserving stops/budgets/evidence identity/partial results/numerical acceptance. ff112192e fixes a concrete completion-reporting defect: landing's final unchanged-reference index synchronization no longer fails the hook and reports refusal after already moving trunk. Actual old!=new admission is retained. This source-established improvement does not itself prove unattended dispatch or process-exit notification."
     },
-  "hygiene_assessment": "Only docs/sqa_findings.json is merged. Concurrent optimizer/dense-training/verification-file work is preserved. Temporary tools stay outside the repository.",
+  "hygiene_assessment": "Only docs/sqa_findings.json is merged. Concurrent MOSS route, latent-image rotary and shape implementation/test work is preserved; temporary analysis remains outside the repository.",
   "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
@@ -6988,14 +6963,12 @@
   },
   "limitations": [
       "This chat previously implemented Overgo changes; this is not independent third-party review.",
-      "No tests, gates, model workloads, services, benchmarks, profiles, agents or worker messages started. Only the report changes; temporary analysis stays outside the repository.",
-      "Whole selected-file AST includes comments. Inspection focused on named callers/functions, not every declaration or a census. Parser bindings are local, not a resolved whole-program graph. Actual standalone NonfiniteRow typecheck resolves 10 definitions/14 uses; imported/device package typechecking was not performed.",
-      "No safe new net production/test reduction proved. Existing 270/242/287 proposals remain; preserve distinct correctness/recovery requirements without a quota.",
-      "289/290 are admitted source counterexamples, not executed failures. Both repairs grow code; only 290's +16 production AST was parsed. Retained commits do not demonstrate a complete real-device trained-model continuation or new user-size video run.",
-      "Gate/scorecard/replay figures are implementation records. Unchanged Bonsai output and peak memory plus adjacent timings do not establish a controlled speed or memory improvement.",
-      "No independent verification of 288's quoted 1804 crash states, power cut or NTFS zero tail. Seal/cutover hazards remain P1; occurrence rates are unknown.",
-      "Two-standard-error arithmetic is a decision rule, not a distribution-free 1-in-44 guarantee for small/correlated/heavy-tailed samples. Nine history values do not prove representative stationary sampling; no statistical framework proposed.",
-      "Concurrent optimizer/dense-training/verification-file work is excluded. Older findings retain their evidence pins; not all were freshly reproduced. Completion timestamps and retry prose do not prove delivered wakeups."
+      "No repository tests, gates, model workloads, services, benchmarks, profiles, agents or worker messages started. Scratch Go programs only parse/typecheck source and build the report outside the repository.",
+      "AST counts include comments and are structural proxies. Parser-local bindings do not resolve cross-package calls; imported/device packages were not typechecked. Standalone actual-file typechecking is explicitly narrower.",
+      "SQA-291's counterfactual is traced in source and its candidate parsed, not executed. No time/allocation saving measured. Existing retained test/gate records support source closure of289/290; no new real-device full-model completion run.",
+      "Retained gate timings/output/peak memory and rate experiments belong to implementation records. Adjacent timings are not a controlled master performance comparison, and no new memory reduction is established.",
+      "SQA-288 source files are unchanged across the five landings. Its external crash simulation/power-loss evidence was not rerun; original provenance and unmeasured occurrence rates remain.",
+      "Bounded review does not freshly reproduce every older finding. Their evidence revisions remain explicit. No new framework, selector, scheduler, telemetry or recurring workload proposed."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7619,19 +7592,17 @@
       }
     }
   },
-  "next_finding_number": 291,
+  "next_finding_number": 292,
   "publication_context": {
-      "checked_head": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-      "assessment": "Source/plan pin assessed; reread the current report immediately before writing and preserve owner/unknown fields raw-exact.",
-      "newer_commit_note": "Ten implementation landings reviewed, including schedule-recorded while publication waited for the active landing. Its full diff and changed AST were reconciled; the earlier prepared report was not committed. No code or workers were disturbed.",
+      "checked_head": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "assessment": "Source/plan pin assessed; immediately reread current report and preserve owner/unknown fields raw-exact before writing.",
+      "newer_commit_note": "Reconciled served-target8fc3452c3 and landing-repairs ff112192e after the initial526e5a48a sample. Other sampled blobs unchanged. No worker or production gate disturbed.",
       "publication": "Report-only commit explicitly authorized; existing landing/gate locks and actual hooks retained. No gate, branch/worktree change, reset, stash or push."
     },
   "ranked_active_finding_ids": [
     "SQA-288",
     "SQA-286",
     "SQA-277",
-    "SQA-289",
-    "SQA-290",
     "SQA-283",
     "SQA-271",
     "SQA-258",
@@ -7641,7 +7612,6 @@
     "SQA-285",
     "SQA-287",
     "SQA-215",
-    "SQA-221",
     "SQA-276",
     "SQA-223",
     "SQA-237",
@@ -7683,50 +7653,51 @@
     "SQA-247",
     "SQA-248",
     "SQA-250",
-    "SQA-262"
+    "SQA-262",
+    "SQA-291"
   ],
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "117 stable findings: 57 open, 4 deferred, 56 resolved. Add 289/290; partially address 221/266; no full closures. Preserve both owner objects and external 288.",
-      "Pack index allocation derives from actual file room before multiplication; entry widths are format facts. Strata pool 128-entry/64-fetch bounds and PCIe share apply to its admitted calibrated layout. Reasoning/SSE/content-reader owners retain exact-byte, UTF-8, cancellation and release cases.",
-      "Device f32 norm refusal differs deliberately from host f64 range for the same very large gradient. This is not universal parity. Keep existing shape validation/numerical order; no impossible-state branches or replacement policy threshold.",
-      "Quality zero is a valid minimized outcome, not missing data. Preserve original source/contract/environment and paired acceptance. Failure newest-nine/changed-commit reset is explicit policy, not random sampling or a probability guarantee.",
-      "Master improves completion/error visibility, manual handoffs and schedule provenance; ten retained landings grow code/tests. The resident schedule comparison documents an existing speed/quality tradeoff, not a newly changed runtime; no new controlled master-wide speed/memory win. The two source gaps still prevent claiming unattended trained-model completion.",
-      "The 64x32 reflected 1/i spectrum is a controlled parity fixture, not an asserted model-gradient distribution. Retain the existing 2% TF32 versus matched-host bound without presenting it as all-shape calibration. The short real-text experiment explicitly admits small held-out samples/overfitting."
+      "118 stable findings:55 open,4 deferred,59 resolved. Close221,289,290 from source and retained implementation evidence; add291, a net127-test-AST reduction with stronger zero-timing failure signal. Existing store durability288 remains first.",
+      "Master has concrete correctness and sequencing improvements: whole-model obligations survive narrow validation, valid quality zero remains a target, absent gradients preserve momentum, and impossible served targets fail before device work. A no-op trunk update also no longer turns a successful landing into a refused outcome. The five landings grow production590/test1765 AST; they are not overall code reduction or a measured memory/speed win.",
+      "Quality zero and absent gradients are distinct from missing timing and present-zero gradients. Keep their domains, identity, cancellation, error and resource-lifetime behavior in retained owners.",
+      "Parameter-count calibration uses one small text model/corpus and two runs per rate; its held-out preference is not universal distribution evidence. Timing history constants remain an explicit decision policy, not a probabilistic confidence claim. Strata is a comparison, not presumed optimal.",
+      "Packed batching derives cohort/view shapes from token and typed storage descriptors and falls back for unsupported cases; no admitted geometry failure established. Retention padding derives from inlineContentLimit and shard suffix from the format; literals alone are not findings.",
+      "Completion/refusal records and post-commit activity do not prove delivered wakeups or supervised process exit. Keep271/258 open; reuse existing dispatch, exact credit, resume and lane-turn owners."
     ],
-  "reviewed_at": "2026-11-02T16:16:35Z",
-  "reviewed_master": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
+  "reviewed_at": "2026-11-02T18:00:54Z",
+  "reviewed_master": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
   "schema_version": 1,
   "scope": [
-      "Pinned master 00a7dba56bce8a11cbe517ce4e9642bbcbb8f560; committed plan blob 692f21ef38f870da00e7d2c82bb08d246530e969; unchanged skill blob 0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
-      "Continuous review prepared at a0f99a655, reconciled against five subsequent landings before publication. Provisional caller/source conclusions preceded the prior report. Read every later diff before publication; the final optimizer schedule landing changes no 289/290 path.",
-      "Scope: trained publication/catalog/admission/selection/completion; held-out charge/pool confirmation; scorecard quality history and paired fixtures; Strata transfer/scratch lifetime; reasoning/UTF-8 streaming; blob pack bounds/content-reader lifetime/batching; runtime/download SSE; driver wait and gate sequencing.",
-      "Rotated additions: optimizer finite-direction propagation/direct callers, failed-evaluation publication, failure-window identity, video default-size request and separate timing/memory cells, resident schedule identity and matched host/device oracle. Actual AST on 33 committed files, 172 functions and 8253 parser-local bindings; standalone actual-file typecheck and parsed zero-quality repair remain valid because those source blobs are unchanged.",
-      "Reconciled 115 current findings and both owner objects after provisional review. SQA-288 source hazards rechecked; preserve its external provenance without claiming its quoted crash simulations as this review's measurements."
+      "Pinned committed master ff112192e1b2a5ec1137821237b8242192f2fe6d; plan blob2cf1acb1575d14c8b1b139c68a4a1e60ac13fe50; unchanged instruction skill.md blob0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
+      "Provisional source/caller conclusions at526e5a48a preceded reading the current report. Reconciled served-target8fc3452c3 and landing-repairs ff112192e before publication, including committed plan, changed production/test owners and callers. Concurrent MOSS shape work is excluded.",
+      "Rotated sample: validation completion, scorecard quality/timing history, host/packed/device optimizer presence, parameter-count policy, chat deltas and packed-batch view/release, retention graph/blob cleanup, GUI live delivery/durable thread recovery, refusal/driver admission and MOSS publication prerequisites.",
+      "Actual Go AST on27 selected committed files/178 functions/7145 parser-local bindings, plus exact two-file in-memory reduction parse. Whole selected files counted, named paths/callers inspected; not a full census. Actual standalone NonfiniteRow source typechecked (10 definitions/14 uses).",
+      "Reconciled current117 findings and implementation responses only after provisional review. Preserve both owner objects and all unknown/implementation-owned fields; new291 is not a duplicate of zero-quality correctness290 or existing chat equality239."
     ],
   "sqa_response": {
-      "reviewed_master": "00a7dba56bce8a11cbe517ce4e9642bbcbb8f560",
-      "assessment": "Keep 288 first. Add 289 partial validation/whole-model completion and 290 valid zero quality dropped by a timing predicate. Credit post-training handoff and failed-evaluation publication; no new net reduction or measured speed/memory win.",
+      "reviewed_master": "ff112192e1b2a5ec1137821237b8242192f2fe6d",
+      "assessment": "Accept implemented221/289/290 and retain288 first. New291 removes a zero-timing check that cannot catch its intended fault by moving the case into the existing eligibility boundary, net127 fewer test AST nodes.",
       "new_findings": [
+        "SQA-291"
+      ],
+      "resolved_findings": [
+        "SQA-221",
         "SQA-289",
         "SQA-290"
       ],
-      "resolved_findings": [],
-      "partially_addressed_findings": [
-        "SQA-221",
-        "SQA-266"
-      ],
+      "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "33-file committed AST, unchanged actual standalone typechecked source, caller/lifetime traces, parsed +16 production AST zero-boundary repair, ten retained gate records. No new validation runs.",
+      "evidence": "27-file Go AST/caller review, actual standalone type resolution, parsed complete two-file reduction and five retained gate records. No new repository validation runs.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "0b80394917c471cdd1dd3ada43edc33f623d758b",
-        "status": "Both owner objects and unknown/implementation-owned fields preserved. Accept 221's central wording correction; its existing denominator/upstream-equivalence residual remains P3. 266 still extends beyond one trained-model class. 110 remains deferred without mixed inventory evidence. External 288 retains raised_by; its crash counts are not ours."
+        "current_triage_head": "5721eddccacc79e17a49255c9ad3fc7c34069572",
+        "status": "Both implementation-owned objects and unknown fields preserved verbatim. Source supports three claimed repairs. The290 timing test's weak assertion is a separate P3 reduction291, not an unimplemented production zero-quality repair."
       },
-      "recommendation": "Store durability first, then completion scope and zero quality history in current owners. Retain native test ownership and 270/242/287 reductions; no broad new suite, scheduler or statistics framework.",
-      "uncertainty": "No power cut, real trained/device continuation, user-size device run or new performance measurement. 289/290 repairs grow code. Older findings are not all freshly reproduced."
+      "recommendation": "Prioritize store recovery, then existing completion ownership. Take291 in existing native test compaction; retain distinct numerical/platform/recovery cases, with no new suite or scheduler.",
+      "uncertainty": "Source and retained records only. No power cut, full-model unattended completion, cross-volume run or controlled time/memory comparison."
     }
 }

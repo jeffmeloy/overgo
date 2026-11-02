@@ -20,7 +20,11 @@ type OptimizerSchedule string
 
 const OptimizerScheduleConstant OptimizerSchedule = "constant"
 
-// OptimizerPolicy derives Muon's rate from the trained parameter count:
+// OptimizerPolicy derives Muon's rate from the parameter count of the run's
+// plan, a frozen table among them. Counting only what a frozen-lexical run
+// trains read worse: on Qwen2.5-0.5B, 200 resident steps of real text at the
+// 7.4e-6 that count gives held out at 3.855, and at the plan's 6.1e-6 at 3.844,
+// runs of one rate agreeing to 0.003, so the count stays the plan's. It takes
 // ParameterExponent for a model that already learned, whose fixed-size
 // spectral steps must stay small enough not to walk it off its optimum, and
 // InitializationParameterExponent for weights trained from their

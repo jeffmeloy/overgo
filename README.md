@@ -141,7 +141,7 @@ architecture profiles are registered (`go run ./cmd/validate -models -repo <stor
 | Krea-2-Turbo | text-to-image | text → image | 13.9 s | — | 0.94 on 415 prompts | 25.0 GiB |
 | SenseNova-U1-8B-MoT-Infographic-V3 | text-to-image | text → image (infographics) | 13.1 s | — | 100 of 100, the suite's ceiling | 15.4 GiB |
 | SimpleDiffusion-TensorProductAttentionRope | image generation | noise → image, no caption | 0.84 s | — | no caption suite applies | 0.5 GiB |
-| MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | 95 s at 1024 square | — | 0.91 on 415 prompts | 13.0 GiB |
+| MOSS-Image-SFT | text-to-image | text → image; [trains adapters](docs/MOSS_IMAGE.md) | 95 s at 1024 square | — | 0.91 on 415 questions about 64 captions | 13.0 GiB |
 | Un-0 | image generation, video generation | class → 8×8 picture or 12-frame clip (a 120 kB toy model) | 12 ms; 30 ms | — | no caption suite applies | host |
 | Wan2.1-T2V 1.3B | text-to-video | text → video | 13.0 s | — | 0.91 on 128 clips | 3.6 GiB |
 | LiveEdit | video editing | video + instruction → video | 9.6 s | — | 0.84 on 64 clips | 3.5 GiB |
@@ -247,18 +247,21 @@ in 29 ms, on the host.
 
 One Muon optimizer handles matrices, vectors, scalars, embeddings,
 normalization parameters, and adapters. The recipe binds the
-[optimizer policy](internal/trainingprogram/optimizer_policy.json); parameter
-count $P$ determines its settings:
+[optimizer policy](internal/trainingprogram/optimizer_policy.json); the count
+$P$ of parameters in the run's plan, a frozen embedding table among them,
+determines its settings:
 
-- **Learning rate:** $\eta=P^{-0.6}$ for a model that already learned,
-  $P^{-0.5}$ for weights trained from initialization; constant schedule.
+- **Learning rate:** $\eta=P^{-0.6}$, constant, for a model that already
+  learned; $P^{-0.5}$, decaying linearly, for weights trained from
+  initialization.
 - **Momentum:** $\mu=(N-1)/(N+1)=29/31$ with $N=30$ effective samples, from the
   rule of thumb of Cochran's confidence-interval criterion.
 - **Update scale:** $\eta\sqrt{\max(m,n)}\sqrt{1-\mu^2}$ per $m\times n$ group.
 
 Muon combines gradients with momentum, normalizes the Nesterov direction, and
-orthogonalizes by Newton–Schulz iteration; on CUDA its math stays on the
-device and only scalars cross to the host. Optimizer state keeps the resolved
+orthogonalizes by Newton–Schulz iteration. On CUDA a resident trainer's math
+stays on the device and only scalars cross to the host, and a flat or streamed
+step copies its weights to the device and back. Optimizer state keeps the resolved
 settings, update count, and momentum. Suitability is assessed per task through
 training evidence.
 

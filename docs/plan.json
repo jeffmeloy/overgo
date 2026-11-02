@@ -167,25 +167,6 @@
       ]
     },
     {
-      "id": "optimizer-truth",
-      "title": "Hold training's optimizer to what it states",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 83,
-        "reason": "momentum-absent measures 317, a gather's record reaching the optimizer and both steppers on two platforms, where the row's estimate took a rate count and two state fields; rate-count is still estimated at about 80."
-      },
-      "steps": [
-        {
-          "id": "rate-count",
-          "title": "Derive the rate from trained parameters and correct the README",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -count=1 -run 'TrainedParameterCount'",
-          "rationale": "internal/trainingworkflow/workflow.go:220 and text_heldout.go:250 pass the plan's whole count, frozen tensors included, though the policy says trained count (internal/trainingprogram/optimizer_policy.go:23). That reads about 17 percent low for Qwen2.5-0.5B with its 151936 by 896 lexical table frozen. TensorPlan sets no Frozen (tensor_pack.go:88) and freezeLexical runs after training (text_heldout.go:591-593), so the count takes FreezeLexical at compile. MOSS counts trained factors already (route_moss_windows.go:255).\nREADME:247,253-254 says a constant schedule, while scratch training decays linearly (scratchmodel/construction.go:384), and that only scalars cross, while flat and streamed steps copy weights.\nA rate change moves recorded training results, so judge it on Qwen2.5-0.5B before it lands, and before training-gaps/judged-proof.\nServes: the derived rate means what it says.\nDisappears: three README inaccuracies.\nEvidence: a frozen-lexical fixture.\nBatch: training lanes."
-        }
-      ]
-    },
-    {
       "id": "moss-training-repairs",
       "title": "Hold a MOSS training run to its source and its data before it spends the device",
       "owner": "master-lead",

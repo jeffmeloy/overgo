@@ -974,7 +974,9 @@
         "uncertainty": "No independently measured upstream 415-question suite was inspected; four retained parity cases do not alone establish full-suite equivalence."
       },
       "likely_effort": "Small remaining prose correction; core representative-sample wording already implemented.",
-      "plan_references": [],
+      "plan_references": [
+        "optimizer-truth/rate-judged"
+      ],
       "plan_coverage": "scorecard-truth/video-user-size landed e360c6cb6 and was pruned. The implemented owner annotation remains verbatim. Reviewer accepts the central wording repair but retains only the already-recorded P3 denominator/upstream-equivalence residual; no new row or run requested.",
       "closure_criteria": [
         "Retain the representative-output versus aggregate-time/newest-memory distinction.",
@@ -6997,7 +6999,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "3bc44c75abd55b099d70a8aa985cc0da18c79634",
+    "head": "5721eddccacc79e17a49255c9ad3fc7c34069572",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7278,9 +7280,9 @@
       "SQA-221": {
         "action": "implemented",
         "rows": [
-          "scorecard-truth/video-user-size"
+          "optimizer-truth/rate-judged"
         ],
-        "note": "Prose only, as the finding asks. README's Sample outputs, mediaReportScope and measuredSampleSelection now say a sample is an output of the attempts the scorecard reads, and that the time beside it is a median of attempts and the memory the newest's, so neither need be that output's own. No measurement, schema or export mode was added, and the scorecard's median and memory tests are unchanged. README's own figures are not re-derived: the 95 s beside the MOSS sample stays the cell's reading, which the reworded paragraph now describes."
+        "note": "The remainder the review named is done: README's MOSS row reads 415 questions about 64 captions, and MOSS_IMAGE.md calls the score a reading of the native path, since parity compares four generations and upstream was not run on those questions. No exporter, measurement or schema changed."
       },
       "SQA-276": {
         "action": "filed",

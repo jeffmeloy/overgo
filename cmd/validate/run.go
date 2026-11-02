@@ -260,6 +260,9 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 		subject := fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation)
 		settle := func(err error) {
 			record(subject, err)
+			if err != nil && !errors.Is(err, errInapplicable) && benchmark(sel.ModelValidation) {
+				noteFailedEvaluation(output, sel.ModelValidation)
+			}
 			if err == nil {
 				acquiredOf[sel.Model]++
 				if creditErr := credit.add(sel.ModelValidation); creditErr != nil {

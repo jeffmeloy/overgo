@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 29,
-        "reason": "Estimate after the 675d61b80 recheck: video about 150 to 200, the other three about 60 to 120 each."
+        "nodes": 202,
+        "reason": "stale-quality measures about 520, a run's record carried to its publication and a gap read from it, where the row's estimate took 60 to 120; the video step is still estimated at 150 to 200."
       },
       "steps": [
-        {
-          "id": "stale-quality",
-          "title": "Mark a quality reading that this run did not measure",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAQualityCellNotMeasuredThisRunSaysSo$'",
-          "rationale": "Newest is set only on serving cells (internal/scorecard/scorecard.go:106-110,672,1263), so Unmeasured (record.go:112-113, called from cmd/validate/scorecard.go:65) never reaches quality, and after a broken evaluation the older value reads as holding.\nKey it to a failed evaluation (MeasurementPhase.Failed, cmd/loop/improve.go:93-96), not to age. An older quality reading is normal: a run reruns only stale validations (improve.go:40-41) and carries results (scorecard.go:1178), so a time test would gap every unchanged cell.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: a record whose evaluation did not run.\nBatch: host lane."
-        },
         {
           "id": "video-user-size",
           "title": "Time a video request of the size a person asks for",

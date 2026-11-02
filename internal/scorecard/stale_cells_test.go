@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/testutil"
 )
@@ -95,5 +96,47 @@ func TestATrainedModelsReadingStands(t *testing.T) {
 	}
 	if cell := got.Rows[1].Cells[metric.Throughput]; cell.Reason == "" {
 		t.Fatalf("another model's old reading stands as %+v", cell)
+	}
+}
+
+// TestAQualityCellNotMeasuredThisRunSaysSo: a held-out quality whose evaluation failed this run is a gap that names what
+// happened and the reading before it, and is no longer compared, where the older value read as holding. A model's other
+// suite and another model's reading of the suite stand, and a quality no evaluation failed stands however old it is.
+func TestAQualityCellNotMeasuredThisRunSaysSo(t *testing.T) {
+	t.Parallel()
+	failing := testutil.ArtifactID(t, artifact.KindModel, "failing")
+	other := testutil.ArtifactID(t, artifact.KindModel, "other")
+	quality := func(suite string, value float64) Cell {
+		return Cell{Value: value, Source: testutil.ArtifactID(t, artifact.KindEvaluation, suite), Direction: runrecord.DirectionMaximize,
+			Contract: Contract{Metric: shareMetric, Origin: originEvaluation, Suite: suite, Comparison: testutil.ArtifactID(t, artifact.KindProfile, suite)}}
+	}
+	row := func(model artifact.ID) Row {
+		return Row{
+			Model: model, Name: "paired", Task: recipe.TaskInference, Cells: map[metric.Name]Cell{metric.Quality: quality("store/mmlu-pro", 0.5)},
+			Heldout: []Cell{quality("store/bbh", 0.25), quality("store/gsm8k", 0.75)},
+		}
+	}
+	record := Record{Rows: []Row{row(failing), row(other)}}
+	failed := func(model artifact.ID, suite string) bool {
+		return model == failing && (suite == "store/mmlu-pro" || suite == "store/bbh")
+	}
+	got := record.NotEvaluated(failed)
+	cell := got.Rows[0].Cells[metric.Quality]
+	if cell.Measured() || !strings.Contains(cell.Reason, "its evaluation on store/mmlu-pro failed") || !strings.Contains(cell.Reason, "was 0.5") {
+		t.Fatalf("the failed evaluation's cell reads %+v", cell)
+	}
+	if kept := got.Rows[0].Heldout; len(kept) != 1 || kept[0].Contract.Suite != "store/gsm8k" {
+		t.Fatalf("the model's other suites read %+v, want the one whose evaluation did not fail", kept)
+	}
+	if cell := got.Rows[1].Cells[metric.Quality]; !cell.Measured() || len(got.Rows[1].Heldout) != 2 {
+		t.Fatalf("another model's readings became %+v and %+v", cell, got.Rows[1].Heldout)
+	}
+	if !record.Rows[0].Cells[metric.Quality].Measured() || len(record.Rows[0].Heldout) != 2 {
+		t.Fatal("the record it was read from changed")
+	}
+	for _, comparison := range (Pair{Before: &record.Rows[0], After: &got.Rows[0]}).Compare(metric.Quality) {
+		if comparison.Verdict == holding || comparison.Verdict == regressed {
+			t.Fatalf("a quality this run did not measure compares as %+v", comparison)
+		}
 	}
 }

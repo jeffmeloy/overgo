@@ -116,7 +116,7 @@ group dense-old-entries
 class: test-held
 surface: outside
 declarations: 5
-lines: 55
+lines: 56
 members: internal/densecausal/backward.go
 members: internal/densecausaltrain/train_resident_cuda_windows.go
 members: internal/hostoptimizer/newton_schulz.go

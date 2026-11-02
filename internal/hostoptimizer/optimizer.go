@@ -19,6 +19,9 @@ type State struct {
 	Step         int       `json:"step"`
 	Momentum     []float64 `json:"momentum"`
 	MomentumF32  []float32 `json:"momentum_f32,omitempty"`
+	// Schedule names the Newton-Schulz schedule and precision a device trainer stepped by when they are not the host's, which
+	// an update's size depends on. It is here and not in Config, which enters a session plan's identity and every seed.
+	Schedule string `json:"schedule,omitempty"`
 }
 
 // Parameters is the number of parameters the momentum covers, in whichever
@@ -114,7 +117,7 @@ func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, update
 		o.momentum[index] = momentum
 		direction[offset] = nesterovDirection
 	}
-	if !newtonSchulz(direction, group.Rows, group.Cols, &o.scratch) {
+	if !newtonSchulz(direction, group.Rows, group.Cols, NewtonSchulzStage1Iterations, &o.scratch) {
 		clear(o.gradients[group.Start:group.End])
 		return gradientSquared, 0, false
 	}

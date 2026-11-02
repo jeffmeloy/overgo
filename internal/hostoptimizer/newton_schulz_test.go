@@ -103,7 +103,7 @@ func TestNewtonSchulzMatchesSerialForm(t *testing.T) {
 		}
 		reference := slices.Clone(input)
 		serialNewtonSchulz(reference, shape.rows, shape.cols)
-		NewtonSchulz(input, shape.rows, shape.cols)
+		NewtonSchulz(input, shape.rows, shape.cols, NewtonSchulzStage1Iterations)
 		if !slices.Equal(input, reference) {
 			t.Fatalf("%dx%d: parallel orthogonalizer differs from the serial form", shape.rows, shape.cols)
 		}
@@ -132,7 +132,7 @@ func TestNewtonSchulzMatchesSerialForm(t *testing.T) {
 		}
 	}
 	zero := make([]float64, 6)
-	NewtonSchulz(zero, 2, 3)
+	NewtonSchulz(zero, 2, 3, NewtonSchulzStage1Iterations)
 	if slices.ContainsFunc(zero, func(value float64) bool { return value != 0 }) {
 		t.Fatal("a matrix under the Frobenius guard changed")
 	}

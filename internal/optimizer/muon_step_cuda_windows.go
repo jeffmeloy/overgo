@@ -253,6 +253,14 @@ func (s *ResidentMuonPlan) StepMatrices(matrices []ResidentMatrix, step int) err
 	})
 }
 
+// Schedule names the Newton-Schulz schedule the plan steps by when it is not the host's, for a run's State to record.
+func (s *ResidentMuonPlan) Schedule() string {
+	if s.trainingSchedule {
+		return residentSchedule
+	}
+	return ""
+}
+
 func (s *ResidentMuonPlan) Close() error {
 	if s == nil || s.closed {
 		return nil

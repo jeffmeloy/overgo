@@ -5,6 +5,7 @@ package densecausaltrain
 import (
 	"math"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -77,6 +78,9 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotTrajectory, gotState := deviceResult.Losses, deviceResult.State
+	if !strings.Contains(gotState.Schedule, "4+2") {
+		t.Fatalf("the resident state records schedule %q, want the 4+2 it stepped by", gotState.Schedule)
+	}
 	if delta := testutil.MaxAbsDiff(wantTrajectory, gotTrajectory); delta > 1e-3 {
 		t.Fatalf("Qwen2 trajectory delta %.3e", delta)
 	}

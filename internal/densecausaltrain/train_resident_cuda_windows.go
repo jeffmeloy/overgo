@@ -465,6 +465,7 @@ func trainDeviceResident(m *densecausal.Model, worker *device.Worker, groups [][
 		return nil, 0, err
 	}
 	state := opt.Snapshot()
+	state.Schedule = residentMuon.Schedule()
 	momentumSlices := make([]devicemath.ResidentSlice, len(mats))
 	for index, matrix := range mats {
 		momentumSlices[index] = devicemath.ResidentSlice{

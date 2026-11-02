@@ -108,7 +108,7 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 						for i, v := range input {
 							host[i] = float64(v)
 						}
-						hostoptimizer.NewtonSchulz(host, tc.rows, tc.cols)
+						hostoptimizer.NewtonSchulz(host, tc.rows, tc.cols, hostoptimizer.NewtonSchulzStage1Iterations)
 						// Retain the established FP32 versus FP64 host-oracle bound.
 						const tolerance = 1e-5
 						for i, v := range got {

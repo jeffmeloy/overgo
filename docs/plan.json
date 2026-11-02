@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 80,
+        "nodes": 26,
         "reason": "Estimate. A finite check, two state fields and a rate count in existing owners."
       },
       "steps": [
-        {
-          "id": "schedule-recorded",
-          "title": "Record and judge the resident training schedule",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/optimizer -count=1 -run '^TestResidentScheduleIsRecordedAndJudged$'",
-          "rationale": "Resident training runs 4+2 iterations in TF32 (internal/optimizer/newton_schulz_cuda_windows.go:218,225), used only by densecausaltrain/train_resident_cuda_windows.go:294; the host runs 8+2. Recomputed at rank 4096: update size 0.42 of the host's for a 1/i spectrum, 0.67 for exponential decay, 1.00 flat. The gap falls with rank: 1/i gives 0.53 at 2560, 0.80 at 896, Qwen2.5-0.5B's largest rank, 0.93 at 512, and 1/sqrt(i) gives 1.00 everywhere. Real spectra are unmeasured, so take a momentum SVD first.\nRecord schedule and precision in State, not Config: Config enters the session plan id and every seed (session_plan.go:84-90,126-144), and Restore compares it (optimizer.go:142). Add an oracle for 4+2, since newton_schulz_cuda_windows_test.go:106 compares only FP32, and compare descent at both on one fixture.\n4+2 is matched and pinned: muon_step_cuda_windows.go:167 and dense_training_leadership_cuda_windows_test.go:30-31 hold optimizer:muon-4x2-tf32 by SHA, so a change rebaselines that test and TestCarbonMatchedAdaptiveLeadership. Keep whichever wins per unit time; if 4+2 stays, correct the scale rule. MOSS is not affected: it runs FP32 8+2 (muon_step_cuda_windows.go:299).\nThis lands before training-gaps/judged-proof: recording moves no number, but the decision can, and a no-gain result could otherwise reflect an unjudged update size.\nServes: throughput of training and honest rates.\nDisappears: an unstated difference.\nEvidence: loss per unit time at both schedules.\nBatch: training lanes."
-        },
         {
           "id": "momentum-absent",
           "title": "Skip parameters that received no gradient",

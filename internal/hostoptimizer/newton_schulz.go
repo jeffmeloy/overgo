@@ -43,12 +43,13 @@ func (s *newtonSchulzScratch) ensure(maxMatrix, maxSquare int) {
 }
 
 // NewtonSchulz orthogonalizes a rows by cols matrix in place with fresh
-// scratch; the device stepper's parity check compares against it.
-func NewtonSchulz(input []float64, rows, cols int) {
+// scratch, at stage1 first-stage iterations; the device steppers' parity checks
+// compare against it, at the schedule each runs.
+func NewtonSchulz(input []float64, rows, cols, stage1 int) {
 	var scratch newtonSchulzScratch
 	square := min(rows, cols)
 	scratch.ensure(rows*cols, square*square)
-	newtonSchulz(input, rows, cols, &scratch)
+	newtonSchulz(input, rows, cols, stage1, &scratch)
 }
 
 // Every output element sums its products in one fixed order on one worker,
@@ -56,7 +57,7 @@ func NewtonSchulz(input []float64, rows, cols int) {
 // serial loops. It reports false, input as it was, for a matrix whose norm is
 // not finite: such a matrix has no direction, and the guard below reads false
 // for a NaN.
-func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) bool {
+func newtonSchulz(input []float64, rows, cols, stage1 int, scratch *newtonSchulzScratch) bool {
 	var normSquared float64
 	for _, value := range input {
 		normSquared += value * value
@@ -77,9 +78,9 @@ func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch)
 	square := scratch.square[:dimension*dimension]
 	output := scratch.output[:rows*cols]
 	transposed := scratch.transposed[:rows*cols]
-	for iteration := range NewtonSchulzStage1Iterations + NewtonSchulzStage2Iterations {
+	for iteration := range stage1 + NewtonSchulzStage2Iterations {
 		coefficients := NewtonSchulzStage1
-		if iteration >= NewtonSchulzStage1Iterations {
+		if iteration >= stage1 {
 			coefficients = NewtonSchulzStage2
 		}
 		if tall {

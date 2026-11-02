@@ -215,7 +215,16 @@ func (b nsBuffers) free(lib *driver.Library) {
 	freeDevicePointers(lib, b.dX, b.dXNew, b.dCX, b.dGram, b.dSq, b.dRest, b.dNorm)
 }
 
-const residentNewtonSchulzStage1Iterations = 4
+// residentNewtonSchulzStage1Iterations is the dense training schedule's first stage, shorter than the host's eight, and
+// residentSchedule its name as a run's State records it. It does not reach orthonormal: on Qwen2.5-0.5B's momentum after 40
+// steps its update was 0.72 the size of the host schedule's, and 0.46 on the group furthest from it, so a resident run
+// moves by less than its stated rate. It stays at the size it gives. Against 8+2 on that model it took 26 percent less wall
+// for held-out loss within 0.02 percent, and scaled up to a converged direction's norm its held-out loss was worse at each
+// of three rates.
+const (
+	residentNewtonSchulzStage1Iterations = 4
+	residentSchedule                     = "newton-schulz-4+2-tf32"
+)
 
 // newtonSchulz matches the host 8+2 FP32 oracle.
 func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {

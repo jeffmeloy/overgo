@@ -12,6 +12,16 @@ import (
 // It changes only when the reference linspace contract changes.
 const nearestGridHalves = 2
 
+// TrainingGrid is the noise levels a model trained on, least first, which inference snaps its schedule to and a trainer draws
+// from: total of them, bent by training_shift.
+func TrainingGrid(total int, trainingShift float64) []float32 {
+	train := make([]float32, total)
+	for i := range train {
+		train[total-i-1] = nearestGridSigma(i, total, total, trainingShift)
+	}
+	return train
+}
+
 // compileNearestGridFlowSchedule snaps shifted float32 knots onto a training grid.
 // Ties select the lower sigma and consecutive duplicates collapse before the terminal zero.
 // Steps are the request's and the work grows with them though the schedule does not, so
@@ -20,10 +30,7 @@ func compileNearestGridFlowSchedule(ctx context.Context, steps, total int, shift
 	if !checked.PositiveInts(steps, total) || !checked.PositiveFinite64(shift) || !checked.PositiveFinite64(trainingShift) || !checked.PositiveFinite32(float32(shift)) || !checked.PositiveFinite32(float32(trainingShift)) {
 		return FlowSchedule{}, fmt.Errorf("nearest-grid flow: positive finite extents and shifts required, got %d/%d/%g/%g", steps, total, shift, trainingShift)
 	}
-	train := make([]float32, total)
-	for i := range train {
-		train[total-i-1] = nearestGridSigma(i, total, total, trainingShift)
-	}
+	train := TrainingGrid(total, trainingShift)
 	sigmas := make([]float64, 0, min(steps, total))
 	for i := range steps {
 		if err := ctx.Err(); err != nil {

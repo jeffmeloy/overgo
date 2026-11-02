@@ -167,25 +167,6 @@
       ]
     },
     {
-      "id": "moss-training-repairs",
-      "title": "Hold a MOSS training run to its source and its data before it spends the device",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 102,
-        "reason": "held-out-bytes measures 113 where about 100 was estimated, and tensor-shapes took more of the row than estimated; training-draw is still estimated at about 100."
-      },
-      "steps": [
-        {
-          "id": "training-draw",
-          "title": "Draw a training step's noise level from the source's grid",
-          "status": "open",
-          "verify": "go test ./internal/mosstrain -count=1 -run '^TestATrainingDrawStandsOnTheSourceGrid$'",
-          "rationale": "Measure first: read training_shift in the checkpoint's scheduler_config.json and the upstream training code. The route draws sigma = t/N and calls that the source's grid (cmd/train/route_moss_windows.go:286-295), while inference builds that grid through training_shift (internal/latentimage/nearest_schedule.go:23-26). If the shift is 1 the step closes with that recorded and no code. Also compare the route's P^-0.6 rate (route_flow_organ.go:139-141) with the P^-0.5 optimizer_policy.go:24-27 assigns to factors starting from initialization.\nServes: held-out-quality of a trained adapter.\nDisappears: a false comment, if the draw stays.\nEvidence: the value read, and a retained rerun if the draw changes.\nBatch: training lane."
-        }
-      ]
-    },
-    {
       "id": "training-gaps",
       "title": "Find a training gap and judge the candidate with no person",
       "owner": "master-lead",

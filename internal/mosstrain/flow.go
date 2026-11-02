@@ -90,6 +90,21 @@ func InitialAdapter(spec latentimage.TransformerSpec, options Options, seed uint
 	return modules
 }
 
+// gridTolerance is how far a draw may stand from its grid point: the grid is float32, one rounding of the draw.
+const gridTolerance = 1e-6
+
+// CheckTrainingGrid holds the route's draw, sigma = t/total for t uniform over 1 to total, to the grid the checkpoint trained
+// on, which inference builds through training_shift. The two agree at a shift of 1, MOSS-Image-SFT's. A checkpoint of
+// another shift would train on noise levels its schedule never reads, so it is refused before a step is spent.
+func CheckTrainingGrid(total int, trainingShift float64) error {
+	for index, sigma := range latentimage.TrainingGrid(total, trainingShift) {
+		if drawn := float64(index+1) / float64(total); math.Abs(drawn-float64(sigma)) > gridTolerance {
+			return fmt.Errorf("mosstrain: a run draws sigma %g, and training_shift %g puts that grid point at %g", drawn, trainingShift, sigma)
+		}
+	}
+	return nil
+}
+
 // FlowPath is the source's flow-matching path at sigma: the noised latent
 // (1-sigma)*latent + sigma*noise and the velocity noise-latent the transformer
 // predicts there.

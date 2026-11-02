@@ -32,7 +32,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "154a41e65bc8dde30d54aaa32912b6d483e9861de204ab92fb9693acc652e26a"
+          "content": "d0c9edbf8502b1e04474515a94edc411419737134aca33a0ff028fa67bb0fe34"
         }
       ],
       "name": "internal/cuda/kernel/ops_f32.ptx",
@@ -65,7 +65,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "66bb1776f039decde3038c64e864eb7d39b96f56875e8c8d6cab418544229bb5"
+          "content": "b819f1c9776a9dd3e94e5661e616a22a6ebef40dd1dd447480f33afdf3ab21be"
         }
       ],
       "name": "internal/cuda/kernel/strata_qsa.ptx",
@@ -112,6 +112,28 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:kernels/cuda/attention_row.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1e410fa687644c5365e1a0da8fe84a53d6c98fc28f3391a3f4b6d6ec4114129b"
+        }
+      ],
+      "name": "kernels/cuda/attention_row.cuh",
+      "type": "file"
+    },
+    {
+      "bom-ref": "file:kernels/cuda/bf16_pack.cuh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f3487b850730ecb7787cd7ed94787e6de37fd3e0c6aea9e12a4c8026e5488a5c"
+        }
+      ],
+      "name": "kernels/cuda/bf16_pack.cuh",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:kernels/cuda/iq_tables_generated.cuh",
       "hashes": [
         {
@@ -134,7 +156,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "7a83f6b7535d2d69269bb1e36fcb1fa9efc1dc16d815746e2495b6ea31d9ecb7"
+          "content": "3888db1a822de7d8b603c34a49c05f350c0fe4b9b56991379d55ba5b3315277f"
         }
       ],
       "name": "kernels/cuda/ops_f32.cu",
@@ -288,7 +310,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "d05470bbbb4fcbc0d37c3964496b8eeb839741791773fb19af827bfd785fe9ed"
+          "content": "1171ad47e217a476b8983de7821584514120c1a012ce2059bed21e03240a4a05"
         }
       ],
       "name": "kernels/cuda/strata_prompt_gr.cuh",
@@ -299,7 +321,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "deabfef843d8268631704576a3ec5bf8c87fba258593843d12e3d4837c519068"
+          "content": "9b2da6e1a03619b8cfa3512f7c2c642165fadf41eb060bfe8ae8156c0d3cba02"
         }
       ],
       "name": "kernels/cuda/strata_qsa.cu",
@@ -365,7 +387,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "5663e691e034d37d8518c5494c0dc00abc72b63169d476d4714a8639a7300970"
+          "content": "70e7ff84469f95c058cc87a3b92c8e5a3e330c78594164966cddf1ed35e274d5"
         }
       ],
       "name": "kernels/manifest.json",
@@ -510,6 +532,8 @@
         "file:internal/cuda/kernel/torch_cuda_randn.ptx",
         "file:internal/cuda/kernel/vector_add.ptx",
         "file:internal/quant/iq_tables_generated.go",
+        "file:kernels/cuda/attention_row.cuh",
+        "file:kernels/cuda/bf16_pack.cuh",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
         "file:kernels/cuda/ops_native.cu",

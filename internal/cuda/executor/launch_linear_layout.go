@@ -297,7 +297,7 @@ func launchLinearLayout(
 					state, functions, blas, dequantKernel, left, right, output, inner, leftRows, rightRows,
 				)
 			}
-			if ggml, routed := kQuantProducts[leftNode.Type]; routed && rightRows <= q8InputSpanColumns && q8Input != nil && q8Input.q81 != 0 {
+			if ggml, routed := kQuantNativeProduct(leftNode.Type, uint64(inner), uint64(rightRows)); routed && q8Input != nil && q8Input.q81 != 0 {
 				return launchKQuantProduct(state, functions, q8Input, ggml, rightNode, left, right, output, inner, leftRows, rightRows)
 			}
 			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast {
@@ -1591,6 +1591,13 @@ var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
 // 82 us at one column and 84 to 90 at four against 107 to 133 and 145 to 169). One kernel for a column and for eight
 // keeps each column of a window bitwise its token's. Q8_0 keeps its own kernel, as fast as Strata's at every count.
 var kQuantProducts = map[dtype.Type]int{dtype.Q4K: strataGGMLQ4K, dtype.Q5K: strataGGMLQ5K, dtype.Q6K: strataGGMLQ6K}
+
+// kQuantNativeProduct reports the native MMVQ's storage code for a product it takes: a K-quant product of at most
+// q8InputSpanColumns columns whose flattened extent its kernels can count. A larger one keeps the span kernels.
+func kQuantNativeProduct(storage dtype.Type, inner, columns uint64) (int, bool) {
+	ggml, routed := kQuantProducts[storage]
+	return ggml, routed && columns <= q8InputSpanColumns && strataNativeExtentFits(inner, columns)
+}
 
 // launchKQuantProduct is a K-quant product of one to eight columns through Strata's native MMVQ: the columns quantized
 // to q8_1 blocks once a source in the run's q8_1 staging (q8InputState.q81), then every column in one read of the

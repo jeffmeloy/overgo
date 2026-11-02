@@ -703,7 +703,9 @@
         "uncertainty": "Source/type/arithmetic evidence only; candidate not compiled as full CUDA packages or run. Exact test growth belongs to implementation. No speed/memory improvement claimed; oversized fallback avoids unnecessary native staging but bytes were not measured in a workload."
       },
       "likely_effort": "Small shared ABI-bound repair plus one existing host shape-table extension.",
-      "plan_references": [],
+      "plan_references": [
+        "device-numerics/aligned-read"
+      ],
       "plan_coverage": "New advisory correctness finding on completed widen-windows. Do not reopen the retired row or run a new SQA workload.",
       "closure_criteria": [
         "No supported native quantizer narrows a flattened extent beyond signed32; both quantizers and their callers share the checked boundary.",
@@ -6699,7 +6701,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "e0fbc3d5e76b1598b27fbd7e8736772d4a9ba095",
+    "head": "16d397070176fa1249469cea2ec008c01f6dd00c",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7003,8 +7005,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/evaluation/flashnext_long_context_model_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-246": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/launch_strata_native_mmvq.go. Title-level triage, not re-verified at this head."
+        "action": "implemented",
+        "rows": [
+          "device-numerics/aligned-read"
+        ],
+        "note": "Landed with device-numerics/aligned-read. strataNativeShape bounds the flattened extent before any signed count, kQuantNativeProduct keeps a product past int32 on the span kernels at compile and launch alike with no q8_1 staging reserved, and both quantizers share the guard. TestAnOversizedKQuantProductKeepsItsSpanKernels compiles the finding's own shape on the host. Ordinary routing is unchanged: the executor's device suite passes. Awaits the reviewer's closure."
       },
       "SQA-223": {
         "action": "none",

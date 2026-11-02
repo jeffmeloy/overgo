@@ -5,6 +5,8 @@ extern "C" __device__ float __nv_expf(float);
 #include <cuda_fp8.h>
 #include <cuda_pipeline.h>
 #include <mma.h>
+#include "attention_row.cuh"
+#include "bf16_pack.cuh"
 #include "iq_tables_generated.cuh"
 #include "strata_qsa_native.cuh"
 
@@ -69,6 +71,10 @@ __device__ __forceinline__ int load_i32_unaligned(const unsigned char * source) 
     const unsigned int * aligned = reinterpret_cast<const unsigned int *>(
         address & ~(size_t) (sizeof(unsigned int) - 1));
     const unsigned int shift = (unsigned int) (address & (sizeof(unsigned int) - 1)) * 8;
+    // The second word only when the address is unaligned: at a tensor's last word it lies past the allocation.
+    if (shift == 0) {
+        return (int) aligned[0];
+    }
     return (int) __funnelshift_r(aligned[0], aligned[1], shift);
 }
 
@@ -153,9 +159,7 @@ extern "C" __global__ void f32_to_bf16(
     if (index >= count) {
         return;
     }
-    unsigned int bits = __float_as_uint(input[index]);
-    bits += 0x7fffU + ((bits >> 16) & 1U);
-    output[index] = (unsigned short) (bits >> 16);
+    output[index] = bf16_pack(input[index]);
 }
 
 // F32 -> F16 round-to-nearest-even pack (tensor-core prefill stages the F32
@@ -4068,7 +4072,7 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_SPLIT_THREADS) spa
 			}
 			const size_t row = (size_t) query_token * query_heads + first_head + head;
 			if (splits == 1) {
-				output[row * value_width + channel] = sums[head] > 0.0f ? weighted[head] / sums[head] : 0.0f;
+				output[row * value_width + channel] = attention_row_value(weighted[head], sums[head]);
 				continue;
 			}
 			float * partial = partials + (row * splits + split) * (value_width + 2);
@@ -4280,7 +4284,7 @@ extern "C" __global__ void __launch_bounds__(SPARSE_ATTENTION_MMA_THREADS) spars
 			const unsigned int head = row + 8 * half;
 			if (head < group) {
 				const float total = sums[head];
-				const float inverse = total > 0.0f ? 1.0f / total : 0.0f;
+				const float inverse = attention_row_inverse(total);
 				float * out = output + ((size_t) query_token * query_heads + first_head + head) * SPARSE_ATTENTION_MMA_WIDTH + channel;
 				out[0] = accumulated[tile][2 * half] * inverse;
 				out[1] = accumulated[tile][2 * half + 1] * inverse;
@@ -6290,7 +6294,7 @@ extern "C" __global__ void attention_decode_combine_f32(
             const float * partial_row = partial_rows + split * (value_width + 2);
             numerator += expf(partial_row[0] - maximum) * partial_row[2 + channel];
         }
-        output[row * value_width + channel] = denominator > 0.0f ? numerator / denominator : 0.0f;
+        output[row * value_width + channel] = attention_row_value(numerator, denominator);
     }
 }
 
@@ -6571,7 +6575,9 @@ extern "C" __global__ void attention_online_finalize_f32(
     const unsigned int head = z % heads;
     const unsigned int row = z / heads;
     const float sum = stats[heads * chunk + head * chunk + row];
-    if (sum > 0.0f) {
+    if (attention_sum_is_nan(sum)) {
+        output[index] = sum;
+    } else if (sum > 0.0f) {
         output[index] /= sum;
     }
 }
@@ -6876,7 +6882,7 @@ extern "C" __global__ void attention_tiled_f32(
     for (unsigned int r = 0; r < 4; ++r) {
         const unsigned int row = warp * 4u + r;
         const unsigned int token = row_base + row;
-        if (token >= query_tokens || sum[r] <= 0.0f) {
+        if (token >= query_tokens) {
             continue;
         }
         const unsigned int output_offset =
@@ -6884,7 +6890,7 @@ extern "C" __global__ void attention_tiled_f32(
         for (unsigned int i = 0; i < CW; ++i) {
             const unsigned int channel = lane + 32u * i;
             if (channel < value_width) {
-                output[output_offset + channel] = accumulator[r][i] / sum[r];
+                output[output_offset + channel] = attention_row_value(accumulator[r][i], sum[r]);
             }
         }
     }
@@ -7197,9 +7203,9 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_native_bf16_f32(
         const unsigned int row = index >> 7;
         const unsigned int channel = index & 127u;
         const unsigned int token = row_base + row;
-        if (token < query_tokens && channel < head_width && sum_row[row] > 0.0f) {
+        if (token < query_tokens && channel < head_width) {
             output[((sequence * query_tokens + token) * query_heads + query_head) * head_width + channel] =
-                o_tile[row * OLD + channel] * __frcp_rn(sum_row[row]);
+                o_tile[row * OLD + channel] * attention_row_frcp(sum_row[row]);
         }
     }
 }
@@ -7461,7 +7467,7 @@ __device__ __forceinline__ void attention_flash(
         if (!row_valid[half]) {
             continue;
         }
-        const float inverse = sum[half] > 0.0f ? 1.0f / sum[half] : 0.0f;
+        const float inverse = attention_row_inverse(sum[half]);
         float * out = output + (((size_t) sequence * query_tokens + row_token[half]) * query_heads + row_head[half]) * WIDTH + 2u * t;
 #pragma unroll
         for (unsigned int tile = 0; tile < WIDTH / 8u; ++tile) {
@@ -12544,9 +12550,9 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_tiled_bf16_f32(
         const unsigned int row = index >> 7;
         const unsigned int channel = index & 127u;
         const unsigned int token = row_base + row;
-        if (token < query_tokens && sum_row[row] > 0.0f) {
+        if (token < query_tokens) {
             output[((sequence * query_tokens + token) * query_heads + query_head) * W + channel] =
-                o_tile[row * OLD + channel] / sum_row[row];
+                attention_row_value(o_tile[row * OLD + channel], sum_row[row]);
         }
     }
 }

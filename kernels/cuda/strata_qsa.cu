@@ -23,6 +23,7 @@
 #include <float.h>
 #include <stdint.h>
 #include <string.h>
+#include "attention_row.cuh"
 
 // ---- f16_bits.hpp: round-to-nearest-even f32 -> fp16 as bits, and the exact reverse. Not __float2half, for the
 // reason f16_bits.hpp records (wrong bits, not a rounding difference).
@@ -1111,12 +1112,13 @@ __device__ __forceinline__ void strata_attn_merge_body(
     for (int c = 0; c < n_chunks; ++c) {
         const int slot = kvh * n_chunks + c;
         const float m = part_m[slot * G + hl];
-        if (m == -FLT_MAX) continue;
+        // A chunk whose keys are all NaN keeps the empty maximum, since a NaN loses every comparison: its sum says so.
+        if (m == -FLT_MAX && !attention_sum_is_nan(part_l[slot * G + hl])) continue;
         const float w = __expf(m - M);
         L = fmaf(part_l[slot * G + hl], w, L);
         acc = fmaf(part_acc[((size_t) slot * G + hl) * HD + d], w, acc);
     }
-    attn[(size_t) h * HD + d] = L > 0.0f ? acc / L : 0.0f;
+    attn[(size_t) h * HD + d] = attention_row_value(acc, L);
 }
 
 extern "C" __global__ void __launch_bounds__(STRATA_HD) strata_attn_merge(
@@ -1395,7 +1397,7 @@ __device__ __forceinline__ void strata_prompt_attn_body(
     }
     __syncthreads();
     const float l0 = S.lsum[gid], l1 = S.lsum[gid + 8];
-    const float i0 = l0 > 0.0f ? 1.0f / l0 : 0.0f, i1 = l1 > 0.0f ? 1.0f / l1 : 0.0f;
+    const float i0 = attention_row_inverse(l0), i1 = attention_row_inverse(l1);
 #pragma unroll
     for (int j = 0; j < 8; ++j) {
         const int d = dim0 + j * 8 + 2 * tig;

@@ -154,28 +154,50 @@ func strataAttentionParity(t *testing.T, cuda *Executor, quantized bool, cells, 
 	outputBytes := int(queries * strataQueryHeads * strataHeadWidth * 4)
 	output := buffers.zeros(t, outputBytes)
 	scratch := buffers.zeros(t, int(batch*strataAttentionScratchFloats(capacity, strataQueryHeads)*4))
-	buffers.run(t, func(state *device.State, functions functionSet) error {
-		for first := int64(0); first < queries; first += batch {
-			count := min(batch, queries-first)
-			if err := launchStrataDecodeAttention(state, functions,
-				queryBuffer+driver.DevicePtr(first*strataQueryHeads*strataHeadWidth*4), pools,
-				idBuffer+driver.DevicePtr(first*capacity*4), stepBuffer+driver.DevicePtr(first*strataStepCount*4),
-				capacity, strataKVHeads, strataPageCells, scratch,
-				output+driver.DevicePtr(first*strataQueryHeads*strataHeadWidth*4), count, quantized); err != nil {
-				return err
+	decode := func() []float32 {
+		buffers.run(t, func(state *device.State, functions functionSet) error {
+			for first := int64(0); first < queries; first += batch {
+				count := min(batch, queries-first)
+				if err := launchStrataDecodeAttention(state, functions,
+					queryBuffer+driver.DevicePtr(first*strataQueryHeads*strataHeadWidth*4), pools,
+					idBuffer+driver.DevicePtr(first*capacity*4), stepBuffer+driver.DevicePtr(first*strataStepCount*4),
+					capacity, strataKVHeads, strataPageCells, scratch,
+					output+driver.DevicePtr(first*strataQueryHeads*strataHeadWidth*4), count, quantized); err != nil {
+					return err
+				}
 			}
-		}
-		return nil
-	})
-	got := float32s(buffers.read(t, output, outputBytes))
+			return nil
+		})
+		return float32s(buffers.read(t, output, outputBytes))
+	}
+	got := decode()
 	// The prompt kernel on the same queries, int8 pools: qsa_prompt_attn_batch's launch_i8.
-	var prompt []float32
-	if quantized {
+	promptAttention := func() []float32 {
 		promptOutput := buffers.zeros(t, outputBytes)
 		buffers.run(t, func(state *device.State, functions functionSet) error {
 			return launchStrataPromptAttention(state, functions, queryBuffer, pools, idBuffer, stepBuffer, capacity, strataKVHeads, strataPageCells, promptOutput, queries)
 		})
-		prompt = float32s(buffers.read(t, promptOutput, outputBytes))
+		return float32s(buffers.read(t, promptOutput, outputBytes))
+	}
+	var prompt []float32
+	if quantized {
+		prompt = promptAttention()
+		// A NaN in the first query's first head reaches that head's row and no other, by the decode merge and the prompt
+		// kernel alike (attention_row.cuh).
+		poisoned := slices.Clone(q)
+		poisoned[0] = float32(math.NaN())
+		buffers.write(t, queryBuffer, float32Bytes(poisoned))
+		for name, row := range map[string][]float32{"decode": decode(), "prompt": promptAttention()} {
+			for channel, value := range row[:strataHeadWidth] {
+				if value == value {
+					t.Fatalf("%s: channel %d of the poisoned row reads %v", name, channel, value)
+				}
+			}
+			if value := row[strataHeadWidth]; value != value {
+				t.Fatalf("%s: the head beside the poisoned one reads NaN", name)
+			}
+		}
+		buffers.write(t, queryBuffer, float32Bytes(q))
 	}
 	value := func(key bool, row, d int64) float64 {
 		switch {

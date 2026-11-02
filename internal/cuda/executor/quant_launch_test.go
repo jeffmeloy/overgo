@@ -7,8 +7,39 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
+
+// TestAnOversizedKQuantProductKeepsItsSpanKernels: a product whose flattened size a native kernel's int32 cannot count stays
+// on the span kernels with no q8_1 staging reserved, and the native launches refuse it by name.
+func TestAnOversizedKQuantProductKeepsItsSpanKernels(t *testing.T) {
+	t.Parallel()
+	const inner, columns = 1 << 28, 8
+	if _, routed := kQuantNativeProduct(dtype.Q4K, 2560, columns); !routed {
+		t.Fatal("an ordinary product left the native kernels")
+	}
+	if _, routed := kQuantNativeProduct(dtype.Q4K, inner, columns); routed {
+		t.Fatal("a product past int32 stayed on the native kernels")
+	}
+	if err := strataNativeShape(inner, columns, strataNativeQ8K); err == nil {
+		t.Fatal("a flattened extent past int32 was accepted")
+	}
+	builder := tensor.NewBuilder()
+	weights := builder.Input("weights", dtype.Q4K, tensor.MustShape(inner, 1))
+	input := builder.Input("input", dtype.F32, tensor.MustShape(inner, columns))
+	product := builder.MulMat(weights, input)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := Compile(product)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.q81Bytes != 0 {
+		t.Fatalf("%d bytes of q8_1 staging reserved for a product the native kernels cannot take", compiled.q81Bytes)
+	}
+}
 
 func TestQuantMulMatSpansAdvanceOnlyColumns(t *testing.T) {
 	const inner, width, columns = uint32(256), uint32(17408), uint32(8192)

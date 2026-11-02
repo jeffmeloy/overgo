@@ -153,40 +153,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 150,
+        "nodes": 20,
         "reason": "Estimate. Kernel source is reported and not counted; Go adds a refusal and fixtures. Output bits for finite input do not move."
       },
       "steps": [
-        {
-          "id": "bf16-nan",
-          "title": "Keep NaN through the BF16 pack",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestBF16PackKeepsNaN$'",
-          "rationale": "f32_to_bf16 has no guard (kernels/cuda/ops_f32.cu:156-158), unlike bf16_round_f32 (:430). The GPU's default NaN 0x7FFFFFFF packs to 0x8000, which is minus zero, and 0xFFFFFFFF to 0x0000, so a fault becomes a plausible value. strata_prompt_gr.cuh:21-25 holds the same code.\nDo not copy the host's guard: Float32ToBF16 packs 0x7F800001, 0x7F80FFFF and 0xFF800001 to an infinity (internal/tensor/dtype/bfloat16.go:8-11, measured). The pack must force a mantissa bit, on the device and on the host.\ncmd/kernel-manifest/main.go:143-146 refuses a dependency listed under two modules, and ops_f32.cu and strata_qsa.cu are separate modules, so one shared header needs that rule changed; otherwise keep one pack a module with a test that holds them equal. Land after kernel-proof/include-scan, because strata_prompt_gr.cuh is pinned by nothing until then.\nServes: held-out-quality, by making numeric faults visible.\nDisappears: the unguarded copy.\nEvidence: NaN and signalling-NaN cases on the device and the host.\nBatch: kernel lanes, with the other kernel steps of this row in one landing.",
-          "depends_on": [
-            "kernel-proof/include-scan"
-          ]
-        },
-        {
-          "id": "attention-nan",
-          "title": "Give attention one rule for NaN",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAttentionWritesEveryRowOnNaN$'",
-          "rationale": "A NaN sum meets five behaviours, not three. Skip, leaving the buffer's contents: attention_native_bf16_f32 and attention_tiled_bf16_f32 (ops_f32.cu:7200,12547; compiled setp.leu at ops_f32.ptx:68898,218646). Write NaN: attention_tiled_f32 (:6879), attention_fast_f32 (:6728). Write 0: attention_decode_combine_f32 (:6293), strata_attn_merge (strata_qsa.cu:1119). Multiply by an inverse of 0: attention_flash (:7464), strata_prompt_attn (strata_qsa.cu:1398). Leave the undivided accumulator: attention_online_finalize_f32 (:6574).\nEvery path writes the row and keeps the NaN, and a zero sum keeps its zero-division guard. ops_f32 is built with fast math, so the test reads bits, as strata_round_elementwise.cuh:241 says. Whether an output buffer is zero-filled before launch was not checked.\nServes: no stale values reaching the output.\nDisappears: four of five behaviours.\nEvidence: one planted NaN channel for every kernel listed.\nBatch: kernel lanes."
-        },
         {
           "id": "round-sampling",
           "title": "Refuse what the device sampler cannot honor",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^(TestStrataSamplingRefusesWhatItCannotHonor|TestANonFiniteRowEndsTheRound)$'",
           "rationale": "strata_sampler.cuh:153-157 ignores min_keep: MinP 0.1 with MinKeep 5 stays on the round, where the host keeps 5 (internal/sampling/sampler.go:834-835). top_p and typical_p of 0 pass on a named chain and differ from the host: 1 token against all 8 over 400 seeds, since internal/sampling/order.go:73-75 idles the stage on an unnamed chain, and serving always names one (runtime_policies.json:36,86, internal/server/server.go:983). The table needs both cases, and each goes to the host path (internal/inference/strata_round_generate.go:67,73-76).\nA NaN or infinite row must return an error as the host does (sampler.go:386,1180; -Inf is a legal ban there, but the device has no bias path, so a flagged -Inf is a fault). The device returns a token today, and greedy gives token 0 when every logit is NaN (strata_round_elementwise.cuh:235).\nThe check already runs and is thrown away. Each window runs strata_logits_nonfinite on bits (internal/cuda/executor/strata_round_window.go:589) into a mapped buffer (strata_round.go:223), and nothing reads r.nonfinite. Read it after the sync (strata_round_run.go:286-293). That covers greedy and sampled rows with no kernel edit and no new device read. Do not take a flag from the top-k maximum: a NaN never enters that list (strata_sampler.cuh:312-313), so a row with one NaN has a finite maximum.\nServes: a request gets the distribution it declared, and a numeric fault ends as an error.\nDisappears: an unread buffer's waste.\nEvidence: a host table and one device row of NaN.\nBatch: serving lane; no kernel change."
-        },
-        {
-          "id": "aligned-read",
-          "title": "Stop reading past a tensor, and read an aligned word once",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest -count=1 -run '^TestAnAlignedWordLoadsOnce$'",
-          "rationale": "load_i32_unaligned always loads aligned[1] (ops_f32.cu:67-73, 14 callers from :7619 to :9729; both loads are in the compiled code, ptx:91866-91868), so at a tensor's last word it reads 4 bytes past. Each weight is its own exact-size allocation (internal/modeldevice/device_load.go:266,292), so a tensor end can be an allocation end, and Q4_K [4096, 16384] is exactly 36 MiB.\nLoad the second word only when the address is unaligned, as strata_mtp.cuh:72 does. A device test cannot force an unmapped neighbour (internal/cuda/driver has no address-reserve binding) and would pass on the unfixed kernel, so the check reads the compiled code. A device fault here is still a hypothesis.\nDecode reads are this code's main cost, so time the product kernels in a fixture before and after: hypothesis, half the loads on aligned input. Q8_0 words are aligned in odd blocks only (offset 2, stride 34).\nSQA-246 joins this step: launch_strata_native_mmvq.go:99-107 has no bound on the flattened size, the one open P3 on a production arithmetic path.\nServes: throughput, and no read outside an allocation.\nDisappears: one load per word on aligned input.\nEvidence: the compiled check, and the fixture's rate at unchanged bits.\nBatch: kernel lanes."
         }
       ]
     },

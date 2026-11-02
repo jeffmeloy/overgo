@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -103,7 +104,16 @@ func strataNativeShape(nIn, ncols, blockValues int32) error {
 	if ncols < 1 || ncols > strataNativeMaxColumns {
 		return fmt.Errorf("native MMVQ requires 1 <= ncols <= %d", strataNativeMaxColumns)
 	}
+	if !strataNativeExtentFits(uint64(nIn), uint64(ncols)) {
+		return fmt.Errorf("native MMVQ counts in int32, and %d columns of %d values exceed it", ncols, nIn)
+	}
 	return nil
+}
+
+// strataNativeExtentFits reports a flattened extent the native kernels' signed counts hold: a larger one would wrap
+// negative, and every thread would return without writing.
+func strataNativeExtentFits(nIn, ncols uint64) bool {
+	return nIn <= math.MaxInt32 && nIn*ncols <= math.MaxInt32
 }
 
 // launchStrataNativeQuantizeQ81 is native_quantize_q8_1: ncols contiguous columns of n_in values quantize as one vector,

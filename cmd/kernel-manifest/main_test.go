@@ -76,6 +76,51 @@ func TestRecordedToolchainMatchesCompiledCode(t *testing.T) {
 	}
 }
 
+// alignedLoads counts, in compiled code, the words aligned down by and.b64 -4 whose second word is read behind a branch and
+// those whose second word is read regardless. A device test cannot force an unmapped neighbour, so this reads the code.
+func alignedLoads(ptx string) (guarded, unguarded int) {
+	const window = 16
+	lines := strings.Split(ptx, "\n")
+	for index, line := range lines {
+		fields := strings.Fields(strings.TrimSuffix(strings.TrimSpace(line), ";"))
+		if len(fields) != 4 || fields[0] != "and.b64" || fields[3] != "-4" {
+			continue
+		}
+		second, branched := "["+strings.TrimSuffix(fields[1], ",")+"+4]", false
+		for _, following := range lines[index+1 : min(index+window, len(lines))] {
+			branched = branched || strings.Contains(following, " bra ")
+			if !strings.Contains(following, second) {
+				continue
+			}
+			if branched {
+				guarded++
+			} else {
+				unguarded++
+			}
+			break
+		}
+	}
+	return guarded, unguarded
+}
+
+// TestAnAlignedWordLoadsOnce: load_i32_unaligned reads a second word only for an unaligned address, in every copy the
+// compiler inlined: at a tensor's last word that word lies past the allocation.
+func TestAnAlignedWordLoadsOnce(t *testing.T) {
+	t.Parallel()
+	const planted = "and.b64  	%rd60, %rd59, -4;\n\tld.u32 	%r547, [%rd60];\n\tld.u32 	%r548, [%rd60+4];\n"
+	if guarded, unguarded := alignedLoads(planted); guarded != 0 || unguarded != 1 {
+		t.Fatalf("a planted unguarded load reads as %d guarded, %d unguarded", guarded, unguarded)
+	}
+	compiled, err := os.ReadFile(filepath.Join("..", "..", "internal", "cuda", "kernel", "ops_f32.ptx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	guarded, unguarded := alignedLoads(string(compiled))
+	if guarded == 0 || unguarded != 0 {
+		t.Fatalf("ops_f32.ptx holds %d guarded and %d unguarded second loads", guarded, unguarded)
+	}
+}
+
 func TestPTXEntriesSorted(t *testing.T) {
 	got := ptxEntries([]byte(fixtureCompiler + ".visible .entry z(\n.visible .entry a(\n"))
 	if !slices.Equal(got, []string{"a", "z"}) {

@@ -1459,7 +1459,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.q8InputBytes,
 				elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize,
 			)
-			if _, routed := kQuantProducts[node.Inputs[0].Type]; routed && node.Inputs[1].Shape.Dims[1] <= q8InputSpanColumns {
+			if _, routed := kQuantNativeProduct(node.Inputs[0].Type, node.Inputs[1].Shape.Dims[0], node.Inputs[1].Shape.Dims[1]); routed {
 				compiled.q81Bytes = max(compiled.q81Bytes, elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize)
 			}
 		}

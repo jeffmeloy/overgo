@@ -7,6 +7,8 @@
 // gr_norm_rs_kernel, gr_silu_kernel and gr_mix_r_kernel, their CUDA forms without the BF16 second operands). The
 // host side is internal/cuda/executor/strata_drafter_prompt_kv.go.
 
+#include "bf16_pack.cuh"
+
 namespace strata_prompt_gr {
 
 // The hyper-connection's geometry: the embedding, the streams, a row of every stream and the low rank.
@@ -16,12 +18,6 @@ __device__ __forceinline__ float warp_sum(float v) {
 #pragma unroll
     for (int o = 16; o > 0; o >>= 1) v += __shfl_xor_sync(0xffffffffu, v, o);
     return v;
-}
-
-__device__ __forceinline__ uint16_t bf(float f) {
-    uint32_t u = __float_as_uint(f);
-    u += 0x7fffu + ((u >> 16) & 1u);
-    return (uint16_t) (u >> 16);
 }
 
 __device__ __forceinline__ float sigm(float x) { return 1.0f / (1.0f + __expf(-x)); }
@@ -54,14 +50,14 @@ __device__ __forceinline__ void gr_norm_rs_kernel(const float* __restrict__ R, c
     for (int d = threadIdx.x; d < N; d += blockDim.x) ss += r[d] * r[d];
     const float rs = rsqrtf(block_sum(ss, sh) / (float) N + eps);
     if (threadIdx.x == 0) rs_out[row] = rs;
-    for (int d = threadIdx.x; d < N; d += blockDim.x) xn16[xo + d] = bf(r[d] * rs * w[c * N + d]);
+    for (int d = threadIdx.x; d < N; d += blockDim.x) xn16[xo + d] = bf16_pack(r[d] * rs * w[c * N + d]);
 }
 
 __device__ __forceinline__ void gr_silu_kernel(const float* __restrict__ lo, uint16_t* __restrict__ lo16, int64_t n) {
     const int64_t i = (int64_t) blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
     const float x = lo[i] / (float) HC;
-    lo16[i] = bf(x / (1.0f + __expf(-x)));
+    lo16[i] = bf16_pack(x / (1.0f + __expf(-x)));
 }
 
 __device__ __forceinline__ void gr_mix_r_kernel(const float* __restrict__ R, const float* __restrict__ rs,

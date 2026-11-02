@@ -973,18 +973,19 @@
     return { setAgent, guard };
   }
 
-  // restoreAgentThread replays an agent session's stored turns and tool steps into a thread in the order
+  // restoreAgentThread replays an agent session's stored turns and tool steps into a thread, or reads them alone with none, in the order
   // they happened, and answers the chat history to continue from with the session's step count.
   async function restoreAgentThread(target, agent, session) {
     const stored = await overgo.api.get("/agents/thread?agent=" + encodeURIComponent(agent) + "&session=" + encodeURIComponent(session));
     const history = [];
     for (const entry of stored.entries || []) {
       if (entry.kind === "turn") {
-        target.add("user", entry.user);
-        target.add("assistant", entry.assistant);
+        if (target) target.add("user", entry.user);
+        if (target) target.add("assistant", entry.assistant);
         history.push({ role: "user", content: entry.user }, { role: "assistant", content: entry.assistant });
         continue;
       }
+      if (!target) continue;
       let result = entry.result;
       try { result = JSON.parse(entry.result); } catch (_) { /* a plain-text result */ }
       target.toolCard({ name: entry.tool, arguments: entry.arguments, restored: true }).end(entry.error ? { error: entry.result } : result);

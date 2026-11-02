@@ -127,8 +127,10 @@
             onStop: () => { if (chatController) chatController.abort(); },
             onSubmit: async (content, attachments) => {
               if (chatController) return;
+              // The turn belongs to the agent it was sent to, whichever is selected when the reply lands.
+              const turnAgent = selected;
               const parts = chatComposer.attachmentParts();
-              const history = (sessions.get(selected) || []).slice();
+              const history = (sessions.get(turnAgent) || []).slice();
               history.push(parts.length
                 ? { role: "user", content: [...parts, { type: "text", text: content }] }
                 : { role: "user", content });
@@ -138,11 +140,11 @@
               chatController = new AbortController();
               chatComposer.setBusy(true);
               try {
-                const result = await api.post("/agents/chat", { agent: selected, messages: history }, { signal: chatController.signal });
+                const result = await api.post("/agents/chat", { agent: turnAgent, messages: history }, { signal: chatController.signal });
                 const assistant = chatThread.add("assistant", "");
                 await chatThread.consume(overgo.streams.reply(result), assistant);
                 if (assistant.content) history.push({ role: "assistant", content: assistant.content });
-                sessions.set(selected, history);
+                sessions.set(turnAgent, history);
               } catch (err) { chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err)); } finally {
                 chatController = null;
                 const current = activeAgent();
@@ -152,7 +154,8 @@
           });
         }
         const active = !!agent && agent.state === "active";
-        chatComposer.setBusy(!active);
+        // A turn in flight keeps Stop, whichever agent is selected meanwhile.
+        chatComposer.setBusy(!active || !!chatController);
         chatNote.hidden = active;
         conversationHost.hidden = !active;
       }

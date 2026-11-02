@@ -158,13 +158,6 @@
       },
       "steps": [
         {
-          "id": "agent-history",
-          "title": "Keep each agent's history under that agent",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'TestWebUIBrowserAgentSwitchMidTurn'",
-          "rationale": "selected is read before the await and again after it (internal/server/webui/mod/agent.js:131,145), and the same happens with agentPicker.value (mod/chat.js:993,998). Open has no busy guard (agent.js:93), so switching agents before a reply saves A's transcript as B's, and it goes out with B's next turn.\nCapture the agent once in a constant before the request.\nThe same switch hides Stop: renderChat calls setBusy(!active) during a turn (agent.js:155, composer.js:829), so Send shows and a send returns silently at agent.js:129. Keep the busy state across a switch.\nAfter a reload the picked agent's stored thread is not restored (mod/chat.js:145-150,771), so a second agent answers with no memory while the store holds its turns. Restore on a pick.\nServes: correct conversations.\nDisappears: the second read.\nEvidence: a browser test that switches mid-reply and keeps Stop.\nBatch: web interface lane."
-        },
-        {
           "id": "shown-errors",
           "title": "Show every error a person's action produced",
           "status": "open",

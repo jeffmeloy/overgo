@@ -140,6 +140,15 @@
       }
       const histories = new Map();
       let agentRestored = false;
+      // restorePickedAgent reads a picked agent's stored turns, so it answers with its memory; a thread already in use keeps
+      // what it shows.
+      async function restorePickedAgent() {
+        const agent = agentPicker.value;
+        if (histories.has(agent)) return;
+        let restored = null;
+        try { restored = await overgo.restoreAgentThread(null, agent, agentSession); } catch (_) { /* the session starts empty */ }
+        if (restored && restored.history.length && !histories.has(agent)) histories.set(agent, restored.history);
+      }
       // restoreAgentSession replays the session's turns and steps into an empty thread, once per mount.
       async function restoreAgentSession() {
         if (agentRestored || !agents.length || thread.messages.length) return;
@@ -768,6 +777,7 @@
         agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker], subscribe: overgo.subscribe,
         onError: (err) => thread.errorRow(overgo.friendlyError(err)),
       }) : null;
+      agentPicker.addEventListener("change", restorePickedAgent);
       if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
 
       // The empty conversation offers direct starting actions.
@@ -990,12 +1000,14 @@
           // A mode beyond chat is one generation over the shared dispatch; its
           // media lands in this thread as artifacts with their provenance.
           if (mode === "agent") {
-            const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [...parts, { type: "text", text }] : text }]);
-            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, session: agentSession, messages: history }, { signal: controller.signal });
+            // The turn belongs to the agent it was sent to, whichever is picked when the reply lands.
+            const turnAgent = agentPicker.value;
+            const history = (histories.get(turnAgent) || []).concat([{ role: "user", content: parts.length ? [...parts, { type: "text", text }] : text }]);
+            const result = await overgo.api.post("/agents/chat", { agent: turnAgent, session: agentSession, messages: history }, { signal: controller.signal });
             assistant = thread.add("assistant", "");
             await thread.consume(overgo.streams.reply(result), assistant);
             if (assistant.content) history.push({ role: "assistant", content: assistant.content });
-            histories.set(agentPicker.value, history);
+            histories.set(turnAgent, history);
             return;
           }
           if (mode && mode !== "chat") {

@@ -114,6 +114,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - the gate writes the numbers (check: cmd/gate TestSmallGateLandsAChange, internal/landing TestLandingSaysWhatAChangeAddsOfEachKind, internal/landing TestLandingMeasuresTheScorecardSlice)
    - landed <=> `git log -1` shows `Landed-Row:` (check: cmd/gate TestSmallGateLandsAChange, cmd/loop TestRowSequenceStateMachine, internal/plan TestAcceptedProgressReadsLandingsFromGit)
    - never a raw commit (check: internal/guard TestGuardCorpus)
+   - the trunk moves only by a landing, or a commit of the register alone, in Git itself, for any worker (check: internal/landing TestOnlyALandingMovesTheTrunkInGit, internal/landing TestALandingRefusesATrunkWithoutItsHook)
    - merge = `git merge --no-ff --no-commit <branch>` -> resolve -> land (check: internal/landing TestProgressSeesALandedMerge)
 5. open decision and no other row ready => its row goes on under the recommended option, an answer given before then taken instead (check: internal/plan TestAQuestionNeverHoldsTheLoop, internal/plan TestAnswerTakesOneOfTheOptions)
    - a decision that changes a standing rule => its rows wait for the answer (check: internal/plan TestADoctrineDecisionIsNeverTakenByRecommendation)

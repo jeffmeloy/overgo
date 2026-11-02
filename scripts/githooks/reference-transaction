@@ -1,0 +1,23 @@
+#!/bin/sh
+# Only a landing moves the trunk. Git runs this for every ref update, whichever
+# verb made it, so --no-verify, merge, cherry-pick, revert, rebase, reset and
+# update-ref all meet it, for any worker on any harness. A commit that changes
+# only the reviewer's register passes: a review session lands nothing.
+[ "$1" = prepared ] || exit 0
+[ "$OVERGO_TRUNK_MOVE" = 1 ] && exit 0
+while read -r old new ref; do
+	case "$ref" in
+	refs/heads/master | refs/heads/main) ;;
+	*) continue ;;
+	esac
+	# An update that names no old value reports zeros, as a new branch does.
+	case "$old" in
+	*[!0]*) ;;
+	*) old=$(git rev-parse -q --verify "$ref") || continue ;;
+	esac
+	changed=$(git diff-tree --no-commit-id --name-only -r "$old" "$new" 2>/dev/null)
+	[ "$changed" = docs/sqa_findings.json ] && continue
+	echo "the trunk moves only by 'go run ./cmd/loop -land <item>/<step> -message-file -'" >&2
+	exit 1
+done
+exit 0

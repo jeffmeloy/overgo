@@ -188,6 +188,9 @@ func Run(ctx context.Context, options Options) (landed string, err error) {
 			}
 		}()
 	}
+	if err := l.hooked(ctx); err != nil {
+		return "", err
+	}
 	if err := l.parents(ctx); err != nil {
 		return "", err
 	}
@@ -768,14 +771,14 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 		if err != nil {
 			return "", err
 		}
-		if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, l.onto, landed, l.head); err != nil {
+		if _, err := l.moveRef(ctx, "-m", "land "+l.Ref, l.onto, landed, l.head); err != nil {
 			return "", errors.Join(fmt.Errorf("land: publish %s onto the trunk %s at %.12s: %w", l.Ref, l.onto, l.head, err), follow(false))
 		}
 		if followed = follow(true); followed != nil {
 			followed = fmt.Errorf("land: %s landed as %.12s, but the trunk's checkout %s did not follow it and holds the files of %.12s: %w", l.Ref, landed, l.trunk, l.head, followed)
 		}
 	}
-	if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, "HEAD", landed, l.head); err != nil {
+	if _, err := l.moveRef(ctx, "-m", "land "+l.Ref, "HEAD", landed, l.head); err != nil {
 		return "", errors.Join(fmt.Errorf("land: publish %s onto %.12s: %w", l.Ref, l.head, err), followed)
 	}
 	planPath := filepath.Join(l.Repo, filepath.FromSlash(plan.Path))
@@ -806,6 +809,25 @@ func (l *landing) message() string {
 
 func (l *landing) git(ctx context.Context, arguments ...string) (string, error) {
 	return l.run(ctx, gitauthority.RepositoryEnvironment(), "git", gitauthority.WriterArguments(arguments...)...)
+}
+
+// moveRef moves a ref as a landing, which the trunk's hook admits.
+func (l *landing) moveRef(ctx context.Context, arguments ...string) (string, error) {
+	environment := append(gitauthority.RepositoryEnvironment(), trunkMoveEnvironment+"=1")
+	return l.run(ctx, environment, "git", gitauthority.WriterArguments(append([]string{"update-ref"}, arguments...)...)...)
+}
+
+// hooked refuses a repository that carries the trunk's hook with the hook off: nothing in a checkout sets core.hooksPath, so
+// a clone runs without it until a landing says so.
+func (l *landing) hooked(ctx context.Context) error {
+	if _, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(trunkHookDirectory), trunkHook)); err != nil {
+		return nil
+	}
+	set, _ := gitauthority.Query(ctx, l.Repo, "config", "core.hooksPath")
+	if strings.TrimSpace(string(set)) != trunkHookDirectory {
+		return fmt.Errorf("land: the trunk's hook is off, so a raw commit could move it: run git config core.hooksPath %s", trunkHookDirectory)
+	}
+	return nil
 }
 
 // staged runs git over the landing's private index.

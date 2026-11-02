@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 460,
+        "nodes": 295,
         "reason": "Estimate. The merge exemption goes; a Git hook and two landing rules are added."
       },
       "steps": [
-        {
-          "id": "git-hook",
-          "title": "Refuse a raw move of the trunk in Git itself",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestOnlyALandingMovesTheTrunkInGit$'",
-          "rationale": "The guard is a Claude Code hook, and a non-Claude worker has only convention (cmd/loop/main.go:1-5,366-375). Since 2026-10-15 first-parent history holds 122 commits outside it, all touching only docs/sqa_findings.json, and 62 more with code came on codex/overgo_moss through the gated merge ddf213036: the row's own case.\nA pre-commit hook is too weak. In a scratch repository on git 2.51.0, core.hooksPath pre-commit stopped plain git commit alone: --no-verify, merge --no-ff, cherry-pick, revert, rebase, update-ref and am all moved HEAD (measured). A reference-transaction hook refused all of them on main with exit 128, --no-verify included, passed a marked landing and passed other branches (measured). Use that, and let it pass register-only commits. Landings use commit-tree (internal/landing/landing.go:751).\n.gitattributes holds no LFS filter, so core.hooksPath costs nothing there. Nothing in a checkout sets it and a fixture cannot prove the live repository has it, so a landing checks the setting.\nServes: the gate as the one code path, for any worker.\nDisappears: nothing.\nEvidence: a fixture repository, each verb refused.\nBatch: host lane."
-        },
         {
           "id": "terms-visible",
           "title": "Show every change to a row's check or count",

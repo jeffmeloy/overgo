@@ -154,7 +154,7 @@ func (l *landing) integrate(ctx context.Context) error {
 	if _, err := l.staged(ctx, "read-tree", "-m", "-u", candidate, tree); err != nil {
 		return err
 	}
-	if _, err := l.git(ctx, "update-ref", "-m", "integrate "+l.Ref, "HEAD", tip, head); err != nil {
+	if _, err := l.moveRef(ctx, "-m", "integrate "+l.Ref, "HEAD", tip, head); err != nil {
 		return err
 	}
 	fmt.Fprintf(l.Log, "land: brought the trunk %s, at %.12s, into this worktree, which was on %.12s\n", l.onto, tip, head)

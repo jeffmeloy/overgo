@@ -69,15 +69,6 @@
       },
       "likely_effort": "Moderate: one derivation built on InspectImport beside ResolveClaimedGGUF, the state on the catalog and run record, and the workspace opening; the activation and 'never served' tests change with them.",
       "plan_references": [
-        "run-from-files/keep-recipe",
-        "run-from-files/record-identity",
-        "run-from-files/run-carries-state",
-        "run-from-files/record-state",
-        "run-from-files/training-opens",
-        "run-from-files/named-refusals",
-        "run-from-files/refusal-reason",
-        "run-from-files/directory-identity",
-        "run-from-files/scorecard-label",
         "run-from-files/do"
       ],
       "plan_coverage": "None: no row in docs/plan.json at ad58f169d names it.",
@@ -6626,6 +6617,22 @@
         "plan_steps": [
           "run-from-files/draft-trunk"
         ]
+      },
+      {
+        "comment": "Closure, criterion by criterion. A GGUF and a safetensors directory with nothing recorded answer a chat through their own declared template, and the response and record state not verified: TestModelsRunFromTheirOwnFiles on the device. A model whose verification is broken or evidence out of date runs when asked, with that state shown: TestABrokenVerificationKeepsItsRecipe, and on the real store 5 models read out of date and run. The catalog names every present model with its state: TestEveryPresentModelListsWithItsState, 82 models on the real store. Training opens on a derived recipe and records the state on its run: narrower than written. cmd/train already bootstraps at each route's start and conversation fine-tuning trains the served model on its identity, so no derived preference or reward recipe was added, those needing a reference and a dataset no file names; a server started with -training no longer exits, and a training attempt carries the state through servingattempt.Record. The only refusals left are missing or mismatched weights, an architecture with no prototype and an absent remote key, each naming what is missing: TestOnlyMissingPartsRefuseARun, with one addition the finding did not list, a directory whose model type has no mapping, refused by name. A scorecard reading from a model that is not verified is labelled: narrower than written, as a model nothing verifies has no row; an attempt that read not verified is left out of a recipe activated since, unless its run verified that recipe. Not covered, and stated so the register does not read it as done: only llama, qwen2 and qwen3_5 run from a directory; only prototypes a served model has exercised are known to work; media tasks still need an active recipe; a held-out reading of a candidate can still reach a row after it activates, holding no state yet.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestModelsRunFromTheirOwnFiles",
+          "TestOnlyMissingPartsRefuseARun",
+          "TestABrokenVerificationKeepsItsRecipe",
+          "TestEveryPresentModelListsWithItsState",
+          "TestAReadingFromAnUnverifiedModelSaysSo",
+          "TestTrainingOpensOnADerivedRecipe"
+        ],
+        "finding_id": "SQA-283",
+        "plan_steps": [
+          "run-from-files/do"
+        ]
       }
     ],
     "experiments": {
@@ -6671,7 +6678,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "e253bd92e845117a7d105343e8749b75a4b577bd",
+    "head": "e0fbc3d5e76b1598b27fbd7e8736772d4a9ba095",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7265,20 +7272,11 @@
         "note": "Landed. The training, parity and resources subtests are gone and complete stays the single owner, with its helpers unchanged. Awaits the reviewer's closure."
       },
       "SQA-283": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
-          "run-from-files/keep-recipe",
-          "run-from-files/record-identity",
-          "run-from-files/run-carries-state",
-          "run-from-files/record-state",
-          "run-from-files/training-opens",
-          "run-from-files/named-refusals",
-          "run-from-files/refusal-reason",
-          "run-from-files/directory-identity",
-          "run-from-files/scorecard-label",
           "run-from-files/do"
         ],
-        "note": "Landed so far: state, derive-gguf, derive-safetensors, declared-template, catalog-states, draft-trunk. The owner's merged plan added the steps a review reproduced at 675d61b80. A correction to the lead's own figure: 225 of 237 models without a recipe counted 160 retired hosted models from the browser lane. The catalog lists 82 models, 43 of them not verified."
+        "note": "Landed across the row run-from-files. Each closure criterion is answered in the comment beside this note, with what is not covered. Awaits the reviewer's closure."
       }
     }
   },

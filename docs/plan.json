@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "run-from-files",
-      "title": "Run and train a model from its own files, noting its state",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 69,
-        "reason": "The scorecard's filter of unverified attempts measured 181 nodes against the 148 left; the remaining step is a test."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run and train a model from its own files, noting its state",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -count=1 -run '^TestModelsRunFromTheirOwnFiles$'",
-          "rationale": "SQA-283, closure: a GGUF and a safetensors directory of a prototype-known architecture, with nothing recorded about them in the store, answer a chat request through their own declared template, and the response and run record state 'not verified'.\nServes: the owner's direction, judged end to end.\nDisappears: the row.\nEvidence: this test on the device. Only the prototypes a served model has exercised are known to work; say which ran.\nBatch: device lane."
-        }
-      ]
-    },
-    {
       "id": "web-ui-repairs",
       "title": "Keep the workbench responsive and honest about errors",
       "owner": "master-lead",

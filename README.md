@@ -31,14 +31,20 @@ The launcher builds the server and the model-swap proxy and opens
 [the workbench](http://localhost:8080/). The model picker switches the served
 model live; Library registers local models or configures a hosted provider.
 Flags after the model reach every served child, so enabled workspaces survive
-model switches. Training and construction need their registered inputs and
-recipes.
+model switches. Conversation fine-tuning and `cmd/train` routes need no recipe;
+other training and construction need their registered inputs and recipes.
 
 To serve one model directly:
 
 ```powershell
 go run ./cmd/server -listen 127.0.0.1:8080 D:/models/model.gguf
 ```
+
+A model runs from its own files whether or not anything has verified it: the
+prototype its architecture selects, sized by its metadata or `config.json`, and
+the template and sampling they declare. The catalog, each response and each
+attempt's record say whether it is verified. Directories run for the `llama`,
+`qwen2` and `qwen3_5` model types; other architectures run from a GGUF file.
 
 The server binds to loopback by default; see [SECURITY.md](SECURITY.md) for
 authentication and network settings.

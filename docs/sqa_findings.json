@@ -2760,7 +2760,9 @@
         "uncertainty": "Source/AST proof only; no compiled candidate or test run. Runtime effect is limited to eliminated map lookups on failed directory-only entries; do not claim saved loads or digest passes."
       },
       "likely_effort": "Small local deletion and comment correction.",
-      "plan_references": [],
+      "plan_references": [
+        "run-from-files/catalog-states"
+      ],
       "plan_coverage": "native-text-weights/carbon-image and move have landed. This is advisory removal of their displaced path, not another model migration or plan change.",
       "closure_criteria": [
         "Only the initial directory pass can establish directory success; ID/size validation and file/remote/moved fallbacks remain intact.",
@@ -6538,7 +6540,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
-    "head": "68274d24a1d9c06ec9dbed7165fa46a85ca41b37",
+    "head": "ecaecf8a48fe62e3eaccf697ec255dbc032f395d",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -6964,8 +6966,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/server/protocol_io.go. Title-level triage, not re-verified at this head."
       },
       "SQA-274": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/discovery/servable.go. Title-level triage, not re-verified at this head."
+        "action": "filed",
+        "rows": [
+          "run-from-files/catalog-states"
+        ],
+        "note": "Lead's judgement: filed with the step that opens the same file, a small deletion that needs no row of its own."
       },
       "SQA-225": {
         "action": "existing-row",

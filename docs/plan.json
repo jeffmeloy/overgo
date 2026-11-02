@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 3000,
+        "nodes": 2654,
         "reason": "Estimate from SQA-283: one derivation beside the loader, the state on the catalog and run record, the workspace opening. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "state",
-          "title": "Name a model's verification state as a fact of the run",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestModelStateReadsFromItsRecords$'",
-          "rationale": "SQA-283 (3): verified, not verified, evidence out of date or verification broken, read from what the store holds, an error in the records being a state and not a failure.\nServes: verification marks what was measured, and decides nothing about whether a model runs.\nDisappears: nothing yet; the later steps spend it.\nEvidence: its test over each state.\nBatch: recipe lane."
-        },
         {
           "id": "derive-gguf",
           "title": "Run a GGUF with nothing recorded from its metadata and its prototype",
@@ -190,7 +183,7 @@
           "title": "List every present model with its state",
           "status": "open",
           "verify": "go test ./internal/discovery -count=1 -run '^TestEveryPresentModelListsWithItsState$'",
-          "rationale": "SQA-283 (4): the catalog names every present model with its state, in place of the silent skip and 'reported, never served'. The state reaches the response and the run record beside the evidence tier. skill.md's rule on partial state and TestServableReportsStaleActivationsWithoutFailing change with it.\nServes: a person sees why, and can still run it.\nDisappears: the silent skip and the never-served rule in discovery.\nEvidence: its test.\nBatch: serving lane."
+          "rationale": "SQA-283 (4): the catalog names every present model with its state, in place of the silent skip and 'reported, never served'. The state reaches the response and the run record beside the evidence tier. skill.md's rule on partial state and TestServableReportsStaleActivationsWithoutFailing change with it.\nServes: a person sees why, and can still run it.\nDisappears: the silent skip and the never-served rule in discovery.\nEvidence: its test.\nBatch: serving lane.\n\nSQA-274 joins this step, which opens the same file: delete only presence's later unreachable directory holds block, keeping its recorded diagnostic."
         },
         {
           "id": "training-opens",

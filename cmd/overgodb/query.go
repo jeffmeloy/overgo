@@ -235,16 +235,19 @@ func writeServable(output io.Writer, repository string, limit int) error {
 		return err
 	}
 	served := 0
+	states := map[modelrecipe.VerificationState]int{}
 	for _, entry := range entries {
 		if entry.Stale != "" {
 			fmt.Fprintf(output, "stale model=%s location=%s reason=%q\n", entry.Model, entry.Location, entry.Stale)
 			continue
 		}
 		served++
-		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
-			entry.Model, entry.Tier, entry.Recipe, entry.Present, entry.Location)
+		states[entry.State.Verification]++
+		fmt.Fprintf(output, "servable model=%s tier=%s state=%q recipe=%s present=%t location=%s\n",
+			entry.Model, entry.Tier, entry.State.Verification, entry.Recipe, entry.Present, entry.Location)
 	}
-	fmt.Fprintf(output, "%d servable model(s), %d stale activation(s); audit: every listed file hashes to its recorded component identity; stale activations are reported, never served\n", served, len(entries)-served)
+	fmt.Fprintf(output, "%d servable model(s), %d verified, %d with evidence out of date, %d stale activation(s); audit: every listed file hashes to its recorded component identity; stale activations are reported, never served\n",
+		served, states[modelrecipe.StateVerified], states[modelrecipe.StateOutOfDate], len(entries)-served)
 	return nil
 }
 

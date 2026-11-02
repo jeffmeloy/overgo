@@ -36,6 +36,8 @@ type Entry struct {
 	Tier     recipe.EvidenceTier
 	Location string
 	Present  bool
+	// State is the model's verification as the store records it.
+	State modelrecipe.ModelState
 	// Stale carries the activation defect when the active recipe cannot be
 	// trusted. A stale entry is reported, never served: one broken
 	// activation must not blind discovery to every healthy model.
@@ -89,20 +91,23 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 		if !present {
 			continue
 		}
-		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
+		activation, state, err := modelrecipe.ReadModelState(ctx, store, manifest.ID, recipe.TaskInference)
 		if err != nil {
+			return nil, err
+		}
+		if state.Verification == modelrecipe.StateBroken {
 			entries = append(entries, Entry{
-				Model: manifest.ID, Location: location, Present: present,
-				Stale: fmt.Sprintf("activation cannot be trusted: %v", err),
+				Model: manifest.ID, Location: location, Present: present, State: state,
+				Stale: fmt.Sprintf("activation cannot be trusted: %s", state.Reason),
 			})
 			continue
 		}
-		if !active {
+		if state.Verification == modelrecipe.StateNotVerified {
 			continue
 		}
 		entry := Entry{
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
-			Location: location, Present: present,
+			Location: location, Present: present, State: state,
 		}
 		// The loader refuses an inference recipe without its runtime
 		// policy, so the servable listing must report it stale exactly as

@@ -153,21 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 36,
-        "reason": "cutover-kill adds 117 nodes: the guard under the writer's lock, the search of the store's directory for one moved aside, and one marker the cutover and the guard share. crash-points and store-lifecycles, mostly test code, keep the 36 they had."
+        "nodes": 40,
+        "reason": "crash-points adds 44 production nodes, the journal that is zeros from its start counted as never begun, as the review's prototype does; store-lifecycles keeps 40 for forgetting a stale pack index, and fault-seam gives back the append seam's."
       },
       "steps": [
-        {
-          "id": "crash-points",
-          "title": "Reopen the store from every tree a crash can leave",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^(TestEveryDurableOperationIsACrashPoint|TestEveryDurableOperationCanFail)$'",
-          "rationale": "345a08a3d and the two steps above all lay between operations no test stopped at. internal/overgodb/fault_test.go has one seam, durableWriter (log.go:81), which sees about 60 of 327 durable operations, and no test holds a full disk, a zero tail, or a crash at most operations.\nBuilt and working with zero production nodes: an overlay routes the store's durable calls through a recorder, a scripted workload runs once, and a small model replays the operations and must rebuild the real tree byte for byte, so a new durable call site cannot escape. It enumerated 1,804 distinct crash states under four models (kill, recovery, ntfs, winrule) plus each operation refused once and from there on. Eleven invariants run at each state: no acknowledged commit lost, the journal alone replays, the next commit takes the next number, and so on.\nThe mutation reverting 345a08a3d, replacing anchorBehindSeal's verdict with false at log.go:184, fails it with 'open stops short of the journal' and 1,548 findings, and removing each of the five prototype repairs in turn fails it. keep-torn-tail survives alone, since refreshLocked repeats that repair (store.go:484-493).\nPort the recorder and rewriter; the test rewrites the package into t.TempDir() and runs go test -overlay, as internal/clioptions/dependency_contract_test.go:25,52-57 does. About 1,500 test lines, offset by removing durableWriter and its fakes, folding in fault_test.go, blob_commit_test.go:83 and commit_coordinator_test.go:76. Keep a model only while it holds a unique kill: recovery has none, so it goes to the long run. The workload is small, and Rebuild and CloneStore are not yet enumerated. Prototypes are in C:/Users/jeffm/Downloads/overgo-fault-prototypes.\nRerun at 83f4df1fc, with the store code unchanged since the review: the same 326 durable operations, 1,211 findings under the written rule and 251 under the ordered NTFS model, and all three store defects reproduce. SQA-288 closes with this row.\nServes: failure-rate; this class is found unprompted.\nDisappears: recordLog.writer, durableWriter, faultWriter, partWriter, and the hand-built states at transaction_writer_test.go:216-262.\nEvidence: the anchor mutation and each mutation of the record.\nBatch: test code, after durable-names and unwritten-tail. About 35 to 50 s quiet, added to the store package's 13 s.",
-          "depends_on": [
-            "store-durability/durable-names",
-            "store-durability/unwritten-tail"
-          ]
-        },
         {
           "id": "store-lifecycles",
           "title": "Drive the store through generated lifecycles",
@@ -177,6 +166,13 @@
           "depends_on": [
             "store-durability/crash-points"
           ]
+        },
+        {
+          "id": "fault-seam",
+          "title": "Retire the append seam the crash harness replaces",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestEveryDurableOperationCanFail$'",
+          "rationale": "crash-points landed the crash harness (internal/overgodb/crash_points_test.go and crash_record_test.go under the crashpoints tag, run over an overlay by TestEveryDurableOperationIsACrashPoint and TestEveryDurableOperationCanFail) and left the seam it replaces: recordLog.writer and durableWriter (internal/overgodb/log.go:74,81), which four tests set to a faultWriter to fail an append part-way or its flush: TestAppendFaultClosesEveryStoreSurfaceUntilReopen and TestSyncFaultReplaysCompleteUncertainCommit (fault_test.go), the orphaned-blob case of TestExternalBlobCommitAtomicity (blob_commit_test.go:83) and the faulted-append case of TestCommitCoordinatorAtomicity (commit_coordinator_test.go:76). Their assertions are narrower than the harness's promises and worth keeping: every store surface refuses with ErrStoreFaulted until a reopen, a faulted append leaves the catalog's facets and head as they were, an uncertain flush replays the whole commit, and a blob made durable before a failed append stays uncommitted.\nMove them into the harness under the crashpoints tag, each refusing the recorder's operation at the append's write or flush (failAt), run by the outer tests, and drop the seam, faultWriter and partWriter, and the hand-built rotation states at transaction_writer_test.go:216-262, which the harness's kill and power-loss states cover.\nServes: failure-rate; one way to inject a durable fault, which no production code carries.\nDisappears: recordLog.writer, durableWriter, faultWriter, partWriter and the hand-built rotation states.\nEvidence: each moved test fails with its fault undone.\nBatch: test code, after store-lifecycles."
         }
       ]
     },

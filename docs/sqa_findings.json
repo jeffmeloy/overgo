@@ -7216,6 +7216,18 @@
         "plan_steps": [
           "store-durability/cutover-kill"
         ]
+      },
+      {
+        "comment": "crash-points, the finding's third closure criterion for crash points. The review's recorder and crash enumerator are ported: TestEveryDurableOperationIsACrashPoint rewrites the store's production files through go/ast in an overlay, so every durable call reaches a recorder only the crashpoints tag compiles, records a workload of 322 durable operations, holds the recorder to rebuilding the tree the workload left, and checks every distinct state a kill (526), a power loss on a journaled volume (616) and the Windows rename rule (137) leave against eleven promises; all hold. TestEveryDurableOperationCanFail refuses each of 351 operations once and from there on; all hold. Reverting 345a08a3d's anchor check gives 1,548 kill and 1,724 power-loss findings, the seal's bare rename 1,209 under the Windows rule, and the zero-tail check off 162 power-loss findings. The recovery model goes to the long run, as the row says. Retiring the old append seam and moving its four fault tests into the harness is filed as store-durability/fault-seam. The finding's lifecycle criterion is store-lifecycles, next.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestEveryDurableOperationIsACrashPoint",
+          "TestEveryDurableOperationCanFail"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/crash-points"
+        ]
       }
     ],
     "experiments": {
@@ -7258,7 +7270,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
-    "head": "879c69153cfdd07950cc7b970d49fdcb3743cbb0",
+    "head": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
     "findings": {
       "SQA-004": {
         "action": "none",

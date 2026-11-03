@@ -254,16 +254,23 @@ func (l *recordLog) ensureHeader() error {
 		return fmt.Errorf("overgodb: stat log: %w", err)
 	}
 	// A journal with no whole header and no sealed segment before it has never begun: its first write did not reach
-	// the disk, as a full disk leaves it, so nothing in it was acknowledged and a writer starts it again.
+	// the disk, as a full disk leaves it, or reached it as zeros, so nothing in it was acknowledged, since an
+	// acknowledged frame was flushed, and a writer starts it again.
 	if info.Size() != 0 {
 		present := make([]byte, min(info.Size(), storeHeaderBytes))
 		if _, err := l.file.ReadAt(present, 0); err != nil {
 			return fmt.Errorf("overgodb: read log header: %w", err)
 		}
-		if info.Size() > storeHeaderBytes || len(l.sealed) != 0 || validateStoreHeader(present) == nil {
+		if len(l.sealed) != 0 || validateStoreHeader(present) == nil {
 			return nil
 		}
+		if unwritten, err := l.zeroFrom(0); info.Size() >= storeHeaderBytes && (err != nil || !unwritten) {
+			return err
+		}
 		if err := l.file.Truncate(0); err != nil {
+			return fmt.Errorf("overgodb: start an unbegun log: %w", err)
+		}
+		if _, err := l.file.Seek(0, io.SeekStart); err != nil {
 			return fmt.Errorf("overgodb: start an unbegun log: %w", err)
 		}
 	}

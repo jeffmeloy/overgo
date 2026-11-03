@@ -316,9 +316,9 @@ func againstBase(rows []Row, locations map[artifact.ID]string) {
 // Heldout holds the recipe's current held-out qualities besides the
 // headline one, each on its own contract: the headline is what a user reads,
 // and a baseline compares every one, whichever is the headline since.
-// Lengths holds a chat model's first output at each longer prompt it was
-// timed at (evaluation.PromptLengths), each on its own contract, shortest
-// first, beside the headline's at its verified request. Warm holds the
+// Lengths holds a chat model's first output and peak device memory at each
+// longer prompt it was timed at (evaluation.PromptLengths), each on its own
+// contract, shortest first, beside the headline's at its verified request. Warm holds the
 // throughput and first output of a request timed again on the model it had
 // loaded and served, beside the headline's of its first request after load.
 // Succeeds names the models the row's model took the place of (successions):
@@ -376,15 +376,15 @@ func warmColumn(cell Cell) metric.Name {
 }
 
 // Measured lists the row's measured cells of a column: its one cell, then
-// the others it holds of the column, each on its own contract: of held-out
-// quality, every other held-out quality, of first output, each longer
-// prompt's, and of first output and throughput, the warm request's. A
-// baseline row's are what it holds a later record to, and a later row's are
-// where each is found again.
+// the others it holds of the column, each on its own contract: of first
+// output and peak device memory, each longer prompt's, of held-out quality,
+// every other held-out quality, and of first output and throughput, the warm
+// request's. A baseline row's are what it holds a later record to, and a
+// later row's are where each is found again.
 func (row Row) Measured(column metric.Name) []Cell {
-	cells := []Cell{row.Cells[column]}
-	if others := row.others(column); others != nil {
-		cells = append(cells, *others...)
+	cells := append([]Cell{row.Cells[column]}, row.LengthCells(column)...)
+	if column == metric.Quality {
+		cells = append(cells, row.Heldout...)
 	}
 	for _, cell := range row.Warm {
 		if warmColumn(cell) == column {
@@ -394,17 +394,26 @@ func (row Row) Measured(column metric.Name) []Cell {
 	return slices.DeleteFunc(cells, func(cell Cell) bool { return !cell.Measured() })
 }
 
-// others are the cells the row holds of a column besides its one cell, nil
-// for a column that has none.
-func (row *Row) others(column metric.Name) *[]Cell {
-	switch column {
-	case metric.Quality:
-		return &row.Heldout
-	case metric.FirstOutput:
-		return &row.Lengths
-	}
-	return nil
+// LengthColumns are the columns Row.Lengths reads at each longer prompt.
+var LengthColumns = []metric.Name{metric.FirstOutput, metric.PeakMemory}
+
+// LengthCells are the row's readings of a column at its longer prompts, shortest first.
+func (row Row) LengthCells(column metric.Name) []Cell {
+	return slices.DeleteFunc(slices.Clone(row.Lengths), func(cell Cell) bool { return lengthColumn(cell) != column })
 }
+
+// lengthColumn is the column a cell of Row.Lengths measures, by its measure.
+func lengthColumn(cell Cell) metric.Name {
+	if cell.Contract.Metric == lengthPeakMetric(cell.Prompt) {
+		return metric.PeakMemory
+	}
+	return metric.FirstOutput
+}
+
+// freshPrompt names a longer prompt a row is read at, and lengthPeakMetric the measure of its peak device memory there.
+func freshPrompt(length int) string { return fmt.Sprintf("a fresh prompt of %d tokens", length) }
+
+func lengthPeakMetric(length int) string { return "peak device memory, " + freshPrompt(length) }
 
 // Build reads the scorecard from the store: one row for every activation
 // the capability catalog lists, across every task.
@@ -838,7 +847,8 @@ func (summary *servingSummary) timed(timing int, unit, metric, label string) (Ce
 
 // readLength adds a success at a longer prompt to its length's window: the newest opens it under its
 // environment, and the next older ones under that environment join it, recentAttempts at most. A length
-// is read from its prompt alone, so a success that timed no prefill is no first output and is passed.
+// is read from its prompt alone, so a success that timed no prefill is no first output and is passed. Its
+// memory is the newest's peak.
 func (summary *servingSummary) readLength(length int, observation runrecord.ServingObservation) {
 	at := slices.IndexFunc(observation.Hardware, func(sample runrecord.ServingHardwareSample) bool {
 		return sample.Stage == runrecord.ServingHardwarePrefill && sample.ElapsedNS != 0
@@ -851,7 +861,7 @@ func (summary *servingSummary) readLength(length int, observation runrecord.Serv
 	}
 	read := summary.lengths[length]
 	if read == nil {
-		read = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment}
+		read = &servingSummary{measured: observation.ID, recipe: observation.Recipe, environment: observation.Environment, peakDeviceBytes: observedPeak(observation)}
 		summary.lengths[length] = read
 	}
 	if len(read.window) >= recentAttempts || observation.Environment != read.environment {
@@ -941,20 +951,34 @@ func userSizeCells(observed *servingSummary) []Cell {
 	return cells
 }
 
-// lengthCells are a row's first outputs at the longer prompts its attempts read, shortest first.
+// lengthCells are a row's first outputs and peak device memory at the longer prompts its attempts read, shortest first.
 func lengthCells(task recipe.Task, observed *servingSummary) []Cell {
 	if task != recipe.TaskInference || observed == nil {
 		return nil
 	}
 	var cells []Cell
 	for _, length := range evaluation.PromptLengths {
-		at := fmt.Sprintf("a fresh prompt of %d tokens", length)
-		if cell, measured := observed.lengths[length].timed(timingFirstOutput, "ms", "time to prefill, "+at, "serving time to prefill "+at+", the median of the newest attempts"); measured {
+		at, read := freshPrompt(length), observed.lengths[length]
+		if cell, measured := read.timed(timingFirstOutput, "ms", "time to prefill, "+at, "serving time to prefill "+at+", the median of the newest attempts"); measured {
 			cell.Prompt = length
 			cells = append(cells, cell)
+			if read.peakDeviceBytes != 0 {
+				memory := read.cell(read.measured, float64(read.peakDeviceBytes), "bytes", lengthPeakMetric(length), "serving peak device memory at "+at+", the newest attempt")
+				memory.Newest, memory.Prompt = read.window[0].started, length
+				cells = append(cells, memory)
+			}
 		}
 	}
 	return cells
+}
+
+// observedPeak is the most device memory an attempt held: its resources' peak or its samples' highest.
+func observedPeak(observation runrecord.ServingObservation) uint64 {
+	peak := observation.Resources.PeakDeviceBytes
+	for _, sample := range observation.Hardware {
+		peak = max(peak, sample.DevicePeakBytes)
+	}
+	return peak
 }
 
 // cell is a value read from source, an attempt of the summary's window or
@@ -1041,7 +1065,6 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			if sample.Stage == runrecord.ServingHardwarePrefill {
 				timings.took[timingFirstOutput] = milliseconds(sample.ElapsedNS)
 			}
-			measured.peakDeviceBytes = max(measured.peakDeviceBytes, sample.DevicePeakBytes)
 			measured.deviceSampled = measured.deviceSampled || sample.Stage == runrecord.ServingHardwareFinish
 		}
 		// A capability that returns its output whole, an image or a
@@ -1049,7 +1072,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if timings.took[timingFirstOutput] == 0 {
 			timings.took[timingWholeOutput] = milliseconds(observation.MeasuredNS)
 		}
-		measured.peakDeviceBytes = max(measured.peakDeviceBytes, observation.Resources.PeakDeviceBytes)
+		measured.peakDeviceBytes = observedPeak(observation)
 		for _, phase := range observation.Phases {
 			switch {
 			case phase.Phase == runrecord.PhaseLoad && phase.DurationNS != 0:

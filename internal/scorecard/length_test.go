@@ -28,54 +28,23 @@ import (
 // the row's own first output, which did not.
 func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	model := testutil.ArtifactID(t, artifact.KindModel, "chat-model")
-	environment := testutil.ArtifactID(t, artifact.KindEvidence, "chat-environment")
-	served := testutil.ArtifactID(t, artifact.KindRecipe, "chat-recipe")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "lengths/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: served}}}); err != nil {
-		t.Fatal(err)
-	}
 	short, long := evaluation.PromptLengths[0], evaluation.PromptLengths[1]
-	// Committed oldest first: the verified request on a fresh load, then the two longer prompts and a
-	// user's prompt between them on the loaded model.
-	for index, attempt := range []struct {
+	// Oldest first: the verified request on a fresh load, then the two longer prompts and a user's prompt
+	// between them on the loaded model.
+	var attempts []runrecord.ServingObservation
+	for _, attempt := range []struct {
 		tokens, cached uint64
 		prefill        time.Duration
-		loaded         bool
 	}{
-		{5, 0, 10 * time.Millisecond, true}, {uint64(short) + 1, 0, 300 * time.Millisecond, false}, {uint64(long) + 1, 0, 1500 * time.Millisecond, false},
-		{9000, 0, 4 * time.Second, false}, {4500, 4000, 50 * time.Millisecond, false},
+		{5, 0, 10 * time.Millisecond}, {uint64(short) + 1, 0, 300 * time.Millisecond}, {uint64(long) + 1, 0, 1500 * time.Millisecond},
+		{9000, 0, 4 * time.Second}, {4500, 4000, 50 * time.Millisecond},
 	} {
-		observation := runrecord.ServingObservation{
-			Model: model, Recipe: served, Environment: environment, Task: recipe.TaskInference, Outcome: runrecord.OutcomeSucceeded,
-			StartedUnixNS: int64(index + 1), MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, CachedTokens: attempt.cached, OutputTokens: 1},
+		attempts = append(attempts, runrecord.ServingObservation{
+			MeasuredNS: uint64(attempt.prefill), Usage: runrecord.ServingUsage{InputTokens: attempt.tokens, CachedTokens: attempt.cached, OutputTokens: 1},
 			Hardware: []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwarePrefill, ElapsedNS: uint64(attempt.prefill)}},
-		}
-		if attempt.loaded {
-			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(time.Millisecond)}}
-		}
-		observation, err := runrecord.NewServingObservation(observation)
-		if err != nil {
-			t.Fatal(err)
-		}
-		batch, err := observation.Batch("lengths/" + observation.ID.String())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := store.Commit(ctx, batch); err != nil {
-			t.Fatal(err)
-		}
+		})
 	}
-	summaries, err := servingByRecipe(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	observed := summaries[served]
+	model, observed := servedAttempts(t, attempts)
 	if cell := firstOutputCell(recipe.TaskInference, evaluation.BenchmarkSummary{}, false, observed); cell.Value != 10 {
 		t.Fatalf("the row's first output = %v ms, want 10, its verified request's", cell.Value)
 	}
@@ -116,4 +85,45 @@ func TestALongerPromptIsTimedAsItsLengthAlone(t *testing.T) {
 	if len(moves) != 1 || moves[0].Prompt != short || moves[0].Kind != moveChanged || moves[0].Before != 300 || moves[0].After != 600 {
 		t.Fatalf("moves = %+v, want the 4K first output's alone, from 300 to 600 ms", moves)
 	}
+}
+
+// servedAttempts commits a chat recipe's successful attempts, oldest first, the first having loaded its model, and
+// returns the model and the recipe's serving summary.
+func servedAttempts(t *testing.T, attempts []runrecord.ServingObservation) (artifact.ID, *servingSummary) {
+	t.Helper()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	model := testutil.ArtifactID(t, artifact.KindModel, "chat-model")
+	environment := testutil.ArtifactID(t, artifact.KindEvidence, "chat-environment")
+	served := testutil.ArtifactID(t, artifact.KindRecipe, "chat-recipe")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "attempts/authorities", Artifacts: []artifact.Descriptor{{ID: model}, {ID: environment}, {ID: served}}}); err != nil {
+		t.Fatal(err)
+	}
+	for index, observation := range attempts {
+		observation.Model, observation.Recipe, observation.Environment, observation.Task = model, served, environment, recipe.TaskInference
+		observation.Outcome, observation.StartedUnixNS = runrecord.OutcomeSucceeded, int64(index+1)
+		if index == 0 {
+			observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(time.Millisecond)}}
+		}
+		observation, err := runrecord.NewServingObservation(observation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := observation.Batch("attempts/" + observation.ID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	summaries, err := servingByRecipe(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return model, summaries[served]
 }

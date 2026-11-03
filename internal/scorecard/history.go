@@ -2,7 +2,6 @@ package scorecard
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 
 	"overgo/internal/evaluation"
@@ -90,12 +89,14 @@ func Moves(previous, current Record) []Move {
 				moves = append(moves, move)
 			}
 		}
-		// A longer prompt's first output moves on its own, beside the row's own.
-		for _, length := range evaluation.PromptLengths {
-			now, then := pair.After.length(length), pair.Before.length(length)
-			if move, moved := cellMove(*row, metric.FirstOutput, now, then, pair.Compare(metric.FirstOutput)); moved {
-				move.Prompt = length
-				moves = append(moves, move)
+		// A longer prompt's first output and peak memory move on their own, beside the row's own.
+		for _, column := range LengthColumns {
+			for _, length := range evaluation.PromptLengths {
+				now, then := pair.After.length(column, length), pair.Before.length(column, length)
+				if move, moved := cellMove(*row, column, now, then, pair.Compare(column)); moved {
+					move.Prompt = length
+					moves = append(moves, move)
+				}
 			}
 		}
 	}
@@ -132,11 +133,12 @@ func cellMove(row Row, column metric.Name, now, then Cell, comparisons []Compari
 	return move, true
 }
 
-// length is the row's first output at a fresh prompt of length tokens, a
-// gap where none was read.
-func (row Row) length(length int) Cell {
-	if at := slices.IndexFunc(row.Lengths, func(cell Cell) bool { return cell.Prompt == length }); at >= 0 {
-		return row.Lengths[at]
+// length is the row's reading of a column at a fresh prompt of length tokens,
+// a gap where none was read.
+func (row Row) length(column metric.Name, length int) Cell {
+	cells := row.LengthCells(column)
+	if at := slices.IndexFunc(cells, func(cell Cell) bool { return cell.Prompt == length }); at >= 0 {
+		return cells[at]
 	}
-	return gap(fmt.Sprintf("no attempt read a fresh prompt of %d tokens", length))
+	return gap("no attempt read " + freshPrompt(length))
 }

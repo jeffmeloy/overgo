@@ -225,17 +225,20 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
 			}
 		}
-		// A longer prompt's first output that is newly measured or moved on its contract; one it no
-		// longer holds is Unknown above.
-		for _, now := range pair.After.Lengths {
-			heading := pair.After.Name + " " + string(pair.After.Task) + ", " + scorecardHeadings[metric.FirstOutput] + promptText(now)
-			at := slices.IndexFunc(pair.Before.Lengths, func(then scorecard.Cell) bool { return then.Prompt == now.Prompt })
-			switch {
-			case at < 0:
-				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
-			case pair.Before.Lengths[at].Contract == now.Contract && pair.Before.Lengths[at].Value != now.Value:
-				then := pair.Before.Lengths[at]
-				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
+		// A longer prompt's first output or peak memory that is newly measured or moved on its contract;
+		// one it no longer holds is Unknown above.
+		for _, column := range scorecard.LengthColumns {
+			before := pair.Before.LengthCells(column)
+			for _, now := range pair.After.LengthCells(column) {
+				heading := pair.After.Name + " " + string(pair.After.Task) + ", " + scorecardHeadings[column] + promptText(now)
+				at := slices.IndexFunc(before, func(then scorecard.Cell) bool { return then.Prompt == now.Prompt })
+				switch {
+				case at < 0:
+					moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
+				case before[at].Contract == now.Contract && before[at].Value != now.Value:
+					then := before[at]
+					moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
+				}
 			}
 		}
 	}
@@ -282,11 +285,9 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 			cell := row.Cells[column]
 			var text strings.Builder
 			text.WriteString(cellText(column, cell))
-			// A chat model's first output at its longer prompts follows its own.
-			for _, length := range row.Lengths {
-				if column == metric.FirstOutput {
-					text.WriteString(fmt.Sprintf("; %s at %d tokens", cellText(column, length), length.Prompt))
-				}
+			// A chat model's first output and peak memory at its longer prompts follow its own.
+			for _, length := range row.LengthCells(column) {
+				text.WriteString(fmt.Sprintf("; %s at %d tokens", cellText(column, length), length.Prompt))
 			}
 			// A video model's reading at the size a person asks for follows the small request's.
 			for _, sized := range row.Measured(column) {

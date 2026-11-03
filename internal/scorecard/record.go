@@ -194,9 +194,9 @@ func Reference(records []Record) *Record {
 				row.Cells[column] = judged(earlier, row, column, cell, func(one Row) Cell { return one.Cells[column] })
 			}
 		}
-		// A longer prompt's first output is judged on its own readings, as the row's own is.
+		// A longer prompt's first output and peak memory are judged on their own readings, as the row's own are.
 		for index, cell := range row.Lengths {
-			row.Lengths[index] = judged(earlier, row, metric.FirstOutput, cell, func(one Row) Cell {
+			row.Lengths[index] = judged(earlier, row, lengthColumn(cell), cell, func(one Row) Cell {
 				at := slices.IndexFunc(one.Lengths, func(other Cell) bool { return other.Contract.measures(cell.Contract) })
 				if at < 0 {
 					return Cell{}
@@ -236,8 +236,8 @@ func Reference(records []Record) *Record {
 				row.Cells[column] = cell
 			}
 		}
-		for index := range row.Lengths {
-			row.Lengths[index].borrow(metric.FirstOutput, shares[metric.FirstOutput])
+		for index, cell := range row.Lengths {
+			row.Lengths[index].borrow(lengthColumn(cell), shares[lengthColumn(cell)])
 		}
 		for index, cell := range row.Warm {
 			row.Warm[index].borrow(warmColumn(cell), shares[warmColumn(cell)])

@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1475,
+        "nodes": 1301,
         "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
       },
       "steps": [
-        {
-          "id": "peak-by-length",
-          "title": "Report peak device memory at each prompt length the first-output column reads",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestPeakMemoryIsReadAtEachPromptLength$'",
-          "rationale": "peakMemoryCell reads one attempt, the verification's short request (internal/scorecard/scorecard.go:1260-1266), though first output reads three lengths (README.md:120-130). Qwen3.8-27B reads 23.99 GB and held 30.4 GB at 22,746 tokens (263d0eecb), so the column cannot judge most steps below. Read whether the length attempts carry a peak; if they do not, record it where they run.\nServes: peak-device-memory.\nDisappears: nothing.\nEvidence: a fixture record of three lengths, then the next run's table.\nBatch: scorecard lane, with scorecard-truth."
-        },
         {
           "id": "stage-peaks",
           "title": "Measure the card by stage for every media family before a stage changes",

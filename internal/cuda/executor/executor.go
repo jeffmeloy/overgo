@@ -102,6 +102,9 @@ type arenaMetrics struct {
 	requiredBytes     uint64
 	peakRequiredBytes uint64
 	growths           uint64
+	// capturedBytes is the most arena a captured run has needed: a decode's, which a model without experts keeps after
+	// a read that grew its arena (ReleasePromptMemory).
+	capturedBytes uint64
 }
 
 type executionScratch struct {
@@ -2069,6 +2072,9 @@ func (e *Executor) runCompiled(
 		if arenaErr != nil {
 			return arenaErr
 		}
+		if cacheGraph {
+			resources.arenaUse.capturedBytes = max(resources.arenaUse.capturedBytes, arenaSize)
+		}
 		// Between runs, so no expert moves while a kernel reads its table: before an expert run's launch, or while a run
 		// that reads none runs, which hides the advance's bookkeeping behind its graph (a draft's 0.74 ms on Flash-Next
 		// against the advance's 0.16).
@@ -3216,15 +3222,34 @@ func (r *executorResources) reclaim(state *device.State, pointer driver.DevicePt
 // decodes and the next read takes back, as Strata's prompt borrows its cache's slots and gives them back: a 16K-token
 // read had left Flash-Next's card 5.6 GB of experts short through every decode after it. Lent, not freed: freed, each
 // next read cleared its arena again and moved experts out of the card's allocations to allocate it (about 220 ms of a
-// 16K read's first token). Without a residency the memory stays the executor's.
+// 16K read's first token). Without a residency, a model's one arena, grown by the read, is freed where it exceeds what
+// its captured runs need by more than the pool holds idle (deviceBufferFreeShare), and the decode takes its own again
+// and captures its graphs over it: a 16K-token read had left Qwen3.8-27B 3.4 GB it never used again. A read within that
+// leaves the arena as it is, since freeing it costs every request a new arena and its graphs again (a 5-token request on
+// Qwen3.5-9B took 2 to 6 ms more to its first token to free 54 MB).
 func (e *Executor) ReleasePromptMemory(ctx context.Context) error {
 	if e == nil {
 		return nil
 	}
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	if e.closed || e.worker == nil || e.resources.experts == nil {
+	if e.closed || e.worker == nil {
 		return nil
+	}
+	if e.resources.experts == nil {
+		resources := &e.resources
+		return e.worker.Do(ctx, func(state *device.State) error {
+			if resources.arenaSize <= resources.arenaUse.capturedBytes+resources.buffers.idleLimit(state) {
+				return nil
+			}
+			if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+				return err
+			}
+			if err := resources.graphExecs.drop(state); err != nil {
+				return err
+			}
+			return resources.releaseArena(state)
+		})
 	}
 	resources := &e.resources
 	return e.worker.Do(ctx, func(state *device.State) error {

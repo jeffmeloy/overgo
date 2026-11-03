@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 456,
+        "nodes": 308,
         "reason": "denoiser-stream adds about 624 nodes: Wan's and LiveEdit's denoiser weights open their source and decode a tensor as the session uploads it, through one opened set with its each and Close, and the loaded set that training and host runs read is built from it. The steps after it keep the 454 they had."
       },
       "steps": [
-        {
-          "id": "dense-read-release",
-          "title": "Give back a dense model's read scratch once a long prompt is read",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestALongReadLeavesADenseRunnerItsDecodeScratch$'",
-          "rationale": "ReleasePromptMemory does nothing without experts (internal/cuda/executor/executor.go:3226), so a dense runner keeps a long read's arena, scores and Q8 staging for its life (:2064-2067,3048-3083,3098-3100). On the 27B that is about 3.6 to 5.3 GB, an estimate from records (263d0eecb). ReleaseStageMemory (:1743) frees exactly these, and only MOSS calls it. Call it after a read whose arena exceeds what the decode plan needs, a comparison of two planned sizes and no threshold.\nThe decode after a read recaptures graphs and a next long read clears a new arena, so measure first-output and throughput on 27B, 9B, gemma-12B and one F32 model, and confirm Flash-Next is untouched. About 1 hour of the device. Outputs bit-identical.\nServes: card free beside a resident model. The peak column does not move, since the read sets it.\nDisappears: nothing.\nEvidence: retained bytes after a 16K read, per class.\nBatch: serving lane, with consolidate/release-storages."
-        },
         {
           "id": "qsa-ring-first",
           "title": "Hold a Flash-Next sequence at the ring until it outgrows it",

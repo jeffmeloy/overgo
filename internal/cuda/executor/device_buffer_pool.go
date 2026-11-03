@@ -149,15 +149,23 @@ func (p *deviceBufferPool) acquireBucket(
 	return lease, nil
 }
 
+// idleLimit is the pool's share of device memory (deviceBufferFreeShare), the
+// most an executor holds that no run is using; zero where the card reports
+// no memory.
+func (p *deviceBufferPool) idleLimit(state *device.State) uint64 {
+	if p.freeLimit == 0 {
+		if _, total, err := state.Driver.MemInfo(); err == nil {
+			p.freeLimit = total / deviceBufferFreeShare
+		}
+	}
+	return p.freeLimit
+}
+
 // trim frees free-list buffers, largest class first, until the lists
 // plus the incoming allocation fit the pool's share of device memory.
 func (p *deviceBufferPool) trim(state *device.State, incoming uint64) error {
-	if p.freeLimit == 0 {
-		_, total, err := state.Driver.MemInfo()
-		if err != nil || total == 0 {
-			return nil
-		}
-		p.freeLimit = total / deviceBufferFreeShare
+	if p.idleLimit(state) == 0 {
+		return nil
 	}
 	for p.freeBytes > 0 && (incoming >= p.freeLimit || p.freeBytes > p.freeLimit-incoming) {
 		largest := uint64(0)

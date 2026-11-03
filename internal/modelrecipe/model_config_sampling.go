@@ -71,6 +71,9 @@ func fileDeclaredSampling(file *gguf.File) *modelartifact.GenerationSampling {
 	return declared
 }
 
+// wholeHistory is the penalty window that reads every token generated so far.
+const wholeHistory = -1
+
 // BindServingPolicy records on an attempt the policy it ran under and publishes that policy beside it, so that two attempts
 // of one recipe under different declarations are two records, and either can be replayed.
 func BindServingPolicy(ctx context.Context, store artifact.Repository, observation *runrecord.ServingObservation, policy RuntimePolicy) error {
@@ -123,6 +126,10 @@ func withDeclaredSampling(policy RuntimePolicy, declared *modelartifact.Generati
 		}
 		if declared.RepetitionPenalty != 0 {
 			target.RepeatPenalty = float32(declared.RepetitionPenalty)
+		}
+		// A declared penalty reads the text so far, as its maker's runtime applies it: the catalog's window of 0 idles it.
+		if target.RepeatLastN == 0 && (declared.PresencePenalty != 0 || declared.RepetitionPenalty != 0 && declared.RepetitionPenalty != 1) {
+			target.RepeatLastN = wholeHistory
 		}
 	}
 	policy.Tasks = slices.Clone(policy.Tasks)

@@ -167,25 +167,6 @@
       ]
     },
     {
-      "id": "recipe-repairs",
-      "title": "Repair recipe identity and validation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 55,
-        "reason": "sampling-identity measures 240, a field through two recording paths; about 150 left for candidate-closure and declared-penalty."
-      },
-      "steps": [
-        {
-          "id": "declared-penalty",
-          "title": "A declared penalty reaches the sampler, measured before it lands",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestADeclaredPenaltyReachesTheSampler$'",
-          "rationale": "A declared repetition or presence penalty does nothing: withDeclaredSampling sets the penalty, runtime_policies.json keeps repeat_last_n 0, and sampling.PenaltiesIdle reads a window of 0 as idle. A maker's generation_config.json means the penalty to apply over the text so far, so what a model serves differs from what its maker declared.\nTurning it on is one line, a window of -1 when a declared penalty is not neutral, and it changes what is served: the penalty stage leaves the raw greedy path, so throughput may fall, and the output of every model that declares one changes. So measure first: read the models that declare a penalty, then one model's serving and quality cells with it on against off, and land it only if the quality holds.\nServes: held-out-quality, and a model served as its maker declared.\nDisappears: a declaration that reads as applied and is not.\nEvidence: a test that a declared penalty reaches the sampler, and the cells of one declaring model before and after.\nBatch: one device run."
-        }
-      ]
-    },
-    {
       "id": "close-the-loop",
       "title": "Let a supported, charged verdict take a base model's place",
       "owner": "master-lead",

@@ -188,3 +188,36 @@ func TestDeclaredSamplingIsBoundToTheRun(t *testing.T) {
 		t.Fatalf("one declaration made two records: %v and %v", first.ID, again.ID)
 	}
 }
+
+// TestADeclaredPenaltyReachesTheSampler: a window of 0 idles every penalty, so a penalty a model declares opens the window to
+// the text so far, and a neutral one leaves it shut.
+func TestADeclaredPenaltyReachesTheSampler(t *testing.T) {
+	t.Parallel()
+	catalog, found, err := CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		t.Fatalf("catalog policy: %v", err)
+	}
+	for _, declared := range []struct {
+		sampling modelartifact.GenerationSampling
+		idle     bool
+	}{
+		{modelartifact.GenerationSampling{DoSample: true, RepetitionPenalty: 1.1}, false},
+		{modelartifact.GenerationSampling{DoSample: true, PresencePenalty: 0.5}, false},
+		{modelartifact.GenerationSampling{DoSample: true, RepetitionPenalty: 1}, true},
+		{modelartifact.GenerationSampling{DoSample: true}, true},
+	} {
+		declared.sampling.Origin = "generation_config.json"
+		policy, err := withDeclaredSampling(catalog, &declared.sampling)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, overlaid := range []sampling.Policy{policy.Serving.Sampling, policy.Interactive.Sampling} {
+			if sampling.PenaltiesIdle(overlaid.Config()) != declared.idle {
+				t.Errorf("%+v leaves the penalties idle %t, want %t", declared.sampling, !declared.idle, declared.idle)
+			}
+			if err := overlaid.Validate(); err != nil {
+				t.Errorf("%+v: %v", declared.sampling, err)
+			}
+		}
+	}
+}

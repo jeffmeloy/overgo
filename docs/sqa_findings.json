@@ -1,22 +1,22 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "One small complete production reduction:296 reuses Only inside LowerIdentifier. Preserve all existing native tests and byte-sanitizer callers. No helper, wrapper, fixture, config or selector added.",
-      "priority": "Durability and correctness/recovery remain first. Batch296 with ordinary surface compaction rather than expiring measurement evidence for a standalone cosmetic run.",
+      "assessment": "297 merges two genuinely identical FP8 input setups while retaining two distinct numerical/layout outputs. Keep existing production readers and the first native test owner. No new helper.",
+      "priority": "Durability288 and evidence correctness283 remain ahead of P3 compaction.296's existing production reduction remains open; no new production saving is claimed.",
       "declined_candidates": [
-        "Do not delete LowerIdentifierByte: groupAccuracyMetricName and metricLabel sanitize byte by byte, whereas Only validates an entire value. Their behavior is not interchangeable.",
-        "ptxEntries and ptxEntryABIs both scan ptxEntryList, but replacing the name sequence with the ABI map could hide duplicate entry names. Passing a cached parsed list changes production and test APIs; no safe complete net saving established.",
-        "Keep TestPTXEntriesSorted separate from TestPTXEntryABIsPreserveOrderSizeAndAlignment: entry identity/order and parameter order/width/alignment are distinct requirements.",
-        "Keep new TestNoTextFormatIsReadByRegex with the existing owner-admission test: the latter permits an intentionally declared owner; the former excludes five named format parsers. This is a retained explicit requirement, not justification for another policy suite.",
-        "Device cache view/page cases include rectangular K/V widths, bounded slots and hybrid fixed state; similar setup does not establish redundancy. Existing235 owns the narrower page/identity test merge.",
-        "Blob pack cancellation remains a distinct safety requirement;223 already owns its consolidation opportunity. GUI stream lifecycle remount/reconnect/visibility/resync cases stay; no replacement retained owner justifies deleting the wait or setup."
+        "Do not merge the dataset-catalog and architecture-catalog retention tests merely because both call Release: they preserve different transitive authority/location consumers.",
+        "Do not replace BF16 numerical assertions with a comparison to the native reader: scaled/rounded BF16 and raw FP8-plus-F32 are different contracts and need independent expected outputs.",
+        "Do not merge base-cell and ordinary-cell rendering without accounting for failure labels, QualityText and measured/not-applicable handling; the repeated unit switch alone does not prove a complete net saving.",
+        "Do not remove the new heldout codec/filter cases: legacy identity, changed-state identity and verified/unverified eligibility are distinct. Extend the real state-producing boundary rather than adding another manual-string self-comparison.",
+        "No reduction is established for Gemma's discard/reopen reader setup while preserving eager dtype/scale validation, lazy view reads and independent stream offsets.",
+        "Keep native transcription authentication, bounds/admission, exact transcript, durable checkpoint and disconnect/lease cleanup. These are not duplicates of GUI download-event publication."
       ]
     },
   "committed_plan": {
-    "git_blob": "6acf78c933356b1077b9f3de58ee14d6585a5731",
+    "git_blob": "1c21b5cad896071249cf41b6c09d2f42c7af109c",
     "path": "docs/plan.json",
-    "revision": "12d049031ec29b314fd1cda0e2f65c278b1bec49",
-    "sha256": "28a81949ac4cea1680338b43d12927a8a340a0d8351be8991ed63e734a71fd4a",
+    "revision": "65313733c7c2859219c04c932c591b0472e5b486",
+    "sha256": "983025f09c4f8639f2382629060304cf3a357f8f667831f679b4e303a138dede",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -186,78 +186,82 @@
       "status": "open",
       "severity": "P2",
       "category": "capability",
-      "classification": "ordinary-text-path-implemented-residual-reach-and-evidence-gaps",
-      "title": "Complete file-derived model reach and keep run evidence truthful",
-      "evidence_commit": "972dd24df74e2b583c2a5da18c2a6b6087bd7b32",
+      "classification": "partially-addressed-with-source-established-task-attribution-regression",
+      "title": "Bind recorded verification to the recipe and task that ran",
+      "evidence_commit": "65313733c7c2859219c04c932c591b0472e5b486",
       "sources": [
         {
-          "path": "internal/modelrecipe/loaded_program.go",
-          "symbol": "ResolveClaimedGGUF; bindActivation; bindDerived; Take/Close"
+          "path": "internal/evaluation/campaign.go",
+          "symbol": "Campaign.publishSuccess hard-codes recipe.TaskInference and discards ReadModelState's Activation"
         },
         {
-          "path": "internal/modelrecipe/derived_program.go",
-          "symbol": "PublishDerivation; refuseReplaced; recordsPath"
+          "path": "cmd/evaluate/capability.go",
+          "symbol": "openCapabilitySession; capabilitySessions: speech, seq2seq, forecast, VQA, image/video, embedding, reconstruction"
         },
         {
-          "path": "internal/libraryintake/intake.go",
-          "symbol": "Register; PrepareInferenceCandidate for viewed directories"
+          "path": "cmd/evaluate/projection.go",
+          "symbol": "openProjectionSession binds identity.Recipe to TaskProjection"
         },
         {
-          "path": "internal/hfconvert/qwen35.go",
-          "symbol": "Viewed: llama/qwen2/qwen3_5 mappings"
-        },
-        {
-          "path": "internal/discovery/servable.go",
-          "symbol": "ModelCatalog versus ServableWithMemo measurement surface"
-        },
-        {
-          "path": "internal/server/training_workspace.go",
-          "symbol": "NewTrainingWorkspace; ErrNoTrainingRecipe"
-        },
-        {
-          "path": "internal/servingattempt/servingattempt.go",
-          "symbol": "Record; RecordWholeOutput"
-        },
-        {
-          "path": "internal/trainingworkflow/session_observation.go",
-          "symbol": "Observer.finish"
+          "path": "internal/discovery/capability.go",
+          "symbol": "capabilityCatalog task-specific ReadModelState; entry.State uses first task state where no inference activation exists"
         },
         {
           "path": "internal/scorecard/scorecard.go",
-          "symbol": "Build; servingByRecipe; unverifiedAside"
+          "symbol": "build -> earned -> qualityCell; unverifiedAside"
         },
         {
-          "path": "internal/server/models_from_files_windows_test.go",
-          "symbol": "TestModelsRunFromTheirOwnFiles"
+          "path": "internal/evaluation/evidence_index.go",
+          "symbol": "LatestEvidence copies Evaluation.Verification into EvalSummary"
         },
         {
-          "path": "internal/scorecard/unverified_attempt_test.go",
-          "symbol": "TestAReadingFromAnUnverifiedModelSaysSo"
+          "path": "internal/runrecord/record.go",
+          "symbol": "Evaluation.UnderState; optional verification encoding"
+        },
+        {
+          "path": "internal/modelrecipe/loaded_program.go",
+          "symbol": "ResolveCandidateGGUF explicitly stamps StateNotVerified; State"
+        },
+        {
+          "path": "internal/servingattempt/servingattempt.go",
+          "symbol": "Record reads model/task state at publication and ignores Activation"
+        },
+        {
+          "path": "internal/trainingworkflow/session_observation.go",
+          "symbol": "Observer.finish reads model/task state at publication and ignores Activation"
+        },
+        {
+          "path": "internal/scorecard/heldout_state_test.go",
+          "symbol": "TestAHeldOutReadingKeepsTheStateItRanUnder exercises codec and earned, not production state lookup"
+        },
+        {
+          "path": "internal/gemma4convert/convert.go",
+          "symbol": "ModelView and Convert share modelViewTensors"
+        },
+        {
+          "path": "internal/server/generation_store_workspace.go",
+          "symbol": "unrecipedMedia lists unavailable source-profile-backed models with an explicit refusal"
         }
       ],
-      "evidence": "The original blanket text refusal is removed. Retained e4840fe6c device acceptance exercises unregistered llama GGUF and Qwen3.5 directory chats using their declared templates and checks response/header/attempt state. Tuned recipe preservation, broken/stale state, catalogue presence, successful derived registration, missing training-recipe startup and shared runtime-policy fallback are implemented. 18e2de4aa retains hashed-byte replacement refusal and claim re-resolution, while b69c3d6ef carries recorded refusal reasons; e43e52023 makes viewed-directory registration use its runtime identity. e0fbc3d5e excludes not-verified/broken serving observations except the exact current recipe's verifying run, preserving legacy observations and stale-row reasons. Full closure is not established: only three directory types map; media generation/transcription still require active recipes; held-out evaluations use EvaluationsByRecipe and heldoutRecords without the new state filter. The implementation response explicitly acknowledges these residuals. In addition, Record and Observer.finish read model/task state at the end and discard returned Activation: that is not a proof of observation.Recipe at start. Source counterexample to treating this stamp as recipe evidence: candidate B for a model with verified active recipe A can receive A's verified state; unverifiedAside bypasses verified state. No reproduction or claim of contaminated real cells.",
-      "recommended_change": "Retain completed text behavior and all byte/key/store-error validation. Complete model-reach/heldout-state, directory-mappings and media-derived through their existing scorecard/evaluation, hfconvert and generation/transcription owners. No invented preference/reward recipe: required dataset/reference/source-profile inputs must still be supplied. Use existing runner/program and recipe/run identities to distinguish the actual attempt from a different active recipe or a later activation; do not infer start state from end-time model state. Extend the current scorecard state fixture through the real recorder for verified A/candidate B and retain the exact own-proof-run exception. Use the existing native fixture for each genuinely changed boundary; do not add broad confidence suites or assume all137 profiles are runnable.",
-      "displaced_surface": "Completed work removes silent catalog omission, ordinary text activation/policy admission, and fatal server startup solely for missing training recipe. It also removes the duplicate directory success block (separately274) and Runner.EvidenceTier plumbing, while adding shared Derivation/ModelState/registration. PublishDerivation has two real callers: modelintake.RegisterCandidate and modelcli.registerDerived; directory Register now uses the same PrepareInferenceCandidate owner as GGUF. Latest five file-run gates add661production/2284testAST; the preceding seven pending-review code gates separately add1651/2732. No net reduction claimed, no static fixture files added. Native refusal test adds four stores/fiveGGUFs, reason test one store/file, scorecard test one store/sixcases, device acceptance two model/store/request setups. No redundant setup deletion is established. Remaining mapping/media work is unpriced correctness growth; state attribution should replace the end-state inference once in existing owners, not add a registry. A small extra recorder case is estimated20-80testAST plus existing fixture data, not measured; no new store/browser/device setup needed if it extends the current state fixture.",
-      "impact": "Ordinary supported text files can now run without manual publish/verify/activate setup. Remaining cases can still refuse an otherwise known directory/media model or lend a verified row an unqualified reading. Preserve exact recipe/model identity, sampling order, requested templates, actual store-I/O failures, cancellation, one-time file ownership and distinct Windows/device coverage. No new confidentiality behavior is required.",
+      "evidence": "Credit the three model-reach landings: held-out records now carry optional Verification through LatestEvidence/earned; gemma4_unified joins llama/qwen2/qwen3_5 directory views through the shared conversion mapping; source-profile-backed media without active recipes are listed with their missing onboarding action. The committed owner decision retires speech-derived and automatic promotion: do not keep those as missing requirements. A concrete attribution regression remains. Campaign.publishSuccess always asks ReadModelState for TaskInference, although openCapabilitySession creates campaigns for active non-inference tasks and openProjectionSession binds a projection recipe. For an admitted active speech-only model with no inference alias, the lookup returns StateNotVerified. discovery's capability catalog obtains StateVerified for speech; build then passes the new not-verified summary to earned under the verified entry and drops it from qualityCell. This is a source-established counterexample, not a reproduced real-store loss. Separately, the already reported candidate-B/verified-A problem persists: end-time lookup discards Activation and does not prove campaign.identity.Recipe or the state before execution. ResolveCandidateGGUF deliberately marks the candidate unverified. Lookup errors also leave a new record empty, indistinguishable to earned from accepted legacy records. Current codec/filter tests supply state strings directly and miss the production lookup boundary.",
+      "recommended_change": "The hard-coded inference task and model-wide end-state inference are unnecessary. Bind the recorded state through the existing actual recipe/task and loaded-program/activation owners, comparing the returned activation to the executing recipe; carry the execution-time state through publication rather than borrowing another task or later activation. Apply the same exact-recipe rule to the two existing serving recorders. Preserve legacy byte identity, genuine unknown/error handling, partial results, cancellation and the exact own-verifying-run exception. Extend an existing native campaign/state fixture through the real publication path; no new attribution registry, scheduler or policy suite.",
+      "displaced_surface": "The three model-reach landings add1003 production and1179 test AST nodes,2182 total, with0 new static fixture files reported by their gates. Optional Evaluation.Verification is serialized growth despite0 new schema declarations. Completed Gemma mapping and missing-media explanation are functionality, not net reduction. Replace the incorrect publication lookup rather than layering another stamp; production/test replacement totals are not measured. A focused existing-fixture extension is estimated+80-240 test AST and0 new model/browser/device setups; actual activation/setup code must be counted. Existing heldout_state_test.go339 nodes remain for legacy identity and filter cases.",
+      "impact": "Correct active non-inference held-out readings can disappear from a verified row, while a different recipe or later activation can lend a reading the wrong verification. This changes evidence presentation/eligibility, not the measured numeric output. No contaminated real row is claimed. Preserve task-specific refusals, exact recipe/model identities, file replacement checks, optional legacy fields, store errors, cancellation and resource ownership.",
       "expected_benefit": {
-        "outcome": "Keep the demonstrated text capability while completing explicitly admitted residuals and truthful evidence attribution.",
-        "uncertainty": "Only exercised prototypes are proven; media files may lack required source profiles, and preference/reward training needs inputs no model file supplies. No fresh runtime or universal137-architecture claim."
+        "outcome": "Keep completed file-derived reach while making current evaluation/serving evidence state truthful for the actual task and recipe.",
+        "uncertainty": "Source-established speech-only counterexample; no new runtime reproduction. Extent in retained real scorecards was not measured. End-state concurrency and error-fallback exposures retain their source provenance."
       },
-      "likely_effort": "Ordinary text path completed; remaining bounded rows use current owners. Mapping/media costs remain estimates in the committed plan; attribution should be decided with the existing host fixture.",
-      "plan_references": [
-        "model-reach/heldout-state",
-        "model-reach/directory-mappings",
-        "model-reach/media-derived"
-      ],
-      "plan_coverage": "run-from-files steps landed and were pruned. model-reach explicitly adopts held-out state, additional directory mapping and media missing-requirement behavior. Owner's implemented disposition is preserved verbatim, while reviewer keeps this finding open for the acknowledged residuals.",
+      "likely_effort": "Bounded correctness repair in current campaign/recording owners and one existing native publication fixture; no production/test saving promised.",
+      "plan_references": [],
+      "plan_coverage": "model-reach rows have landed and were removed. Committed65313733 retires speech-derived/automatic promotion under the owner's decision. No current plan step explicitly owns the residual exact-task/recipe attribution repair; the report records the gap without editing the plan.",
       "closure_criteria": [
-        "Retain demonstrated unregistered GGUF/directory chat, declared templates, state in response/record, tuned recipe preservation and present-model catalog coverage.",
-        "Additional directory/media cases admitted by the actual supported API either run from existing typed facts or identify the genuinely missing mapping/profile/input; do not silently omit them or claim unexercised architectures work.",
-        "Serving and held-out scorecard eligibility follow exact recipe/run evidence; an attempt on B does not inherit A's verification or a later activation. Preserve legacy identity and the recipe's own verifying-run exception.",
-        "Training absence no longer prevents server startup; existing conversation/CLI bootstrap routes remain. Required dataset/reference inputs are named rather than invented.",
-        "Count complete production/test/fixture/setup growth and retain byte mismatch, missing/key, cancellation, ownership and numerical contracts."
+        "An active non-inference recipe with no inference activation publishes its own task's state and its reading remains eligible for its verified scorecard row.",
+        "Candidate B cannot borrow active A's verification or a later activation; serving and held-out publication use the actual recipe/task execution state.",
+        "Legacy records keep their original identity/eligibility; actual store failures are not silently represented as legacy proof; retain cancellation, partial results and the exact verifying-run exception.",
+        "Keep landed Gemma directory mapping and media missing-requirement behavior; honor the owner's decision to retain models beside their bases with manual selection.",
+        "Count the complete repair/test/setup cost and reuse existing native fixtures; no new model workload or monitoring framework."
       ],
-      "comparison": "Use retained device acceptance for completed text behavior. The smallest remaining attribution comparison is the existing native state fixture with active verified A and recorded candidate B, before/after B activation, including own-proof-run and legacy cases; a held-out record uses its existing evaluation fixture. No SQA run, new workload, permanent policy suite or performance ratchet.",
+      "comparison": "Smallest deciding comparison: extend the existing native campaign/publication fixture (the mediaInputRuntime/observedRuntime pattern in TestMediaEvidenceNamesConsumedInputsAndKeepsItsMethod) with a valid non-inference activation and no inference alias; inspect the published Evaluation and existing earned filter. Preserve current codec/legacy cases. The same fixture can distinguish verified A from executing B without real weights. No SQA execution, broad validation or new test framework.",
       "raised_by": "Review session e8549e3e at the owner's request, 2026-11-01 (owner: \"we shouldn't refuse inferencing or training if not validated in store? just note its state?\"; \"should use the available model prototype and info from the safetensors files like config.json or config items in the .gguf file to run the model, including any prompt templates\")"
     },
     {
@@ -699,6 +703,53 @@
         "Complete test/helper/fixture/setup surface remains smaller; no replacement wrapper or extra gate leg."
       ],
       "comparison": "The actual in-memory AST migration is decisive for reduction; existing native server package validation during implementation can verify behavior. No new test or extra SQA confidence run."
+    },
+    {
+      "id": "SQA-297",
+      "status": "open",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-and-in-memory-ast-established-net-reduction",
+      "title": "Share the FP8 reader fixture and compare native bytes once",
+      "evidence_commit": "65313733c7c2859219c04c932c591b0472e5b486",
+      "sources": [
+        {
+          "path": "internal/gemma4convert/readers_test.go",
+          "symbol": "TestFP8BF16ReaderFoldsRowScales; TestFP8NativeReaderConcatenatesWeightThenScale"
+        },
+        {
+          "path": "internal/gemma4convert/readers.go",
+          "symbol": "newFP8BF16Reader; newFP8NativeReader"
+        },
+        {
+          "path": "internal/gemma4convert/convert.go",
+          "symbol": "modelTensorReader -> modelViewTensors -> ModelView/modelTensors/Convert"
+        },
+        {
+          "path": "internal/safetensors/source.go",
+          "symbol": "Tensor.Reader returns an independent io.SectionReader"
+        }
+      ],
+      "evidence": "Both reader tests write the exact same8 FP8 bytes and two F32 row scales{2,0.5}, create the same weight[2,4]/scale[2] descriptors and read independent readers. The BF16 case checks scaled/rounded output; the native case checks raw weight bytes followed by raw scale bytes. These distinct assertions can share the first test's existing file/descriptors: Tensor.Reader creates independent SectionReaders, so consuming the BF16 reader does not advance the native reader. No exact-name selector was found outside the two declarations. A complete in-memory replacement moves native reader construction/read/full-byte assertion into the first test and removes the second declaration/setup; readers_test.go977->762(-215), with first function292->356 and second279 removed. Existing slices import handles Clone and Equal; the latter covers both length and every byte.",
+      "recommended_change": "The second temp-file/write/descriptor setup and separate length/index byte-comparison loop are unnecessary. Move the native reader/read/error checks and expected weight-plus-scale assertion into TestFP8BF16ReaderFoldsRowScales after its BF16 checks. Use slices.Equal(actual,want) and a compact full-byte failure message for the16-byte native result. Delete TestFP8NativeReaderConcatenatesWeightThenScale and its repeated setup/comment. Keep both reader constructors and every numerical/raw-layout case; no helper or table framework.",
+      "displaced_surface": "Complete parsed test file977->762(-215). Production readers.go1182 unchanged; compared pair2159->1944. Four top-level tests become three; the two FP8 readers are still each constructed/read once. Temp files, writes, descriptor-pair creation and Close ownership2->1; static fixtures0->0; no imports/dependencies/helper/wrapper/migration/gate added. Position and patch permutation tests stay intact. The copied-scale expected native buffer remains independent. Diagnostic changes from first differing byte to the complete16-byte actual/expected sequence.",
+      "impact": "Same2x4 FP8 geometry, subnormal/zero/positive/negative encoded values, per-row scale multiplication and exact BF16 bits; native output remains exact all-weight-then-all-scale bytes including length. No numerical tolerance, error/cancellation contract or production platform/build tag changes. The common file closes once after both independent readers finish; no data/confidentiality behavior changes.",
+      "expected_benefit": {
+        "outcome": "215 fewer test AST nodes and one fewer temporary-file/descriptor setup, with both output contracts retained.",
+        "uncertainty": "Complete syntax candidate only; no test/benchmark run and no measured elapsed/memory benefit. Full production package was not typechecked."
+      },
+      "likely_effort": "Small same-file merge, retaining the existing first test as owner; no new fixture.",
+      "plan_references": [
+        "compact-tests/exact-folds"
+      ],
+      "plan_coverage": "Existing test compaction row; no additional selector, framework or run.",
+      "closure_criteria": [
+        "The duplicate native test/setup disappears and full production/test surface shrinks.",
+        "Retained test checks both scaled BF16 bits and exact native concatenation including length on the same weight/scale descriptors.",
+        "Both independent reader error checks and one file Close remain; position/patch unique cases remain.",
+        "No added helper/static fixture/gate leg or confidence run offsets the reduction."
+      ],
+      "comparison": "Static complete-file candidate and independent SectionReader ownership establish the reduction. Ordinary implementation validation can use the retained native Go reader test; no new cases or workload needed for this behavior-preserving merge."
     },
     {
       "id": "SQA-295",
@@ -6249,119 +6300,125 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA application tests, gates, services, model workloads, benchmarks or profiles. Scratch Go parsing/type analysis and JSON construction only. Credit native Go caching, existing lane selection and phase/cell resume credit.",
+      "execution": "No SQA application tests, gates, services, device/model workloads, benchmarks or profiles. Scratch parsing/type analysis/report generation only; native Go caching and existing gate/cycle/resume ownership remain credited.",
       "sample_cost": {
-        "revision": "12d049031ec29b314fd1cda0e2f65c278b1bec49",
-        "comparison_revision": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
-        "files": 35,
-        "functions": 331,
-        "parser_local_bindings": 13812,
-        "production_ast_before": 55815,
-        "production_ast_after": 57017,
-        "production_ast_delta": 1202,
-        "test_ast_before": 8822,
-        "test_ast_after": 9102,
-        "test_ast_delta": 280,
-        "total_ast_after": 66119,
-        "scope": "26 changed Go files including two new safetensors files, plus9 unchanged rotated files. Whole-file counts include comments; selected functions/callers were read. Additional supporting files were read without adding them to this AST census."
+        "revision": "65313733c7c2859219c04c932c591b0472e5b486",
+        "comparison_revision": "8adf37c27371157ab61996c693bd626a8f9402b3",
+        "files": 28,
+        "functions": 287,
+        "parser_local_bindings": 10063,
+        "production_ast_before": 39037,
+        "production_ast_after": 40741,
+        "production_ast_delta": 1704,
+        "test_ast_before": 9298,
+        "test_ast_after": 11124,
+        "test_ast_delta": 1826,
+        "total_ast_after": 51865,
+        "scope": "17 changed plus11 rotated files; whole-file counts include comments, bounded source inspection. Supporting caller files were read outside these totals."
       },
-      "complete_change_cost": "regex-out/do+300production/+160test; regex-out/formats+860/+30; repeatable-steps/do+42/+90. Total+1482. Gates report0 record schemas,0 CUDA source and0 fixture files/bytes. The added19-line repeatable-steps evidence document is separate retained-record maintenance, not counted as a fixture. No new SQA gate/setup burden.",
-      "completed_reductions": "No newly completed reduction in this review.294's prior directory validation/registration merge remains intact;295 remains unimplemented. Proposed296 textcheck pair455->440(-15 production,0 test); setup executions unchanged.",
+      "complete_change_cost": "Declared-penalty+38production/+202test; heldout-state+207/+339; directory-mappings+553/+493; media-derived+243/+347; beside-base+663/+445. Total+1704/+1826. Gates report0 new schema declarations/CUDA source/static fixture files. Optional Evaluation.Verification and scorecard base fields still add serialized data/maintenance; count them honestly.",
+      "completed_reductions": "No newly landed compaction.297 complete parsed candidate: readers_test977->762, production readers1182 unchanged, pair2159->1944. FP8 file/write/descriptor setup2->1, readers/read executions2->2. No new fixture/helper/gate.",
       "sampled_tests": [
         {
-          "classification": "retain",
-          "tests": "TestLowerIdentifier; TestOnlyHoldsAValueToItsCharacters; TestBounded; TestBoundedToken",
-          "retained_owner": "internal/textcheck/text_test.go",
-          "unique_cases": "Bounded whitespace/forbidden bytes; Unicode whitespace/control token refusal; lower-case identifier and byte-size bound; Only positive alphabets, empty and invalid first/interior/last characters.",
-          "cost": "203test AST unchanged for296;252->237 production. Four tests/setup counts unchanged, no fixture or helper. No cases move."
+          "classification": "merge",
+          "tests": "TestFP8NativeReaderConcatenatesWeightThenScale into TestFP8BF16ReaderFoldsRowScales",
+          "retained_owner": "internal/gemma4convert/readers_test.go first FP8 fixture",
+          "unique_cases": "Keep scaled BF16 bit results and native exact weight-then-scale bytes/length, both construction/read errors; rectangular2x4 with two scales. Position/patch cases stay.",
+          "cost": "297:977->762(-215test AST); file/write/descriptor setup2->1, reader execution unchanged; no helper/import/static fixture or gate."
         },
         {
           "classification": "retain",
-          "tests": "TestGroupAccuracyMetricNamesAreRecordLabels",
-          "retained_owner": "evaluation groupAccuracyMetricName plus LowerIdentifierByte",
-          "unique_cases": "Explicit expected labels for capitals, slash, parentheses, Unicode bytes; metric/contract deduplication and record-label admission.",
-          "cost": "Source-read outside AST totals. The sanitizer remains; no test deletion or extra execution requested."
+          "tests": "TestADeclaredPenaltyReachesTheSampler",
+          "retained_owner": "withDeclaredSampling plus sampling.PenaltiesIdle",
+          "unique_cases": "Repetition1.1 and presence0.5 enable both serving/interactive windows; neutral1/absent penalties remain idle; policies validate.",
+          "cost": "202newtest AST for38production; four catalog-based cases/two policies each, no device fixture. Existing sampler numerical tests own penalty arithmetic."
         },
         {
           "classification": "retain",
-          "tests": "TestALayerNameIsReadByItsParts",
-          "retained_owner": "internal/safetensors.LayerName",
-          "unique_cases": "Valid numeric layer plus suffix; empty/missing/nondigit/negative/wrong-prefix forms refuse.",
-          "cost": "New94test AST with79production AST already counted in regex-out/do. No new fixture; callers keep conversion-specific suffix maps."
+          "tests": "TestAHeldOutReadingKeepsTheStateItRanUnder",
+          "retained_owner": "Evaluation codec and earned",
+          "unique_cases": "Nonempty state changes identity and roundtrips; empty state preserves legacy identity; verified row excludes not-verified/broken while unverified row keeps its readings.",
+          "cost": "339newtest AST for207production across the landing. No real publication/activation lookup covered;283 needs one existing native fixture extension, estimated80-240test AST, not measured."
         },
         {
           "classification": "retain",
-          "tests": "TestPTXEntriesSorted; TestPTXEntryABIsPreserveOrderSizeAndAlignment",
-          "retained_owner": "cmd/kernel-manifest/main_test.go existing parser fixtures",
-          "unique_cases": "Entry names and ordered ABI parameters; size/alignment, arrays and differing signatures.",
-          "cost": "Whole test file1237AST unchanged. Two scans share ptxEntryList; no tested net reduction of both production/test owners established."
+          "tests": "TestAGemma4DirectoryIsTheBytesItsConversionWrites",
+          "retained_owner": "hfconvert.View/gemma4convert.ModelView and shared modelViewTensors",
+          "unique_cases": "Architecture, five selected tensor sizes/head-tail source bytes, BF16 scalar widened toF32. Existing readers tests retain FP8 and permutations.",
+          "cost": "493newtest AST with553production; real directory opened twice but no full24GB output written.64KiB sample is an explicit fixture budget, not representative sampling proof; no SQA run."
         },
         {
           "classification": "retain",
-          "tests": "TestAMOSSRunIsRefusedBeforeItsFirstPicture; TestAPictureIsHeldOutByItsBytes",
-          "retained_owner": "cmd/train/route_moss_heldout_windows_test.go",
-          "unique_cases": "Copied held-out bytes and shifted scheduler grid refuse before undecodable picture preparation; identity disjointness stays.",
-          "cost": "507->533test AST(+26) after JSON fixture mutation replaces regexp. Existing compact directory/heldout setups remain; no model run added by SQA."
+          "tests": "TestAMediaModelWithNoRecipeSaysWhatItNeeds; TestMOSSImageGenerationContract",
+          "retained_owner": "unrecipedMedia/WorkflowCapabilities",
+          "unique_cases": "One waiting image model listed with no runnable recipe/refusal; already listed, active, absent and unsupported text cases excluded. MOSS still cannot execute before validation.",
+          "cost": "New330-node host fixture plus17nodes in MOSS test,347total; two config tempdirs. Different host classification and end-to-end activation requirements stay."
         },
         {
           "classification": "retain",
-          "tests": "TestNoRegexParsesStructuredData; TestNoTextFormatIsReadByRegex",
-          "retained_owner": "internal/repoanalysis/regex_owners_test.go",
-          "unique_cases": "Every remaining regexp owner is declared; five format owners must stay outside that list.",
-          "cost": "265test AST current, separate admission and exclusion contracts. No new policy suite/selector recommended."
+          "tests": "TestATrainedModelsRowReadsAgainstItsBase",
+          "retained_owner": "againstBase/sameFiles/sameMeasure",
+          "unique_cases": "Weights-file/directory identity fallback, same raw-completion measure despite differing base headline, measured-only association and no automatic train-to-beat-base gap.",
+          "cost": "445newtest AST for663production. Three synthetic rows and one path map; no store/model run. Source typecheck of sameFiles is not proof of all filesystem equivalences."
         },
         {
           "classification": "retain",
-          "tests": "TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity; TestDeviceCacheStorageViewsBoundEachLayer; TestRebuildDeviceCachePagesCreatesPointerViews; TestRebuildDeviceCachePagesPreservesFixedState; TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState",
-          "retained_owner": "internal/inference/device_cache_paging_test.go",
-          "unique_cases": "Rectangular Kwidth2/Vwidth3, token-axis stride, capacity/offset bounds and nonoverlap; named fixed state, shifted pointers refused.",
-          "cost": "Whole file2012test AST retained. TestCachePageCapacityFollowsSessionPolicy remains235's table owner. No setup reduction inferred from similar bodies."
+          "tests": "TestProfileCatalogReleaseRetainsArchitectureAuthority; TestDatasetCatalogCompactionRetainsAuthorityAndLocation",
+          "retained_owner": "overgodb.Release/collectLiveSet with each catalog's publish/inspect owner",
+          "unique_cases": "Architecture profile authority versus dataset inventory/location reach after admitting every releasable class.",
+          "cost": "175+385test AST unchanged; separate stores exercise different consumers. releaseEverything already shared; no redundant helper to add."
         },
         {
           "classification": "retain",
-          "tests": "TestPackIndexRejectsImpossibleCounts; TestSmallBlobsArePacked; TestPackStreamsItsMembers",
-          "retained_owner": "internal/overgodb/blob_pack_test.go",
-          "unique_cases": "MaxUint64 and count beyond available index room; valid count; small/large membership, exact readback, reopen/backup, corrupt payload/index and streaming lifetime.",
-          "cost": "Whole test1807AST/production1581AST unchanged. Cancellation test remains with223's preexisting consolidation. No new packs/database run."
+          "tests": "TestStreamingTranscriptionAcceptance",
+          "retained_owner": "nativeStreamingTranscriptions, transcriptionHTTPStream.process and existing session leases",
+          "unique_cases": "Authentication before input, size/sample admission, exact transcript and event sequence, disconnect/resume checkpoint, durable admission/output IDs, out-of-order refusal and cleanup.",
+          "cost": "1484test AST unchanged. One existing captured-waveform/model/store/server fixture with lease-based cleanup; no added polling or test run."
         },
         {
           "classification": "retain",
-          "tests": "TestWebUIBrowserStreamLifecycle",
-          "retained_owner": "internal/server/webui_browser_stream_lifecycle_test.go",
-          "unique_cases": "Clean-end reconnect, old subscription aborted on remount, operation completion, inventory invalidation/resync, hidden-page polling stopped and resumed.",
-          "cost": "865test AST unchanged. Existing3remounts and11second hidden wait remain; no equivalent cheaper owner established or browser run executed."
+          "tests": "TestOneWorkbenchEventStream",
+          "retained_owner": "downloadRegistry.observe and shared runtime event stream",
+          "unique_cases": "File/whole-percent publication uses current progress; initial inventory, admitted and cancelled job transitions.",
+          "cost": "601test AST unchanged. Distinct registry and HTTP delivery contracts;1percent is display coalescing, not a performance acceptance threshold."
         },
         {
           "classification": "retain",
-          "tests": "TestCPULanesOverlapTheDeviceLane",
-          "retained_owner": "internal/landing/lanes_test.go splitLanes fixture",
-          "unique_cases": "Host-only webui can overlap; shared device/CUDA order stays serial; synthetic ordering and real-model cycle constraints remain.",
-          "cost": "Source-read outside AST totals. Existing fixture and host/device ownership, no scheduler, polling loop or new setup."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestCUBLASIsAskedForRepeatableResults",
-          "retained_owner": "internal/cuda/cublas/cublas_windows_test.go and repeatable-steps record",
-          "unique_cases": "Environment set at package start; selected default value appears in the retained measurement record. Operator override remains valid.",
-          "cost": "New90test AST, library+41production plus identity+1. Test checks configuration presence/record linkage, not statistical determinism or every override. One record-file read; no new device setup in this test. Preserve recovery tests that detected the original defect."
+          "tests": "TestRecoveryDrills",
+          "retained_owner": "landing.Classify/RecordRefusal existing text fixtures",
+          "unique_cases": "External quarantine prerequisite/probe, repeated same-row test refusal, unrelated-row separation, lane failure and changed-tree refusal.",
+          "cost": "262test AST unchanged, four temp-directory sequences, no actual gate/device/Defender run. Classification/recording is not supervised retry delivery."
         }
       ],
       "retained_results": [
         {
-          "commit": "598b7acdf61e7ac69914776b5a28d0372c0cb109",
-          "result": "test3m14.355s/103packages; lanes16m5.539s:device10m46.750s,webui2m57.655s,CUDA5m17.909s(15executed4cached). Bonsai output identical,peak5347.3MiB;first1355.9729ms,load2557.3971ms,55.8001261tokens/s. Reported bounded throwaway name/parser equivalence; no SQA rerun."
+          "commit": "2cfe8fd70fe1c28189675de7abf13f959b5cb4e8",
+          "result": "test3m45.873s/25packages; lanes2m53.188s(device15.685s,webui2m52.358s,CUDA1m25.522s:4executed15cached).14 served models reportedly declare no active penalty; Bonsai output/peak5347.3MiB unchanged. No SQA reproduction."
         },
         {
-          "commit": "37e3fa5ffd455ec267649e5febf6c98a488d96ac",
-          "result": "test2m33.675s/39packages; lanes3m10.437s:device skipped,webui2m56.784s,CUDA3m9.557s(4executed15cached). Identical Bonsai output/peak;first1358.7071ms,load2623.7349ms,55.7142813tokens/s. Retained IQ/NFC regeneration byte-identical, manifest unchanged, bounded throwaway PDF/reference and compiled-PTX comparisons; not rerun."
+          "commit": "17a185d6dff7ffa2dfed75edd746ac2a6ebd8705",
+          "result": "test3m8.067s/116packages; lanes17m29.641s(device10m53.549s,webui2m57.725s,CUDA6m35.162s:19executed0cached). Bonsai output/peak unchanged. Codec/filter undo comparison retained; it does not test non-inference state lookup."
         },
         {
-          "commit": "12d049031ec29b314fd1cda0e2f65c278b1bec49",
-          "result": "test2m54.174s/88packages; lanes17m20.707s:device10m48.342s,webui2m55.164s,CUDA6m31.488s(18executed1cached). Identical Bonsai output/peak5347.3MiB;first1359.0501ms,load2627.8783ms,55.8226841tokens/s. Repeatable-steps record:18 runs per arm,2376 steps,8 differing without setting versus0 external default and0 internal default. SQA did not reproduce."
+          "commit": "2c723e159eb2f3ee518dad96711ad25115356423",
+          "result": "test2m26.175s/45packages; lanes3m32.727s(device5.643s,webui2m59s,CUDA3m26.175s:5executed14cached). Bonsai output/peak unchanged. Real Gemma directory view sampled; current BF16 and older FP8 served files explicitly differ."
+        },
+        {
+          "commit": "abe7e41f9714f60be958e0935550bdeee3fcbcde",
+          "result": "test4m2.935s/15packages; webui2m54.489s,device/CUDA skipped. Media listing host fixture and MOSS contract retained; scorecard not reached."
+        },
+        {
+          "commit": "65313733c7c2859219c04c932c591b0472e5b486",
+          "result": "invariants2m25.188s(landing130s); test2m40.473s/16packages; lanes discovery890ms,all device/webui/CUDA skipped. Real retained trained rows:quality0.1447/0.153 versus base0.1696;throughput321.3/318 versus505.7;peak1.84GiB versus0.922GiB. These are displayed comparisons, not promotion or representative experimental gains."
         }
       ],
-      "automation_sequence": "Run retains stop/budget checks, accepted prerequisites and partial results; initial ErrWorkWaiting still returns ReasonWorkWaiting, whereas post-worker contention retries. cmd/loop prints the terminal result and returns. Existing271/258 remain the continuation/actual-process-ownership owners; three gate completion records do not establish delivered wakeup. splitLanes already lets host webui progress beside serial device/CUDA work. MOSS setup refusals remain before costly preparation. Retained cuBLAS recovery diagnosis fixes a shared cause of unrelated commit retries before further dependent investigations. No new delay measured or recurring workload recommended.",
-      "interpretation": "The3m versus16/17m lane walls differ in reach/cache hits; they are not a controlled speed comparison. Identical one-model peak says nothing about workspace memory on other cuBLAS workloads. Numerical acceptance stays independent of timing variability."
+      "automation_sequence": "landing.Run admits row/turn/hooks/parents/ship set before checks; space and cheap preflight/invariants precede broad tests/lanes, then verify/scorecard and commit. Failed stage returns with recorded classification/partial timing. RecoveryDrills tests repeated refusal attribution and external probe metadata only. Existing native cache and host/device lane split avoid needless work. Loop's initial ownership-wait return and printed completion remain unchanged;271/258 require actual responsible continuation evidence. Current five gate timestamps are not delivered wakeup evidence. No new delays measured, scheduler or polling mechanism proposed.",
+      "concurrent_publication_review": {
+        "commit": "5c7774a1170e3bb6233add802e7c1cbead26efb1",
+        "scope": "Retained commit record and overlapping diff only; no repinning or new AST census.",
+        "result": "The commit reports +174 production/+669 test AST for per-length peak memory beside first output, with test 3m22.07s/194 packages and 858ms skipped lane discovery. These are separate retained figures, excluded from this review's +1704/+1826 totals. No new model measurements were run by SQA.",
+        "reconciliation": "The remaining reviewed plan references still exist; the removed peak-by-length row is not a referenced open recommendation. Current verification attribution and FP8 fixture findings are unaffected."
+      }
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7159,14 +7216,13 @@
   },
   "limitations": [
       "This chat previously implemented Overgo changes; this is not independent third-party review.",
-      "No application tests/gates/model workloads/services/benchmarks/profiles, agents/messages, plan/skill changes or push. Scratch tooling lives outside the repository; only the report is published.",
-      "AST/setup counts are proxies.296 was parsed/typechecked, not executed. Full-package type resolution is limited to textcheck production; parser-local bindings and symbol search are not a whole-program call graph.",
-      "Geometry/domain checks in this sample: page sizes derive from token capacity; rectangular K/V and named state use typed shapes; pack counts are bounded by available index bytes; tensor layers use nonempty decimal indices/suffixes. PTX/IQ/NFC parsers support their existing generated-input contract, not arbitrary languages.",
-      "Digits/hex widths, three-part versions and UUID forms are retained format/product contracts. LowerIdentifier's byte-length limit is caller-owned. No blanket literal findings, general threshold, adaptive routing or new acceptance tolerance.",
-      "The repeatable-steps record supports observed improvement for one Windows/card/cuBLAS12 workload. Its probability sentence assumes independence/stationarity not established by repeated clustered steps. No general failure-rate bound or zero-risk guarantee is inferred.",
-      "Review of load/transfers focused on existing cache storage views, paging and release plus conversion tensor-name owners; database review focused on indexed packed blobs and durable publication. Other load/query/retention paths retain earlier evidence rather than a claim of fresh exhaustive coverage.",
-      "Current implementation_review/master_lead_triage and every implementation-owned finding field remain unchanged. No new implementation response to295/296 was present at reconciliation.",
-      "Publication can follow reviewed_master: the later964d52e3e shell-guard landing is explicitly outside the35-file sample. Its retained historical64510-command comparison is not an independent representative or exhaustive shell-parser proof. No guard recommendation or closure inferred."
+      "No application tests, gates, model/device workloads, benchmarks, profiles, services, agents/messages, plan/skill edits or push. Report-only commit; scratch tooling remains outside the repository.",
+      "AST/setup savings are proxies.297 was parsed, not executed. Type checking covers source-extracted sameFiles with actual stdlib imports, not application dependency closure or whole-program symbol resolution.",
+      "283's wrong-task counterexample follows production source and admitted capability routes; no real affected cell or reproduction was observed. Current manually supplied-state test is not end-to-end attribution evidence.",
+      "Geometry/constants: FP8[rows,inner]+rowF32 scales and BF16 widths are format contracts; Gemma test47/64KiB belong to its named48-layer fixture. Cache1GiB is a retained heuristic that admits one larger built tensor; memory-bounds/view-release owns further work, no new bound asserted. wholeHistory=-1 follows the existing sampler's all-history contract,0 disables it.",
+      "No normality/representative-distribution claim follows from five tensor edge samples,14 model declarations or a pair of trained/base rows. Exact numerical/layout checks remain independent of timing variance.",
+      "Full data-retention liveness and broad inference/query behavior were not recertified. Selected catalog/lineage/blob release and view ownership paths were reviewed; earlier findings keep original evidence where unchanged.",
+      "Concurrent committed peak-by-length work at 5c7774a11 was checked only for publication overlap; it is excluded from the bounded source/AST review at 65313733. Current implementation_review/master_lead_triage and every implementation-owned field remain raw-exact."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7818,12 +7874,12 @@
       }
     }
   },
-  "next_finding_number": 297,
+  "next_finding_number": 298,
   "publication_context": {
-      "checked_head": "964d52e3e4090213090c8e304c5b2aab3da73513",
-      "assessment": "Pinned committed source/plan assessed. Re-read current report immediately before replacement; preserve owner objects and unknown/implementation-owned fields raw-exact.",
-      "newer_commit_note": "Reviewed scope pinned at12d049031, including its cuBLAS recovery landing. Publication parent964d52e3e removes completed regex-out/shell-guard from the plan and changes guard plus one regex-owner entry; reviewed296 callers and report are unchanged. Later guard source is outside this bounded review. Its retained gate reports+2791production/+132test, not included in the35-file/three-landing totals. No uncommitted worker content is assessed.",
-      "publication": "Explicit report-only path-limited Git commit under existing locks/hooks; no production gate, branch switch, reset, stash, push or plan change."
+      "checked_head": "5c7774a1170e3bb6233add802e7c1cbead26efb1",
+      "assessment": "Bounded review remains pinned to 65313733c7c2859219c04c932c591b0472e5b486 and its committed plan. Publication parent is later 5c7774a1170e3bb6233add802e7c1cbead26efb1. Re-read the current report immediately before replacement and preserve raw owner fields.",
+      "newer_commit_note": "Concurrent peak-by-length commit 5c7774a11 landed after the review pin. Read its retained record and overlapping scorecard/rendering/plan diff for reconciliation. It does not change Campaign.publishSuccess, earned, the FP8 reader fixtures or the recommendations in 283/297. Its added length-memory cells and removed memory-bounds/peak-by-length plan row are outside the 28-file AST comparison and five-landing totals.",
+      "publication": "Explicit path-limited report-only Git commit under existing locks/hooks; no production gate, branch switch, reset, stash, push or plan change."
     },
   "ranked_active_finding_ids": [
     "SQA-288",
@@ -7836,6 +7892,7 @@
     "SQA-266",
     "SQA-257",
     "SQA-285",
+    "SQA-297",
     "SQA-295",
     "SQA-296",
     "SQA-287",
@@ -7886,43 +7943,45 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "123 stable findings:56 open,4 deferred,63 resolved. Add296 for15 fewer production AST nodes by reusing Only. No new safe test deletion/merge established in this sample;295 remains open. Durability288 and correctness/continuation priorities remain above small maintenance savings.",
-      "The two regex-removal commits add1160 production and190 test AST nodes; concurrent repeatable-steps adds42 production and90 test. Total+1202 production/+280 test=+1482. Removing regexp owners is not a net source reduction. Keep only format-specific parsing that preserves admitted contracts; don't introduce another generic parser.",
-      "LayerName now shares tensor layer-name parsing across hfconvert, gemma4 language/tower conversion and qwen35 projector callers. Prefix and suffix mappings remain distinct. The new94-node native test retains malformed/empty/index/suffix cases. Existing Only has several real callers, enabling296 without another abstraction.",
-      "293 stays resolved: MOSS grid/held-out refusal still precedes picture preparation. Its fixture now edits scheduler JSON through decode/edit/encode; route_moss_heldout_windows_test.go507->533(+26) is maintenance growth, not a saving. The undecodable-picture failure signal remains.",
-      "Concurrent cuBLAS workspace initialization addresses an observed repeated-step defect at the shared library owner. Preserve the operator's nonempty override, Windows build context and result-setting identity. Retained record reports8 differing steps without the setting and0 in each of two18-run arms; these are observations from that workload, not SQA reproductions or a universal determinism guarantee.",
-      "Do not promote the repeatable-steps record's '1 in10 million' claim to a measured confidence level: clustered repeated inputs/steps and only18 package runs per arm do not establish independent stationary Bernoulli trials. No new statistical framework or repeated experiment requested. The configuration's8x4096KiB=32MiB budget is arithmetic, not measured extra device allocation.",
-      "Store blob-pack publication already uses fsatomic.Replace before directory sync/deleting loose members; this is distinct from288's still-open sealed-journal rename/truncate and ReplaceStore boundaries. No new query/index reduction was established. Source and AST proxies do not measure elapsed or memory savings; Strata is a comparison."
+      "124 stable findings:57 open,4 deferred,63 resolved. Add297 for215 fewer test AST nodes and2->1 FP8 fixture setups.283 receives material implementation credit, but remains open for the concrete wrong-task evaluation stamp and prior exact-recipe attribution problem. No priority change.",
+      "Five landings add1704 production and1826 test AST nodes (+3530 total). Added correctness/capability coverage is counted as growth. No new safe production reduction established in this sample.",
+      "283's newly traced counterexample: a valid active speech-only model has no inference alias, but Campaign.publishSuccess asks for TaskInference and writes not verified. The capability catalog uses its speech activation and earned removes that reading from its verified row. Existing codec/filter tests inject state strings and do not exercise the lookup. No real-scorecard reproduction was run.",
+      "Honor the committed owner's scope change: trained models stay beside their recorded bases; people choose what runs and what training starts from. Automatic promotion and separate speech-derived listing were retired. Do not carry them forward as missing requirements or propose a scheduler.",
+      "Gemma ModelView and Convert now share modelViewTensors and validated typed mappings. New view tests inspect five selected BF16 tensors at their first/last64KiB and one widened scalar; they do not prove every tensor/model or whole-output equivalence. Retained evidence explicitly says the present BF16 directory differs from the older FP8 GGUF, so do not present them as the same model.",
+      "Retain byte/shape validation and streamed storage ownership. modelViewTensors constructs some conversion readers once to validate/type them and again for use; removing this setup safely has not been priced as a net reduction. No new abstraction is recommended.",
+      "Retained gates show native cache/reach differences, not controlled speed gains. Strata remains a comparison. No measured review-time wall/memory improvements or additional model workloads."
     ],
-  "reviewed_at": "2026-11-03T02:05:03Z",
-  "reviewed_master": "12d049031ec29b314fd1cda0e2f65c278b1bec49",
+  "reviewed_at": "2026-11-03T04:10:13Z",
+  "reviewed_master": "65313733c7c2859219c04c932c591b0472e5b486",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 12d049031ec29b314fd1cda0e2f65c278b1bec49; committed plan blob6acf78c933356b1077b9f3de58ee14d6585a5731; unchanged skill.md blob0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
-      "Provisional conclusions preceded reading the prior report. Read the two regex-removal landings, then rotated beyond their diff through device cache paging/storage release, blob-pack indexed reads/publication, GUI runtime activity streams and lane scheduling. A concurrent repeatable-steps landing was read and reconciled before publication; the original32-file sample is unchanged at the final pin.",
-      "Actual stdlib Go parser analysis:35 committed Go files (26 changed plus9 rotated),331 functions,13812 parser-local bindings,66119 whole-file AST nodes including comments. Detailed source review is limited to named owners/callers/tests; large-file AST counts do not mean every declaration was reviewed. Only the actual complete textcheck production file and its in-memory replacement were typechecked with stdlib imports, without stubs; no whole-program/device type resolution.",
-      "Complete LowerIdentifier candidate parsed/typechecked in memory: text.go252->237; existing text_test.go203 unchanged. Repository-wide symbol search enumerated callers and preserved the separate byte-sanitizer owner. No application tests were run.",
-      "Current implementation responses were read after provisional review. Rechecked293/294 closure,295's unchanged source,235/223 sample overlap and288/271/258 source boundaries; other retained findings keep their original evidence revisions. No recurring full census.",
-      "Bounded review stops at12d049031. Later964d52e3e landed shell-guard while the report was being assembled: its commit record, changed paths, plan removal, regression test and regex-owner deletion were read for reconciliation, but its new shell parser is not source/AST-reviewed here. It does not change296 or the report/owner responses. Do not read this report as a review of that later security-sensitive parser."
+      "Pinned committed master 65313733c7c2859219c04c932c591b0472e5b486; committed plan blob1c21b5cad896071249cf41b6c09d2f42c7af109c; skill.md blobb4e6496176dae5abce498e1aba83e32b10640960. Campaign remains multimodal Qwen3.8-Flash-Next versus native Strata; master-lead lane.",
+      "Fresh provisional conclusions preceded prior-report reconciliation. Read five new implementation landings: declared penalties, held-out state, Gemma directory views, unavailable media listing and trained/base scorecard presentation. Rotated beyond their diff through FP8 reader fixtures, GGUF view lifetime, database retention, native transcription/download streams and landing preflight/recovery.",
+      "Actual Go parser analysis:28 committed files,17 changed plus11 rotated,287 functions,10063 parser-local bindings,51865 whole-file AST nodes including comments. Detailed review covers selected named owners/callers, not every declaration of large files. Source-extracted actual sameFiles was typechecked with its real stdlib imports:4 definitions/29 uses, no dependency stubs. Imported application packages were not typechecked.",
+      "Complete in-memory FP8 test merge parsed977->762. Both production readers and every output assertion remain. A smaller equality-only candidate was also parsed but the report recommends the complete shared-fixture solution. No application/test/predicate execution.",
+      "Rechecked implementation response283 against new model-reach landings and exact callers.295/296 remain unchanged;269's separate onboarding compaction remains unchanged except its unsupported-type fixture switches Gemma to needle. Other findings retain their evidence revisions; no full recurring census.",
+      "Publication overlap checked at later 5c7774a11 without claiming a fresh full review of its length-memory implementation. Review evidence and AST remain pinned to 65313733."
     ],
   "sqa_response": {
-      "reviewed_master": "12d049031ec29b314fd1cda0e2f65c278b1bec49",
-      "assessment": "Add296:15 fewer production AST nodes by reusing existing Only,0 test/setup growth. No new closure or priority change. Count the three landings'1482-node net growth and recovery evidence honestly.",
+      "reviewed_master": "65313733c7c2859219c04c932c591b0472e5b486",
+      "assessment": "Credit283's Gemma/media/held-out progress and retire superseded promotion/speech-listing expectations. Keep283 open: production evaluation stamp uses the wrong task and still lacks exact execution-state attribution. Add297's215-node/one-fixture test reduction.",
       "new_findings": [
-        "SQA-296"
+        "SQA-297"
       ],
       "resolved_findings": [],
-      "partially_addressed_findings": [],
+      "partially_addressed_findings": [
+        "SQA-283"
+      ],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "35 committed Go files parsed; original32 unchanged by concurrent landing. Actual textcheck production and complete replacement typechecked without stubs; three retained gate records and new repeatability record read. No application workload. Publication-time964d52e3e was reconciled separately; security-sensitive shell parser remains outside the pin/scope.",
+      "evidence": "28 committed Go files parsed; complete FP8 test merge counted; actual sameFiles typechecked; five retained gate records read. Traced non-inference evaluation -> hard-coded inference stamp -> verified catalog -> earned exclusion. No application run.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
-        "status": "Both owner objects preserved exactly.293/294 remain resolved;295 unimplemented;283 residual scope and271/258 continuation boundaries persist. No owner response to296 assumed."
+        "status": "Owner objects preserved exactly.283's implemented disposition remains the owner's field; reviewer records completed subparts and remaining concrete attribution defect. Removed model-reach plan references are reconciled without editing the plan."
       },
-      "recommendation": "Reuse Only inside LowerIdentifier during existing compaction; preserve byte bounds and byte-sanitizer callers. Keep sampled native correctness/recovery tests and existing fixtures. No new gate, selector, recurring run or framework.",
-      "uncertainty": "Maintenance reduction is established by complete AST/type analysis; speed/memory benefit is unmeasured. Retained zero-difference arms and completion timestamps are not universal reliability or delivered-wakeup proof."
+      "recommendation": "Fix the exact task/recipe state at its existing publication boundary using one native fixture extension; combine FP8 test setup in its existing owner. Preserve all numerical/recovery contracts and manual model choice.",
+      "uncertainty": "No measured test wall/memory gain. Repair cost for283 remains an estimate;297 counts are actual parsed syntax. No real scorecard contamination/removal reproduced."
     }
 }

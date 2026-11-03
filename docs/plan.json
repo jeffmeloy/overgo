@@ -148,25 +148,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "store-durability",
-      "title": "Keep every acknowledged commit through a crash",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "crash-points added 44 production nodes, the journal that is zeros from its start counted as never begun, as the review's prototype does; store-lifecycles adds 59, not 40: a read takes its offset from the index of the very pack file it opens, rather than the 40 nodes that only forget a stale index, so a pack another handle publishes meanwhile cannot move it; fault-seam gives back the append seam's."
-      },
-      "steps": [
-        {
-          "id": "fault-seam",
-          "title": "Retire the append seam the crash harness replaces",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestEveryDurableOperationCanFail$'",
-          "rationale": "crash-points landed the crash harness (internal/overgodb/crash_points_test.go and crash_record_test.go under the crashpoints tag, run over an overlay by TestEveryDurableOperationIsACrashPoint and TestEveryDurableOperationCanFail) and left the seam it replaces: recordLog.writer and durableWriter (internal/overgodb/log.go:74,81), which four tests set to a faultWriter to fail an append part-way or its flush: TestAppendFaultClosesEveryStoreSurfaceUntilReopen and TestSyncFaultReplaysCompleteUncertainCommit (fault_test.go), the orphaned-blob case of TestExternalBlobCommitAtomicity (blob_commit_test.go:83) and the faulted-append case of TestCommitCoordinatorAtomicity (commit_coordinator_test.go:76). Their assertions are narrower than the harness's promises and worth keeping: every store surface refuses with ErrStoreFaulted until a reopen, a faulted append leaves the catalog's facets and head as they were, an uncertain flush replays the whole commit, and a blob made durable before a failed append stays uncommitted.\nMove them into the harness under the crashpoints tag, each refusing the recorder's operation at the append's write or flush (failAt), run by the outer tests, and drop the seam, faultWriter and partWriter, and the hand-built rotation states at transaction_writer_test.go:216-262, which the harness's kill and power-loss states cover.\nServes: failure-rate; one way to inject a durable fault, which no production code carries.\nDisappears: recordLog.writer, durableWriter, faultWriter, partWriter and the hand-built rotation states.\nEvidence: each moved test fails with its fault undone.\nBatch: test code, after store-lifecycles."
-        }
-      ]
-    },
-    {
       "id": "fault-finding",
       "title": "Find abnormal-path defects by generated sequences",
       "owner": "master-lead",

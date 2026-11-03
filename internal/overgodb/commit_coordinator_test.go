@@ -1,18 +1,18 @@
 package overgodb
 
 import (
-	"errors"
 	"testing"
 
 	"overgo/internal/artifact"
 )
 
 // TestCommitCoordinatorAtomicity holds the one transaction path to its
-// three guarantees: a failure before the durable append publishes
-// nothing to any facet; an uncertainty during the append faults the
-// store until reopen; and a successful append advances every required
-// facet exactly once, with an exact key repeat replaying the same
-// commit identity instead of moving state.
+// guarantees: a failure before the durable append publishes nothing to
+// any facet, and a successful append advances every required facet
+// exactly once, with an exact key repeat replaying the same commit
+// identity instead of moving state. An uncertainty during the append,
+// which faults the store until reopen and leaves every facet as it was,
+// is TestAppendFaultClosesEveryStoreSurfaceUntilReopen.
 func TestCommitCoordinatorAtomicity(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -71,27 +71,6 @@ func TestCommitCoordinatorAtomicity(t *testing.T) {
 	}
 	if target, ok := store.state.aliases.resolve("coordinator/alias"); !ok || target != descriptor.ID {
 		t.Fatal("alias facet did not advance")
-	}
-
-	store.log.writer = &faultWriter{file: store.log.file, remaining: frameHeaderBytes / 2}
-	digestBefore = catalogDigest(t, store.state)
-	headBefore, sequenceBefore = store.Head()
-	pending := fixtureDescriptor(t, artifact.KindOutput, "coordinator-faulted")
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "coordinator/faulted", Artifacts: []artifact.Descriptor{pending},
-	}); !errors.Is(err, ErrStoreFaulted) {
-		t.Fatalf("append fault error = %v", err)
-	}
-	if digest := catalogDigest(t, store.state); digest != digestBefore {
-		t.Fatal("faulted append mutated facet state")
-	}
-	if head, sequence := store.Head(); head != headBefore || sequence != sequenceBefore {
-		t.Fatal("faulted append moved the head")
-	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "coordinator/after-fault", Artifacts: []artifact.Descriptor{pending},
-	}); !errors.Is(err, ErrStoreFaulted) {
-		t.Fatalf("faulted store accepted a write: %v", err)
 	}
 }
 

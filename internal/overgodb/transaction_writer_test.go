@@ -213,51 +213,6 @@ func TestTransactionWriter(t *testing.T) {
 			t.Fatalf("refusal modified uncertain bytes: %v", err)
 		}
 	})
-	t.Run("recover rotation published before active reset", func(t *testing.T) {
-		root := t.TempDir()
-		store, err := Create(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
-			t.Fatal(err)
-		}
-		active, err := os.ReadFile(filepath.Join(root, storeFilename))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := store.Snapshot(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		// Restore the pre-reset active bytes: the exact crash boundary between
-		// durable sealed publication and active truncation, with no live owner.
-		if err := os.WriteFile(filepath.Join(root, storeFilename), active, storeFileMode); err != nil {
-			t.Fatal(err)
-		}
-		reader, err := OpenReadOnly(root)
-		if err != nil {
-			t.Fatalf("read interrupted rotation: %v", err)
-		}
-		defer reader.Close()
-		var descriptors []artifact.Descriptor
-		for index := range fixtureWorkerCount {
-			descriptors = append(descriptors, fixtureDescriptor(t, artifact.KindOutput, fmt.Sprintf("after interrupted rotation/%d", index)))
-		}
-		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "rotation-recovery", Artifacts: descriptors}); err != nil {
-			t.Fatalf("recover interrupted rotation: %v", err)
-		}
-		info, err := os.Stat(filepath.Join(root, storeFilename))
-		if err != nil || info.Size() <= int64(len(active)) {
-			t.Fatalf("probe must refill beyond old reader offset: %v, %v", info, err)
-		}
-		if err := reader.Refresh(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if _, sequence := reader.Head(); sequence != 2 {
-			t.Fatalf("rotation recovery sequence = %d", sequence)
-		}
-	})
 	t.Run("measure cold replay and resumed publication", func(t *testing.T) {
 		root := t.TempDir()
 		store, err := Create(root)

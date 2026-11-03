@@ -26,17 +26,20 @@ const crashpointsTag = "crashpoints"
 // promises: no acknowledged commit lost, the journal alone replays to the open's head, and the store goes on. The store's
 // production files are rewritten in an overlay so that every durable call reaches the recorder, which holds nothing of
 // production code; a durable call the rewrite misses fails the harness, since the recorded operations then do not
-// rebuild the tree the workload left.
+// rebuild the tree the workload left. It also holds an append to streaming its frame as three writes and a flush.
 func TestEveryDurableOperationIsACrashPoint(t *testing.T) {
 	// Serial: it runs the package's tests again in a go test of its own, which compiles the package under an overlay.
-	runCrashHarness(t, "TestCrashStatesKeepTheStoresPromises")
+	runCrashHarness(t, "TestCrashStatesKeepTheStoresPromises", "TestLogAppendStreamsFrame")
 }
 
 // TestEveryDurableOperationCanFail refuses each durable operation of the workload in turn, once and from there on, as a
 // full volume would, lets the workload go on as a process would, and holds the store it leaves to the same promises.
+// A part-way append leaves the head and catalog as they were and its blob uncommitted, every surface refusing until a
+// reopen, and a refused flush replays the whole uncertain commit.
 func TestEveryDurableOperationCanFail(t *testing.T) {
 	// Serial: it runs the package's tests again in a go test of its own, which compiles the package under an overlay.
-	runCrashHarness(t, "TestRefusedOperationsKeepTheStoresPromises")
+	runCrashHarness(t, "TestRefusedOperationsKeepTheStoresPromises", "TestAppendFaultClosesEveryStoreSurfaceUntilReopen",
+		"TestSyncFaultReplaysCompleteUncertainCommit")
 }
 
 // TestGeneratedStoreLifecycles drives seeded lifecycles of commits, seals, closes, opens, reads, releases, packs, repeats
@@ -47,19 +50,29 @@ func TestGeneratedStoreLifecycles(t *testing.T) {
 	runCrashHarness(t, "TestLifecyclesKeepTheStoresPromises")
 }
 
-// runCrashHarness runs one test of the crash harness in a go test of its own, over the overlay crashOverlay writes.
-func runCrashHarness(t *testing.T, harness string) {
+// runCrashHarness runs tests of the crash harness in a go test of their own, over the overlay crashOverlay writes, and
+// fails unless each of them ran and passed.
+func runCrashHarness(t *testing.T, harnesses ...string) {
 	t.Helper()
 	overlay := crashOverlay(t)
 	command := exec.CommandContext(t.Context(), "go", "test", "-count=1", "-tags", crashpointsTag, "-overlay", overlay,
-		"-run", "^"+harness+"$", "-v", ".")
+		"-run", "^("+strings.Join(harnesses, "|")+")$", "-v", ".")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("the crash harness fails: %v\n%s", err, output)
 	}
+	passed := map[string]bool{}
 	for line := range strings.Lines(string(output)) {
+		if name, found := strings.CutPrefix(strings.TrimSpace(line), "--- PASS: "); found {
+			passed[strings.Fields(name)[0]] = true
+		}
 		if strings.Contains(line, "crash_points_test.go") || strings.Contains(line, "crash_lifecycles_test.go") {
 			t.Log(strings.TrimSpace(line))
+		}
+	}
+	for _, harness := range harnesses {
+		if !passed[harness] {
+			t.Errorf("the crash harness ran no test %s", harness)
 		}
 	}
 }

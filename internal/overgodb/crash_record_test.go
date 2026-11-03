@@ -49,7 +49,8 @@ type crashOp struct {
 	acked    int
 }
 
-// crashRecorder records the operations under root, and refuses the one at failAt, and with sticky every one after it.
+// crashRecorder records the operations under root, and refuses the one at failAt, and with sticky every one after it,
+// or else the next of target's kind on target's path.
 type crashRecorder struct {
 	mu       sync.Mutex
 	root     string
@@ -58,6 +59,7 @@ type crashRecorder struct {
 	acked    int
 	failAt   int
 	sticky   bool
+	target   crashOp
 	seen     int
 	injected int
 }
@@ -115,11 +117,17 @@ func (r *crashRecorder) record(op crashOp) {
 	r.ops = append(r.ops, op)
 }
 
-// refuse says whether this operation is the one to fail; the caller holds the lock.
-func (r *crashRecorder) refuse() bool {
+// refuse says whether this operation, of kind on path, is the one to fail; the caller holds the lock.
+func (r *crashRecorder) refuse(kind crashOpKind, path string) bool {
 	position := r.seen
 	r.seen++
-	if r.failAt < 0 || position < r.failAt || position > r.failAt && !r.sticky {
+	switch {
+	case r.target.kind != "":
+		if kind != r.target.kind || path != r.target.path {
+			return false
+		}
+		r.target = crashOp{}
+	case r.failAt < 0 || position < r.failAt || position > r.failAt && !r.sticky:
 		return false
 	}
 	r.injected++
@@ -137,7 +145,7 @@ func crashRun(op crashOp, do func() error) error {
 	}
 	recorder.mu.Lock()
 	defer recorder.mu.Unlock()
-	if recorder.refuse() {
+	if recorder.refuse(op.kind, op.path) {
 		return errCrashInjected
 	}
 	if err := do(); err != nil {
@@ -201,20 +209,20 @@ func (crashOSType) Mkdir(path string, mode fs.FileMode) error {
 func (crashOSType) Link(from, to string) error { return os.Link(from, to) }
 
 func (crashOSType) CreateTemp(directory, pattern string) (*os.File, error) {
-	recorder, _ := crashFind(directory)
+	recorder, relative := crashFind(directory)
 	if recorder == nil {
 		return os.CreateTemp(directory, pattern)
 	}
 	recorder.mu.Lock()
 	defer recorder.mu.Unlock()
-	if recorder.refuse() {
+	if recorder.refuse(crashCreate, relative) {
 		return nil, errCrashInjected
 	}
 	file, err := os.CreateTemp(directory, pattern)
 	if err != nil {
 		return nil, err
 	}
-	_, relative := crashFind(file.Name())
+	_, relative = crashFind(file.Name())
 	recorder.record(crashOp{kind: crashCreate, path: relative})
 	return file, nil
 }
@@ -277,7 +285,7 @@ func crashWrite(writer io.Writer, data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	refused := recorder.refuse()
+	refused := recorder.refuse(crashWriteOp, relative)
 	if refused {
 		// A full volume takes part of a buffer, then refuses the rest.
 		data = data[:len(data)/2]

@@ -560,7 +560,8 @@ func crashHash(files map[string][]byte) string {
 
 // crashCheck reopens one state and holds it to what the store promises: a read-only open neither refuses nor writes, the
 // journal alone replays to the writable open's head and state, history is the workload's, no acknowledged commit,
-// content or alias is lost, live blobs verify, an interrupted release finishes, and the store goes on.
+// content or alias is lost, live blobs verify, an interrupted release finishes, the store goes on, and a reader opened
+// before the recovery follows it.
 func crashCheck(t testing.TB, ctx context.Context, directory string, state crashState, ledger *crashLedger) (findings []crashFinding) {
 	report := func(invariant, format string, arguments ...any) {
 		findings = append(findings, crashFinding{invariant: invariant, detail: fmt.Sprintf(format, arguments...), state: state})
@@ -594,17 +595,18 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 		hasLog = false
 	}
 
+	// The reader stays open through the writable open's recovery, which it must follow.
+	var reader *Store
 	var readHead artifact.CommitID
 	var readSequence uint64
-	readable := false
 	if hasLog {
-		reader, err := OpenReadOnly(primary)
+		opened, err := OpenReadOnly(primary)
 		if err != nil {
 			report("read-only open refuses", "%v", err)
 		} else {
+			reader = opened
+			defer reader.Close()
 			readHead, readSequence = reader.Head()
-			readable = true
-			_ = reader.Close()
 		}
 		after, _, err := crashReadTree(primary)
 		if err != nil {
@@ -638,7 +640,7 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 		}
 	}()
 	head, sequence := store.Head()
-	if readable && (head != readHead || sequence != readSequence) {
+	if reader != nil && (head != readHead || sequence != readSequence) {
 		report("read-only and writable opens disagree", "read-only %d, writable %d", readSequence, sequence)
 	}
 	if replayed != nil {
@@ -727,6 +729,13 @@ func crashCheck(t testing.TB, ctx context.Context, directory string, state crash
 	nextHead, nextSequence := store.Head()
 	if nextSequence != sequence+1 {
 		report("the next commit took the wrong number", "%d after %d", nextSequence, sequence)
+	}
+	if reader != nil {
+		if err := reader.Refresh(ctx); err != nil {
+			report("a reader from before the recovery refuses to refresh", "%v", err)
+		} else if readerHead, readerSequence := reader.Head(); readerHead != nextHead || readerSequence != nextSequence {
+			report("a reader from before the recovery stops short", "%d, want %d", readerSequence, nextSequence)
+		}
 	}
 	if _, err := store.Snapshot(ctx); err != nil {
 		report("the snapshot after recovery refuses", "%v", err)

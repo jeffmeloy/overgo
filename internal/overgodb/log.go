@@ -71,16 +71,10 @@ type logRecord struct {
 
 type recordLog struct {
 	file         *os.File
-	writer       durableWriter
 	segment      uint64
 	readOnly     bool
 	sealed       []string
 	pendingReset bool
-}
-
-type durableWriter interface {
-	io.Writer
-	Sync() error
 }
 
 type replayResult struct {
@@ -640,18 +634,14 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 		return artifact.CommitID{}, 0, 0, fmt.Errorf("overgodb: locate append: %w", err)
 	}
 	id, header, trailer := encodeFrame(sequence, previous, payload)
-	writer := l.writer
-	if writer == nil {
-		writer = l.file
-	}
 	payloadOffset := info.Size() + int64(len(header))
 	end := payloadOffset + int64(len(payload)+len(trailer))
 	for _, part := range [...][]byte{header, payload, trailer[:]} {
-		if err := writeAll(writer, part); err != nil {
+		if err := writeAll(l.file, part); err != nil {
 			return id, payloadOffset, end, fmt.Errorf("overgodb: append commit: %w", err)
 		}
 	}
-	if err := writer.Sync(); err != nil {
+	if err := l.file.Sync(); err != nil {
 		return id, payloadOffset, end, fmt.Errorf("overgodb: sync commit: %w", err)
 	}
 	return id, payloadOffset, end, nil

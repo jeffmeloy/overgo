@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"errors"
 	"io"
 	"os"
 	"strings"
@@ -14,9 +13,9 @@ import (
 // its contract: the journal frame is a small envelope while the bytes
 // live in the blob store; a committed descriptor whose required blob
 // is missing refuses content access with exact evidence instead of
-// degrading; an append fault after blob preparation leaves only an
-// unreachable blob; and the whole corpus replays from the envelope
-// journal plus blobs.
+// degrading; and the whole corpus replays from the envelope journal plus
+// blobs. An append fault after blob preparation, which leaves only an
+// unreachable blob, is TestAppendFaultClosesEveryStoreSurfaceUntilReopen.
 func TestExternalBlobCommitAtomicity(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -80,23 +79,6 @@ func TestExternalBlobCommitAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store.log.writer = &faultWriter{file: store.log.file, remaining: frameHeaderBytes / 2}
-	// Blob-sized: smaller content rides in the frame and has no blob to orphan.
-	orphanPayload := []byte(strings.Repeat("orphaned by append fault ", inlineContentLimit))
-	orphanID, err := artifact.IdentifyBytes(artifact.KindTensorSet, orphanPayload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	orphanDescriptor := artifact.Descriptor{ID: orphanID, Size: uint64(len(orphanPayload)), MediaType: "text/plain"}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:      "blob-commit/orphan",
-		Contents: []artifact.Content{{Descriptor: orphanDescriptor, Data: orphanPayload}},
-	}); !errors.Is(err, ErrStoreFaulted) {
-		t.Fatalf("append fault error = %v", err)
-	}
-	if !store.blobs.has(orphanID) {
-		t.Fatal("blob was not durable before the append")
-	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -106,9 +88,6 @@ func TestExternalBlobCommitAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if _, found, err := reopened.Artifact(ctx, orphanID); err != nil || found {
-		t.Fatalf("orphaned blob became a committed artifact: found=%v err=%v", found, err)
-	}
 	_, reader, found, err = reopened.OpenContent(ctx, id)
 	if err != nil || !found {
 		t.Fatalf("replayed content = (%v, %v)", found, err)

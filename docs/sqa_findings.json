@@ -7295,6 +7295,20 @@
         "plan_steps": [
           "store-durability/store-lifecycles"
         ]
+      },
+      {
+        "comment": "fault-seam, the finding's last criterion. recordLog.writer and durableWriter are gone; the append writes and flushes its file. The recorder refuses the next operation of a kind on a path as well as one by position, and the seam's tests run under the crashpoints tag by the outer crash tests: TestLogAppendStreamsFrame reads the recorder's three writes and flush; TestAppendFaultClosesEveryStoreSurfaceUntilReopen refuses the journal's write part-way with a blob-sized content and now also holds the catalog's facets and head unchanged and the blob durable but uncommitted (the orphaned-blob case of TestExternalBlobCommitAtomicity and the faulted-append case of TestCommitCoordinatorAtomicity are folded into it); TestSyncFaultReplaysCompleteUncertainCommit refuses the journal's flush. faultWriter, partWriter, errInjectedStoreFault and the hand-built rotation subtest are gone; what that subtest held beyond the harness's states, a reader opened on the interrupted state following the recovery, is now a crashCheck promise of every state, kept by all 526 kill, 616 power-loss and 137 Windows-rule states and 351 refusals each way. runCrashHarness fails unless each named inner test ran and passed. With the fault latch off the workload finds nothing but the moved append-fault test fails, so its assertions stay. Production -30 nodes, tests -544. All three closure criteria (crash points, lifecycles, the seam's migration) are met; awaits the reviewer's closure.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestEveryDurableOperationCanFail",
+          "TestEveryDurableOperationIsACrashPoint",
+          "internal/overgodb/crash_faults_test.go",
+          "internal/overgodb/log.go recordLog.append"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/fault-seam"
+        ]
       }
     ],
     "experiments": {
@@ -7335,7 +7349,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
-    "head": "d4246ac3bbf79499adf52178633e9ed76e91a1ac",
+    "head": "de3563d175dc8fbad6cf508e9270fada34c12262",
     "findings": {
       "SQA-004": {
         "action": "none",

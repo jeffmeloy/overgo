@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"overgo/internal/checked"
@@ -27,7 +28,6 @@ type ResidentImagePipeline struct {
 	VAE      *VAEProgram
 
 	runtime          *graphruntime.ResidentSession
-	encoder          *graphruntime.ResidentProgram
 	bridge           *graphruntime.ResidentProgram
 	bridgePointers   []driver.DevicePtr
 	bridgeOutput     *tensor.Tensor
@@ -112,17 +112,12 @@ func NewResidentImagePipeline(
 	return pipeline, nil
 }
 
-// loadText places the text encoder and the fusion of the pipeline's prompt on
-// the device. They are there while a prompt's conditioning is made and retired
-// after it, so a session holds the denoiser and not the encoder beside it.
+// loadText places the fusion of the pipeline's prompt on the device. It is
+// there while a prompt's conditioning is made and retired after it, and the
+// text encoder is placed a layer at a time as the prompt passes through it
+// (encodeBlocks), so a session holds the denoiser and at most one layer of the
+// encoder beside it.
 func (p *ResidentImagePipeline) loadText(ctx context.Context) (err error) {
-	p.encoder, err = compileResidentWeights(
-		ctx, p.runtime, "resident image encoder", filepath.Join(p.modelDir, "text_encoder"),
-		p.Encoder.weightInputs, nil, p.Encoder.Selected...,
-	)
-	if err != nil {
-		return err
-	}
 	p.fusion, err = compileResidentWeights(
 		ctx, p.runtime, "resident image fusion", filepath.Join(p.modelDir, "transformer"),
 		p.Fusion.weightInputs, []*tensor.Tensor{p.Fusion.InEncoder}, p.Fusion.Fused,
@@ -389,32 +384,31 @@ func (p *ResidentImagePipeline) fuse(ctx context.Context, embedRows []float32) (
 	if err != nil {
 		return nil, fmt.Errorf("resident image pipeline: embed rows: %w", err)
 	}
-	feeds := map[*tensor.Tensor]reference.Value{
-		p.Encoder.Embed: embedValue,
-	}
-	if p.Encoder.keyBias != nil {
-		feeds[p.Encoder.keyBias] = reference.Value{
-			Shape: p.Encoder.keyBias.Shape, Data: p.Encoder.keyBiasData,
-		}
-	}
-	encoded, err := p.runtime.Retain(ctx, p.encoder, feeds, nil)
+	selected, err := p.encodeBlocks(ctx, embedValue)
 	if err != nil {
 		return nil, fmt.Errorf("resident image pipeline: encode: %w", err)
 	}
-	for index, output := range p.Encoder.Selected {
-		value, ok := encoded.Value(output)
+	encoded := func() error {
+		var errs []error
+		for _, rows := range selected {
+			errs = append(errs, rows.outputs.Release(ctx))
+		}
+		return errors.Join(errs...)
+	}
+	for index, rows := range selected {
+		value, ok := rows.outputs.Value(rows.node)
 		if !ok {
-			_ = encoded.Release(ctx)
+			_ = encoded()
 			return nil, fmt.Errorf("resident image pipeline: selected output %d is unavailable", index)
 		}
 		p.bridgePointers[index] = value.Pointer
 	}
 	bridged, err := p.runtime.Retain(ctx, p.bridge, nil, p.bridgePointers)
 	if err != nil {
-		_ = encoded.Release(ctx)
+		_ = encoded()
 		return nil, fmt.Errorf("resident image pipeline: bridge: %w", err)
 	}
-	if err := encoded.Release(ctx); err != nil {
+	if err := encoded(); err != nil {
 		_ = bridged.Release(ctx)
 		return nil, fmt.Errorf("resident image pipeline: release encoded text: %w", err)
 	}
@@ -437,13 +431,94 @@ func (p *ResidentImagePipeline) fuse(ctx context.Context, embedRows []float32) (
 		_ = fused.Release(ctx)
 		return nil, errors.New("resident image pipeline: fused text is unavailable")
 	}
-	if err := p.runtime.Release(ctx, p.encoder); err != nil {
-		_ = fused.Release(ctx)
-		return nil, fmt.Errorf("resident image pipeline: retire encoder graph: %w", err)
-	}
-	p.encoder = nil
 	p.residentBytes = p.runtime.StaticBytes()
 	return &ResidentConditioning{pipeline: p, outputs: fused, value: fusedValue}, nil
+}
+
+// encodedRows is a prompt's residual stream after a layer of the text
+// encoder, kept on the device.
+type encodedRows struct {
+	outputs *executor.RetainedOutputs
+	node    *tensor.Tensor
+}
+
+// encodeBlocks runs the prompt through the text encoder a layer at a time:
+// each layer's weights are placed on the device, the prompt's rows pass
+// through it and stay there for the next, and the layer is given back before
+// the next is placed. It returns the rows after each selected layer, in the
+// order of their slots, which the caller releases.
+func (p *ResidentImagePipeline) encodeBlocks(ctx context.Context, embed reference.Value) (selected []encodedRows, err error) {
+	slots, err := captureSlots(p.Encoder.E)
+	if err != nil {
+		return nil, err
+	}
+	selected = make([]encodedRows, len(p.Encoder.Selected))
+	var rows encodedRows
+	// kept says the rows are a selected layer's, which the caller is given.
+	kept := func(rows encodedRows) bool {
+		return slices.ContainsFunc(selected, func(held encodedRows) bool { return held.outputs == rows.outputs })
+	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		if !kept(rows) {
+			err = errors.Join(err, rows.outputs.Release(context.WithoutCancel(ctx)))
+		}
+		for _, held := range selected {
+			err = errors.Join(err, held.outputs.Release(context.WithoutCancel(ctx)))
+		}
+	}()
+	for layer := range p.Encoder.E.SelectLayers[len(p.Encoder.E.SelectLayers)-1] {
+		if rows, err = p.encodeLayer(ctx, layer, embed, rows, kept(rows)); err != nil {
+			return nil, err
+		}
+		if slot, ok := slots[layer+1]; ok {
+			selected[slot] = rows
+		}
+	}
+	return selected, nil
+}
+
+// encodeLayer passes the prompt's rows through one layer of the text encoder:
+// from its embedding at the first, else from rows, which it releases unless
+// kept, and returns the rows after the layer. The layer's weights are given
+// back before it returns.
+func (p *ResidentImagePipeline) encodeLayer(ctx context.Context, layer int, embed reference.Value, rows encodedRows, kept bool) (encodedRows, error) {
+	block, err := p.Encoder.block(layer)
+	if err != nil {
+		return rows, err
+	}
+	feeds := map[*tensor.Tensor]reference.Value{}
+	if block.keyBias != nil {
+		feeds[block.keyBias] = reference.Value{Shape: block.keyBias.Shape, Data: p.Encoder.keyBiasData}
+	}
+	var dynamic []*tensor.Tensor
+	var pointers []driver.DevicePtr
+	if rows.outputs == nil {
+		feeds[block.Hidden] = embed
+	} else {
+		value, ok := rows.outputs.Value(rows.node)
+		if !ok {
+			return rows, fmt.Errorf("resident image pipeline: the rows before layer %d are unavailable", layer)
+		}
+		dynamic, pointers = []*tensor.Tensor{block.Hidden}, []driver.DevicePtr{value.Pointer}
+	}
+	program, err := compileResidentWeights(
+		ctx, p.runtime, "resident image encoder layer", filepath.Join(p.modelDir, "text_encoder"),
+		block.weightInputs, dynamic, block.Output,
+	)
+	if err != nil {
+		return rows, err
+	}
+	retained, err := p.runtime.Retain(ctx, program, feeds, pointers)
+	if err = errors.Join(err, p.runtime.Release(ctx, program)); err != nil {
+		return rows, errors.Join(err, retained.Release(ctx))
+	}
+	if !kept {
+		err = rows.outputs.Release(ctx)
+	}
+	return encodedRows{outputs: retained, node: block.Output}, err
 }
 
 func (p *ResidentImagePipeline) Begin(ctx context.Context, latentPatches []float32) error {
@@ -641,7 +716,7 @@ func (p *ResidentImagePipeline) Close(ctx context.Context) error {
 	}
 	err := errors.Join(releaseErr, p.runtime.Close(ctx))
 	p.runtime = nil
-	p.encoder, p.bridge, p.fusion, p.timestep, p.denoiser, p.upload = nil, nil, nil, nil, nil, nil
+	p.bridge, p.fusion, p.timestep, p.denoiser, p.upload = nil, nil, nil, nil, nil
 	p.vaeBridge, p.vae = nil, nil
 	return err
 }

@@ -173,19 +173,9 @@
       "status": "open",
       "budget": {
         "nodes": 454,
-        "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
+        "reason": "text-one-block runs both image text encoders a layer at a time and adds 1276 nodes: MOSS's model encoder and Krea's selected-layer encoder each gain a runner that places one layer, passes the prompts' rows through it on the card and gives it back, and Krea's encoder is built from one layer function for the whole program and for a layer alone. The steps after it keep the 454 they had."
       },
       "steps": [
-        {
-          "id": "text-one-block",
-          "title": "Run an image model's text encoder one block on the card at a time",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestATextEncoderHoldsOneBlockOnTheCard$'",
-          "rationale": "MOSS's peak at 1024 is its encoder, 13,930,129,408 bytes whatever the picture (docs/verification/moss-image-resources.json:93,138), placed whole (internal/latentimage/model_encoder_windows.go:93-105), though compileModelEncoder takes a block range (model_encoder.go:22). A new Krea prompt places 8.17 GB beside the denoiser and VAE (runtime_cuda_windows.go:270-278, resident_pipeline_cuda_windows.go:364-371), about 34 to 35 GB against the 26.9 GB recorded, derived and never measured, and a second prompt is the normal case. routedlm streams a stack once across branches (prefixstack_cuda_windows.go:39-150), and adaptive_new held 201,872,384 bytes of this encoder's layer (fixtures/krea/g1_text_conditioning.json:20).\nCarry each block's rows on the card, both prompts through a block before the next, and give Krea the rotary path's conditioning cache (conditioning_cache.go). Hold pictures to their hashes; bounded tiling drifted SenseNova's stack (prefixstack_cuda_windows.go:73-76), so if a hash moves the check is the 415-prompt suite for each model. Evicting the denoiser instead, as MOSS does, is the worse trade on a 4-step Krea request.\nServes: peak-device-memory; a new Krea prompt about 35 GB to about 27 GB, MOSS at 1024 about 13.9 GB to about 12.5 GB.\nDisappears: nothing.\nEvidence: stage peaks before and after, pictures byte-identical.\nBatch: media lane.\n\nMeasured by stage (docs/verification/media-stage-peaks.json): a new Krea prompt held 32.47 GiB at most, in the lease that places its text encoder beside the resident denoiser, against 25.21 GiB for the same prompt on a new seed; Krea's first request peaked at 25.94 GiB in its prepare step and 8.22 GiB in its load. MOSS at 1024 peaked at 12.97 GiB in its prepare step, the encoder, against 10.48 GiB integrating.",
-          "depends_on": [
-            "memory-bounds/stage-peaks"
-          ]
-        },
         {
           "id": "denoiser-stream",
           "title": "Upload a video denoiser's weights a tensor at a time from the file",
@@ -579,6 +569,13 @@
           "status": "open",
           "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestATrainedCheckpointServesAtItsBasesPrecision$'",
           "rationale": "A safetensors checkpoint saves 32-bit weights where its base holds 16-bit: 1.98 GB against 0.99 GB. The two trained models read 321 and 318 tok/s against the base's 505.7, a first token at 4096 tokens of 142 ms against 79 ms, and a load of 3.15 s against 1.6 s, with nothing in the training to explain any of it.\nSave what serves at the base's precision, and keep what resumes as it is. Measure first: a 16-bit float may round away small updates, so the check is the verdict re-read on the rounded weights, and if the gain goes the row is retired with the reading.\nServes: throughput, load-time and peak-device-memory of every trained model.\nDisappears: a trained model twice the size of its base.\nEvidence: a test of the saved precision, then the rows of one trained model.\nBatch: one device run."
+        },
+        {
+          "id": "krea-prompt-cache",
+          "title": "Keep a Krea prompt's text conditioning for a prompt met again",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestAKreaPromptMetAgainPlacesNoTextEncoder$'",
+          "rationale": "memory-bounds/text-one-block ran both image encoders a layer at a time and left Krea without the conditioning cache MOSS's rotary path has (internal/latentimage/conditioning_cache.go): a Krea session keeps the one prompt it last fused, so a request that returns to an earlier prompt, or alternates two, runs the text encoder again. Krea's new prompt took about 3 s in the lease that encodes it (docs/verification/media-stage-peaks.json, krea new prompt, model session leased), against 0.01 s for the same prompt on a new seed.\nKeep a Krea prompt's selected-layer rows on the host as MOSS keeps its hidden states, bounded the same way, and fuse a prompt met again from them, placing no encoder layer. Hold the picture to the one its prompt makes when encoded fresh, byte for byte.\nServes: first-output for image generation on a prompt met again.\nDisappears: nothing.\nEvidence: the test, and a repeated prompt's prepare time in the next stage record.\nBatch: media lane."
         }
       ]
     }

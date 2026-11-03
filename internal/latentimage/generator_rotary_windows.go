@@ -132,6 +132,9 @@ func (g *Generator) resetRotary(ctx context.Context, request Request) error {
 	return nil
 }
 
+// negativeBranch is the place of the negative prompt among a request's prompts.
+const negativeBranch = 1
+
 func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Generator, err error) {
 	if g.prepared || g.rotary.runtime == nil {
 		return nil, errors.New("rotary image: preparation session is unavailable")
@@ -163,57 +166,56 @@ func (g *Generator) prepareRotary(ctx context.Context, request Request) (_ *Gene
 			}
 		}
 	}
-	// The programs of this request's prompts hold the text encoder's weights
-	// until both are encoded, so two prompts place it on the device once. An
-	// observed request reports every boundary, so it runs what a cached prompt skips.
-	var held []*graphruntime.ResidentProgram
-	defer func() {
-		err = errors.Join(err, g.rotary.runtime.Release(context.WithoutCancel(ctx), held...))
-		if len(held) != 0 {
-			err = errors.Join(err, g.rotary.runtime.ReleaseStageMemory(context.WithoutCancel(ctx)))
-		}
-	}()
-	encode := func(prompt string, index int) ([]float32, error) {
-		if g.observe == nil {
-			if hidden, ok := g.rotary.conditioned.lookup(prompt); ok {
-				return hidden, nil
-			}
+	// The request's prompts not encoded before pass through the text encoder
+	// together, a block at a time, so the device holds one block of it. An
+	// observed request reports every boundary, so it encodes what a cached
+	// prompt skips.
+	prompts := []string{request.Prompt}
+	if g.rotary.guidance != tensor.UnitScale {
+		prompts = append(prompts, request.NegativePrompt)
+	}
+	hidden := make([][]float32, len(prompts))
+	var texts []textInput
+	var embeddings [][]float32
+	var missing []int
+	for index, prompt := range prompts {
+		if cached, ok := g.rotary.conditioned.lookup(prompt); ok && g.observe == nil {
+			hidden[index] = cached
+			continue
 		}
 		text, embedding, err := g.rotary.conditioner.input(prompt)
 		if err != nil {
 			return nil, err
 		}
-		hidden, err := g.rotary.conditioner.encodeHolding(ctx, g.rotary.runtime, &held, text, embedding, nil)
-		if err != nil {
+		texts, embeddings, missing = append(texts, text), append(embeddings, embedding), append(missing, index)
+	}
+	if len(missing) != 0 {
+		encoded, err := g.rotary.conditioner.encodeEach(ctx, g.rotary.runtime, texts, embeddings)
+		if err = errors.Join(err, g.rotary.runtime.ReleaseStageMemory(context.WithoutCancel(ctx))); err != nil {
 			return nil, err
 		}
-		g.rotary.conditioned.store(prompt, hidden)
-		if g.observe != nil {
-			ids := make([]float32, len(text.IDs))
-			for i, v := range text.IDs {
+		for position, index := range missing {
+			hidden[index] = encoded[position]
+			g.rotary.conditioned.store(prompts[index], encoded[position])
+			if g.observe == nil {
+				continue
+			}
+			ids := make([]float32, len(texts[position].IDs))
+			for i, v := range texts[position].IDs {
 				ids[i] = float32(v)
 			}
 			if err = g.observe(fmt.Sprintf("conditioning.%d.ids", index), ids); err != nil {
 				return nil, err
 			}
-			if err = g.observe(fmt.Sprintf("conditioning.%d.hidden", index), hidden); err != nil {
+			if err = g.observe(fmt.Sprintf("conditioning.%d.hidden", index), encoded[position]); err != nil {
 				return nil, err
 			}
 		}
-		return hidden, nil
 	}
-	positive, err := encode(request.Prompt, 0)
-	if err != nil {
-		return nil, err
+	g.rotary.positive, g.rotary.negative = hidden[0], nil
+	if len(hidden) > negativeBranch {
+		g.rotary.negative = hidden[negativeBranch]
 	}
-	var negative []float32
-	if g.rotary.guidance != tensor.UnitScale {
-		negative, err = encode(request.NegativePrompt, 1)
-		if err != nil {
-			return nil, err
-		}
-	}
-	g.rotary.positive, g.rotary.negative = positive, negative
 	g.prepared = true
 	return g, nil
 }

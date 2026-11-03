@@ -78,7 +78,7 @@ func verifyMOSSConditioningModel(ctx context.Context, runtime *graphruntime.Resi
 				for _, label := range names {
 					outputs = append(outputs, p.boundaries[label])
 				}
-				program, err := p.resident(ctx, runtime, catalog, modelRoot, outputs...)
+				program, err := p.resident(ctx, runtime, catalog, modelRoot, nil, outputs...)
 				if err != nil {
 					return err
 				}

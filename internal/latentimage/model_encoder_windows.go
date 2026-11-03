@@ -9,6 +9,8 @@ import (
 	"io"
 	"maps"
 	"os"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/graphruntime"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hfgguf"
@@ -82,13 +84,8 @@ func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphrunt
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if len(text.Mask) != len(text.IDs) {
-		return nil, fmt.Errorf("model conditioning requires one mask value per token")
-	}
-	for _, attended := range text.Mask {
-		if !attended {
-			return nil, fmt.Errorf("model conditioning requires an unpadded prompt")
-		}
+	if err := unpadded(text); err != nil {
+		return nil, err
 	}
 	p, err := compileModelEncoder(c.catalog, len(text.IDs), 0, int(c.catalog.Spec.BlockCount))
 	if err != nil {
@@ -102,7 +99,7 @@ func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphrunt
 			outputs = append(outputs, p.boundaries[name])
 		}
 	}
-	program, err := p.resident(ctx, session, c.catalog, c.root, outputs...)
+	program, err := p.resident(ctx, session, c.catalog, c.root, nil, outputs...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,11 +123,103 @@ func (c *modelConditioner) encodeHolding(ctx context.Context, session *graphrunt
 	return result[p.output].Data, nil
 }
 
-func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntime.ResidentSession, catalog hfgguf.LanguageCatalog, sourceIdentity string, outputs ...*tensor.Tensor) (_ *graphruntime.ResidentProgram, err error) {
+// unpadded refuses a prompt the encoder cannot read: it attends every token.
+func unpadded(text textInput) error {
+	if len(text.Mask) != len(text.IDs) {
+		return fmt.Errorf("model conditioning requires one mask value per token")
+	}
+	if slices.Contains(text.Mask, false) {
+		return fmt.Errorf("model conditioning requires an unpadded prompt")
+	}
+	return nil
+}
+
+// encodeEach encodes prompts through the text encoder a block at a time. Each
+// block's weights are placed on the device, every prompt passes through it,
+// its hidden rows kept on the device for the next block, and the block is
+// given back before the next is placed: the device holds one block of the
+// encoder and the prompts' rows, where a program of the whole encoder holds
+// all of it. The hidden states are the whole program's, bit for bit.
+func (c *modelConditioner) encodeEach(ctx context.Context, session *graphruntime.ResidentSession, texts []textInput, embeddings [][]float32) (_ [][]float32, err error) {
+	if len(texts) != len(embeddings) {
+		return nil, fmt.Errorf("model conditioning has %d prompts and %d embeddings", len(texts), len(embeddings))
+	}
+	for _, text := range texts {
+		if err := unpadded(text); err != nil {
+			return nil, err
+		}
+	}
+	rows := make([]*executor.RetainedOutputs, len(texts))
+	outputs := make([]*tensor.Tensor, len(texts))
+	defer func() {
+		for _, retained := range rows {
+			err = errors.Join(err, retained.Release(context.WithoutCancel(ctx)))
+		}
+	}()
+	for block := range int(c.catalog.Spec.BlockCount) {
+		programs := make([]*graphruntime.ResidentProgram, 0, len(texts))
+		for index, text := range texts {
+			if err := c.encodeBlock(ctx, session, block, text, embeddings[index], &rows[index], &outputs[index], &programs); err != nil {
+				return nil, errors.Join(err, session.Release(context.WithoutCancel(ctx), programs...))
+			}
+		}
+		// The block's weights are given back before the next block's are placed.
+		if err := session.Release(ctx, programs...); err != nil {
+			return nil, err
+		}
+	}
+	hidden := make([][]float32, len(texts))
+	for index := range texts {
+		value, err := rows[index].CopyToHost(ctx, outputs[index])
+		if err != nil {
+			return nil, err
+		}
+		hidden[index] = value.Data
+	}
+	return hidden, nil
+}
+
+// encodeBlock passes one prompt through one block of the encoder: from its
+// embedding at the first block, and from the rows the block before kept on
+// the device after it, which it replaces with its own. The block's program
+// joins programs, which hold its weights until the caller releases them.
+func (c *modelConditioner) encodeBlock(ctx context.Context, session *graphruntime.ResidentSession, block int, text textInput, embedding []float32, rows **executor.RetainedOutputs, output **tensor.Tensor, programs *[]*graphruntime.ResidentProgram) error {
+	p, err := compileModelEncoder(c.catalog, len(text.IDs), block, block+1)
+	if err != nil {
+		return err
+	}
+	var dynamic []*tensor.Tensor
+	var pointers []driver.DevicePtr
+	if *rows == nil {
+		p.feeds[p.input] = reference.Value{Shape: p.input.Shape, Data: embedding}
+	} else {
+		previous, ok := (*rows).Value(*output)
+		if !ok {
+			return errors.New("model conditioning: the block before kept no rows")
+		}
+		dynamic, pointers = []*tensor.Tensor{p.input}, []driver.DevicePtr{previous.Pointer}
+	}
+	program, err := p.resident(ctx, session, c.catalog, c.root, dynamic, p.output)
+	if err != nil {
+		return err
+	}
+	*programs = append(*programs, program)
+	retained, err := session.Retain(ctx, program, p.feeds, pointers)
+	if err != nil {
+		return err
+	}
+	// The memory the prompt ran in is given back before the next prompt runs: two prompts' at once would hold more
+	// than the whole encoder's program, which runs one prompt at a time.
+	err = errors.Join((*rows).Release(ctx), session.ReleaseStageMemory(ctx))
+	*rows, *output = retained, p.output
+	return err
+}
+
+func (p *modelEncoderProgram) resident(ctx context.Context, session *graphruntime.ResidentSession, catalog hfgguf.LanguageCatalog, sourceIdentity string, dynamic []*tensor.Tensor, outputs ...*tensor.Tensor) (_ *graphruntime.ResidentProgram, err error) {
 	if len(outputs) == 0 {
 		outputs = []*tensor.Tensor{p.output}
 	}
-	program, err := session.Compile(ctx, "model conditioning", nil, outputs...)
+	program, err := session.Compile(ctx, "model conditioning", dynamic, outputs...)
 	if err != nil {
 		return nil, err
 	}

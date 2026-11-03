@@ -27,18 +27,20 @@ func TestMOSSConditioningLongContextGolden(t *testing.T) {
 	testConditioningModelGolden(t, "model-long-cuda.safetensors", "2247d845a1546b6501de4e6c979b77d0cd41f7474b9fd8b9872730dc1ecc31b0", []string{"t2049", "t4096"})
 }
 
-func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []string) {
-	cudatest.Require(t)
+// mossSmallEncoder is the small MOSS text encoder the fixture's cases were read through natively: the fixture, the
+// directory its weights and config are written to, and its catalog.
+func mossSmallEncoder(t *testing.T, fixture, digest string) (*safetensors.Source, string, hfgguf.LanguageCatalog) {
+	t.Helper()
 	mossFixtureBytes(t, fixture, digest)
 	weights := mossFixtureBytes(t, "model-small-v3-weights.safetensors", "b5364f94c71b0134562493d8e09e8884d63859ce328cf4be4daa2a6440784e2e")
 	s, err := safetensors.OpenFile(filepath.Join("..", "..", "fixtures", "moss", fixture))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(func() { s.Close() })
 	root := t.TempDir()
-	if len(s.Metadata) != 1 || len(s.Tensors) != len(cases)*7 {
-		t.Fatal("native model fixture coverage")
+	if len(s.Metadata) != 1 {
+		t.Fatal("native model fixture metadata")
 	}
 	for _, metadata := range s.Metadata {
 		if metadata["torch"] != "2.12.0+cu126" || metadata["transformers"] != "5.14.1" {
@@ -55,10 +57,19 @@ func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []s
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer repo.Close()
+	t.Cleanup(func() { repo.Close() })
 	catalog, err := hfgguf.InspectLanguageModel(repo, hfgguf.LanguageHidden)
 	if err != nil {
 		t.Fatal(err)
+	}
+	return s, root, catalog
+}
+
+func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []string) {
+	cudatest.Require(t)
+	s, root, catalog := mossSmallEncoder(t, fixture, digest)
+	if len(s.Tensors) != len(cases)*7 {
+		t.Fatal("native model fixture coverage")
 	}
 	session, err := graphruntime.NewResidentSession(0)
 	if err != nil {
@@ -77,7 +88,7 @@ func testConditioningModelGolden(t *testing.T, fixture, digest string, cases []s
 			for _, label := range names {
 				outputs = append(outputs, p.boundaries[label])
 			}
-			program, err := p.resident(t.Context(), session, catalog, root, outputs...)
+			program, err := p.resident(t.Context(), session, catalog, root, nil, outputs...)
 			if err != nil {
 				t.Fatal(err)
 			}

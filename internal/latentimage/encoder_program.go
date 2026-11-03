@@ -32,6 +32,8 @@ type EncoderProgram struct {
 	// resident Encode. Absent (nil) => the maskless-causal program (unchanged).
 	keyBias     *tensor.Tensor
 	keyBiasData []float32
+	// mask is the program's pad mask, which a block of it alone is compiled under (block).
+	mask []bool
 
 	weightInputs tensor.WeightBindings
 
@@ -81,14 +83,6 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	}
 
 	h := uint64(e.Hidden)
-	headDim := uint64(e.HeadDim)
-	heads := uint64(e.Heads)
-	kvHeads := uint64(e.KVHeads)
-	qDim := heads * headDim
-	kvDim := kvHeads * headDim
-	inter := uint64(e.Intermediate)
-	scale := float32(1.0 / math.Sqrt(float64(headDim)))
-	theta := float32(e.RopeTheta)
 
 	// Qwen3-VL mrope collapses to standard rope for a pure-text sequence (all
 	// three position sections share one index): the index is the token's place
@@ -96,7 +90,7 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	positions := attendedPositions(seq, mask)
 
 	p := &EncoderProgram{
-		E: e, Eps: eps, Seq: seq, MatmulType: matmulType,
+		E: e, Eps: eps, Seq: seq, MatmulType: matmulType, mask: mask,
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
@@ -123,39 +117,7 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 	maxNeeded := e.SelectLayers[len(e.SelectLayers)-1]
 
 	for l := 0; l < e.HiddenLayers && l < maxNeeded; l++ {
-		prefix := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
-
-		// --- causal GQA self-attention (standard RMSNorm, per-head q/k norm) ---
-		n1 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"input_layernorm.weight", h), eps)
-		q := b.MulMat(bind.Input(prefix+"self_attn.q_proj.weight", h, qDim), n1)
-		k := b.MulMat(bind.Input(prefix+"self_attn.k_proj.weight", h, kvDim), n1)
-		v := b.MulMat(bind.Input(prefix+"self_attn.v_proj.weight", h, kvDim), n1)
-
-		q = b.Reshape(q, headDim, heads, uint64(seq))
-		k = b.Reshape(k, headDim, kvHeads, uint64(seq))
-		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
-		q = b.WeightedRMSNorm(q, bind.Input(prefix+"self_attn.q_norm.weight", headDim), eps)
-		k = b.WeightedRMSNorm(k, bind.Input(prefix+"self_attn.k_norm.weight", headDim), eps)
-		q = b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
-		k = b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
-
-		var attn *tensor.Tensor
-		if p.keyBias != nil {
-			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: p.keyBias, Scale: scale, Causal: true}) // causal GQA + pad-key mask
-		} else {
-			attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: true}) // causal GQA
-		}
-		attn = b.Reshape(attn, qDim, uint64(seq))
-		attn = b.MulMat(bind.Input(prefix+"self_attn.o_proj.weight", qDim, h), attn)
-		hidden = b.Add(hidden, attn)
-
-		// --- SwiGLU MLP (standard RMSNorm) ---
-		n2 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"post_attention_layernorm.weight", h), eps)
-		g := b.MulMat(bind.Input(prefix+"mlp.gate_proj.weight", h, inter), n2)
-		u := b.MulMat(bind.Input(prefix+"mlp.up_proj.weight", h, inter), n2)
-		ff := b.MulMat(bind.Input(prefix+"mlp.down_proj.weight", inter, h), b.SwiGLU(g, u))
-		hidden = b.Add(hidden, ff)
-
+		hidden = encoderLayer(b, bind, e, eps, seq, positions, p.keyBias, hidden, l)
 		if slot, ok := slots[l+1]; ok {
 			p.Selected[slot] = hidden
 			p.CaptureAfter[slot] = l
@@ -170,4 +132,83 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		return nil, fmt.Errorf("encoder program graph: %w", err)
 	}
 	return p, nil
+}
+
+// encoderBlock is one decoder layer of the selected-layer encoder compiled
+// alone: it reads the residual stream before the layer, the prompt's
+// embedding rows at the first, and gives the stream after it.
+type encoderBlock struct {
+	Hidden, Output *tensor.Tensor
+	keyBias        *tensor.Tensor
+	weightInputs   tensor.WeightBindings
+}
+
+// block compiles decoder layer l of the program alone, under its length,
+// mask and storage, so a device can hold one layer of the encoder at a time.
+func (p *EncoderProgram) block(l int) (*encoderBlock, error) {
+	if l < 0 || l >= p.E.HiddenLayers {
+		return nil, fmt.Errorf("encoder program: no layer %d of %d", l, p.E.HiddenLayers)
+	}
+	b := tensor.NewBuilder()
+	setBuilderMatmulCompute(b, p.MatmulType)
+	block := &encoderBlock{}
+	bind := tensor.WeightInputs{Builder: b, Bindings: &block.weightInputs, MatrixType: p.MatmulType}
+	block.Hidden = b.Input("encoder_embed", dtype.F32, p.Embed.Shape)
+	if p.keyBias != nil {
+		block.keyBias = b.Input("encoder_key_bias", dtype.F32, p.keyBias.Shape)
+	}
+	block.Output = encoderLayer(b, bind, p.E, p.Eps, p.Seq, attendedPositions(p.Seq, p.mask), block.keyBias, block.Hidden, l)
+	if err := b.Err(); err != nil {
+		return nil, fmt.Errorf("encoder block graph: %w", err)
+	}
+	return block, nil
+}
+
+// encoderLayer adds decoder layer l to b over the residual stream hidden and
+// returns the stream after it: a causal GQA self-attention, under the pad
+// mask keyBias where there is one, and a SwiGLU MLP.
+func encoderLayer(b *tensor.Builder, bind tensor.WeightInputs, e TextEncoderSpec, eps float32, seq int, positions []uint32, keyBias, hidden *tensor.Tensor, l int) *tensor.Tensor {
+	h := uint64(e.Hidden)
+	headDim := uint64(e.HeadDim)
+	heads := uint64(e.Heads)
+	kvHeads := uint64(e.KVHeads)
+	qDim := heads * headDim
+	kvDim := kvHeads * headDim
+	inter := uint64(e.Intermediate)
+	scale := float32(1.0 / math.Sqrt(float64(headDim)))
+	theta := float32(e.RopeTheta)
+
+	prefix := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
+
+	// --- causal GQA self-attention (standard RMSNorm, per-head q/k norm) ---
+	n1 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"input_layernorm.weight", h), eps)
+	q := b.MulMat(bind.Input(prefix+"self_attn.q_proj.weight", h, qDim), n1)
+	k := b.MulMat(bind.Input(prefix+"self_attn.k_proj.weight", h, kvDim), n1)
+	v := b.MulMat(bind.Input(prefix+"self_attn.v_proj.weight", h, kvDim), n1)
+
+	q = b.Reshape(q, headDim, heads, uint64(seq))
+	k = b.Reshape(k, headDim, kvHeads, uint64(seq))
+	v = b.Reshape(v, headDim, kvHeads, uint64(seq))
+	q = b.WeightedRMSNorm(q, bind.Input(prefix+"self_attn.q_norm.weight", headDim), eps)
+	k = b.WeightedRMSNorm(k, bind.Input(prefix+"self_attn.k_norm.weight", headDim), eps)
+	q = b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
+	k = b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
+
+	var attn *tensor.Tensor
+	if keyBias != nil {
+		attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{KeyBias: keyBias, Scale: scale, Causal: true}) // causal GQA + pad-key mask
+	} else {
+		attn = b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: true}) // causal GQA
+	}
+	attn = b.Reshape(attn, qDim, uint64(seq))
+	attn = b.MulMat(bind.Input(prefix+"self_attn.o_proj.weight", qDim, h), attn)
+	hidden = b.Add(hidden, attn)
+
+	// --- SwiGLU MLP (standard RMSNorm) ---
+	n2 := b.WeightedRMSNorm(hidden, bind.Input(prefix+"post_attention_layernorm.weight", h), eps)
+	g := b.MulMat(bind.Input(prefix+"mlp.gate_proj.weight", h, inter), n2)
+	u := b.MulMat(bind.Input(prefix+"mlp.up_proj.weight", h, inter), n2)
+	ff := b.MulMat(bind.Input(prefix+"mlp.down_proj.weight", inter, h), b.SwiGLU(g, u))
+	hidden = b.Add(hidden, ff)
+	return hidden
 }

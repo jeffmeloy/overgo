@@ -21,7 +21,6 @@ var regexOwners = map[string]string{
 	"internal/evaluation/ifeval_structure.go":  "IFEval structure rules are defined as patterns",
 	"internal/evaluation/ifeval_text.go":       "IFEval text rules are defined as patterns",
 	"internal/evaluation/instruction_rules.go": "instruction-following rules are defined as patterns",
-	"internal/guard/guard.go":                  "scans shell command text, a pattern language by nature",
 	"internal/runrecord/verify_selector.go":    "compiles a go test -run selector, which is a regular expression",
 	"internal/testevidence/evidence.go":        "quotes a test name into a go test -run selector",
 }

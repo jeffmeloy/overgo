@@ -81,8 +81,9 @@ func (r *AutoencoderRuntime) RoundTrip(ctx context.Context, source SourceVideo) 
 	if err != nil {
 		return SourceVideo{}, SourceVideoShape{}, err
 	}
+	// Each half's workspace is given back when its half is done, so the decode's does not grow beside the encode's.
 	latent, _, err := r.encoder.Encode(ctx, plan, source.Pixels)
-	if err != nil {
+	if err = errors.Join(err, r.encoder.codec.releaseWorkspace(ctx)); err != nil {
 		return SourceVideo{}, SourceVideoShape{}, err
 	}
 	decoded := source
@@ -99,7 +100,7 @@ func (r *AutoencoderRuntime) RoundTrip(ctx context.Context, source SourceVideo) 
 	if err == nil && written != source.Frames {
 		err = errors.New("latent video: the autoencoder gave back fewer frames than it took")
 	}
-	return decoded, plan.Latent, err
+	return decoded, plan.Latent, errors.Join(err, r.decoder.releaseWorkspace(ctx))
 }
 
 // Reconstruct passes one encoded picture through the autoencoder and

@@ -159,6 +159,10 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	if err != nil {
 		return result, err
 	}
+	// The denoiser's run memory is given back before the decode grows the autoencoder's workspace beside it.
+	if err := g.denoiser.cuda.ReleaseStageMemory(ctx); err != nil {
+		return result, err
+	}
 	decoded := processmeasure.Stage(ctx, "clip decoded")
 	result.Decode, err = g.decoder.Decode(
 		g.stats, result.Denoise.Latent,
@@ -171,7 +175,7 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	}
 	result.DecodeMemory, err = g.decoder.MemoryStats()
 	result.WeightBytes = g.denoiser.WeightBytes + g.decoder.WeightBytes
-	return result, err
+	return result, errors.Join(err, g.decoder.releaseWorkspace(ctx))
 }
 
 // ProjectBranchContexts retains a complete guidance pair across requests.

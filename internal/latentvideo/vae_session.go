@@ -762,6 +762,28 @@ func (s *vaeDecoderCUDASession) Profile() map[string]time.Duration {
 	return s.profile
 }
 
+// releaseWorkspace frees the session's workspaces once its stage of a request
+// is done: they grow to the stage's need, the stage after it is another
+// session's, and the next request grows them again. A Wan clip's decode had
+// held them beside the denoiser's next run.
+func (s *vaeDecoderCUDASession) releaseWorkspace(ctx context.Context) error {
+	return s.worker.Do(ctx, func(state *device.State) error {
+		return errors.Join(state.Driver.StreamSynchronize(state.Stream), s.freeBuffers(state))
+	})
+}
+
+// freeBuffers frees the session's workspaces; the caller has synchronized the stream.
+func (s *vaeDecoderCUDASession) freeBuffers(state *device.State) error {
+	var errs []error
+	for name, buffer := range s.buffers {
+		if checked.Nonzero(buffer.ptr) {
+			errs = append(errs, state.Driver.MemFree(buffer.ptr))
+		}
+		delete(s.buffers, name)
+	}
+	return errors.Join(errs...)
+}
+
 // Close: frees weights and workspaces, unloads the module, stops the worker.
 func (s *vaeDecoderCUDASession) Close() error {
 	if s == nil {
@@ -781,12 +803,7 @@ func (s *vaeDecoderCUDASession) Close() error {
 				}
 			}
 			s.weights = nil
-			for name, buffer := range s.buffers {
-				if checked.Nonzero(buffer.ptr) {
-					innerErrs = append(innerErrs, state.Driver.MemFree(buffer.ptr))
-				}
-				delete(s.buffers, name)
-			}
+			innerErrs = append(innerErrs, s.freeBuffers(state))
 			if checked.Nonzero(s.module) {
 				innerErrs = append(innerErrs, state.Driver.ModuleUnload(s.module))
 				var unloaded driver.Module

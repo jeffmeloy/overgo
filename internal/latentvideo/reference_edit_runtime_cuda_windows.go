@@ -211,7 +211,7 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	sourceLatent, sourceStats := r.sourceLatent, r.sourceStats
 	if sourceLatent == nil || fingerprint != r.sourceFingerprint {
 		sourceLatent, sourceStats, err = r.encoder.Encode(ctx, r.sourcePlan, source)
-		if err != nil {
+		if err = errors.Join(err, r.encoder.codec.releaseWorkspace(ctx)); err != nil {
 			return result, err
 		}
 		r.sourceFingerprint, r.sourceLatent, r.sourceStats = fingerprint, sourceLatent, sourceStats
@@ -259,7 +259,8 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	}
 	result.Denoiser = r.denoiser.Stats()
 	result.DenoiseMemory, err = r.denoiser.MemoryStats()
-	if err != nil {
+	// The denoiser's run memory is given back before the decode grows the autoencoder's workspace beside it.
+	if err = errors.Join(err, r.denoiser.cuda.ReleaseStageMemory(ctx)); err != nil {
 		return result, err
 	}
 	decoded := processmeasure.Stage(ctx, "clip decoded")
@@ -271,7 +272,7 @@ func (r *referenceEditRuntime) Run(ctx context.Context, textContext []float32, s
 	if err == nil {
 		result.DecoderMemory, err = r.decoder.MemoryStats()
 	}
-	return result, err
+	return result, errors.Join(err, r.decoder.releaseWorkspace(ctx))
 }
 
 type editNoiseStream struct {

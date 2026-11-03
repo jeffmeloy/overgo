@@ -172,27 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 308,
+        "nodes": 102,
         "reason": "denoiser-stream adds about 624 nodes: Wan's and LiveEdit's denoiser weights open their source and decode a tensor as the session uploads it, through one opened set with its each and Close, and the loaded set that training and host runs read is built from it. The steps after it keep the 454 they had."
       },
       "steps": [
-        {
-          "id": "qsa-ring-first",
-          "title": "Hold a Flash-Next sequence at the ring until it outgrows it",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestARoundSequenceHoldsTheRingUntilItOutgrowsIt$'",
-          "rationale": "Measure first. A round holds 262,144 cells from open (internal/inference/qsa_cells_storage.go:126-135, strata_round.go:136-147): 787 MiB of card, a 3.09 GiB pinned host copy and a 260 MiB stage pool, against 444 MiB, none and none at the ring. A conversation under 32,768 cells gets nothing from the difference. Hypothesis: the round runs at the ring in production (strata_round.go:323-325 branches on slots; tests use 131,072).\nA stall at the crossing and a recapture of round graphs are why qsaSequenceCapacity keeps one capacity. If the crossing costs more than the experts buy, the step ends with that recorded. About 2 hours of the device with the 262K acceptance. Greedy tokens must equal the streamed run's.\nServes: 603 MiB of card for experts, about 175, 3.09 GiB of pinned host, and load time.\nDisappears: the stage pool below the ring.\nEvidence: bench rounds against HEAD, the 262K acceptance.\nBatch: Flash-Next lane, one process at a time."
-        },
-        {
-          "id": "codec-stages",
-          "title": "Free a video codec's workspace and a denoiser's scratch before the next stage",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAVideoStageLeavesNoScratchForTheNext$'",
-          "rationale": "Measure first. Wan2.1 VAE reads 4.4 GiB on at most 0.53 GB of weights, the worst ratio recorded. Workspaces are grow-only (internal/latentvideo/vae_session.go:176-199) and held across stages (reconstruction_cuda_windows.go:73-100, runtime.go:126-173), and no video path calls ReleaseStageMemory. Regrowth each request and recaptured denoiser graphs are the cost, so measure the second request's wall. Outputs bit-identical.\nServes: peak-device-memory for video.\nDisappears: workspace held idle between requests.\nEvidence: stage peaks before and after, frame hashes.\nBatch: media lane.\n\nMeasured by stage (docs/verification/media-stage-peaks.json): the Wan autoencoder's round trip held 0.47 GiB once leased and 4.44 GiB reconstructing the frame, so its weights are not what fills it. Each clip peaks in its decode, not its denoiser: Wan at the size a person asks for 13.52 GiB decoding against 7.46 GiB denoising, LiveEdit on 81 frames 27.14 against 21.08, and MOSS at 2048, a picture, 17.86 decoding against 13.48 integrating.",
-          "depends_on": [
-            "memory-bounds/stage-peaks"
-          ]
-        },
         {
           "id": "view-release",
           "title": "Drop a GGUF view's built tensors when a load ends",

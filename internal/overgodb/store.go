@@ -207,6 +207,8 @@ type Store struct {
 	head      artifact.CommitID
 	sequence  uint64
 	replayEnd int64
+	// tornBytes is what the open cut from the journal's end (TornTail).
+	tornBytes int64
 	readOnly  bool
 	closed    bool
 	fault     error
@@ -534,7 +536,16 @@ func (s *Store) replayLocked() error {
 		return err
 	}
 	s.log, s.head, s.sequence, s.replayEnd, s.anchored = log, replay.head, replay.sequence, replay.validEnd, anchor.sequence
+	s.tornBytes = replay.tornBytes
 	return nil
+}
+
+// TornTail is the bytes the store's open cut from its journal's end, past the last whole commit: a frame a dying
+// writer left part of, or the zeros of one that never reached the disk. Zero for a journal that ended whole.
+func (s *Store) TornTail() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.tornBytes
 }
 
 // sealLocked publishes an immutable journal segment before resetting the active file.

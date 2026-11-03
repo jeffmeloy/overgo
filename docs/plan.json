@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 266,
-        "reason": "Prototyped: about 230 nodes for the tail and first header, about 33 lines. The rest are estimates, and crash-points gives back about 25."
+        "nodes": 36,
+        "reason": "unwritten-tail adds 371 nodes against the prototype's 230: the open also says what it cut, Store.TornTail, which overgodb repair prints and the server logs, as the step asks, and a journal that never began is started. The steps after it keep the 36 nodes the estimate left them."
       },
       "steps": [
-        {
-          "id": "unwritten-tail",
-          "title": "End the journal at a frame that never reached the disk",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnUnwrittenTailEndsTheJournal$'",
-          "rationale": "Reproduced on plain bytes, no model. A frame-length zero tail makes Open, OpenReadOnly and Create all refuse: invalid frame magic (internal/overgodb/log.go:458), invalid checksum when only the header landed (:480), or the same on the first commit after a seal (pendingRotation, :328-331). overgodb repair then advises a restore from a sealed backup (cmd/overgodb/repair.go:39), which would discard commits the journal still holds. With the tail cut away the journal opens at sequence 4, its head intact. The existing test appends 7 zeros, below one frame header (store_test.go:27,643), so it passes. That NTFS leaves such a tail is a hypothesis; a driver bugcheck loses the page cache as a power cut does.\nIn the active segment only, treat as torn a frame whose bytes to the end of the file are zero, and one whose trailer and everything after it are zero, including in pendingRotation. A sealed segment still refuses. A log with no whole header, no sealed segment and nothing acknowledged has never begun, so a writer starts it (log.go:248, reached by a full disk on the first write). Prototyped: every crash model clean, and all store tests green, TestCompleteCorruptFrameRejected and TestRepairRefusesACorruptJournal included.\nDecided by recommendation: an acknowledged frame whose final sector later reads as zeros is dropped where today the store refuses. Journals that treat a bad tail as the end of the log make this trade, and it is narrow, since the rest of the file must be zero and a flipped bit still refuses. The open says what it truncated.\nServes: failure-rate; a store survives a power cut without a person.\nDisappears: a restore advised for a whole journal.\nEvidence: the probe inverted, TestCompleteCorruptFrameRejected unchanged.\nBatch: store lane."
-        },
         {
           "id": "cutover-kill",
           "title": "Start no empty store beside a superseded one",

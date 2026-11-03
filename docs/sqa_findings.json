@@ -7193,6 +7193,18 @@
         "plan_steps": [
           "store-durability/durable-names"
         ]
+      },
+      {
+        "comment": "unwritten-tail, the finding's journal-tail defect. In the journal a frame that is zeros to the end of the file, or one whose trailer and everything after it are zeros, ends the journal at its last whole commit, as a cut frame did; so does a first frame of zeros after a seal (pendingRotation). Open, OpenReadOnly and Create open such a journal with its head intact, a writer cuts the tail and Store.TornTail says how much, which overgodb repair prints and the server logs. A tail that is not zeros still refuses, a sealed segment ending in zeros still refuses as torn, and a journal with no whole header and no sealed segment is started by a writer. TestAnUnwrittenTailEndsTheJournal holds each case and fails with either zero check undone; TestCompleteCorruptFrameRejected is unchanged. No power cut was run; whether NTFS leaves such a tail is the finding's hypothesis.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestAnUnwrittenTailEndsTheJournal",
+          "TestCompleteCorruptFrameRejected"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/unwritten-tail"
+        ]
       }
     ],
     "experiments": {
@@ -7235,7 +7247,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
-    "head": "e62f57544b021c5b4852fbf950746d81a95121c7",
+    "head": "b41b8ca6d8abefb62218cf4ca93ce0e5c4cd5fed",
     "findings": {
       "SQA-004": {
         "action": "none",

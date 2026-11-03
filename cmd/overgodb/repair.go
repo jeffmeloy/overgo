@@ -12,8 +12,9 @@ import (
 
 // repair is overgodb repair: it replays the store through the canonical
 // reader, the one authority on the journal's format. A torn tail, the
-// incomplete final frame a dying writer leaves, is truncated when -apply opens
-// the store for writing; every other damage -- a complete frame whose
+// incomplete final frame a dying writer leaves or the zeros of one that never
+// reached the disk, is truncated when -apply opens the store for writing, and
+// said; every other damage -- a complete frame whose
 // checksum, version, identity or chain does not hold, or a transaction the
 // store cannot apply -- is refused with the reader's own error, since only a
 // sealed backup restores committed history.
@@ -41,7 +42,7 @@ func repair(flags *flag.FlagSet, args []string) error {
 	// A verified checkpoint anchors the replay, as it does every open: the
 	// active journal past it replays frame by frame.
 	head, sequence := store.Head()
-	fmt.Printf("journal replays: head=%s sequence=%d from_checkpoint=%t\n", head, sequence, store.SnapshotReplay().Loaded)
+	fmt.Printf("journal replays: head=%s sequence=%d from_checkpoint=%t torn_tail_bytes_cut=%d\n", head, sequence, store.SnapshotReplay().Loaded, store.TornTail())
 	return store.Close()
 }
 

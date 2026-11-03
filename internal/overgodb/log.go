@@ -88,6 +88,8 @@ type replayResult struct {
 	sequence  uint64
 	validEnd  int64
 	recovered bool
+	// tornBytes is what a recovered replay found past its last whole frame, which a writer cuts.
+	tornBytes int64
 }
 
 type replayAnchor struct {
@@ -224,6 +226,12 @@ func openRecordLog(
 		return nil, replayResult{}, err
 	}
 	if result.recovered {
+		info, err := file.Stat()
+		if err != nil {
+			_ = log.Close()
+			return nil, replayResult{}, fmt.Errorf("overgodb: stat torn tail: %w", err)
+		}
+		result.tornBytes = info.Size() - result.validEnd
 		if err := file.Truncate(result.validEnd); err != nil {
 			_ = log.Close()
 			return nil, replayResult{}, fmt.Errorf("overgodb: truncate torn tail: %w", err)
@@ -245,8 +253,19 @@ func (l *recordLog) ensureHeader() error {
 	if err != nil {
 		return fmt.Errorf("overgodb: stat log: %w", err)
 	}
+	// A journal with no whole header and no sealed segment before it has never begun: its first write did not reach
+	// the disk, as a full disk leaves it, so nothing in it was acknowledged and a writer starts it again.
 	if info.Size() != 0 {
-		return nil
+		present := make([]byte, min(info.Size(), storeHeaderBytes))
+		if _, err := l.file.ReadAt(present, 0); err != nil {
+			return fmt.Errorf("overgodb: read log header: %w", err)
+		}
+		if info.Size() > storeHeaderBytes || len(l.sealed) != 0 || validateStoreHeader(present) == nil {
+			return nil
+		}
+		if err := l.file.Truncate(0); err != nil {
+			return fmt.Errorf("overgodb: start an unbegun log: %w", err)
+		}
 	}
 	header := encodeStoreHeader()
 	if err := writeAll(l.file, header); err != nil {
@@ -327,7 +346,11 @@ func (l *recordLog) pendingRotation() (bool, error) {
 	}
 	_, record, err := decodeFrameHeader(header[:])
 	if err != nil {
-		return false, err
+		// A first frame that is zeros to the end never reached the disk; the replay ends the journal before it.
+		if unwritten, zeroErr := l.zeroFrom(storeHeaderBytes); zeroErr != nil || !unwritten {
+			return false, errors.Join(err, zeroErr)
+		}
+		return false, nil
 	}
 	last := strings.TrimSuffix(filepath.Base(l.sealed[len(l.sealed)-1]), segmentExtension)
 	sequence, err := strconv.ParseUint(last, segmentNameRadix, segmentNameBitSize)
@@ -455,6 +478,11 @@ func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply
 		}
 		payloadSize, record, err := decodeFrameHeader(frameHeader)
 		if err != nil {
+			// A frame that is zeros to the end of the file never reached the disk, as a cut one never did.
+			if unwritten, zeroErr := l.zeroFrom(frameStart); zeroErr == nil && unwritten {
+				result.recovered = true
+				break
+			}
 			return replayResult{}, fmt.Errorf("overgodb: frame at %d: %w", frameStart, err)
 		}
 		if payloadSize > maxFramePayload {
@@ -477,6 +505,13 @@ func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply
 		actual := crc32.Checksum(frameHeader, crcTable)
 		actual = crc32.Update(actual, crcTable, record.payload)
 		if checksum != actual {
+			// A frame whose trailer and everything after it are zeros reached the disk no further than its header and
+			// part of its payload; a flipped bit, with anything after it written, still refuses.
+			trailer := frameStart + int64(frameHeaderBytes) + int64(payloadSize)
+			if unwritten, zeroErr := l.zeroFrom(trailer); zeroErr == nil && unwritten {
+				result.recovered = true
+				break
+			}
 			return replayResult{}, fmt.Errorf("overgodb: frame at %d has invalid checksum", frameStart)
 		}
 		if record.sequence != result.sequence+1 || record.previous != result.head {
@@ -507,6 +542,28 @@ func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply
 		return replayResult{}, ErrSnapshotAnchor
 	}
 	return result, nil
+}
+
+// zeroReadBytes is how much of a journal's tail zeroFrom reads at a time.
+const zeroReadBytes = 64 << 10
+
+// zeroFrom says whether every byte of the log from offset to its end is zero, what a write that never reached the
+// disk leaves on a file whose size had grown.
+func (l *recordLog) zeroFrom(offset int64) (bool, error) {
+	buffer := make([]byte, zeroReadBytes)
+	for {
+		count, err := l.file.ReadAt(buffer, offset)
+		if slices.ContainsFunc(buffer[:count], func(value byte) bool { return value != 0 }) {
+			return false, nil
+		}
+		offset += int64(count)
+		if errors.Is(err, io.EOF) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+	}
 }
 
 func decodeFrameHeader(header []byte) (uint32, logRecord, error) {

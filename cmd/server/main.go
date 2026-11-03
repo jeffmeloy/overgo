@@ -334,6 +334,9 @@ func run() error {
 			return fmt.Errorf("open workspace repository: %w", err)
 		}
 		defer workspaceStore.Close()
+		if torn := workspaceStore.TornTail(); torn != 0 {
+			log.Printf("store: cut %d bytes from the journal's end that held no whole commit", torn)
+		}
 	}
 	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
 	// A transcription policy declared beside the store (the data root's

@@ -10,9 +10,12 @@ package latentvideo
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"overgo/internal/checked"
 	"overgo/internal/graphruntime"
@@ -177,9 +180,18 @@ func (g LatentGeometry) Elements() int {
 
 // DenoiserWeights: the full F32 tensor set, loaded once and shared by both
 // graphs without duplication.
+// DenoiserWeights: a denoiser's tensors by name. A loaded set holds every
+// tensor decoded to F32. An opened one holds the timestep conditioning's, which
+// compile reads, and decodes each other tensor only as it is taken (each), from
+// a source it keeps open until Close, so a session's upload holds one of them
+// on the host at a time.
 type DenoiserWeights struct {
 	values map[string][]float32
-	Bytes  int64
+	// open decodes one of names, the tensors values does not hold, sorted.
+	open  func(name string) ([]float32, error)
+	names []string
+	close func() error
+	Bytes int64
 }
 
 func (w *DenoiserWeights) tensor(name string) []float32 {
@@ -187,6 +199,50 @@ func (w *DenoiserWeights) tensor(name string) []float32 {
 		return nil
 	}
 	return w.values[name]
+}
+
+// decoded is a tensor's F32 values: held, or decoded from an opened set's source.
+func (w *DenoiserWeights) decoded(name string) ([]float32, error) {
+	if values, held := w.values[name]; held || w.open == nil {
+		return values, nil
+	}
+	return w.open(name)
+}
+
+// each gives every tensor to take in turn, the held ones first, decoding each
+// other one only for the call that takes it.
+func (w *DenoiserWeights) each(take func(name string, values []float32) error) error {
+	for _, name := range slices.Sorted(maps.Keys(w.values)) {
+		if err := take(name, w.values[name]); err != nil {
+			return err
+		}
+	}
+	for _, name := range w.names {
+		values, err := w.open(name)
+		if err != nil {
+			return fmt.Errorf("denoiser weights %s payload: %w", name, err)
+		}
+		if err := take(name, values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Close gives back the source an opened set decodes from; it decodes nothing after.
+func (w *DenoiserWeights) Close() error {
+	if w == nil || w.close == nil {
+		return nil
+	}
+	close := w.close
+	w.open, w.names, w.close = nil, nil, nil
+	return close()
+}
+
+// timestepTensors are the timestep conditioning's tensors, which compile reads from the host (TimestepWeights).
+var timestepTensors = []string{
+	"time_embedding.0.weight", "time_embedding.0.bias", "time_embedding.2.weight", "time_embedding.2.bias",
+	"time_projection.1.weight", "time_projection.1.bias",
 }
 
 func denoiserBlockPrefix(layer int) string {
@@ -232,13 +288,32 @@ func denoiserTensorLengths(c DenoiserConfig) map[string]int {
 
 // LoadDenoiserWeights: reads every denoiser tensor as F32 exactly once.
 func LoadDenoiserWeights(dir string, c DenoiserConfig) (*DenoiserWeights, error) {
+	weights, err := openDenoiserWeights(dir, c)
+	if err != nil {
+		return nil, err
+	}
+	err = weights.each(func(name string, values []float32) error {
+		weights.values[name] = values
+		return nil
+	})
+	return weights, errors.Join(err, weights.Close())
+}
+
+// openDenoiserWeights checks every denoiser tensor's storage and decodes the
+// timestep conditioning's; each other tensor is decoded as it is taken, from
+// the source the set keeps open until Close.
+func openDenoiserWeights(dir string, c DenoiserConfig) (_ *DenoiserWeights, err error) {
 	source, err := safetensors.OpenSource(dir)
 	if err != nil {
 		return nil, err
 	}
-	defer source.Close()
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, source.Close())
+		}
+	}()
 	lengths := denoiserTensorLengths(c)
-	weights := &DenoiserWeights{values: make(map[string][]float32, len(lengths))}
+	weights := &DenoiserWeights{values: make(map[string][]float32, len(timestepTensors)), close: source.Close}
 	for name, want := range lengths {
 		payload, ok := source.Tensors[name]
 		if !ok {
@@ -247,13 +322,15 @@ func LoadDenoiserWeights(dir string, c DenoiserConfig) (*DenoiserWeights, error)
 		if payload.DType != "F32" || payload.Elements() != uint64(want) {
 			return nil, fmt.Errorf("denoiser weights: tensor %s dtype=%s elements=%d, want F32 %d", name, payload.DType, payload.Elements(), want)
 		}
-		decoded, err := safetensors.ReadF32(payload)
-		if err != nil {
+		weights.Bytes += payload.Size()
+		if !slices.Contains(timestepTensors, name) {
+			weights.names = append(weights.names, name)
+		} else if weights.values[name], err = safetensors.ReadF32(payload); err != nil {
 			return nil, fmt.Errorf("denoiser weights %s payload: %w", name, err)
 		}
-		weights.values[name] = decoded
-		weights.Bytes += payload.Size()
 	}
+	slices.Sort(weights.names)
+	weights.open = func(name string) ([]float32, error) { return safetensors.ReadF32(source.Tensors[name]) }
 	return weights, nil
 }
 
@@ -488,9 +565,7 @@ func (p *DenoiserProgram) weightFeeds(inputs tensor.WeightBindings, feeds map[*t
 	if p.weights == nil {
 		return fmt.Errorf("denoiser host weights released to resident session")
 	}
-	return graphruntime.AddHostWeights(feeds, inputs, func(name string) ([]float32, error) {
-		return p.weights.tensor(name), nil
-	})
+	return graphruntime.AddHostWeights(feeds, inputs, p.weights.decoded)
 }
 
 func feedValue(node *tensor.Tensor, data []float32, what string) (reference.Value, error) {

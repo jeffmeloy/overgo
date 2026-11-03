@@ -68,10 +68,12 @@ func newReferenceEditDenoiserCUDASession(
 		!checked.GreaterInt(totalFrames, framesPerChunk) || !boundOK || !checked.AtMostInt(totalFrames, historyBound) || !totalAligned {
 		return nil, fmt.Errorf("reference edit denoiser: invalid layers/geometry/history")
 	}
-	weights, err := checkpoint.LoadDenoiserWeights(layers)
+	weights, err := checkpoint.OpenDenoiserWeights(layers)
 	if err != nil {
 		return nil, err
 	}
+	// The session decodes each tensor from the open checkpoint as it uploads it.
+	defer func() { err = errors.Join(err, weights.Close()) }()
 	config.NumLayers = layers
 	precision := DenoiserPrecision{MatmulWeights: dtype.BF16, RoundAttentionStorage: true}
 	cold, err := CompileDenoiserProgramPrecision(config, weights, geometry, precision)
@@ -248,7 +250,8 @@ func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 			context   bool
 		}{program, s.warmExecutions[startFrame], false})
 	}
-	for name, values := range weights.values {
+	// An opened set decodes each tensor as it is taken, so the host holds one at a time.
+	return weights.each(func(name string, values []float32) error {
 		var binds []binding
 		var prototype *tensor.Tensor
 		for _, item := range graphs {
@@ -266,7 +269,7 @@ func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 			binds = append(binds, binding{item.execution, node})
 		}
 		if len(binds) == 0 {
-			continue
+			return nil
 		}
 		payload, err := encodeWeightPayload(values, prototype.Type)
 		if err != nil {
@@ -284,8 +287,8 @@ func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 			}
 			bind.execution.Inputs.Pointers[slot] = pointer
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // projectContext gives the session the text context its chunks attend to:

@@ -134,13 +134,14 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 		}
 	}
 	bound := 0
-	for name, data := range s.Program.weights.values {
+	// An opened set decodes each tensor as it is taken, so the host holds one at a time.
+	err := s.Program.weights.each(func(name string, data []float32) error {
 		contextNode := s.Program.contextWeightInputs.Node(name)
 		stepNode := s.Program.stepWeightInputs.Node(name)
 		node := stepNode
 		node = cmp.Or(node, contextNode)
 		if node == nil {
-			continue
+			return nil
 		}
 		bound++
 		if contextNode != nil && !tensor.Compatible(contextNode, node) {
@@ -175,6 +176,10 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 			}
 			binding.program.Inputs.Pointers[slot] = pointer
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if bound != want {
 		return fmt.Errorf("denoiser session bound %d weights, need %d", bound, want)

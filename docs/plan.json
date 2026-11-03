@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 454,
-        "reason": "text-one-block runs both image text encoders a layer at a time and adds 1276 nodes: MOSS's model encoder and Krea's selected-layer encoder each gain a runner that places one layer, passes the prompts' rows through it on the card and gives it back, and Krea's encoder is built from one layer function for the whole program and for a layer alone. The steps after it keep the 454 they had."
+        "nodes": 456,
+        "reason": "denoiser-stream adds about 624 nodes: Wan's and LiveEdit's denoiser weights open their source and decode a tensor as the session uploads it, through one opened set with its each and Close, and the loaded set that training and host runs read is built from it. The steps after it keep the 454 they had."
       },
       "steps": [
-        {
-          "id": "denoiser-stream",
-          "title": "Upload a video denoiser's weights a tensor at a time from the file",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestADenoiserLoadHoldsOneTensorOnTheHost$'",
-          "rationale": "LoadDenoiserWeights decodes every tensor to F32 before any upload (internal/latentvideo/denoiser.go:241-255), 5.2 to 5.6 GB against 2.79 GB on the card, and frees them only after (denoiser_session.go:115). LiveEdit does the same (reference_edit_checkpoint.go:154-165). Keep the source open and encode each tensor where uploadWeights reaches it, as weightPayload does for images. p.weights feeds compile only for timestep weights, which stay.\nServes: host memory at video load; Wan's recorded 9,020,514,304 byte process peak (docs/image_video_memory.json:63).\nDisappears: the decoded map.\nEvidence: process peak before and after, the frozen Wan and LiveEdit hashes.\nBatch: media lane."
-        },
         {
           "id": "dense-read-release",
           "title": "Give back a dense model's read scratch once a long prompt is read",

@@ -1,6 +1,7 @@
 package latentvideo
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -138,8 +139,23 @@ func (p referenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
 	return p.LoadDenoiserWeights(p.Layers)
 }
 
-// LoadDenoiserWeights streams common tensors plus the requested block prefix.
+// LoadDenoiserWeights reads the common tensors plus the requested block prefix, every one decoded.
 func (p referenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeights, error) {
+	weights, err := p.OpenDenoiserWeights(layers)
+	if err != nil {
+		return nil, err
+	}
+	err = weights.each(func(name string, values []float32) error {
+		weights.values[name] = values
+		return nil
+	})
+	return weights, errors.Join(err, weights.Close())
+}
+
+// OpenDenoiserWeights binds the common tensors plus the requested block prefix
+// and decodes the timestep conditioning's; each other tensor is decoded as it
+// is taken, from the checkpoint the set keeps open until Close.
+func (p referenceEditCheckpoint) OpenDenoiserWeights(layers int) (_ *DenoiserWeights, err error) {
 	if !checked.PositiveInts(layers) || !checked.AtMostInt(layers, p.Layers) {
 		return nil, fmt.Errorf("reference edit checkpoint: layers=%d outside 1..%d", layers, p.Layers)
 	}
@@ -147,23 +163,35 @@ func (p referenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeigh
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, reader.Close())
+		}
+	}()
 	config := p.Config
 	config.NumLayers = layers
 	lengths := denoiserTensorLengths(config)
-	weights := &DenoiserWeights{values: make(map[string][]float32, len(lengths))}
-	for name := range lengths {
-		binding, ok := p.bindings[name]
-		if !ok {
-			return nil, fmt.Errorf("reference edit checkpoint: denoiser tensor %s is absent", name)
-		}
-		values, err := reader.ReadBinding(binding)
+	weights := &DenoiserWeights{values: make(map[string][]float32, len(timestepTensors)), close: reader.Close}
+	read := func(name string) ([]float32, error) {
+		values, err := reader.ReadBinding(p.bindings[name])
 		if err != nil {
 			return nil, fmt.Errorf("reference edit checkpoint %s: %w", name, err)
 		}
-		weights.values[name] = values
-		weights.Bytes += int64(len(values) * binaryschema.Uint32Bytes)
+		return values, nil
 	}
+	for name, elements := range lengths {
+		if _, ok := p.bindings[name]; !ok {
+			return nil, fmt.Errorf("reference edit checkpoint: denoiser tensor %s is absent", name)
+		}
+		weights.Bytes += int64(elements * binaryschema.Uint32Bytes)
+		if !slices.Contains(timestepTensors, name) {
+			weights.names = append(weights.names, name)
+		} else if weights.values[name], err = read(name); err != nil {
+			return nil, err
+		}
+	}
+	slices.Sort(weights.names)
+	weights.open = read
 	return weights, nil
 }
 

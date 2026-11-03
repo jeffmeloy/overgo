@@ -73,10 +73,12 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 	if err != nil {
 		return nil, err
 	}
-	weights, err := LoadDenoiserWeights(config.ModelDirectory, denoiserConfig)
+	weights, err := openDenoiserWeights(config.ModelDirectory, denoiserConfig)
 	if err != nil {
 		return nil, err
 	}
+	// The session decodes each tensor from the open source as it uploads it.
+	defer func() { err = errors.Join(err, weights.Close()) }()
 	geometry, err := denoiserConfig.CompileLatentGeometry(config.Frames, config.Width, config.Height)
 	if err != nil {
 		return nil, err

@@ -17,10 +17,10 @@ import (
 	"go/token"
 	"maps"
 	"os"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // hangulFirst and hangulLast bound the Hangul syllables, which decompose and
@@ -46,12 +46,12 @@ func main() {
 		return result
 	}
 	var values []rune
-	for _, value := range regexp.MustCompile(`0x[0-9a-f]+`).FindAllString(section("q38_nfc_decomp_values"), -1) {
+	for _, value := range hexValues(section("q38_nfc_decomp_values")) {
 		values = append(values, number(value))
 	}
 	decompositions := map[rune][]rune{}
-	for _, row := range regexp.MustCompile(`\{(0x[0-9a-f]+), ([0-9]+), ([0-9]+)\}`).FindAllStringSubmatch(section("q38_nfc_decomp"), -1) {
-		key, offset, length := number(row[1]), number(row[2]), number(row[3])
+	for _, row := range tableRows(section("q38_nfc_decomp")) {
+		key, offset, length := number(row[0]), number(row[1]), number(row[2])
 		decompositions[key] = slices.Clone(values[offset : offset+length])
 	}
 	var expand func(rune, map[rune]bool) []rune
@@ -96,18 +96,18 @@ func main() {
 		fmt.Fprintln(&output, "},")
 	}
 	fmt.Fprintln(&output, "}\n\nvar nfcCombiningClass = map[rune]uint8{")
-	ccc := regexp.MustCompile(`\{(0x[0-9a-f]+), ([0-9]+)\}`).FindAllStringSubmatch(section("q38_nfc_ccc"), -1)
+	ccc := tableRows(section("q38_nfc_ccc"))
 	for _, row := range ccc {
-		fmt.Fprintf(&output, "%s: %s,\n", row[1], row[2])
+		fmt.Fprintf(&output, "%s: %s,\n", row[0], row[1])
 	}
 	fmt.Fprintln(&output, "}\n\nvar nfcComposition = map[[2]rune]rune{")
 	compositionCount := 0
-	for _, row := range regexp.MustCompile(`\{(0x[0-9a-f]+), (0x[0-9a-f]+), (0x[0-9a-f]+)\}`).FindAllStringSubmatch(section("q38_nfc_compose"), -1) {
+	for _, row := range tableRows(section("q38_nfc_compose")) {
 		// Unicode 16 section 3.12: Hangul syllables compose algorithmically.
-		if composite := number(row[3]); composite >= hangulFirst && composite <= hangulLast {
+		if composite := number(row[2]); composite >= hangulFirst && composite <= hangulLast {
 			continue
 		}
-		fmt.Fprintf(&output, "{%s,%s}: %s,\n", row[1], row[2], row[3])
+		fmt.Fprintf(&output, "{%s,%s}: %s,\n", row[0], row[1], row[2])
 		compositionCount++
 	}
 	fmt.Fprintln(&output, "}")
@@ -115,6 +115,31 @@ func main() {
 	check(err)
 	check(os.WriteFile("internal/tokenizer/nfc_table.go", encoded, 0644))
 	fmt.Printf("NFC generated: reused=%d delta=%d ccc=%d non-Hangul composition=%d\n", len(old), len(current), len(ccc), compositionCount)
+}
+
+// hexValues are the 0x words of a C initializer, in order.
+func hexValues(section string) []string {
+	var values []string
+	for _, word := range strings.FieldsFunc(section, func(character rune) bool { return character == ',' || unicode.IsSpace(character) }) {
+		if strings.HasPrefix(word, "0x") {
+			values = append(values, word)
+		}
+	}
+	return values
+}
+
+// tableRows are the braced rows of a C initializer, each split at its commas.
+func tableRows(section string) [][]string {
+	var rows [][]string
+	for _, opened := range strings.Split(section, "{")[1:] {
+		row, _, _ := strings.Cut(opened, "}")
+		cells := strings.Split(row, ",")
+		for index, cell := range cells {
+			cells[index] = strings.TrimSpace(cell)
+		}
+		rows = append(rows, cells)
+	}
+	return rows
 }
 
 func number(value string) rune {

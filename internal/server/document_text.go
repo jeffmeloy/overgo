@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -26,7 +25,27 @@ import (
 // glyph identifiers has no character mapping here and is left out rather
 // than rendered as noise.
 
-var pdfStreamDictionary = regexp.MustCompile(`(?s)<<(.*)>>\s*stream\r?\n`)
+// pdfStreamObject finds the stream of one PDF object: the dictionary, from the first << to the last >> that the stream
+// keyword follows, and where the stream's bytes begin.
+func pdfStreamObject(object []byte) (dictionary, stream []byte, found bool) {
+	_, after, ok := bytes.Cut(object, []byte("<<"))
+	if !ok {
+		return nil, nil, false
+	}
+	content := after
+	for end := bytes.LastIndex(content, []byte(">>")); end >= 0; end = bytes.LastIndex(content[:end], []byte(">>")) {
+		rest := bytes.TrimLeft(content[end+len(">>"):], " \t\r\n\f\v")
+		rest, keyword := bytes.CutPrefix(rest, []byte("stream"))
+		if !keyword {
+			continue
+		}
+		rest = bytes.TrimPrefix(rest, []byte("\r"))
+		if rest, line := bytes.CutPrefix(rest, []byte("\n")); line {
+			return content[:end], rest, true
+		}
+	}
+	return nil, nil, false
+}
 
 // documentText is a document as the text a model reads: a PDF's drawn text, or a textual type's own bytes. A file
 // part and a dataset draft share it.
@@ -54,12 +73,11 @@ func pdfText(data []byte) (string, error) {
 	}
 	var out strings.Builder
 	for object := range bytes.SplitSeq(data, []byte("endobj")) {
-		match := pdfStreamDictionary.FindSubmatchIndex(object)
-		if match == nil {
+		found, body, stream := pdfStreamObject(object)
+		if !stream {
 			continue
 		}
-		dictionary := string(object[match[2]:match[3]])
-		body := object[match[1]:]
+		dictionary := string(found)
 		end := bytes.LastIndex(body, []byte("endstream"))
 		if end < 0 {
 			continue

@@ -7,12 +7,12 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/clioptions"
+	"overgo/internal/textcheck"
 )
 
 type tableSpec struct {
@@ -164,18 +164,53 @@ func writeCUDAHeader(
 	return clioptions.WriteOutputFile(outputPath, []byte(generated.String()))
 }
 
+// tableArguments is how many arguments a GGML_TABLE_BEGIN takes: a type, a name and a size.
+const tableArguments = 3
+
+// tableBody is what stands between a table's GGML_TABLE_BEGIN and its GGML_TABLE_END.
+func tableBody(source string, spec tableSpec) (string, bool) {
+	for rest, found := source, true; found; {
+		_, rest, found = strings.Cut(rest, "GGML_TABLE_BEGIN(")
+		arguments, tail, closed := strings.Cut(rest, ")")
+		if !found || !closed {
+			return "", false
+		}
+		named := strings.Split(arguments, ",")
+		if len(named) == tableArguments && strings.TrimSpace(named[0]) == spec.cType && strings.TrimSpace(named[1]) == spec.cName {
+			body, _, ended := strings.Cut(tail, "GGML_TABLE_END()")
+			return body, ended
+		}
+	}
+	return "", false
+}
+
+// tableNumbers reads a table body's numbers in order, each a decimal word or a hexadecimal literal, whose suffix is not read.
+func tableNumbers(body string) []string {
+	var numbers []string
+	for _, word := range strings.FieldsFunc(body, func(character rune) bool {
+		return character != '_' && !strings.ContainsRune(textcheck.Alphanumeric, character)
+	}) {
+		digits, hexadecimal := strings.CutPrefix(strings.ToLower(word), "0x")
+		end := strings.IndexFunc(digits, func(character rune) bool { return !strings.ContainsRune(textcheck.HexDigits, character) })
+		if end >= 0 {
+			digits = digits[:end]
+		}
+		switch {
+		case hexadecimal && digits != "":
+			numbers = append(numbers, word[:len("0x")+len(digits)])
+		case textcheck.Only(word, textcheck.Digits):
+			numbers = append(numbers, word)
+		}
+	}
+	return numbers
+}
+
 func extractTable(source string, spec tableSpec) ([]string, error) {
-	pattern := regexp.MustCompile(
-		`(?s)GGML_TABLE_BEGIN\(\s*` + regexp.QuoteMeta(spec.cType) +
-			`,\s*` + regexp.QuoteMeta(spec.cName) +
-			`,\s*[^\)]+\)(.*?)GGML_TABLE_END\(\)`,
-	)
-	match := pattern.FindStringSubmatch(source)
-	if match == nil {
+	body, found := tableBody(source, spec)
+	if !found {
 		return nil, fmt.Errorf("table %s was not found", spec.cName)
 	}
-	valuePattern := regexp.MustCompile(`0[xX][0-9a-fA-F]+|\b[0-9]+\b`)
-	rawValues := valuePattern.FindAllString(match[1], -1)
+	rawValues := tableNumbers(body)
 	if len(rawValues) != spec.size {
 		return nil, fmt.Errorf(
 			"table %s has %d values, need %d",

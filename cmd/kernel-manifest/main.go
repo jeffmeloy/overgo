@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -23,15 +22,94 @@ import (
 
 const manifestPath = "kernels/manifest.json"
 
-// includePattern is a project header's include: a system header's angle brackets name nothing the manifest pins.
-var includePattern = regexp.MustCompile(`(?m)^\s*#\s*include\s+"([^"]+)"`)
+// compilerWords is how many words the compiler line ends in: release, its version, and the compiler's.
+const compilerWords = 3
 
-// compilerPattern is the line a PTX file names the compiler that wrote it on.
-var compilerPattern = regexp.MustCompile(`(?m)^// Cuda compilation tools, (release \S+, V\S+)\s*$`)
+// compilerLine is what a PTX file's comment says of the compiler that wrote it, release 13.0, V13.0.88.
+func compilerLine(data []byte) (string, bool) {
+	for line := range strings.Lines(string(data)) {
+		named, found := strings.CutPrefix(line, "// Cuda compilation tools, ")
+		if !found {
+			continue
+		}
+		named = strings.TrimSpace(named)
+		words := strings.Fields(named)
+		if len(words) == compilerWords && words[0] == "release" && strings.HasSuffix(words[1], ",") && strings.HasPrefix(words[2], "V") {
+			return named, true
+		}
+	}
+	return "", false
+}
 
-var entryPattern = regexp.MustCompile(`(?m)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\(`)
-var entryABIPattern = regexp.MustCompile(`(?ms)^\.visible \.entry ([A-Za-z_][A-Za-z0-9_]*)\((.*?)^\)`)
-var parameterPattern = regexp.MustCompile(`\.param\s+((?:\.align\s+\d+\s+)?\.[A-Za-z0-9_]+)\s+[A-Za-z_][A-Za-z0-9_]*(\[[^\]]+\])?`)
+// projectIncludes are the headers a source includes by quotes: a system header's angle brackets name nothing the manifest pins.
+func projectIncludes(data []byte) []string {
+	var included []string
+	for line := range strings.Lines(string(data)) {
+		directive, found := strings.CutPrefix(strings.TrimLeft(line, " \t"), "#")
+		if !found {
+			continue
+		}
+		target, found := strings.CutPrefix(strings.TrimLeft(directive, " \t"), "include")
+		if !found {
+			continue
+		}
+		quoted, found := strings.CutPrefix(strings.TrimLeft(target, " \t"), `"`)
+		if !found {
+			continue
+		}
+		if name, _, closed := strings.Cut(quoted, `"`); closed && name != "" {
+			included = append(included, name)
+		}
+	}
+	return included
+}
+
+// ptxEntry is one kernel entry of a PTX file: its name and the lines that declare its parameters.
+type ptxEntry struct {
+	name       string
+	parameters []string
+}
+
+// ptxEntryList reads a PTX file's entries, each from its .visible .entry line to the line that closes it.
+func ptxEntryList(data []byte) []ptxEntry {
+	var entries []ptxEntry
+	open := false
+	for line := range strings.Lines(string(data)) {
+		if head, found := strings.CutPrefix(line, ".visible .entry "); found {
+			name, rest, _ := strings.Cut(head, "(")
+			entries = append(entries, ptxEntry{name: name})
+			open = !strings.HasPrefix(rest, ")")
+			continue
+		}
+		if !open {
+			continue
+		}
+		if strings.HasPrefix(line, ")") {
+			open = false
+			continue
+		}
+		entries[len(entries)-1].parameters = append(entries[len(entries)-1].parameters, line)
+	}
+	return entries
+}
+
+// parameterWords is the fewest words a parameter line holds: .param, its type and its name.
+const parameterWords = 3
+
+// parameterLayout is a parameter's declaration without its name: .u64, or .align 4 .b8[16].
+func parameterLayout(line string) string {
+	words := strings.Fields(strings.TrimRight(strings.TrimSpace(line), ","))
+	if len(words) < parameterWords || words[0] != ".param" {
+		return ""
+	}
+	last := len(words) - 1
+	_, extent, sized := strings.Cut(words[last], "[")
+	layout := strings.Join(words[1:last], " ")
+	if sized {
+		layout += "[" + extent
+	}
+	return layout
+}
 
 type manifest struct {
 	Schema          int      `json:"schema"`
@@ -205,12 +283,12 @@ func run(root string, update bool) error {
 
 // requireToolchain holds a compiled asset to the toolchain the manifest records.
 func requireToolchain(document manifest, asset string, data []byte) error {
-	named := compilerPattern.FindSubmatch(data)
-	if named == nil {
+	named, found := compilerLine(data)
+	if !found {
 		return fmt.Errorf("kernel manifest: %q names no compiler", asset)
 	}
-	if recorded := "release " + document.CUDAToolkit + ", V" + document.NVCC; string(named[1]) != recorded {
-		return fmt.Errorf("kernel manifest: %q was compiled by %s, and the manifest records %s", asset, named[1], recorded)
+	if recorded := "release " + document.CUDAToolkit + ", V" + document.NVCC; named != recorded {
+		return fmt.Errorf("kernel manifest: %q was compiled by %s, and the manifest records %s", asset, named, recorded)
 	}
 	return nil
 }
@@ -225,8 +303,8 @@ func includedSources(root, source string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		for _, match := range includePattern.FindAllSubmatch(data, -1) {
-			included := path.Join(path.Dir(file), string(match[1]))
+		for _, name := range projectIncludes(data) {
+			included := path.Join(path.Dir(file), name)
 			if seen[included] {
 				continue
 			}
@@ -335,10 +413,9 @@ func fileHash(root, name string) (string, error) {
 }
 
 func ptxEntries(data []byte) []string {
-	matches := entryPattern.FindAllSubmatch(data, -1)
-	result := make([]string, len(matches))
-	for index, match := range matches {
-		result[index] = string(match[1])
+	var result []string
+	for _, entry := range ptxEntryList(data) {
+		result = append(result, entry.name)
 	}
 	slices.Sort(result)
 	return result
@@ -346,13 +423,14 @@ func ptxEntries(data []byte) []string {
 
 func ptxEntryABIs(data []byte) map[string][]string {
 	result := map[string][]string{}
-	for _, entry := range entryABIPattern.FindAllSubmatch(data, -1) {
-		parameters := parameterPattern.FindAllSubmatch(entry[2], -1)
-		layout := make([]string, len(parameters))
-		for index, parameter := range parameters {
-			layout[index] = strings.Join(strings.Fields(string(parameter[1])), " ") + string(parameter[2])
+	for _, entry := range ptxEntryList(data) {
+		layout := []string{}
+		for _, parameter := range entry.parameters {
+			if declared := parameterLayout(parameter); declared != "" {
+				layout = append(layout, declared)
+			}
 		}
-		result[string(entry[1])] = layout
+		result[entry.name] = layout
 	}
 	return result
 }

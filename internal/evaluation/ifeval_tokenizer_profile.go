@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/dlclark/regexp2/v2"
+
+	"overgo/internal/textcheck"
 )
 
 //go:embed testdata/ifeval_nltk_profile.json
@@ -113,7 +114,6 @@ func loadIFEvalTokenizer(data []byte) (*ifevalTokenizer, error) {
 	if p.realignment, err = compileNLTKRegex(input.Regexes["realignment"], regexp2.Multiline); err != nil {
 		return nil, err
 	}
-	refs := regexp.MustCompile(`\\([0-9]+)`)
 	for _, name := range []string{"STARTING_QUOTES", "PUNCTUATION", "PARENS_BRACKETS", "DOUBLE_DASHES", "ENDING_QUOTES", "CONTRACTIONS2", "CONTRACTIONS3"} {
 		rules := input.Rules[name]
 		if len(rules) == 0 {
@@ -133,11 +133,32 @@ func loadIFEvalTokenizer(data []byte) (*ifevalTokenizer, error) {
 				return nil, err
 			}
 			replacement := strings.ReplaceAll(rule.Replacement, `\g<0>`, `${0}`)
-			replacement = refs.ReplaceAllStringFunc(replacement, func(s string) string { return "${" + s[1:] + "}" })
+			replacement = namedReferences(replacement)
 			p.substitutions[name] = append(p.substitutions[name], nltkSubstitution{pattern, replacement})
 		}
 	}
 	return p, nil
+}
+
+// namedReferences writes a replacement's numbered references, \1 in Python's spelling, as the ${1} regexp2 reads.
+func namedReferences(replacement string) string {
+	var named strings.Builder
+	for index := 0; index < len(replacement); {
+		digits := 0
+		if replacement[index] == '\\' {
+			for index+1+digits < len(replacement) && strings.IndexByte(textcheck.Digits, replacement[index+1+digits]) >= 0 {
+				digits++
+			}
+		}
+		if digits == 0 {
+			named.WriteByte(replacement[index])
+			index++
+			continue
+		}
+		named.WriteString("${" + replacement[index+1:index+1+digits] + "}")
+		index += 1 + digits
+	}
+	return named.String()
 }
 
 func compileNLTKRegex(pattern string, flags regexp2.RegexOptions) (*regexp2.Regexp, error) {

@@ -674,7 +674,7 @@
         const speechFields = el('div', { class: 'row' });
         if (mode === 'speech') speechSettings.append(el('h3', { text: 'Speech options' }), speechFields);
         const picker = el("select", { class: "text w-auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
-          value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
+          value: capability.recipe || capability.model, text: capability.name || fmt.shortID(capability.recipe || capability.model), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
         // capability that made it; "this model" keeps the picked one's. A thumb opens the record.
         const rail = el("div", { class: "intake-strip gallery", role: "group", "aria-label": "Recent " + (kind || "stored") + " outputs" });
@@ -684,14 +684,14 @@
           retainGenerationValues();
           if (mode === 'speech') speechSelection = picker.value;
           composer.invalidateIntake();
-          generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
+          generation.capability = declared.find((capability) => (capability.recipe || capability.model) === picker.value && !capability.refusal) || null;
           // Speech reads a text whole: the frame limit, which cuts a reading to a preview, is not offered there, so
           // none is sent, a remembered one included.
           const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls) &&
             !(mode === 'speech' && control.name === 'max_frames')) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
           selectionNote.hidden = !!generation.capability;
-          selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => capability.recipe === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';
+          selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => (capability.recipe || capability.model) === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';
           // The capability's last entries return with it; its presets sit beside its controls.
           if (generation.capability) {
             overgo.rememberedControls.apply(generation.fields, overgo.rememberedControls.last(generation.capability.recipe));

@@ -90,7 +90,7 @@ var slotMedia = map[string]bool{"": true, "image": true, "video": true, "audio":
 
 type WorkflowCapability struct {
 	Task     recipe.Task       `json:"task"`
-	Recipe   artifact.ID       `json:"recipe"`
+	Recipe   artifact.ID       `json:"recipe,omitzero"`
 	Stages   []recipe.Stage    `json:"stages"`
 	Inputs   []recipe.Input    `json:"inputs,omitempty"`
 	Outputs  []recipe.Output   `json:"outputs"`

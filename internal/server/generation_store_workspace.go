@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/discovery"
+	"overgo/internal/hfrepo"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
@@ -144,10 +145,12 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 		return nil, err
 	}
 	var capabilities []WorkflowCapability
+	listed := map[artifact.ID]bool{}
 	for _, entry := range entries {
 		if !entry.Present {
 			continue
 		}
+		listed[entry.Model] = true
 		for _, capability := range entry.Capabilities {
 			if capability.Stale != "" || !slices.Contains(generationTasks, capability.Task) {
 				continue
@@ -186,7 +189,43 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			})
 		}
 	}
-	return capabilities, nil
+	registered, _, err := discovery.RegisteredCatalog(ctx, workspace.store, workspace.limit, workspace.memo)
+	if err != nil {
+		return nil, err
+	}
+	return append(capabilities, unrecipedMedia(registered, listed, func(entry discovery.CatalogEntry) (string, error) {
+		return workspace.executionPath(ctx, entry.Model, entry.Location)
+	})...), nil
+}
+
+// unrecipedMedia lists each media model the store holds with no active recipe, as a capability the page shows and cannot
+// run, saying what it needs: a source profile names its task, and no recipe is active for it. A model whose files no
+// profile names lists nothing here, since nothing can say what it would run.
+func unrecipedMedia(registered []discovery.CatalogEntry, listed map[artifact.ID]bool, directoryOf func(discovery.CatalogEntry) (string, error)) []WorkflowCapability {
+	var waiting []WorkflowCapability
+	for _, entry := range registered {
+		if !entry.Present || listed[entry.Model] || len(entry.Capabilities) != 0 {
+			continue
+		}
+		directory, err := directoryOf(entry)
+		if err != nil {
+			continue
+		}
+		identity, err := hfrepo.InspectIdentity(directory)
+		if err != nil {
+			continue
+		}
+		source, err := modelrecipe.ResolveGenerationSource("", identity)
+		if err != nil || !slices.Contains(generationTasks, source.Task) {
+			continue
+		}
+		waiting = append(waiting, WorkflowCapability{
+			Task: source.Task, Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location,
+			Refusal: fmt.Sprintf("no %s recipe is active for this model: go run ./cmd/validate -onboard %s registers, validates and activates one",
+				source.Task, filepath.ToSlash(directory)),
+		})
+	}
+	return waiting
 }
 
 // ExecuteWorkflow runs a listed capability against its model bytes with the

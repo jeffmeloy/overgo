@@ -196,16 +196,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 140,
-        "reason": "Estimate: heldout-state 80, directory-mappings 500, media-derived 320. To be replaced by each step's measurement."
+        "nodes": 157,
+        "reason": "media-derived measures 243, the listing and its catalog read; about 150 for speech-derived, the same for the transcription page."
       },
       "steps": [
         {
-          "id": "media-derived",
-          "title": "Say what a media model with no recipe would need to run",
+          "id": "speech-derived",
+          "title": "A speech model with no recipe says what it needs",
           "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAMediaModelWithNoRecipeSaysWhatItNeeds$'",
-          "rationale": "generation_store_workspace.go and transcription_workspace.go still resolve an active recipe, so the owner's rule stops at text. Their recipes bind source profiles a file does not state, so a derivation may not exist. Read those two owners first, and at least name what is missing where a model cannot run instead of leaving it off the page.\n\nServes: the owner's direction reaches media as far as files allow.\nDisappears: a silent absence.\nEvidence: its test.\nBatch: serving lane."
+          "verify": "go test ./internal/server -count=1 -run '^TestASpeechModelWithNoRecipeSaysWhatItNeeds$'",
+          "rationale": "The transcription workspace lists activated speech recipes only (internal/server/transcription_workspace.go:81), so a speech model the store holds with no recipe is left off its page, as a media model was before model-reach/media-derived. Name what it needs there too, the onboarding command for its directory, and list it as a model that cannot run.\nServes: setup-steps for a speech model.\nDisappears: a silent absence.\nEvidence: its test.\nBatch: serving lane."
         }
       ]
     },

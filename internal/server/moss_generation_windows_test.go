@@ -160,7 +160,8 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		}
 	})
 	listed, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
-	if err != nil || len(listed) != 0 {
+	// An unvalidated candidate is listed with what it needs, and is not offered to run.
+	if err != nil || len(listed) != 1 || listed[0].Refusal == "" || listed[0].Recipe.Valid() {
 		t.Fatal("unvalidated candidate offered", listed, err)
 	}
 	var submission workflowResponse

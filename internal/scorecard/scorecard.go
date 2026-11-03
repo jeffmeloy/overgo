@@ -406,7 +406,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 			row.Lengths = lengthCells(capability.Task, observed)
 			row.Warm = append(warmCells(capability.Task, observed), userSizeCells(observed)...)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
-			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
+			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, earned(index.EvaluationsByRecipe[capability.Recipe], entry.State), descriptors)
 			if record, found := heldout[capability.Recipe]; found {
 				if circuit := row.Cells[metric.Quality]; circuit.Measured() {
 					row.Heldout = append(row.Heldout, circuit)
@@ -1275,6 +1275,19 @@ var heldoutProposals = map[recipe.Task]string{
 // and protocol, an earlier build's among them. A recipe no suite measures
 // reads not applicable when its task has a held-out evaluation proposed, else
 // a gap.
+// earned is the readings a row may hold of a model in the state given. A reading taken while nothing verified the model, a
+// candidate's before it activated, is no reading of the verified model. A model nothing has verified keeps its own, and the
+// row says what it is.
+func earned(summaries []evaluation.EvalSummary, state modelrecipe.ModelState) []evaluation.EvalSummary {
+	unverified := func(reading string) bool {
+		return reading == string(modelrecipe.StateNotVerified) || reading == string(modelrecipe.StateBroken)
+	}
+	if unverified(string(state.Verification)) {
+		return summaries
+	}
+	return slices.DeleteFunc(slices.Clone(summaries), func(summary evaluation.EvalSummary) bool { return unverified(summary.Verification) })
+}
+
 func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) (Cell, []Cell) {
 	type heldout struct {
 		cases uint64

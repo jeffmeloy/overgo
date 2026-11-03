@@ -51,7 +51,7 @@ var evaluationCodec = artifact.DocumentCodec[Evaluation]{
 		}
 		*value = Evaluation{
 			Version: body.Version, Recipe: body.Recipe, Run: body.Run,
-			Dataset: body.Dataset, Metrics: body.Metrics,
+			Dataset: body.Dataset, Metrics: body.Metrics, Verification: body.Verification,
 		}
 		return nil
 	},
@@ -205,6 +205,8 @@ type Evaluation struct {
 	Run     artifact.ID
 	Dataset artifact.ID
 	Metrics []Metric
+	// Verification is what the store recorded of the model as the reading ended. A record from before this field holds none.
+	Verification string
 }
 
 type runBody struct {
@@ -226,6 +228,8 @@ type evaluationBody struct {
 	Run     artifact.ID `json:"run"`
 	Dataset artifact.ID `json:"dataset"`
 	Metrics []Metric    `json:"metrics"`
+	// Verification is left out when empty, so a record from before it keeps its identity.
+	Verification string `json:"verification,omitzero"`
 }
 
 func NewRun(
@@ -359,6 +363,12 @@ func NewEvaluation(
 		Metrics: slices.Clone(metrics),
 	}
 	return evaluationCodec.New(evaluation)
+}
+
+// UnderState is the evaluation as a reading under the state the store recorded of its model.
+func (e Evaluation) UnderState(state string) (Evaluation, error) {
+	e.Verification = state
+	return evaluationCodec.New(e)
 }
 
 func ParseEvaluation(content []byte) (Evaluation, error) {
@@ -538,7 +548,7 @@ func runContent(run Run) ([]byte, error) {
 func evaluationContent(evaluation Evaluation) ([]byte, error) {
 	content, err := json.Marshal(evaluationBody{
 		Version: evaluation.Version, Recipe: evaluation.Recipe, Run: evaluation.Run,
-		Dataset: evaluation.Dataset, Metrics: evaluation.Metrics,
+		Dataset: evaluation.Dataset, Metrics: evaluation.Metrics, Verification: evaluation.Verification,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("run record: encode evaluation: %w", err)

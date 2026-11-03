@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
+	"overgo/internal/recipe"
 	runrecord "overgo/internal/runrecord"
 )
 
@@ -239,6 +240,12 @@ func (campaign *Campaign) publishSuccess(
 	record, err := runrecord.NewEvaluation(campaign.identity.Recipe, run.ID, plan.Dataset(), result.Metrics)
 	if err != nil {
 		return retained, err
+	}
+	// A store that cannot say leaves the reading without a state: a record of what ran stands without one.
+	if _, state, err := modelrecipe.ReadModelState(ctx, campaign.repository, campaign.identity.Model, recipe.TaskInference); err == nil {
+		if record, err = record.UnderState(string(state.Verification)); err != nil {
+			return retained, err
+		}
 	}
 	batch, observation, err := campaign.preparePublication(ctx, run, &record, resources)
 	if err != nil {

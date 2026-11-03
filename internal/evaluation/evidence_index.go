@@ -79,6 +79,8 @@ type EvalSummary struct {
 	// the trained model's, and zero for everything else.
 	Supported bool        `json:"supported,omitzero"`
 	Objective artifact.ID `json:"objective,omitzero"`
+	// Verification is what the store recorded of the model as the reading ended, where the record says.
+	Verification string `json:"verification,omitzero"`
 	// Noise is the standard error of the headline metric where the record
 	// keeps what it follows from: for a held-out verdict, that of the mean
 	// of its records' scores. Zero where it does not.
@@ -639,7 +641,7 @@ func LatestEvidence(
 		for _, metric := range record.Metrics {
 			metrics[metric.Name], directions[metric.Name] = metric.Value, metric.Direction
 		}
-		summary.Suite, summary.Metrics, summary.Directions = suite, metrics, directions
+		summary.Suite, summary.Metrics, summary.Directions, summary.Verification = suite, metrics, directions, record.Verification
 		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], summary)
 		return nil
 	})

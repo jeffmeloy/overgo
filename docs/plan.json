@@ -196,17 +196,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 900,
+        "nodes": 693,
         "reason": "Estimate: heldout-state 80, directory-mappings 500, media-derived 320. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "heldout-state",
-          "title": "Keep a candidate's held-out reading out of a row it did not earn",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestAHeldOutReadingKeepsTheStateItRanUnder$'",
-          "rationale": "run-from-files/scorecard-label covers attempts, and a held-out reading takes another path: results land in EvaluationsByRecipe by recipe and hold no state (internal/scorecard/scorecard.go:375), and a verdict's base reading is credited to every served recipe of the model. A candidate read before it activates can therefore still reach a verified row.\nCarry the state on the evaluation record as record-state did on an attempt, omitted when empty so old identities hold.\n\nServes: held-out-quality says what it measured.\nDisappears: nothing.\nEvidence: its test, a reading from before activation left out of the row.\nBatch: scorecard lane."
-        },
         {
           "id": "directory-mappings",
           "title": "Map the text directories that are refused by name",

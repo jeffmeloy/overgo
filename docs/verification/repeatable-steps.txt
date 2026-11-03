@@ -1,0 +1,19 @@
+overgo repeatable steps: one training step from one state gives one result
+Windows, one NVIDIA card, cuBLAS 12 through internal/cuda/cublas, at commit 37e3fa5ff, 2026-11-02.
+
+What was seen: TestPilotRefusesChangedInputsAndForeignCheckpoints failed in about one package run in ten, and refused unrelated commits at the longer test run: a session resumed from a checkpoint reached other weights than the run it continued. It failed 3 times in 39 package runs and passed 16 of 16 alone in one process.
+
+What was ruled out, each by measurement or by reading: holding experts where the load placed them (still failed, 1 of 16), and the host math calibration (constant within a process, and both runs share one).
+
+How it was found: a temporary trace logged the weights before and after every step and a digest of the step's answers, over 18 runs of internal/trainingworkflow's package tests, 2376 steps. Grouping steps by (weights before, answers, group, optimizer step) shows whether one input gave two results. Two experiment arms share a first input on purpose and differ by design: those 4 groups, 72 steps, read the same in every run below and are left out.
+
+| 18 package runs of 2376 steps | package runs passing | steps that differed from one input |
+| no setting | 17 of 18 | 8, over 5 inputs |
+| CUBLAS_WORKSPACE_CONFIG=:4096:8 set from outside | 18 of 18 | 0 |
+| the setting made by internal/cuda/cublas, none from outside | 18 of 18 | 0 |
+
+The differing steps were never the same ones twice in a row: 3 of 72 from one input, 2 of 35 from another, then single steps. So the state, the data and the checkpoint were not the cause: the step itself, whose matrix products are cuBLAS calls, gave two results.
+
+Why: cuBLAS holds to bit-for-bit results only with one stream active, unless its workspace is fixed, by NVIDIA's reproducibility notes. A process here opens more than one stream. If the setting did nothing, 0 steps in each of two sets of 18 runs would be a chance of about 1 in 10 million at the rate of the first set.
+
+Cost: the setting asks for up to 8 buffers of 4096 KiB, 32 MiB, in a process that uses cuBLAS. That is the setting's size, and was not measured on the card.

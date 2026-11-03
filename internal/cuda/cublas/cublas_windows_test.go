@@ -5,6 +5,9 @@ package cublas
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -354,4 +357,20 @@ func TestMatmulIntegration(t *testing.T) {
 		return state.Driver.MemcpyDtoH(driver.Bytes(got), output)
 	})
 	testutil.RequireSliceClose(t, "output", got, want, 0)
+}
+
+// TestCUBLASIsAskedForRepeatableResults: the workspace is fixed before any library loads, at the value the record measured, so
+// another value needs the measurement again.
+func TestCUBLASIsAskedForRepeatableResults(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CUBLAS_WORKSPACE_CONFIG") == "" {
+		t.Fatal("the workspace is not set when the package has started")
+	}
+	record, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs", "verification", "repeatable-steps.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(record), "CUBLAS_WORKSPACE_CONFIG="+workspaceConfig) {
+		t.Fatalf("the record measured no workspace of %s", workspaceConfig)
+	}
 }

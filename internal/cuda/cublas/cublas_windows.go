@@ -31,6 +31,20 @@ type Library struct {
 	lt                ltProcs
 }
 
+// workspaceConfig is the value of cuBLAS's workspace setting here. With no fixed workspace and more than one stream active,
+// cuBLAS may choose another internal implementation from one call to the next, so one training step from one state ended
+// in two sets of weights: 8 of 2376 steps over 18 runs, and none of 2376 under this value.
+const workspaceConfig = ":4096:8"
+
+// init fixes the workspace before anything loads a library that reads it. A value the operator set stands.
+func init() {
+	if os.Getenv("CUBLAS_WORKSPACE_CONFIG") == "" {
+		if err := os.Setenv("CUBLAS_WORKSPACE_CONFIG", workspaceConfig); err != nil {
+			panic(err)
+		}
+	}
+}
+
 // preloaded holds the libraries a Preload loaded for the process's life, so the Open that later needs them maps no DLL.
 var preloaded = sync.OnceFunc(func() { _, _ = Open() })
 

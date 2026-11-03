@@ -2,6 +2,7 @@ package gemma4convert
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -11,7 +12,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -118,6 +119,53 @@ type Report struct {
 	MMProjTensors int
 }
 
+// readConfig reads and checks a Gemma 4 directory's config.
+func readConfig(directory string) (modelConfig, error) {
+	var config modelConfig
+	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
+		return modelConfig{}, fmt.Errorf("gemma 4 converter: config: %w", err)
+	}
+	if config.Text.GlobalKVHeads == 0 {
+		// null num_global_key_value_heads: global layers reuse num_key_value_heads (E4B)
+		config.Text.GlobalKVHeads = config.Text.KVHeads
+	}
+	return config, validateConfig(config)
+}
+
+// ModelView serves a Gemma 4 directory's language model as its conversion would write it, from its own files and without
+// writing anything: the same metadata and the same bytes, each tensor read when a read reaches it.
+func ModelView(directory, name string, fp8Native bool) (*gguf.File, error) {
+	directory, err := filepath.Abs(directory)
+	if err != nil {
+		return nil, err
+	}
+	config, err := readConfig(directory)
+	if err != nil {
+		return nil, err
+	}
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		return nil, err
+	}
+	metadata, err := modelMetadata(directory, cmp.Or(strings.TrimSpace(name), filepath.Base(directory)), config)
+	views, viewErr := modelViewTensors(source, config, fp8Native)
+	var file *gguf.File
+	if err = errors.Join(err, viewErr); err == nil {
+		declared, served := make([]gguf.TensorData, len(views)), make([]gguf.ViewTensor, len(views))
+		for index, tensor := range views {
+			declared[index] = gguf.TensorData{Name: tensor.view.Name, Shape: tensor.view.Shape, Type: tensor.view.Type}
+			served[index] = tensor.view
+		}
+		if err = modelartifact.ValidateGeneratedCatalog(metadata, declared); err == nil {
+			file, err = gguf.View(metadata, served, gguf.WriteOptions{}, directory, source)
+		}
+	}
+	if err != nil {
+		return nil, errors.Join(err, source.Close())
+	}
+	return file, nil
+}
+
 func Convert(options Options) (Report, error) {
 	directory, err := filepath.Abs(options.Directory)
 	if err != nil {
@@ -140,15 +188,8 @@ func Convert(options Options) (Report, error) {
 		strings.EqualFold(filepath.Clean(options.ModelPath), filepath.Clean(options.MMProjPath)) {
 		return Report{}, errors.New("Gemma 4 converter: model and mmproj outputs are identical")
 	}
-	var config modelConfig
-	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
-		return Report{}, fmt.Errorf("Gemma 4 converter: config: %w", err)
-	}
-	if config.Text.GlobalKVHeads == 0 {
-		// null num_global_key_value_heads: global layers reuse num_key_value_heads (E4B)
-		config.Text.GlobalKVHeads = config.Text.KVHeads
-	}
-	if err := validateConfig(config); err != nil {
+	config, err := readConfig(directory)
+	if err != nil {
 		return Report{}, err
 	}
 	source, err := safetensors.OpenSource(directory)
@@ -434,8 +475,33 @@ func isByteToken(token string) bool {
 // languageLayerPrefix begins a repeated language layer's tensor name.
 const languageLayerPrefix = "model.language_model.layers."
 
+// modelTensors are the language model's tensors as a conversion writes them, each read from its view.
 func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool) ([]gguf.TensorData, error) {
-	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
+	views, err := modelViewTensors(source, config, fp8Native)
+	if err != nil {
+		return nil, err
+	}
+	tensors := make([]gguf.TensorData, len(views))
+	for index, tensor := range views {
+		data, err := tensor.open()
+		if err != nil {
+			return nil, err
+		}
+		tensors[index] = gguf.TensorData{Name: tensor.view.Name, Shape: tensor.view.Shape, Type: tensor.view.Type, Data: data}
+	}
+	return tensors, nil
+}
+
+// viewTensor is a language tensor as a view serves it, and the reader a conversion writes it from.
+type viewTensor struct {
+	view gguf.ViewTensor
+	open func() (io.Reader, error)
+}
+
+// modelViewTensors are the language model's tensors, each with where its bytes come from: the file's own, where a tensor is
+// written as it is stored, and otherwise a reader that builds them.
+func modelViewTensors(source *safetensors.Source, config modelConfig, fp8Native bool) ([]viewTensor, error) {
+	tensors := make([]viewTensor, 0, len(source.Tensors)+1)
 	sharedKVStart := config.Text.HiddenLayers - config.Text.SharedKVLayers
 	for sourceName, tensor := range source.Tensors {
 		destinationName, include := modelTensorName(sourceName)
@@ -450,22 +516,36 @@ func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool
 		if !include {
 			if strings.HasPrefix(sourceName, "model.language_model.") &&
 				!strings.HasSuffix(sourceName, "weight_scale") {
-				return nil, fmt.Errorf("Gemma 4 converter: language tensor %q has no mapping", sourceName)
+				return nil, fmt.Errorf("gemma 4 converter: language tensor %q has no mapping", sourceName)
 			}
 			continue
 		}
-		dataType, reader, err := modelTensorReader(source, tensor, destinationName, fp8Native)
+		dataType, _, err := modelTensorReader(source, tensor, destinationName, fp8Native)
 		if err != nil {
-			return nil, fmt.Errorf("Gemma 4 converter: tensor %q: %w", sourceName, err)
+			return nil, fmt.Errorf("gemma 4 converter: tensor %q: %w", sourceName, err)
 		}
-		tensors = append(tensors, gguf.TensorData{
-			Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType, Data: reader,
-		})
+		open := func() (io.Reader, error) {
+			_, reader, err := modelTensorReader(source, tensor, destinationName, fp8Native)
+			return reader, err
+		}
+		view := gguf.ViewTensor{Name: destinationName, Shape: gguf.ReverseShape(tensor.Shape), Type: dataType}
+		if stored := tensor.DType == "BF16" || tensor.DType == "F32"; stored && !strings.HasSuffix(tensor.Name, ".layer_scalar") {
+			view.Payload = tensor
+		} else {
+			view.Open = open
+		}
+		tensors = append(tensors, viewTensor{view: view, open: open})
 	}
-	tensors = append(tensors, proportionalRopeTensor(config))
-	sort.Slice(tensors, func(i, j int) bool { return tensors[i].Name < tensors[j].Name })
+	rope := proportionalRopeTensor(config)
+	encoded, err := io.ReadAll(rope.Data)
+	if err != nil {
+		return nil, err
+	}
+	rotary := func() (io.Reader, error) { return bytes.NewReader(encoded), nil }
+	tensors = append(tensors, viewTensor{view: gguf.ViewTensor{Name: rope.Name, Shape: rope.Shape, Type: rope.Type, Open: rotary}, open: rotary})
+	slices.SortFunc(tensors, func(left, right viewTensor) int { return strings.Compare(left.view.Name, right.view.Name) })
 	if len(tensors) == 0 {
-		return nil, errors.New("Gemma 4 converter: no language tensors found")
+		return nil, errors.New("gemma 4 converter: no language tensors found")
 	}
 	return tensors, nil
 }

@@ -196,17 +196,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 693,
+        "nodes": 140,
         "reason": "Estimate: heldout-state 80, directory-mappings 500, media-derived 320. To be replaced by each step's measurement."
       },
       "steps": [
-        {
-          "id": "directory-mappings",
-          "title": "Map the text directories that are refused by name",
-          "status": "open",
-          "verify": "go test ./internal/hfconvert -count=1 -run '^TestAGemma4DirectoryIsTheBytesItsConversionWrites$'",
-          "rationale": "Only llama, qwen2 and qwen3_5 run from a directory, 3 of 137 prototypes. On disk gemma4_unified and needle are refused by name. Measure first what a mapping costs: gemma4_unified's tensors against the profile a served GGUF of it already uses. needle follows only if its files are wanted as a served model.\n\nServes: setup-steps for a model held as safetensors.\nDisappears: a refusal.\nEvidence: its test, and one real directory answering.\nBatch: recipe lane."
-        },
         {
           "id": "media-derived",
           "title": "Say what a media model with no recipe would need to run",

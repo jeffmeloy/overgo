@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/gemma4convert"
 	"overgo/internal/gguf"
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
@@ -97,6 +98,9 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 // qwen35ModelType is the model_type of a Qwen 3.5 checkpoint's config.json.
 const qwen35ModelType = "qwen3_5"
 
+// gemma4ModelType is the model type of a Gemma 4 directory, which its converter serves as a view.
+const gemma4ModelType = "gemma4_unified"
+
 // View opens a Hugging Face directory of a text architecture the converter
 // writes, a Qwen 3.5 checkpoint or one of a profile (archProfiles), as the
 // GGUF Convert would write from it, named name where one is given: the same
@@ -114,6 +118,10 @@ func View(directory, name string) (*gguf.File, error) {
 	}
 	if _, profiled := archProfiles[config.ModelType]; profiled {
 		return viewProfile(directory, name, config)
+	}
+	if config.ModelType == gemma4ModelType {
+		// The FP8 feed-forward stays as it is stored, as the served conversion holds it.
+		return gemma4convert.ModelView(directory, name, true)
 	}
 	if config.ModelType != qwen35ModelType {
 		return nil, fmt.Errorf("HF converter: model type %q has no mapping from its files to a prototype", config.ModelType)
@@ -138,7 +146,7 @@ func Viewed(directory string) bool {
 		return false
 	}
 	_, profiled := archProfiles[config.ModelType]
-	return config.ModelType == qwen35ModelType || profiled
+	return config.ModelType == qwen35ModelType || config.ModelType == gemma4ModelType || profiled
 }
 
 // init makes gguf.Open serve a directory as its View, so a model registered

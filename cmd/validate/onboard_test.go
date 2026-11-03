@@ -273,7 +273,7 @@ func TestOnboardingReusesOnlyTheSameSourcesConversion(t *testing.T) {
 			t.Fatalf("%s: %v, ran %q, validated %q", name, err, fixture.ran, fixture.validated)
 		}
 	}
-	second := huggingFaceDirectory(t, `{"model_type":"gemma4_unified"}`)
+	second := huggingFaceDirectory(t, `{"model_type":"needle"}`)
 	refusedBeforeAnyStep("another directory of the same name", fixture.onboard(t, second))
 	if data, err := os.ReadFile(converted); err != nil || string(data) != "converted" {
 		t.Fatalf("the first directory's conversion was disturbed: %q, %v", data, err)

@@ -14,7 +14,9 @@ import (
 	"unsafe"
 
 	"overgo/internal/artifact"
+	"overgo/internal/atomicfile"
 	"overgo/internal/binaryschema"
+	"overgo/internal/fsatomic"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/modelartifact"
 	"overgo/internal/strictjson"
@@ -443,18 +445,17 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	if err := writeMomentum(filepath.Join(stage, momentumFilename), values); err != nil {
 		return Checkpoint{}, err
 	}
-	files := map[string][]byte{}
 	for name, document := range map[string]any{CheckpointFilename: checkpoint.document(), resumeFilename: checkpoint.resume()} {
-		if files[name], err = json.Marshal(document); err != nil {
+		data, err := json.Marshal(document)
+		if err != nil {
+			return Checkpoint{}, err
+		}
+		if err := atomicfile.Write(filepath.Join(stage, name), data, 0o644); err != nil {
 			return Checkpoint{}, err
 		}
 	}
-	for name, data := range files {
-		if err := os.WriteFile(filepath.Join(stage, name), data, 0o644); err != nil {
-			return Checkpoint{}, err
-		}
-	}
-	if err := os.Rename(stage, target); err != nil {
+	// The checkpoint's name reaches the disk with what it names.
+	if err := fsatomic.Replace(stage, target); err != nil {
 		return Checkpoint{}, fmt.Errorf("training checkpoint: publish: %w", err)
 	}
 	committed = true
@@ -535,7 +536,7 @@ func momentumID(parts [][]byte) (artifact.ID, error) {
 	return id, nil
 }
 
-// writeMomentum writes the momentum file parts make, in order.
+// writeMomentum writes the momentum file parts make, in order, and flushes it to the disk.
 func writeMomentum(path string, parts [][]byte) error {
 	file, err := os.Create(path)
 	if err != nil {
@@ -546,7 +547,7 @@ func writeMomentum(path string, parts [][]byte) error {
 			return errors.Join(err, file.Close())
 		}
 	}
-	return file.Close()
+	return errors.Join(file.Sync(), file.Close())
 }
 
 // CheckpointWeightsPath resolves current and legacy checkpoint layouts.

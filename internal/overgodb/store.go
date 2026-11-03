@@ -577,12 +577,11 @@ func (s *Store) sealLocked() error {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: sealed segment %s already exists", filepath.Base(sealed))
 	}
-	if err := os.Rename(stagingPath, sealed); err != nil {
+	// The segment's name reaches the disk before the journal that held its commits is emptied: a rename that had not,
+	// with only the journal's truncation durable, lost every commit the seal held (SyncDirectory does nothing on Windows).
+	if err := fsatomic.Replace(stagingPath, sealed); err != nil {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: publish sealed segment: %w", err)
-	}
-	if err := fsatomic.SyncDirectory(directory); err != nil {
-		return err
 	}
 	for index := range s.state.commits.ordered {
 		commit := &s.state.commits.ordered[index]

@@ -148,6 +148,124 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "store-durability",
+      "title": "Keep every acknowledged commit through a crash",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 266,
+        "reason": "Prototyped: about 230 nodes for the tail and first header, about 33 lines. The rest are estimates, and crash-points gives back about 25."
+      },
+      "steps": [
+        {
+          "id": "unwritten-tail",
+          "title": "End the journal at a frame that never reached the disk",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnUnwrittenTailEndsTheJournal$'",
+          "rationale": "Reproduced on plain bytes, no model. A frame-length zero tail makes Open, OpenReadOnly and Create all refuse: invalid frame magic (internal/overgodb/log.go:458), invalid checksum when only the header landed (:480), or the same on the first commit after a seal (pendingRotation, :328-331). overgodb repair then advises a restore from a sealed backup (cmd/overgodb/repair.go:39), which would discard commits the journal still holds. With the tail cut away the journal opens at sequence 4, its head intact. The existing test appends 7 zeros, below one frame header (store_test.go:27,643), so it passes. That NTFS leaves such a tail is a hypothesis; a driver bugcheck loses the page cache as a power cut does.\nIn the active segment only, treat as torn a frame whose bytes to the end of the file are zero, and one whose trailer and everything after it are zero, including in pendingRotation. A sealed segment still refuses. A log with no whole header, no sealed segment and nothing acknowledged has never begun, so a writer starts it (log.go:248, reached by a full disk on the first write). Prototyped: every crash model clean, and all store tests green, TestCompleteCorruptFrameRejected and TestRepairRefusesACorruptJournal included.\nDecided by recommendation: an acknowledged frame whose final sector later reads as zeros is dropped where today the store refuses. Journals that treat a bad tail as the end of the log make this trade, and it is narrow, since the rest of the file must be zero and a flipped bit still refuses. The open says what it truncated.\nServes: failure-rate; a store survives a power cut without a person.\nDisappears: a restore advised for a whole journal.\nEvidence: the probe inverted, TestCompleteCorruptFrameRejected unchanged.\nBatch: store lane."
+        },
+        {
+          "id": "cutover-kill",
+          "title": "Start no empty store beside a superseded one",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAKillBetweenCutoverRenamesStartsNoEmptyStore$'",
+          "rationale": "Reproduced. A kill between ReplaceStore's renames (internal/overgodb/store.go:382-391, which restores only on a failed rename) leaves no store: Open refuses, and Create (:238-246, consumer cmd/server/main.go:332) starts one at sequence 0 while store.superseded-* holds the commits. c4af5a1b6 closed this for Open, not Create. Under the lock, a missing root with a .superseded-* sibling refuses and names it.\nServes: failure-rate; no silently empty store in service.\nDisappears: a store emptied by a kill.\nEvidence: the probe inverted.\nBatch: store lane."
+        },
+        {
+          "id": "crash-points",
+          "title": "Reopen the store from every tree a crash can leave",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^(TestEveryDurableOperationIsACrashPoint|TestEveryDurableOperationCanFail)$'",
+          "rationale": "345a08a3d and the two steps above all lay between operations no test stopped at. internal/overgodb/fault_test.go has one seam, durableWriter (log.go:81), which sees about 60 of 327 durable operations, and no test holds a full disk, a zero tail, or a crash at most operations.\nBuilt and working with zero production nodes: an overlay routes the store's durable calls through a recorder, a scripted workload runs once, and a small model replays the operations and must rebuild the real tree byte for byte, so a new durable call site cannot escape. It enumerated 1,804 distinct crash states under four models (kill, recovery, ntfs, winrule) plus each operation refused once and from there on. Eleven invariants run at each state: no acknowledged commit lost, the journal alone replays, the next commit takes the next number, and so on.\nThe mutation reverting 345a08a3d, replacing anchorBehindSeal's verdict with false at log.go:184, fails it with 'open stops short of the journal' and 1,548 findings, and removing each of the five prototype repairs in turn fails it. keep-torn-tail survives alone, since refreshLocked repeats that repair (store.go:484-493).\nPort the recorder and rewriter; the test rewrites the package into t.TempDir() and runs go test -overlay, as internal/clioptions/dependency_contract_test.go:25,52-57 does. About 1,500 test lines, offset by removing durableWriter and its fakes, folding in fault_test.go, blob_commit_test.go:83 and commit_coordinator_test.go:76. Keep a model only while it holds a unique kill: recovery has none, so it goes to the long run. The workload is small, and Rebuild and CloneStore are not yet enumerated. Prototypes are in C:/Users/jeffm/Downloads/overgo-fault-prototypes.\nRerun at 83f4df1fc, with the store code unchanged since the review: the same 326 durable operations, 1,211 findings under the written rule and 251 under the ordered NTFS model, and all three store defects reproduce. SQA-288 closes with this row.\nServes: failure-rate; this class is found unprompted.\nDisappears: recordLog.writer, durableWriter, faultWriter, partWriter, and the hand-built states at transaction_writer_test.go:216-262.\nEvidence: the anchor mutation and each mutation of the record.\nBatch: test code, after durable-names and unwritten-tail. About 35 to 50 s quiet, added to the store package's 13 s.",
+          "depends_on": [
+            "store-durability/durable-names",
+            "store-durability/unwritten-tail"
+          ]
+        },
+        {
+          "id": "store-lifecycles",
+          "title": "Drive the store through generated lifecycles",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestGeneratedStoreLifecycles$'",
+          "rationale": "No generated-sequence test of any lifecycle exists; every abnormal-path test is one case its author thought of. Commit, seal, close, open, read, release, pack and repeat across two writers and a reader, against a small reference of keys, contents and head, found a stale pack index: blobPack loads once (internal/overgodb/blob_pack.go:51-58) and only the packing handle forgets it (:294), so a second handle gets 'requires an absent blob' or the right length and the wrong bytes. 166 findings in 200 seeds, 0 in 1,500 with packing off. It is unreachable today only because cmd/overgodb/precheck.go:138-164 packs a private clone. Forget the index when the pack's file changes.\nServes: store correctness.\nDisappears: nothing.\nEvidence: 166 findings in 200 seeds today, 0 after.\nBatch: test code, after crash-points. About 0.1 to 0.6 s a seed; about 40 seeds in a commit.",
+          "depends_on": [
+            "store-durability/crash-points"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fault-finding",
+      "title": "Find abnormal-path defects by generated sequences",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 300,
+        "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
+      },
+      "steps": [
+        {
+          "id": "swap-lifecycles",
+          "title": "Hold the supervisor to one live child through generated lifecycles",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -count=1 -run '^TestGeneratedSwapLifecycles$'",
+          "rationale": "child-exit holds: a child that exits is launched again. The generator still finds two defects. Stop's error is discarded (internal/modelswap/supervisor.go:198,215,345), the child is dropped (:346), Close returns nil (:266), and serverProcess.Stop returns without waiting when Terminate is refused (launcher.go:236-238): 786 of 2,000 seeds. How often Terminate is refused is a hypothesis. graceOver outlives the child it timed (supervisor.go:137,173), so with two models waiting the second stops the first's new child as its lease is granted, wasting a whole load: 261 of 2,000 seeds. Keep a child that did not stop, refuse the next launch naming it until a repeated Stop succeeds, and have Close report it. Start the grace again when the current child changes.\nThe fake gains Exited, a Stop that refuses, loads of 0, 1, 7 and 40 virtual seconds, and Close in mid-sequence. After every operation the test asserts: at most one live child; Status names a model only with a live child or a load pending; a lease reaches a live child, which lives drainGrace unless it exits by itself; after Close and the last load no child lives, or Close returned an error naming it.\nThe harness and its two prototype repairs are in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving, so port it inverted.\nServes: failure-rate and load-time.\nDisappears: a child no one can stop, and a load thrown away.\nEvidence: 20,000 green seeds in 1.6 s with both repairs prototyped, 1,047 of 2,000 broken without.\nBatch: serving lane."
+        },
+        {
+          "id": "queued-load",
+          "title": "End a request queued on a load with that load's refusal",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -count=1 -run '^TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt$'",
+          "rationale": "New in child-exit. Status names a load (internal/modelswap/supervisor.go:249-250), so a request naming no model queues on it (proxy.go:249-250). When the load is refused, that request launches the model itself (supervisor.go:152-155,160-161). One choice and five reads gave 6 launches and six 503s (reproduced). The page reads /health every 10 s (internal/server/webui/boot.js:322,1400), so a load refused after 10 s repeats while a page is open (read). A queued Acquire for that servable returns the refusal of the load it waited on.\nServes: failure-rate and load-time.\nDisappears: repeated loads.\nEvidence: one launch.\nBatch: serving lane.",
+          "depends_on": [
+            "fault-finding/swap-lifecycles"
+          ]
+        },
+        {
+          "id": "agent-lifecycles",
+          "title": "Drive an agent session through generated failures",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1 -run '^TestGeneratedAgentSessions$'",
+          "rationale": "agent-attempts holds: the prototype passes 40 of 40 seeds, so this step guards it and finds nothing new. Drive read, approve and propose, each plain, broken by the tool, or cancelled in flight, with restore at any point, including between approve and propose. After every operation steps, inspected and preview.Binds equal a small reference. A granted write runs the tool once. A write with no live grant is refused and runs nothing. After a broken propose the step's receipt reads StageFailed, never admitted or running.\nThe harness is in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving/agent.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: 150 of 150 seeds green in a prototype, 40 seeds in 1.4 s; removing grantSpent breaks 19 of 40, and closing the receipt on the request's context breaks 7 of 40.\nBatch: serving lane."
+        },
+        {
+          "id": "decline-sequences",
+          "title": "Hold the decline rule through generated readings",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestGeneratedSlowQualityDecline$'",
+          "rationale": "A generated test finds scorecard-truth/quality-level unprompted: a share falling 1.00 to 0.45 over 11 readings, 5 cases at a time, stands against the first reading from reading 2 (tail 0.00098, limit 0.0228), and today files 0 and drops 1 at every reading. It runs in 0.2 s. Its body is in the prototypes folder named by store-durability/crash-points.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the test fails today and passes once that step lands.\nBatch: host lane, after quality-level.",
+          "depends_on": [
+            "scorecard-truth/quality-level"
+          ]
+        },
+        {
+          "id": "checkpoint-cuts",
+          "title": "Refuse a resume whose average is lost or changed",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAResumeRefusesAnAverageItsCheckpointDoesNotName$'",
+          "rationale": "LoadCheckpoint already refuses every byte cut and every missing file of checkpoint.json, model.safetensors, momentum.bin and resume.json (measured), so the first check would pass today. The hole is average/, which sits outside the digest chain: a flipped byte in average/weights.safetensors resumes, and a missing average/state.json resumes with no average and no error (measured, internal/trainingworkflow/checkpoint_steps.go:319-321). The PEFT directory is the same (read). Name their digests in the resume document.\nServes: training hours kept.\nDisappears: a resume that silently drops its average.\nEvidence: a flipped byte and a missing file each refused by name.\nBatch: training lane."
+        },
+        {
+          "id": "landing-stages",
+          "title": "Leave the trunk alone at every stage's failure",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryStageFailureLeavesTheTrunkAlone$'",
+          "rationale": "The drills classify text (internal/landing/recovery_drills_test.go:15), and only the space stage checks HEAD and the plan after a refusal (space_test.go:98). Fail each of checks() (landing.go:265-271) in turn, and kill inside landing.commit (:771,778). Not prototyped, so its worth is a hypothesis; drop it if the first run finds nothing.\nServes: landing reliability.\nDisappears: nothing.\nEvidence: every stage named.\nBatch: gate."
+        },
+        {
+          "id": "long-sequences",
+          "title": "Run the long generated sequences in the cycle's checks",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestChecksRunTheLongSequences$'",
+          "rationale": "A commit holds what fits it. The recovery model and 1,500 store seeds, about 4 minutes, belong where hours are already spent. No workflow has a schedule, so nightly has no home; use the checks at cmd/loop/improve.go:517-558. Faults below the host stay on the device lane: *driver.Library has 58 methods, and an interface over it costs several hundred nodes to test a fake, so NaN, Inf and a lost device are injected at trainingBackend, denoiseBackend and evaluation.Runtime.\nServes: lifecycle defects found before a run.\nDisappears: nothing.\nEvidence: the cycle's report.\nBatch: loop.",
+          "depends_on": [
+            "store-durability/crash-points",
+            "store-durability/store-lifecycles"
+          ]
+        }
+      ]
+    },
+    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",

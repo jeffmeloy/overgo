@@ -58,7 +58,14 @@
         "uncertainty": "No power cut was run. The seal's loss is by the repository's written rule rather than an observed crash, and whether NTFS leaves a zero tail is untested. The value of the fault-finding rows that have not been prototyped (checkpoint-cuts, landing-stages) is a hypothesis their own text states."
       },
       "likely_effort": "Moderate: the review session reports the crash test needs no production code, and the three repairs are small. Each step's verify line names its test.",
-      "plan_references": [],
+      "plan_references": [
+        "store-durability/durable-names",
+        "store-durability/unwritten-tail",
+        "store-durability/cutover-kill",
+        "store-durability/crash-points",
+        "store-durability/store-lifecycles",
+        "fault-finding"
+      ],
       "plan_coverage": "None: no row in docs/plan.json at f7cded0c1 names it. The rows stand only in C:/Users/jeffm/Downloads/plan.json.",
       "closure_criteria": [
         "store-durability and fault-finding stand in docs/plan.json, or the lead records why a step of theirs is dropped.",
@@ -7175,6 +7182,17 @@
         "plan_steps": [
           "run-from-files/do"
         ]
+      },
+      {
+        "comment": "durable-names, the first of the finding's three store defects. sealLocked publishes the sealed segment with fsatomic.Replace, MoveFileExW with MOVEFILE_WRITE_THROUGH on Windows, before the journal is truncated, in place of os.Rename and a SyncDirectory that does nothing on Windows. PublishCheckpoint writes its documents with atomicfile.Write, flushes its momentum file and publishes its directory with fsatomic.Replace. TestEveryDurableRenameGoesThroughItsOwner refuses an os.Rename outside internal/fsatomic unless its file declares why its name need not survive a crash, seven files with ten sites, holds the store to the cutover's three, and finds a rename planted under another name for os. It fails with the seal's rename put back (4 renames, want the cutover's 3). No crash or power cut was run; crash-points tests the seal.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestEveryDurableRenameGoesThroughItsOwner"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/durable-names"
+        ]
       }
     ],
     "experiments": {
@@ -7216,8 +7234,8 @@
       "Unrotated findings preserve their original revisions/limits. SQA-252 replacement parsed only, not package-typechecked or executed; full production/test/setup cost includes controlled transport differences and retained browser owner."
     ],
   "master_lead_triage": {
-    "at": "2026-11-02",
-    "head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
+    "at": "2026-11-03",
+    "head": "e62f57544b021c5b4852fbf950746d81a95121c7",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7862,6 +7880,18 @@
           "recipe-repairs/policy-moves"
         ],
         "note": "The validation check now sits in the existing registration fixture, before its Register, and the separate test is gone. It still fails if a viewed directory stops validating."
+      },
+      "SQA-288": {
+        "action": "filed",
+        "rows": [
+          "store-durability/durable-names",
+          "store-durability/unwritten-tail",
+          "store-durability/cutover-kill",
+          "store-durability/crash-points",
+          "store-durability/store-lifecycles",
+          "fault-finding"
+        ],
+        "note": "A P1, filed at once: the review's rows store-durability and fault-finding are filed from its file as it wrote them, first in the plan, store-durability before fault-finding, ahead of the memory work they could corrupt. This commit lands durable-names: the seal and the training checkpoint publish through fsatomic, and a repository rule refuses os.Rename outside fsatomic but for seven declared owners. The other steps follow in order."
       }
     }
   },

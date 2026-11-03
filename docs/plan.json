@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1301,
+        "nodes": 868,
         "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
       },
       "steps": [
-        {
-          "id": "stage-peaks",
-          "title": "Measure the card by stage for every media family before a stage changes",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestStagePeaksCoverEveryMediaFamily$'",
-          "rationale": "No record holds a peak by stage. driver.MemoryStats names the crossing and its ledger (internal/cuda/driver/driver.go:76-90), and ResetPeakBytes bounds a phase (driver_windows.go:753). Publish each stage's peak: Krea on a first, a repeat and a new prompt; MOSS at 1024 and 2048; Wan and LiveEdit at the user-size request; the VAE's round trip. About 30 minutes of the device alone, run once; the check reads the retained record, so the gate stays hermetic.\nServes: peak-device-memory for media, and settles whether Krea's first peak is load time and what fills the Wan VAE's 4.4 GiB on at most 0.53 GB of weights.\nDisappears: nothing.\nEvidence: docs/verification/media-stage-peaks.json.\nBatch: media lane."
-        },
         {
           "id": "momentum-f32",
           "title": "Keep a hybrid checkpoint's matrix momentum in the dtype it steps",
@@ -205,7 +198,7 @@
           "title": "Run an image model's text encoder one block on the card at a time",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestATextEncoderHoldsOneBlockOnTheCard$'",
-          "rationale": "MOSS's peak at 1024 is its encoder, 13,930,129,408 bytes whatever the picture (docs/verification/moss-image-resources.json:93,138), placed whole (internal/latentimage/model_encoder_windows.go:93-105), though compileModelEncoder takes a block range (model_encoder.go:22). A new Krea prompt places 8.17 GB beside the denoiser and VAE (runtime_cuda_windows.go:270-278, resident_pipeline_cuda_windows.go:364-371), about 34 to 35 GB against the 26.9 GB recorded, derived and never measured, and a second prompt is the normal case. routedlm streams a stack once across branches (prefixstack_cuda_windows.go:39-150), and adaptive_new held 201,872,384 bytes of this encoder's layer (fixtures/krea/g1_text_conditioning.json:20).\nCarry each block's rows on the card, both prompts through a block before the next, and give Krea the rotary path's conditioning cache (conditioning_cache.go). Hold pictures to their hashes; bounded tiling drifted SenseNova's stack (prefixstack_cuda_windows.go:73-76), so if a hash moves the check is the 415-prompt suite for each model. Evicting the denoiser instead, as MOSS does, is the worse trade on a 4-step Krea request.\nServes: peak-device-memory; a new Krea prompt about 35 GB to about 27 GB, MOSS at 1024 about 13.9 GB to about 12.5 GB.\nDisappears: nothing.\nEvidence: stage peaks before and after, pictures byte-identical.\nBatch: media lane.",
+          "rationale": "MOSS's peak at 1024 is its encoder, 13,930,129,408 bytes whatever the picture (docs/verification/moss-image-resources.json:93,138), placed whole (internal/latentimage/model_encoder_windows.go:93-105), though compileModelEncoder takes a block range (model_encoder.go:22). A new Krea prompt places 8.17 GB beside the denoiser and VAE (runtime_cuda_windows.go:270-278, resident_pipeline_cuda_windows.go:364-371), about 34 to 35 GB against the 26.9 GB recorded, derived and never measured, and a second prompt is the normal case. routedlm streams a stack once across branches (prefixstack_cuda_windows.go:39-150), and adaptive_new held 201,872,384 bytes of this encoder's layer (fixtures/krea/g1_text_conditioning.json:20).\nCarry each block's rows on the card, both prompts through a block before the next, and give Krea the rotary path's conditioning cache (conditioning_cache.go). Hold pictures to their hashes; bounded tiling drifted SenseNova's stack (prefixstack_cuda_windows.go:73-76), so if a hash moves the check is the 415-prompt suite for each model. Evicting the denoiser instead, as MOSS does, is the worse trade on a 4-step Krea request.\nServes: peak-device-memory; a new Krea prompt about 35 GB to about 27 GB, MOSS at 1024 about 13.9 GB to about 12.5 GB.\nDisappears: nothing.\nEvidence: stage peaks before and after, pictures byte-identical.\nBatch: media lane.\n\nMeasured by stage (docs/verification/media-stage-peaks.json): a new Krea prompt held 32.47 GiB at most, in the lease that places its text encoder beside the resident denoiser, against 25.21 GiB for the same prompt on a new seed; Krea's first request peaked at 25.94 GiB in its prepare step and 8.22 GiB in its load. MOSS at 1024 peaked at 12.97 GiB in its prepare step, the encoder, against 10.48 GiB integrating.",
           "depends_on": [
             "memory-bounds/stage-peaks"
           ]
@@ -236,7 +229,7 @@
           "title": "Free a video codec's workspace and a denoiser's scratch before the next stage",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -count=1 -run '^TestAVideoStageLeavesNoScratchForTheNext$'",
-          "rationale": "Measure first. Wan2.1 VAE reads 4.4 GiB on at most 0.53 GB of weights, the worst ratio recorded. Workspaces are grow-only (internal/latentvideo/vae_session.go:176-199) and held across stages (reconstruction_cuda_windows.go:73-100, runtime.go:126-173), and no video path calls ReleaseStageMemory. Regrowth each request and recaptured denoiser graphs are the cost, so measure the second request's wall. Outputs bit-identical.\nServes: peak-device-memory for video.\nDisappears: workspace held idle between requests.\nEvidence: stage peaks before and after, frame hashes.\nBatch: media lane.",
+          "rationale": "Measure first. Wan2.1 VAE reads 4.4 GiB on at most 0.53 GB of weights, the worst ratio recorded. Workspaces are grow-only (internal/latentvideo/vae_session.go:176-199) and held across stages (reconstruction_cuda_windows.go:73-100, runtime.go:126-173), and no video path calls ReleaseStageMemory. Regrowth each request and recaptured denoiser graphs are the cost, so measure the second request's wall. Outputs bit-identical.\nServes: peak-device-memory for video.\nDisappears: workspace held idle between requests.\nEvidence: stage peaks before and after, frame hashes.\nBatch: media lane.\n\nMeasured by stage (docs/verification/media-stage-peaks.json): the Wan autoencoder's round trip held 0.47 GiB once leased and 4.44 GiB reconstructing the frame, so its weights are not what fills it. Each clip peaks in its decode, not its denoiser: Wan at the size a person asks for 13.52 GiB decoding against 7.46 GiB denoising, LiveEdit on 81 frames 27.14 against 21.08, and MOSS at 2048, a picture, 17.86 decoding against 13.48 integrating.",
           "depends_on": [
             "memory-bounds/stage-peaks"
           ]

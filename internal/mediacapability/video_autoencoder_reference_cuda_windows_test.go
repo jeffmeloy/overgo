@@ -64,6 +64,32 @@ type videoAutoencoderReference struct {
 	Image            roundTripTensor `json:"image"`
 }
 
+// servedReconstruction is a store a frame's round trip through the Wan
+// autoencoder in directory is served from, its recipe the catalog's.
+func servedReconstruction(t *testing.T, directory string) servedPictures {
+	t.Helper()
+	resolved, err := Catalog[recipe.TaskReconstruction].Resolve(t.Context(), directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelID := resolved.Inventory.Manifest.ID
+	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
+	return servedPictures{store: store, directory: directory, execution: modelrecipetest.CandidateExecution(t, store, program)}
+}
+
 // TestVideoAutoencoderRoundTripMatchesItsOwnCode holds the reconstruction a
 // request is served, through the catalog's capability on the installed Wan
 // autoencoder, to the autoencoder's own code: one frame of the reconstruction
@@ -95,31 +121,12 @@ func TestVideoAutoencoderRoundTripMatchesItsOwnCode(t *testing.T) {
 	}
 	source, sourceBytes := read(reference.Picture)
 	want, _ := read(reference.Image)
-	capability := Catalog[recipe.TaskReconstruction]
-	resolved, err := capability.Resolve(t.Context(), directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelID := resolved.Inventory.Manifest.ID
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskReconstruction, modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	publishArtifactExtent(t, store, modelID, latentvideo.AutoencoderWeights(directory))
+	autoencoder := servedReconstruction(t, directory)
 	request, err := json.Marshal(latentvideo.ReconstructionRequest{Image: sourceBytes})
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := capability.Execute(t.Context(), store, directory, modelrecipetest.CandidateExecution(t, store, program), string(request))
+	output, err := Catalog[recipe.TaskReconstruction].Execute(t.Context(), autoencoder.store, directory, autoencoder.execution, string(request))
 	if err != nil {
 		t.Fatal(err)
 	}

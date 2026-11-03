@@ -497,7 +497,14 @@ func (r *Runtime) executeReadySet(
 					return
 				}
 				started := processmeasure.NewStopwatch()
+				// A step run alone is a part of its request, named by its module; steps run together
+				// overlap, which no ledger of parts divides.
+				ended := func() {}
+				if active == 1 {
+					ended = processmeasure.Stage(runContext, string(stage.stage.Module.ID))
+				}
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
+				ended()
 				wall, wallErr := started.Elapsed()
 				if wallErr != nil {
 					err = errors.Join(err, wallErr)

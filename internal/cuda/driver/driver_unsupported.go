@@ -104,6 +104,12 @@ func ProcessPeakBytes() uint64 { return 0 }
 // ProcessCurrentBytes is zero where no library allocates device memory.
 func ProcessCurrentBytes() uint64 { return 0 }
 
+// StagePeakBytes is zero where no library allocates device memory.
+func StagePeakBytes() uint64 { return 0 }
+
+// ResetStagePeakBytes has no mark to lower where no library allocates device memory.
+func ResetStagePeakBytes() {}
+
 func (l *Library) MemoryStats() MemoryStats {
 	return MemoryStats{}
 }

@@ -35,6 +35,27 @@ var (
 // sees: each is owned by its own worker.
 var processCurrentBytes, processPeakBytes atomic.Uint64
 
+// stagePeakBytes is the high-water mark of processCurrentBytes since a part of
+// a request last began or ended: each part reads the most it held without
+// lowering the process's own peak, which an attempt is measured by.
+var stagePeakBytes atomic.Uint64
+
+// StagePeakBytes reports the most device memory the process has held at once
+// since ResetStagePeakBytes.
+func StagePeakBytes() uint64 { return stagePeakBytes.Load() }
+
+// ResetStagePeakBytes lowers the stage high-water mark to what the process
+// holds now.
+func ResetStagePeakBytes() { stagePeakBytes.Store(processCurrentBytes.Load()) }
+
+// raise lifts a high-water mark shared by every Library to current, unless
+// another library raised it past current meanwhile: libraries share no lock.
+func raise(peak *atomic.Uint64, current uint64) {
+	for held := peak.Load(); current > held && !peak.CompareAndSwap(held, current); {
+		held = peak.Load()
+	}
+}
+
 // ProcessPeakBytes reports the most device memory the process has held at
 // once across every Library, by the allocations it made through them.
 func ProcessPeakBytes() uint64 { return processPeakBytes.Load() }
@@ -737,13 +758,10 @@ func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
 		maps.Copy(l.peakSizes, l.liveSizes)
 	}
 	// The process's total moves with the library's own, under its lock, so
-	// it is always the sum of what the libraries hold; libraries share no
-	// lock, so the peak is raised by compare-and-swap, and one another
-	// library raised meanwhile is kept unless this total passes it.
+	// it is always the sum of what the libraries hold.
 	current := processCurrentBytes.Add(bytes)
-	for peak := processPeakBytes.Load(); current > peak && !processPeakBytes.CompareAndSwap(peak, current); {
-		peak = processPeakBytes.Load()
-	}
+	raise(&processPeakBytes, current)
+	raise(&stagePeakBytes, current)
 	l.allocationMu.Unlock()
 }
 

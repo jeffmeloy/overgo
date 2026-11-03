@@ -12,6 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/mosstrain"
 	"overgo/internal/overgodb"
 	"overgo/internal/peft"
@@ -22,6 +23,34 @@ import (
 // picturePublished draws a request from a model directory through the image
 // capability, as a registered candidate of its own.
 func picturePublished(t *testing.T, root string, request latentimage.Request) ([]byte, string) {
+	t.Helper()
+	pictures := catalogPictures(t, root)
+	director := pictureService(t)
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := director.Executor()(capabilityruntime.FreshRun(t.Context()), pictures.store, root, pictures.execution, string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	measured, ok := output.(capabilityruntime.Measured)
+	if !ok {
+		t.Fatal("missing measured output")
+	}
+	image, ok := measured.Output.(latentimage.EncodedImage)
+	if !ok {
+		t.Fatal("missing image")
+	}
+	if err := director.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return image.Data, pictures.execution.Program.Definition().Model.String()
+}
+
+// catalogPictures is a store a picture by the model in root is served from,
+// its recipe defined from the directory as the catalog defines it.
+func catalogPictures(t *testing.T, root string) servedPictures {
 	t.Helper()
 	source, err := Catalog[recipe.TaskImageGen].Resolve(t.Context(), root)
 	if err != nil {
@@ -39,7 +68,7 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { store.Close() })
 	batch, err := source.Inventory.Batch(t.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -49,31 +78,7 @@ func picturePublished(t *testing.T, root string, request latentimage.Request) ([
 	if err = modelrecipe.PublishFacts(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
-	director := pictureService(t)
-	raw, err := json.Marshal(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	output, err := director.Executor()(capabilityruntime.FreshRun(t.Context()), store, root, execution, string(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	measured, ok := output.(capabilityruntime.Measured)
-	if !ok {
-		t.Fatal("missing measured output")
-	}
-	image, ok := measured.Output.(latentimage.EncodedImage)
-	if !ok {
-		t.Fatal("missing image")
-	}
-	if err := director.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	return image.Data, definition.Model.String()
+	return servedPictures{store: store, directory: root, execution: modelrecipetest.CandidateExecution(t, store, program)}
 }
 
 // TestMOSSTrainedModelServes holds a published model to the capability the base

@@ -17,20 +17,9 @@ import (
 )
 
 func videoCapability() Capability {
-	wanDirector, wanErr := capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo](
-		"video-gen", imageDevice, imageSessionCapacity,
-		latentvideo.ValidateWanRequestForm,
-		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.WanRequest) (*latentvideo.WanRuntime, error) {
-			return latentvideo.LoadWanRuntime(ctx, store, path, program, request)
-		},
-		func(ctx context.Context, runtime *latentvideo.WanRuntime, request latentvideo.WanRequest) error {
-			return runtime.Reset(ctx, request)
-		},
-		latentvideo.RegisterWanRuntime,
-	)
 	// Both read the base model's text encoder and tokenizer, which no
 	// inventory holds, so their answers are kept under those files too.
-	wan := capabilityruntime.Reading(sessionExecutor(wanDirector, wanErr), latentvideo.TextPipelineIdentity)
+	wan := capabilityruntime.Reading(sessionExecutor(wanSessions()), latentvideo.TextPipelineIdentity)
 
 	edit := capabilityruntime.Reading(editExecutor(editSessions()), latentvideo.TextPipelineIdentity)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
@@ -48,6 +37,25 @@ func videoCapability() Capability {
 			modelrecipe.ModuleOscillatorVideoPrepare: oscillator,
 		}.Execute,
 	}
+}
+
+// wanDirector directs sessions of a Wan model.
+type wanDirector = capabilityruntime.ModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo]
+
+// wanSessions makes a director of Wan sessions. A session is reset for each
+// request it serves.
+func wanSessions() (*wanDirector, error) {
+	return capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo](
+		"video-gen", imageDevice, imageSessionCapacity,
+		latentvideo.ValidateWanRequestForm,
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.WanRequest) (*latentvideo.WanRuntime, error) {
+			return latentvideo.LoadWanRuntime(ctx, store, path, program, request)
+		},
+		func(ctx context.Context, runtime *latentvideo.WanRuntime, request latentvideo.WanRequest) error {
+			return runtime.Reset(ctx, request)
+		},
+		latentvideo.RegisterWanRuntime,
+	)
 }
 
 // editDirector directs sessions of a LiveEdit model.

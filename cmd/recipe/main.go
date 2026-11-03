@@ -552,14 +552,15 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	if err := clioptions.Ready(); err != nil {
 		return err
 	}
-	ctx, stages := processmeasure.WithStages(capabilityruntime.FreshRun(ctx))
+	ctx, stages := processmeasure.WithDeviceStages(capabilityruntime.FreshRun(ctx), driver.StagePeakBytes, driver.ResetStagePeakBytes)
 	clock := processmeasure.NewStopwatch()
 	output, attempt, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request, userSize)
 	if err = errors.Join(err, handoffAttempt(attempt)); err != nil {
 		return err
 	}
-	// Where the measured request's time went goes beside its output, on the
-	// other stream: the parts of its path that name themselves, and what none does.
+	// Where the measured request's time and device memory went goes beside its
+	// output, on the other stream: the parts of its path that name themselves,
+	// and what none does.
 	if wall, clockErr := clock.Elapsed(); clockErr == nil {
 		fmt.Fprintf(os.Stderr, "recipe: the request took %.2f s\n", time.Duration(wall).Seconds())
 		if _, err := stages.Report(os.Stderr, time.Duration(wall)); err != nil {

@@ -1,21 +1,21 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "No new material reduction recommendation. Retain the already priced SQA-223 cancellation-fixture merge and SQA-253 query owner/test fold; source and current AST remain unchanged. Keep SQA-297's prior FP8 proposal without recounting it as a new result.",
-      "priority": "The unchanged journal-seal/replace durability exposure remains ahead of evidence attribution and recovery, which remain ahead of surface compaction. This bounded rotation does not rerank untouched findings by assumption.",
+      "assessment": "Keep existing SQA-252 reduction, corrected for current five-frame startup and retained transport owner. No additional safe net production/test reduction established in this rotation; no quota.",
+      "priority": "Durability/recovery and evidence attribution remain ahead of compaction. No new evidence warrants reranking unrotated issues.",
       "declined_candidates": [
-        "Do not combine length timing and memory tests solely because both call servedAttempts: time owns cached/intermediate-prompt exclusion, noise and restoration; memory owns hardware-peak extraction, column isolation and length-specific memory history.",
-        "Do not remove the mixed-dtype checkpoint test in favor of the device resume test: the former verifies slab aliasing, file round trip, dtype partition and legacy exact narrowing; the latter verifies numerical continuation through three actual device trainers.",
-        "Do not remove TestStagesReadEachPartsPeak in favor of the retained media JSON validator. One tests the runtime accumulator with a controlled nested peak, the other only checks a retained record's coverage and internal bounds.",
-        "No smaller complete replacement established for momentumParts/momentumID/writeMomentum that preserves ordered mixed-width streaming, digest identity, short/error handling and close ownership without concatenating another full slab or adding wrappers.",
-        "No broad abstraction recommended for processmeasure stage accounting or media fixture factories. Existing owners already serve the demonstrated callers."
+        "Do not merge MOSS and Krea layer runners merely because both stream layers: MOSS rejects padding and passes multiple prompts through each block; Krea retains selected layers in slot order under a pad-key mask. Their shared arithmetic owners are already reused; a combined runner would add policy/ownership branches without a priced net saving.",
+        "Do not remove encodeHolding or fully decoded DenoiserWeights loaders: caption conditioning, native boundary/oracle checks and training/host readers still call them.",
+        "The two 74/76-node decoded-loader wrappers share an each/Close shape, but extracting another wrapper has no established complete net benefit after preserving distinct source opening and errors. No abstraction proposed.",
+        "Named selected in encodeBlocks is reset by return nil,err before its deferred selected-row loop, so earlier selected leases may remain until Close. The actual Condition/Recondition path is retired on execution/reset error by ModelSessionDirector; Generator.Close uses WithoutCancel and closes all executor pool allocations. No persistent production leak established. Recondition explicitly requires close after error; do not add a retry test/framework for an unsupported contract.",
+        "Retain retention's typed-parent, pinned/missing-root and live-store-local refusal cases and landing's captured-edit versus moved-trunk scenarios. Similar setup is insufficient to discard these distinct safety boundaries."
       ]
     },
   "committed_plan": {
-    "git_blob": "469554aaab8b26270f38cec7384c8e7392c300f7",
+    "git_blob": "1448a22fb32f342e361faacd06ed82db39155ef8",
     "path": "docs/plan.json",
-    "revision": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-    "sha256": "b643624cabaa5961d738c0eafdd23cc2c04d9e302080019382bad278689e66a9",
+    "revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+    "sha256": "0e8b2a68204194d252a51ed0ad9e1a8292c5e9a2f1ac3d92b69f83c54cb1f575",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -2075,7 +2075,7 @@
       "category": "test-fixture-consolidation",
       "classification": "source-opportunity",
       "title": "Use the existing runtime-stream probe for download event coverage",
-      "evidence_commit": "2314b1de755d63469ce05e1144a2921528d888a4",
+      "evidence_commit": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
       "sources": [
         {
           "path": "internal/server/one_event_stream_test.go",
@@ -2102,25 +2102,25 @@
           "symbol": "eventHub.publish; subscribe; close"
         }
       ],
-      "evidence": "TestOneWorkbenchEventStream creates a loopback server/client/body and local scanner/JSON event filter for /runtime/activity/stream. TestRuntimeStreamDeliversServingObservation already consumes that route through openRuntimeServingProbe, next, release and stop at five concrete call sites, with controlled Flush boundaries. Both require named snapshot/live event payloads and cancellation cleanup; download-specific job fields differ only at the assertions. A source-only whole-file substitution reuses that existing probe, removes five imports and nextDownloads, and parses601->474(-127 test AST). No test, server or browser was run. Fresh one_event_stream/runtime_activity/event_hub/download-observe reads retain the same601-node native test, connect snapshots and ordered downloads publications. openRuntimeServingProbe still owns framed Flush/cancellation. Runtime transport/browser coverage remains a distinct retained owner; no fresh browser or test run.",
-      "recommended_change": "Keep TestOneWorkbenchEventStream and its four-case progress table. Use openRuntimeServingProbe with defer probe.stop before handler.Close. Consume/release the initial sessions, activity and operation snapshots, then decode the initial hub.downloads into []downloadJob and require it empty. Admit the same job, release/read its download event, then cancel and release/read its cancelled event. Retain transfers.Done. Delete the local listener/client/body/scanner and nextDownloads closure. Do not change the probe, add a generic SSE helper, merge unrelated state machines or add a selector.",
+      "evidence": "At8780ef3e, TestOneWorkbenchEventStream still owns a loopback HTTP server/client/body and local scanner/JSON filter. openRuntimeServingProbe already owns the same route's framed Flush, payload decode and cancellation at the serving-observation callers. Current snapshots now end with resync after sessions/activity/operations/downloads. The prior migration instructions omitted that frame; a strict probe cannot directly expect a live download next. Reprice the complete migration against the current owner instead of carrying forward474. Fresh complete hypothetical consumes resync and parses601->488(-113); native probe file is1790 and real-browser transport owner489 nodes. No test/server/browser executed.",
+      "recommended_change": "Keep TestOneWorkbenchEventStream and its four-case progress table. Reuse openRuntimeServingProbe, with defer probe.stop before handler.Close. Consume/release initial runtime.sessions, runtime.activity and operation.snapshot; decode initial hub.downloads and require empty, then release it and consume resync, leaving the probe parked there. Admit the same job, release/read its running download event; cancel and release/read its cancelled event. Retain transfers.Done. Delete listener/client/body/scanner and nextDownloads. Do not change the probe or add a generic SSE helper/selector.",
       "displaced_surface": "Remove bufio, encoding/json, net/http, net/http/httptest and strings imports from one_event_stream_test; remove HTTP request/client/body setup, scanner loop and nextDownloads closure. Retain progress publication at file/whole-percent changes, exact published File/Received, initial empty list, admitted repository/running state, cancelled state and transfer/handler cleanup in the same test. Existing runtimeServingProbe owns controlled flushed-frame decoding and cancellation; existing TestWebUIBrowserServingStream retains real TCP/HTTP, bearer authentication, live updates and reconnect. No unique download case moves to another test; no production/export/configuration/build-tag/data/confidentiality change.",
       "impact": "Small native test/setup reduction using an existing fixture owner. A loopback network round trip becomes direct handler execution with controlled Flush, explicitly changing the transport layer exercised by this test. Browser transport coverage retains its existing owner/lane; the download-state assertions remain native. No claim that a fake recorder alone proves real network transport.",
       "expected_benefit": {
-        "outcome": "Changed test601->474(-127 AST), including initial frame consumption, probe cleanup and moved payload assertions. Retained runtime_serving_test1762 and browser serving test489 unchanged, giving complete compared test surface2852->2725. Fresh12-file sample production2747 unchanged, test5257->5130. Five imports and one local parser closure disappear; no helper/wrapper/fixture/config/gate growth.",
-        "uncertainty": "One httptest server, listener, client response/body and scanner disappear; one handler and one stream goroutine remain, and the existing probe adds its recorder/channel handshake at this caller. One progress fixture and one state-transition scenario remain; no model, durable-store or browser setup added. Probe stop runs before handler.Close and existing cleanup is idempotent. Controlled frame order is valid for this fixture's four snapshots and download-only publications; unrelated operations are not added. Allocation/elapsed effects unmeasured. Hypothetical test parsed/counts only, not package-typechecked/executed; existing browser lane is not rerun merely for review."
+        "outcome": "Fresh whole hypothetical test601->488(-113AST), including resync consumption, initial frames, cleanup and unchanged assertions. Retained runtime_serving_test1790 and browser serving test489 unchanged: complete compared test surface2880->2767. Production unchanged. Five imports and local parser closure disappear; no new helper/wrapper/static fixture/config/gate.",
+        "uncertainty": "One httptest listener/server/client/body/scanner disappears; one handler and stream goroutine remain, with existing recorder/channel handshake. One progress fixture and one job-transition scenario remain; no model/store/browser setup added. Probe stop runs before handler.Close; retained browser lane owns real transport/auth/reconnect. Full candidate parsed only, not compiled/executed. No elapsed/allocation gain measured; historical -127 estimate superseded."
       },
       "likely_effort": "One existing test file; no production change or new self-check needed for unchanged download behavior.",
       "plan_references": [
         "compact-tests/exact-folds"
       ],
-      "plan_coverage": "Now explicitly adopted by consolidate/test-reductions. Fresh source still contains the duplicate HTTP/scanner parser; existing runtimeServingProbe owns framed flush and cancellation. Keep the established -127 test-AST proposal and all download cases. No new reduction or execution claimed.",
+      "plan_coverage": "Current compact-tests/exact-folds retains ownership, matching preserved master-lead triage. Proposal remains unimplemented. Current stream startup requires resync consumption; use the corrected113-node estimate.",
       "closure_criteria": [
-        "TestOneWorkbenchEventStream uses unchanged openRuntimeServingProbe and no longer owns an HTTP client/scanner/event parser.",
-        "Progress/file-boundary, initial-empty, admitted and cancelled job assertions remain, with transfer completion and stream cancellation preceding handler shutdown.",
-        "All migration/import cost fits a net127-node test reduction, with no new helper/fixture/selector or extra lane. Real HTTP/auth/reconnect coverage stays in TestWebUIBrowserServingStream."
+        "TestOneWorkbenchEventStream uses unchanged openRuntimeServingProbe, with no local HTTP client/scanner/event parser.",
+        "All progress/file-boundary, empty/running/cancelled job checks remain. Initial resync is consumed before live expectations; transfer completion and stream cancellation precede handler shutdown.",
+        "Complete migration stays a net113-node test reduction with no helper/fixture/selector or extra lane. Existing TestWebUIBrowserServingStream retains real HTTP/auth/reconnect."
       ],
-      "comparison": "Smallest deciding comparison during normal implementation is the existing TestOneWorkbenchEventStream under its native test selection, checking the same job payloads and clean stream termination through the retained probe. No new test, seeded-failure campaign, browser confidence run or SQA execution. Full before/after source count already retained."
+      "comparison": "During normal affected implementation validation, use existing TestOneWorkbenchEventStream to decide same job payloads, five-frame startup and clean termination through retained probe. Complete hypothetical counted at current pin. No new test, browser confidence run, mutation suite or SQA execution."
     },
     {
       "id": "SQA-255",
@@ -6299,148 +6299,118 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA application tests, gates, services, model/device workloads, benchmarks, profiles or new fixture runs. Scratch Go parsing/type analysis only. Existing native Go caching, gate reach and resume mechanisms are credited.",
+      "execution": "No SQA application tests, gates, services, model/device workloads, benchmarks, profiles or new fixture runs. Scratch Go parser/type analysis only; hypothetical source counted without compiling/running an application.",
       "sample_cost": {
-        "revision": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-        "comparison_revision": "65313733c7c2859219c04c932c591b0472e5b486",
+        "revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+        "comparison_revision": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
         "files": [
-          "cmd/train/route_hybrid_stack_windows.go",
-          "cmd/train/route_hybrid_limit_windows_test.go",
-          "cmd/validate/training_proof.go",
-          "cmd/validate/training_proof_test.go",
-          "internal/hostoptimizer/optimizer.go",
-          "internal/hostoptimizer/optimizer_test.go",
-          "internal/hybridtrain/progress.go",
-          "internal/hybridtrain/momentum_f32_windows_test.go",
-          "internal/trainingprogram/checkpoint.go",
-          "internal/processmeasure/stages.go",
-          "internal/processmeasure/stages_test.go",
-          "internal/mediacapability/stage_peaks_test.go",
-          "internal/mediacapability/stage_peaks_cuda_windows_test.go",
-          "internal/scorecard/scorecard.go",
-          "internal/scorecard/history.go",
-          "internal/scorecard/record.go",
-          "internal/scorecard/length_test.go",
-          "internal/scorecard/length_peak_test.go",
-          "internal/cuda/driver/driver_windows.go",
-          "internal/overgodb/blob_pack.go",
-          "internal/overgodb/blob_pack_test.go",
-          "internal/overgodb/query.go",
-          "internal/server/agent_session_recovery.go",
-          "internal/server/agent_session_recovery_test.go",
-          "internal/landing/preflight_test.go",
-          "internal/loop/driver.go",
-          "internal/trainingprogram/checkpoint_test.go",
-          "internal/processmeasure/counter.go",
-          "internal/processmeasure/peak_windows.go",
-          "internal/processmeasure/stopwatch.go",
-          "internal/hybridtrain/stack.go"
+          "internal/latentimage/conditioning_model_verify_windows.go",
+          "internal/latentimage/conditioning_model_windows_test.go",
+          "internal/latentimage/encoder_program.go",
+          "internal/latentimage/generator_rotary_windows.go",
+          "internal/latentimage/model_encoder_windows.go",
+          "internal/latentimage/resident_pipeline_cuda_windows.go",
+          "internal/latentimage/text_one_block_windows_test.go",
+          "internal/latentvideo/denoiser.go",
+          "internal/latentvideo/denoiser_session.go",
+          "internal/latentvideo/denoiser_stream_windows_test.go",
+          "internal/latentvideo/reference_edit_checkpoint.go",
+          "internal/latentvideo/reference_edit_denoiser_session_windows.go",
+          "internal/latentvideo/runtime.go",
+          "internal/cuda/executor/device_buffer_pool.go",
+          "internal/cuda/executor/executor.go",
+          "internal/inference/dense_read_release_windows_test.go",
+          "internal/overgodb/retention.go",
+          "internal/overgodb/retention_test.go",
+          "internal/server/runtime_activity.go",
+          "internal/server/one_event_stream_test.go",
+          "internal/httpstream/duplex.go",
+          "internal/landing/lanes.go",
+          "internal/landing/checkout_free_test.go",
+          "internal/plan/measurement_run.go",
+          "internal/latentimage/resident_lifetime_windows_test.go",
+          "internal/latentimage/resident_pipeline_windows_test.go"
         ],
-        "file_count": 31,
-        "functions": 351,
-        "parser_local_bindings": 11682,
-        "production_ast_before": 41561,
-        "production_ast_after": 42539,
-        "production_ast_delta": 978,
-        "test_ast_before": 12256,
-        "test_ast_after": 15692,
-        "test_ast_delta": 3436,
-        "total_ast_after": 58231,
-        "scope": "19 changed plus 12 rotated files; excludes nine changed Go files from AST totals, though relevant diffs/callers were read. Five newly added sampled tests have zero before nodes."
+        "file_count": 26,
+        "functions": 273,
+        "parser_local_bindings": 11681,
+        "production_ast_before": 45895,
+        "production_ast_after": 47943,
+        "production_ast_delta": 2048,
+        "test_ast_before": 6193,
+        "test_ast_after": 7523,
+        "test_ast_delta": 1330,
+        "total_ast_after": 55466,
+        "scope": "All16 changed Go files plus10 rotated files. Three newly added tests have zero before nodes. Supplementary SQA-252 native/browser owner counts1790/489 are outside these totals."
       },
-      "complete_change_cost": "Retained gate deltas: peak-by-length +174/+669, stage-peaks +433/+2095, momentum-f32 +369/+707, hybrid-limit +45/+69 (production/test AST). Total +1021/+3540. No new schema declarations or CUDA entries reported; mixed resume dtype/F32Values and exported Part/Parts are still data/API surface. Additional committed media-stage-peaks.json: 599032 bytes. No elapsed or heap saving inferred from AST.",
-      "completed_reductions": "The hybrid proof's environment field, literals and caller return channel disappear, and checkpoint matrix widening disappears. Their complete changes are growth, justified by memory/correctness behavior. Existing fixture reuse reduces duplicated implementation of new tests, not their actual executed request counts.",
+      "complete_change_cost": "Actual whole-file deltas agree with retained gates: +2048 production/+1330 test. No new schema/CUDA entries/static fixture files; retained stage JSON599035bytes(+3) is still data maintenance. No latency/heap benefit inferred from AST.",
+      "completed_reductions": "Whole-encoder residency, eager full video host decoding and surplus dense prompt arena lifetime are displaced; their complete changes grow code. Shared encoderLayer/mossSmallEncoder reduce copied bodies, but their new consumers add execution/setup. Existing SQA-252 hypothetical removes a listener/client/scanner and five imports with no new helper.",
       "sampled_tests": [
         {
           "classification": "retain",
-          "tests": "TestPeakMemoryIsReadAtEachPromptLength; TestALongerPromptIsTimedAsItsLengthAlone",
-          "retained_owner": "scorecard lengthCells/LengthCells/Measured, servedAttempts and existing reference/history owners",
-          "unique_cases": "Memory's exact 1/2/5 GiB source separation, length contract and peak-column move; timing's cached/intermediate prompts, non-inference exclusion, noise and restoration remain distinct.",
-          "cost": "length_peak_test.go 610 and length_test.go 965 nodes. Shared servedAttempts, two store setups remain; no new merger priced."
+          "tests": "TestATextEncoderHoldsOneBlockOnTheCard; testConditioningModelGolden",
+          "retained_owner": "mossSmallEncoder, native MOSS fixture, modelConditioner.encode/encodeEach",
+          "unique_cases": "Two prompt lengths, exact native hidden states for whole/streamed paths, weight-derived peak bound and no retained static weights. Existing golden boundary outputs and long-context cases stay.",
+          "cost": "New561-node test/helper file; existing conditioning test file977->1051(+74), total+635. Existing fixture reused, new resident-session/setup execution remains; no new binary fixture. Peak bound derives total minus largest block weights, not arbitrary timing."
         },
         {
           "classification": "retain",
-          "tests": "TestStagesReadEachPartsPeak; TestStagesDivideARequest; TestStagesRefuseOverlappingParts",
-          "retained_owner": "processmeasure.Stage/held/Parts/Report",
-          "unique_cases": "Controlled 8-byte nested peak and later 3-byte peak, exclusive timing, overlap refusal and no-ledger behavior.",
-          "cost": "stages_test.go 648 nodes total. Fake meter callbacks, no device/model fixture. New peak assertions supplement rather than replace time/overlap assertions."
+          "tests": "TestADenoiserLoadHoldsOneTensorOnTheHost",
+          "retained_owner": "openDenoiserWeights/DenoiserWeights.each and existing Wan model fixture",
+          "unique_cases": "Exactly six compile-time timestep tensors decoded before upload; fresh-process host peak growth and session cleanup. Frozen Wan/LiveEdit output cases remain distinct.",
+          "cost": "298 test AST; one MeasurementProcess child and one session construction, no new static fixture. Five-frame64x64 clip is the fixture, quarter of weight bytes is an empirical regression allowance on it, not a universal streaming/GC bound. No new ratchet recommended."
         },
         {
           "classification": "retain",
-          "tests": "TestStagePeaksCoverEveryMediaFamily; TestMediaStagePeaksAreRecorded",
-          "retained_owner": "existing stage ledger and media session directors",
-          "unique_cases": "Eight named requests across Krea/MOSS/Wan/LiveEdit/VAE, nonzero recorded peaks and part bounds. Probe closes each family before the next; exact output acceptance remains with existing model fixtures.",
-          "cost": "436 host-test plus 1290 probe-test AST, 599032 retained JSON bytes, eight real requests in a modeltest/probe-only writer. Full landing +2095 test AST includes other fixture refactoring. Host validator does not rerun models; no new SQA run."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestAHybridCheckpointKeepsMatrixMomentumInF32; TestStateRestoresExactContinuation; TestResumeSidecarRoundTripsBitExact; TestHybridOptimizerResumeDevice",
-          "retained_owner": "checkpointtest.RequireRoundTrip, hybridtrain.resumeParts/splitMomentum, hostoptimizer.Restore and trainingprogram checkpoint codec",
-          "unique_cases": "Leading matrix f32 and vector f64, original slab alias, exact bit round trip, legacy all-f64 narrowing/refusal and host widening; existing single-dtype extremes/digest/truncation plus actual device continuation remain.",
-          "cost": "New momentum fixture 634 AST; existing optimizer_test.go 1821 and checkpoint_test.go 2308. Full landing +369 production/+707 test. Device continuation remains on its existing lane; no redundant model setup proposed."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestTheHybridRouteSetsItsMemoryLimitFromItsBudget; TestEveryScorecardCellHasABoundCommandOrIsRetired",
-          "retained_owner": "boundedBytes/setMemoryLimit and trainingRun/cellCommand",
-          "unique_cases": "Read the actual process limit and restore it serially; existing routing fixture retains real argument/prerequisite identity. Obsolete manual-environment assertion was removed.",
-          "cost": "New Windows limit file 107 AST; whole landing +69 test after displaced environment assertions. No model setup in the limit test."
+          "tests": "TestALongReadLeavesADenseRunnerItsDecodeScratch",
+          "retained_owner": "existing native9B fixture runner and Executor.ReleasePromptMemory",
+          "unique_cases": "Short repeated request avoids recapture; long read returns arena to decode scale; short/long interleaving preserves output. Existing TestArenaMetrics still owns current/peak/prepared-versus-run arithmetic.",
+          "cost": "397 test AST, one9B model setup, five Generate calls: short/short/long/short/long, eight output tokens each. Self-comparison is an intentional interference oracle; it does not replace frozen numerical reference tests. No independent fresh-run numerical proof claimed."
         },
         {
           "classification": "merge",
-          "tests": "TestBlobVerificationStopsWhenCancelled into TestSmallBlobsArePacked",
-          "retained_owner": "SQA-223's existing packed/loose/backup fixture",
-          "unique_cases": "Move empty-store cancellation and cancellation-before-corrupt-pack/loose-read checks; retain ordinary mismatch, all readbacks, repack/backup and index corruption.",
-          "cost": "Current file 1807 nodes; historical complete candidate 1507 (-300 test), including 110 moved nodes. Current source read supports the same owners; candidate not re-executed or newly parsed this turn. Duplicate stores/publication/pack/corruption disappear; production unchanged."
-        },
-        {
-          "classification": "simplify",
-          "tests": "TestProjectionQueryPlanEfficiency",
-          "retained_owner": "SQA-253 existing queryIndexPlan plus its one eight-descriptor fixture",
-          "unique_cases": "Keep five plan cases, fallback, required-index refusal and repeat-contract determinism; cursor/head and projection tests remain.",
-          "cost": "Historical complete comparison query.go 3720->3696 and query_plan_test.go 719->533, query_test.go 3044 retained: -210 combined AST. Current query.go recounted 3720; tests and owner read, not rerun. Eight queries and one store setup unchanged."
+          "tests": "TestOneWorkbenchEventStream local transport/parser into existing runtimeServingProbe",
+          "retained_owner": "SQA-252 openRuntimeServingProbe/next/release/stop; TestWebUIBrowserServingStream owns real HTTP/auth/reconnect",
+          "unique_cases": "Keep file/percent progress table, exact payload, initial empty downloads, admitted/running and cancelled job. Consume runtime.sessions, runtime.activity, operation.snapshot, hub.downloads and resync before live events; stop before handler.Close.",
+          "cost": "Fresh complete hypothetical test601->488(-113); retained native probe1790 and browser489 unchanged:2880->2767. Production unchanged. One listener/client/body/scanner removed; one handler/stream goroutine retained and existing recorder/channel handshake reused. No helper, fixture, model/store setup or gate invocation added."
         },
         {
           "classification": "retain",
-          "tests": "TestPackIndexRejectsImpossibleCounts; TestPackStreamsItsMembers",
-          "retained_owner": "readPackIndex and streaming pack/verification",
-          "unique_cases": "Damaged/overflowing count refusal before allocation, one-buffer rather than volume-scaled allocation and representative readback. These are distinct from cancellation.",
-          "cost": "Existing blob_pack_test.go 1807 includes them. 256 x approximately 64 KiB allocation fixture and volume/8 budget are scoped regression proxies, not universal workload or timing bounds; no fresh execution."
+          "tests": "TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias",
+          "retained_owner": "collectLiveSet/releaseLive/releaseWriter.commit",
+          "unique_cases": "Typed parent versus untyped text; alias-less pins and counted missing pins; live physical authority and no chain advancement on refusal. Released blob removal remains after durable release facts under writer ownership.",
+          "cost": "retention.go1512 and retention_test.go1101 AST unchanged. Three store scenarios retain distinct requirements; no safe whole-fixture merge priced."
         },
         {
           "classification": "retain",
-          "tests": "TestAgentSessionRecoveryAndStreaming; TestAgentThreadSurvivesRestart",
-          "retained_owner": "agentOutput/event hub, durable interaction transcript and bounded agentThread query",
-          "unique_cases": "Tool output before completion versus whole durable result; restarted history, prefix-neighbor exclusion and exactly-at/over-bound behavior.",
-          "cost": "agent_session_recovery_test.go 1572 nodes unchanged. Distinct process/listener/store and durable-history fixtures; no new safe merger established."
+          "tests": "TestALandingWaitingOnARunLeavesTheCheckoutFree; TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn",
+          "retained_owner": "landing.letGo/takeTurnBack/inLaneTurn, newRowFixture/freedLog",
+          "unique_cases": "Checked candidate survives later checkout edits; successor can commit while device waits and moved trunk forces refusal. These outcomes are not duplicates.",
+          "cost": "checkout_free_test.go922 and lanes.go2669 unchanged. No additional worktree/lane fixture or run. A moved trunk can cost a normal second lane pass; do not advertise unconditional wall saving."
         },
         {
           "classification": "retain",
-          "tests": "TestPreflightRunsTheCheapStagesOnly; TestInvariantPackagesExist; TestGeneratorsAreThoseTheRepositoryHas",
-          "retained_owner": "landing.checks/generators",
-          "unique_cases": "Explicit preflight partition, real invariant package existence and three repository generator-presence cases.",
-          "cost": "342 test AST unchanged. Keep deterministic native fixtures; no extra gate or scheduler."
+          "tests": "TestResidentDecodeCancellationReusesStorage; TestResidentLifetimeResourceAcceptance; TestResidentImagePipelineRetainsTextAndLatentOnDevice",
+          "retained_owner": "existing synthetic pipeline, resident lifetime helpers, RetainedOutputs.Release and session director retirement",
+          "unique_cases": "Decode cancellation with reusable storage, complete close-to-zero ownership, token/layer layout and independent host numerical reference. New streamed-encoder success coverage does not establish cancellation semantics.",
+          "cost": "resident_lifetime_windows_test1297 and resident_pipeline_windows_test1295 unchanged. Existing model/synthetic setups retained; no extra confidence run or newly invented retry contract."
         }
       ],
       "retained_results": [
         {
-          "commit": "5c7774a1170e3bb6233add802e7c1cbead26efb1",
-          "result": "test 3m22.07s/194 packages; lanes 858ms, all skipped; scorecard not reached. Reads existing per-length peaks; no new model measurement."
+          "commit": "0acd5d9b87e13277edaf4210faf606c599253b09",
+          "result": "test3m53.37s/26packages; lanes2m51.516s, webui2m50.72s, CUDA1m55.328s4executed15cached, device skipped; scorecard not reached. Small encoder peak8887808 versus13212720bytes; retaining both prompt arenas fails12118528 versus9242112 bound in implementation's undo check."
         },
         {
-          "commit": "63bb552339e1e560ec29eda458e4e9016da03a14",
-          "result": "test 3m4.67s/99 packages; lanes 18m22.224s: device 10m58.884s, webui 2m56.985s, CUDA 7m22.503s, 19 executed/0 cached. Retained separate media probe supplies eight requests; Bonsai slice output/5347.3 MiB peak unchanged."
+          "commit": "4f1a4f2e8e8afa2ee9e111cd3dcbfb7e23bbc37f",
+          "result": "test3m48.522s/21packages; lanes2m49.538s, webui2m48.75s, CUDA52.705s2executed17cached, device skipped; scorecard not reached. Wan host growth305160192 versus5440901120bytes; no81-frame run."
         },
         {
-          "commit": "95fe305e0258006e35bea096c05f6dd4e944093e",
-          "result": "test 3m8.727s/118 packages; lanes 17m46.837s: device 11m22.812s, webui 2m56.612s, CUDA 6m23.218s, 19 executed/0 cached. Retained device resume is bit-identical across three trainers; Bonsai slice output/peak unchanged. Checkpoint savings remain counts."
-        },
-        {
-          "commit": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-          "result": "test 1m31.906s/10 packages; CUDA 43.824s, 1 executed/18 cached, device/webui skipped; scorecard not reached. Retained 9B two-step proof reports 56.896 GB process peak, versus 72.209 GB earlier. No SQA reproduction."
+          "commit": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+          "result": "test2m40.522s/67packages; lanes15m40.774s, device10m18.066s, webui2m53.071s, CUDA5m21.868s14executed5cached; verify21.327s; scorecard19.167s, Bonsai output identical, peak5389.8MiB(+42.5). Long9B/27B/Gemma samples one warmup+three runs, short9B five runs; retained scope, no SQA reproduction."
         }
       ],
-      "automation_sequence": "landing.Run validates rows/message, owns/integrates its turn, checks hooks/parents/ship set and free space. Explicit preflight takes format/fix/vet/rules/invariants/verify; a full landing orders test and lanes before its step verify and scorecard. Partial timing/refusal is recorded on exit. The driver checks stops/budgets/obligations, dispatches workers and continues after progress; first Current ownership wait still returns ReasonWorkWaiting, while post-worker contention loops. Existing SQA-271/258 remain, not new duplicates. No delivered wakeup is established by these four commit timestamps, and no observed new delay or known repeated prerequisite failure is claimed."
+      "automation_sequence": "Existing landing host checks precede reached lanes; free space and cheap preflight expose setup failures early. letGo captures candidate and frees checkout/commit turn during device contention; inLaneTurn releases quiet ownership while waiting; independent lanes then run alongside serial shared lanes, failure cancels siblings, takeTurnBack refuses a changed parent. Native cache counts show4/15,2/17,14/5 executed/cached CUDA packages. MeasurementRun end/failure records are visible when hooks read them, not delivered wakeups. Loop.Run initial ErrWorkWaiting still returns; post-worker contention continues to that admission. SQA-261 closure stands; SQA-271/258 remain. No new observed unattended delay or recurrent failed prerequisite alleged; reuse current dispatch/process/resume owners, no scheduler/selector/telemetry."
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7237,15 +7207,13 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "This chat previously implemented Overgo changes; review is not independent third-party review.",
-      "No application/test/gate/model/device run, service, benchmark, profile, agent dispatch/message, plan/skill edit, push, switch, reset or stash. Only this report is published; scratch AST/type tools are outside the repository.",
-      "Measured results are attributed to retained implementation records. SQA estimates and AST counts are not measured elapsed/memory improvements. Strata is a comparison, not presumed optimal.",
-      "Windows processmeasure typechecked fully; no application-wide import/type resolution. Large parsed files and unrotated findings are not fully recertified.",
-      "The mixed file format derives widths 4/8 from F32/F64 and partitions from actual validated parameter counts. Legacy pure-dtype JSON omits F32Values; exact bit identity/narrowing and cancellation/close errors remain mandatory.",
-      "The hybrid limit uses f32 budget element counts, two full slabs, largest-layer scratch and three vector slabs; actual producer sets MasterElems == MomentumElems. Small/large budgets are not inferred from one 9B proof. The Go limit is soft heap pacing and not a process RSS or physical device-memory cap.",
-      "Stage peaks use driver-accounted process allocations, not sampled physical VRAM. Nested peaks propagate while walls exclude inner intervals. The eight fixed requests do not establish distributional representativeness, tail behavior, concurrency reliability or changed-workload performance. Numerical acceptance is separate.",
-      "Pack widths are format limits; readPackIndex bounds count by actual file room before multiplication/allocation. The pack allocation test's volume fraction is a bounded fixture regression check. Query indexes use exact current-head candidate counts, not uniform-selectivity assumptions.",
-      "Concurrent latentimage text-encoder work is excluded from the committed review. Re-read report/HEAD before publication; preserve all implementation-owned fields raw-exact."
+      "This chat previously implemented Overgo changes; this is not independent third-party review.",
+      "Only committed source reviewed; concurrent docs/plan.json, media-stage-peaks.json and latentvideo edits/untracked codec test excluded. No implementation, model/test/gate/service execution, worker messaging, plan/skill edit, push, branch switch/reset/stash or hook change.",
+      "Full type resolution only for actual httpstream package. Other packages/source callers use parser-local binding and targeted source tracing; whole parsed files are not fully audited.",
+      "Retained elapsed/memory values are implementation evidence. Driver-accounted device allocation peaks differ from physical VRAM; process peak growth is a high-water measurement. Small fixed cohorts do not establish normality, representative tails, independence or stationarity. Numerical acceptance remains separate from time.",
+      "captureSlots derives ordered1-based layer taps from validated descriptors; masks preserve attended positions. Six timestep tensors are compile inputs. DeviceBufferFreeShare64 is existing calibrated idle policy, not a new universal optimum. New memory tests retain empirical fixture scope; no blanket numeric lint or tuning knob proposed.",
+      "encodeBlocks local error cleanup was traced through actual retirement/Close owners; no runtime leak reproduction or unlimited-lifetime claim. Current Recondition does not promise reuse after error.",
+      "Unrotated findings preserve their original revisions/limits. SQA-252 replacement parsed only, not package-typechecked or executed; full production/test/setup cost includes controlled transport differences and retained browser owner."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7899,10 +7867,10 @@
   },
   "next_finding_number": 298,
   "publication_context": {
-      "checked_head": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-      "assessment": "Pinned source, committed plan and retained records reviewed. Reconcile concurrent HEAD/report changes immediately before replacement.",
-      "newer_commit_note": "Four implementation landings since prior reviewed source; current uncommitted text-encoder work excluded.",
-      "publication": "Report-only path-limited Git commit using existing locks and hooks, preserving unrelated index/worktree contents. No implementation gate run."
+      "checked_head": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+      "assessment": "Pinned source/plan and retained records reviewed; re-read current report and HEAD immediately before replacement.",
+      "newer_commit_note": "Three new memory landings since previous reviewed source. Concurrent video/plan/stage-record work excluded.",
+      "publication": "Report-only path-limited Git commit with existing locks/hooks; unrelated index/worktree preserved. No production gate."
     },
   "ranked_active_finding_ids": [
     "SQA-288",
@@ -7966,41 +7934,41 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "No new finding, closure or priority change. Current ledger remains 124 findings: 57 open, 4 deferred and 63 resolved. Existing SQA-223/253 reductions remain supported; no additional material net reduction established in the new memory work.",
-      "Four complete landings report +1021 production and +3540 test AST nodes, +4561 total. The stage measurement record adds 599032 committed JSON bytes, although the gate reports zero fixture files. Count this retained data and its writer/validator as maintenance surface.",
-      "Credit real simplification: trainingRoute.environment and its hand-set GOGC/GOMEMLIMIT values disappear; trainingRun now returns arguments/error to both reacquireCommand and cellCommand. The route owns its limit. Whole hybrid-limit landing still grows +45 production/+69 test nodes.",
-      "Credit shared native owners with actual callers: servedAttempts serves first-output and peak-memory length tests; catalogPictures serves picturePublished and the stage probe; servedReconstruction serves the existing round trip and the stage probe. These avoid duplicated new setup; they do not make the four complete changes a code reduction.",
-      "Retained hybrid-limit proof reports a 9B process peak of 56896434176 bytes against the earlier 72209317888, with two steps of 173/169s against 191/184s. This is implementation-retained evidence, not a controlled interleaved comparison or a general memory ceiling. SQA ran no workload.",
-      "The mixed-momentum change removes a matrix f32-to-f64 checkpoint copy. Its claimed 54274293760 fewer transient bytes and 27137146880 fewer file bytes are arithmetic for 6784286720 matrix parameters; no isolated checkpoint peak/size measurement was supplied. Do not combine this estimate with the memory-limit proof as independent measured gains.",
-      "Retain new coverage where it owns distinct behavior: mixed checkpoint layout and old-format restore, exact narrowing refusal, actual runtime limit setting, nested stage peaks, per-length memory contracts and history. Existing bitwise sidecar corruption/legacy cases, device continuation, native stage wall/overlap and GUI recovery cases are not redundant.",
-      "The stage record names parent 759010423; commit 63bb55233 explicitly says the probe used that parent with its changed tree. Its commit-existence check does not prove a clean build identity. Treat the eight recorded requests as scoped baseline evidence, not clean-revision certification, representative model coverage or permission to rerun them."
+      "No new finding, closure or priority change: 124 entries, 57 open, 4 deferred, 63 resolved. No new safe net reduction established in the three memory changes. Corrected existing SQA-252 to include the initial resync frame: saving is 113 test AST nodes, not 127.",
+      "The three complete changes add 2048 production and 1330 test AST nodes, 3378 total. Image text streaming +1276/+635, video weight streaming +624/+298, dense read release +148/+397. Memory improvement does not make this a source reduction.",
+      "Credit existing shared owners with concrete callers: encoderLayer serves compileEncoderProgram and EncoderProgram.block; mossSmallEncoder serves testConditioningModelGolden and TestATextEncoderHoldsOneBlockOnTheCard. DenoiserWeights.each serves both CUDA upload owners and both fully decoded loaders. Retain full encoder/reference and loaded-weight paths still used by caption, native oracle, training and host execution.",
+      "Retained image record: new Krea prompt peak 32.47->26.11 GiB, lease 3.03s unchanged; MOSS1024 12.97->10.48 GiB and 102.7->102.5s. Real MOSS22/27-token hidden states equal and streamed encoding0.43GiB versus12.97. These are implementation measurements, not SQA execution or representative distributions.",
+      "Retained Wan session construction peak-working-set growth 5440901120->305160192 bytes for5641371904 weight bytes. Two short Wan and two LiveEdit frozen cases retained; the optional81-frame Wan case was not run. Streaming upload changes host lifetime, not its numerical contract.",
+      "Dense read release retains1.6-2.7GB less after long requests in three measured models, while first output worsens0.7-2.2% and decode0.4-0.9%. Five short9B runs report16.03 versus15.58ms and unchanged retained bytes/captures. Gate Bonsai peak is5389.8MiB, +42.5MiB, with identical output: do not repeat the prediction that every short-request peak holds.",
+      "Retain all three new tests: streamed encoder exact native output plus per-prompt arena release, video decoded-set/host peak, and dense long/short interleaving/recapture are distinct requirements. No displaced test owner establishes that any can be removed. Native Go caching remains responsible for unchanged packages.",
+      "docs/verification/media-stage-peaks.json is599035 committed bytes, +3 from the prior record. Existing writer/validator and eight-request record still have maintenance cost even though these gates report zero fixture-file growth."
     ],
-  "reviewed_at": "2026-11-03T06:03:30Z",
-  "reviewed_master": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
+  "reviewed_at": "2026-11-03T08:11:52Z",
+  "reviewed_master": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655; plan blob 469554aaab8b26270f38cec7384c8e7392c300f7, skill.md blob b4e6496176dae5abce498e1aba83e32b10640960. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane. Repository instructions and plan identity read first.",
-      "Fresh provisional conclusions preceded report reconciliation. Reviewed four memory landings from prior reviewed source 65313733: per-prompt peak cells, media stage peaks, mixed-dtype momentum checkpoints and budget-derived hybrid memory limit. Rotated through blob packing/verification, bounded catalog queries, durable agent history/output streaming and landing/loop ownership.",
-      "Actual bounded Go AST analysis: 31 committed files, 19 changed and 12 rotated, 351 functions, 11682 parser-local bindings, 58231 whole-file nodes including comments. Named paths are in gate_test_assessment.sample_cost.files. Large files were parsed whole but inspected only at named owners/callers; no repository census.",
-      "Actual Windows processmeasure production package typechecked from committed stages.go, counter.go, peak_windows.go and stopwatch.go with real standard-library imports: 129 definitions, 498 uses and 93 selections. No stubs, application execution, syscall invocation or test execution. Other packages have parser-local rather than whole-program resolution.",
-      "Reconciled existing SQA-223/253 against their retained owners, and rechecked SQA-288 seal/replace durability, SQA-283 hard-coded evaluation task and SQA-284 oversized stream-node boundary. Remaining findings keep their original evidence; no claim to revalidate all 124."
+      "Pinned committed master 8780ef3e08280421caff4b2a01898f26c01c4fd3; plan blob 1448a22fb32f342e361faacd06ed82db39155ef8 and skill.md blob b4e6496176dae5abce498e1aba83e32b10640960 read first. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane. Concurrent video/plan/stage-record work excluded.",
+      "Provisional source conclusions preceded current-report reconciliation. Covered the three new memory landings plus retention/query-to-GUI streaming, bidirectional HTTP lifetime and gate/driver continuation beyond the latest diff.",
+      "Actual bounded AST analysis: 26 committed Go files (16 changed, 10 rotated), 273 function bodies, 11681 parser-local bindings, 55466 whole-file nodes including comments. Files are named in sample_cost. Large files parsed whole but read only at named owners/callers; no recurring repository census.",
+      "Actual stdlib-backed go/types check of committed internal/httpstream/duplex.go: 12 definitions, 44 uses, 10 selections, no stubs or application execution. Remaining packages have parser-local/source caller resolution, not a complete CUDA/application type check.",
+      "Reconciled SQA-252's existing stream-fixture proposal with current resync framing and parsed a complete hypothetical replacement; read retained owners for SQA-261/272 closure and SQA-271/258 continuation. Untouched ledger entries retain their earlier evidence scope; not all 124 findings recertified."
     ],
   "sqa_response": {
-      "reviewed_master": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-      "assessment": "No new/resolved finding or priority change. Credit four memory landings and existing fixture reuse; account for +1021 production/+3540 test AST and 599032 retained data bytes. Rechecked SQA-223/253 reductions remain open; SQA-288/283/284 and unattended continuation boundaries remain unchanged.",
+      "reviewed_master": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+      "assessment": "No new/resolved finding or priority change. Credit three scoped memory improvements with +2048 production/+1330 test AST. Correct SQA-252's existing reduction to113 nodes including resync; preserve actual transport/lifetime coverage. SQA-261/272 remain resolved; continuation remains open.",
       "new_findings": [],
       "resolved_findings": [],
       "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "31 committed Go files parsed; actual four-file Windows processmeasure package typechecked; four retained landing records and eight-request stage record inspected. No runtime validation.",
+      "evidence": "26 committed Go files parsed,273 functions; actual httpstream typecheck12defs/44uses/10selections. Complete SQA-252 hypothetical601->488 plus unchanged1790/489 owner counts. Three retained landing records read; no runtime validation.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
-        "status": "Owner objects/report unchanged since prior report commit; preserve exactly. Current reviewer conclusions distinguish implementation evidence from SQA observations."
+        "status": "SQA-252 triage files compact-tests/exact-folds; no claim implemented. SQA-261/272 implementation comments match retained source. Preserve both owner objects and every implementation-owned field exactly."
       },
-      "recommendation": "Retain necessary numerical/format/recovery coverage; use the existing SQA-223/253 owners when compaction is implemented. No new abstraction, framework, telemetry, selector or confidence workload is justified by this rotation.",
-      "uncertainty": "No additional safe material net reduction established. Checkpoint byte savings are arithmetic; the 9B memory result and media stage peaks are retained scoped measurements, not new controlled comparisons."
+      "recommendation": "Use existing runtimeServingProbe for the unchanged download-state scenario with its initial resync frame. Retain distinct streamed-memory/numerical/recovery tests and current gate/cache/resume owners; no new abstraction or review workload.",
+      "uncertainty": "Memory improvements are retained scoped observations, with honest latency/peak tradeoffs. No additional safe net reduction established in changed memory code, and no persistent production leak established in local encoder error cleanup."
     }
 }

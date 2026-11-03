@@ -1,21 +1,21 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "Two implemented improvements close292/293, with growth counted separately from reductions. New294 reuses two concrete tests' identical fresh-store/catalog/Qwen directory setup while retaining distinct validation-recipe and runtime-model checks. No other safe net production reduction established.",
-      "priority": "Durability288 remains first; retain recovery and continuation priorities.293 is resolved at the later committed pin.294 belongs to ordinary native test consolidation.",
+      "assessment": "One completed test merge and one small newly established test/setup reduction. Reuse the existing candidate test and its two component/two-and-one ablation fixture; remove only the seed dimension. No abstraction, wrapper, new fixture or selector.",
+      "priority": "Durability and unresolved correctness/continuation remain ahead of P3 maintenance.295 can ride ordinary work in the existing candidate test.",
       "declined_candidates": [
-        "Keep the checkpoint-copy test: file listing/no-weight-copy and missing tokenizer protect newly repaired behavior across dense and mixture callers. Existing hfrepo.CompanionFiles and export.CopyFiles already own listing and durable copying; no new wrapper proposed.",
-        "Keep the trained benchmark fixture's fresh versus already-admitted cases: avoiding revalidation protects goldens, and both paths require benchmark-before-guard. Keep exact accepted-denominator assertions for census and smoke, which have different catalog types.",
-        "Retain the improvement record and its consistency test as bounded evidence rather than replace them with another real training run. Its519-node/4034-byte cost is explicit; it does not prove a scheduler or justify automatic promotion.",
-        "Retain inference mixed storage/adapted/rank/overflow cases, typed retention roots/missing pins/store-local authority refusal, segmented checkpoint repair and stale-head refusal. Similar setup is not proof that these failure cases are redundant.",
-        "Retain runtime stream initial/admit/cancel and progress coalescing coverage. Existing252 owns download-test setup sharing; do not file it again."
+        "Do not merge the candidate closure test with stored capability/dependency tests: missing Forward and representation-bridge catalog selection differ from missing stored transform/controller/checkpoint identities.",
+        "Keep explicit policy move, missing reason, no-op, activation-preserves-binding and CLI candidate resolution checks. They cross different publication/loading boundaries even though both create policies.",
+        "Keep effective-policy identity tests: changed temperatures must produce changed evidence, while repeated identical inputs must retain identity. This is the identity contract, not an oracle comparing a result with itself.",
+        "Retain ordinal declaration-order protection. The577-node test plus16530-byte pin adds maintenance; name/order comparison does not itself validate arbitrary explicit constant expressions. Current selected enum values resolve correctly; no present misencoding or new robustness framework is claimed.",
+        "Retain loader failure/cancellation and thinking stop/flush/cancel coverage. Existing240 owns the duplicated loader body,242 the batched-read equality improvement and224 the duplicated SSE emitter body; no duplicate findings."
       ]
     },
   "committed_plan": {
-    "git_blob": "1e97a69d33fd11a0599dfd1490ba589dbd78c76c",
+    "git_blob": "35fce88289b72c4a506b08b02e17b2936c348d52",
     "path": "docs/plan.json",
-    "revision": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
-    "sha256": "18bf1fa4bc0a4082f9279fda6da1506da30d62884c1b8cb748475009a7daa104",
+    "revision": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+    "sha256": "b27a3bd10a7ca7a877569fd32a3bf0fa6c03b0758585816898e2f1269d38deeb",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -700,46 +700,46 @@
       "comparison": "The actual in-memory AST migration is decisive for reduction; existing native server package validation during implementation can verify behavior. No new test or extra SQA confidence run."
     },
     {
-      "id": "SQA-294",
+      "id": "SQA-295",
       "status": "open",
       "severity": "P3",
       "category": "native-go-test-surface",
       "classification": "source-and-in-memory-ast-established-net-reduction",
-      "title": "Merge viewed-directory validation into the existing registration identity fixture",
-      "evidence_commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+      "title": "Keep candidate-order coverage in one identity fixture",
+      "evidence_commit": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
       "sources": [
         {
-          "path": "internal/libraryintake/import_test.go",
-          "symbol": "TestAViewedDirectoryValidatesAsItRegisters; TestARegisteredDirectoryRunsUnderItsRegisteredIdentity"
+          "path": "internal/modelrecipe/candidate_closure_test.go",
+          "symbol": "candidateOrderSeeds; TestACandidateValidatesInEveryDeclaredOrder; local id/component helpers"
         },
         {
-          "path": "internal/libraryintake/intake.go",
-          "symbol": "validationAt; Register"
+          "path": "internal/modelrecipe/candidate_compile.go",
+          "symbol": "CandidateCompilation.ValidateIdentity; newCandidateEvaluationPlan; newCandidateTrial; canonicalCandidateIDs"
         },
         {
-          "path": "internal/testutil/qwen35_directory.go",
-          "symbol": "Qwen35Directory"
+          "path": "internal/modelrecipe/candidate_validation_test.go",
+          "symbol": "TestCandidateRecipeCapabilityClosure; TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint"
         }
       ],
-      "evidence": "Two concrete tests independently create the same fresh store, publish the same architecture catalog, write the same tiny Qwen35Directory and call Register. The older test then resolves runtime identity; the new one first prepares validation and compares its recipe with registration. validationAt prepares a candidate and closure without executing generation or committing it, so it can remain before the existing Register on that same fresh fixture. Both identity checks then observe the same registration. Repository search finds no current external selector for the removed test; its landing step is completed.",
-      "recommended_change": "Move the validationAt call and nil/error refusal before Register in TestARegisteredDirectoryRunsUnderItsRegisteredIdentity; add the request.Recipe/receipt[recipe] equality immediately after Register. Retain loaded.Identity/receipt[model] and both resource defers, extend the existing comment, and delete TestAViewedDirectoryValidatesAsItRegisters with its repeated setup. No new helper, wrapper, table, fixture or test.",
-      "displaced_surface": "Actual complete parsed import_test.go672->568(-104); intake.go2795 unchanged, compared3467->3363. Common Qwen35Directory helper and embedded fixture unchanged and cancel out of both sides; no migration/helper/wrapper cost. Two tested identity functions become one; stores/catalog publications/tiny model-directory writes/Register executions each2->1; validation preparation and runtime resolution each remain1. Imports/build tags unchanged; no static fixture bytes or gate legs added; same native package remains cached when unchanged.",
-      "impact": "Reduces duplicate filesystem/store setup and maintenance while preserving validation before registration, exact recipe/model identities, errors and close order. No production behavior, cancellation, numerical policy, platform contract, data-loss protection or confidentiality boundary changes. The validation closure stays unexecuted as in the original test; this merge does not claim inference validation coverage.",
+      "evidence": "The new test constructs16 sets of distinct hash-addressed facts, two components and three ablations, then for every set visits both component orders and three ablation orders. The first two ablation lists are exact reverses. For distinct IDs, forward and reverse cannot both equal the canonical sorted order: the retained six combinations already expose a missing component sort and a missing ablation sort regardless of label hashes. The16-seed comment assumes a single lucky declared order could mask the regression, but the inner reversed cases already remove that possibility. Only the test calls candidateOrderSeeds; no exported/config/build-tag contract depends on it. Current newCandidateEvaluationPlan/newCandidateTrial canonicalize lists while ValidateIdentity sorts provided IDs. The separate closure test and stored dependency fixtures cover different behavior and stay.",
+      "recommended_change": "Remove candidateOrderSeeds and its comment, unwrap its outer loop, use the existing local id helper with name directly rather than a seed suffix, and simplify the seed-only failure message. Retain both component orders, all three ablation orders, the one/two-ablations distinction, existing local component helper, and every identity/error check. No new test/helper/fixture/selector.",
+      "displaced_surface": "Complete in-memory parsed candidate_closure_test.go864->845(-19); candidate_compile.go6199 unchanged, compared7063->7044. The local id and component helpers still serve multiple concrete calls; no new abstraction/wrapper/migration/import cost. Component-pair setup16->1, component construction32->2, ablation construction48->3, evaluation-plan/trial construction and ValidateIdentity each96->6. All six inner cases remain. Static fixtures0->0; no store/model/device setup, gate leg or maintenance registry added. Existing native Go caching remains applicable.",
+      "impact": "Reduces repeated hashing/canonicalization/test setup and source maintenance. Production behavior, exact identities, errors, numerical ordering, cancellation, platform/build tags and resource lifetime are unchanged. No data-loss or confidentiality boundary is removed. The arbitrary label-seed count is unnecessary for this deterministic order contract.",
       "expected_benefit": {
-        "outcome": "104 fewer test AST nodes and one fewer store/catalog/tiny-directory/registration setup.",
-        "uncertainty": "Candidate parsed only, not typechecked as the complete package or executed; elapsed/allocation savings unmeasured. Keep validation before Register or the fresh-store requirement would weaken."
+        "outcome": "19 fewer test AST nodes,15 fewer component-pair setups and90 fewer identical-shape validation iterations.",
+        "uncertainty": "Parsed syntax only; no production test or benchmark executed. No wall time or allocation saving measured. This preserves the current missing-sort regression signal, not a claim about all possible future bugs."
       },
-      "likely_effort": "Move the two unique validation checks into the existing test and delete the duplicate body.",
+      "likely_effort": "Small deletion inside the existing test; no migrated unique cases or new helpers.",
       "plan_references": [
-        "recipe-repairs/policy-moves"
+        "compact-tests/param-folds"
       ],
-      "plan_coverage": "Existing native test-compaction work; no new plan row or selector needed.",
+      "plan_coverage": "Existing native test compaction; no new plan row or selector needed.",
       "closure_criteria": [
-        "Fresh-store validation preparation and non-nil executor check precede the retained Register.",
-        "Both exact recipe equality and runtime model equality remain with their error/close handling.",
-        "Duplicate test/setup disappears; whole file/setup surface is smaller with no new abstraction or fixture."
+        "The outer seed constant/loop/suffix disappears and the whole test file is smaller.",
+        "Both component orders and all three ablation orders remain, including the reverse pair, with one and two ablations per component.",
+        "Exact identity checks, errors and the separate missing-forward/representation-bridge cases remain; no replacement fixture, wrapper or recurring workload."
       ],
-      "comparison": "The complete in-memory candidate parses at568 versus672 nodes. During implementation use ordinary package validation and existing fixture; retain the validation-routing regression's failure signal. No new SQA workload or separate confidence suite."
+      "comparison": "Static deciding comparison: opposite orders of distinct IDs cannot both match canonical order. During ordinary implementation validation retain this one native fixture; if the regression signal needs confirmation, the existing unsorted-before-fix comparison suffices with one fixture and both reverses. Do not add another seed sweep, test, model workload, benchmark or SQA confidence run."
     },
     {
       "id": "SQA-287",
@@ -2966,6 +2966,46 @@
         "Retain shared native fixture, tensor/header/padding and directory-open coverage with no new setup or suite."
       ],
       "comparison": "The in-memory full-file replacement already counts all imports, caller messages and deleted helper:433->367. Exact-declaration go/types confirms the original helper uses only standard byte equality and length/index operations. Ordinary implementation validation suffices; no new SQA test or benchmark."
+    },
+    {
+      "id": "SQA-294",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "native-go-test-surface",
+      "classification": "source-and-in-memory-ast-established-net-reduction",
+      "title": "Directory validation now shares the registration identity fixture",
+      "evidence_commit": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+      "sources": [
+        {
+          "path": "internal/libraryintake/import_test.go",
+          "symbol": "TestARegisteredDirectoryRunsUnderItsRegisteredIdentity; former TestAViewedDirectoryValidatesAsItRegisters removed"
+        },
+        {
+          "path": "internal/libraryintake/intake.go",
+          "symbol": "validationAt; Register"
+        },
+        {
+          "path": "internal/testutil/qwen35_directory.go",
+          "symbol": "Qwen35Directory"
+        }
+      ],
+      "evidence": "50471abfd moved validationAt and its error/non-nil-executor check before Register in the existing fresh-store test, then compares request.Recipe to the registered recipe. Loaded runtime model identity and both resource closes remain. The former separate test is deleted. Current actual Go AST confirms672->569(-103), including one more comment node than the prior568-node hypothetical. Implementation triage agrees; no SQA test run.",
+      "recommended_change": "No further change for this finding; keep the combined test's validation-before-registration order and exact recipe/model assertions.",
+      "displaced_surface": "Test file672->569(-103); store/catalog/tiny-Qwen-directory/Register setups2->1; validation preparation1 and runtime resolution1 retained. Existing shared fixture unchanged, no new helper/wrapper/static fixture/gate. Production intake.go2795->2797(+2) is the separate candidate-loading context/store API repair; combined pair3467->3366(-101). Entire policy-moves landing grows339production/779test.",
+      "impact": "Reduces duplicate filesystem/store setup and maintenance while preserving validation before registration, exact recipe/model identities, errors and close order. No production behavior, cancellation, numerical policy, platform contract, data-loss protection or confidentiality boundary changes. The validation closure stays unexecuted as in the original test; this merge does not claim inference validation coverage.",
+      "expected_benefit": {
+        "outcome": "Committed103-node test reduction and one fewer repeated store/catalog/tiny-directory/registration setup.",
+        "uncertainty": "No measured elapsed/allocation saving. Gate results retained, not independently rerun."
+      },
+      "likely_effort": "Completed in50471abfddbbed1491612d7499d828f3f83228f4.",
+      "plan_references": [],
+      "plan_coverage": "Completed recipe-repairs/policy-moves removed from current plan; no new row.",
+      "closure_criteria": [
+        "Fresh-store validation preparation and non-nil executor check precede the retained Register.",
+        "Both exact recipe equality and runtime model equality remain with their error/close handling.",
+        "Duplicate test/setup disappears; whole file/setup surface is smaller with no new abstraction or fixture."
+      ],
+      "comparison": "Committed source/actual AST and retained policy-moves gate establish closure. No extra confidence run requested."
     },
     {
       "id": "SQA-292",
@@ -6150,112 +6190,115 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA validation workloads. Credit native Go caching, existing selected lanes, retained cell/phase credit, trained-model measured marks and synchronous command ownership.",
+      "execution": "No SQA production tests, gates, benchmarks, profiles, services or model workloads. Only scratch parsing/type analysis/report construction. Credit native Go caching, existing selected lanes, retained phase/cell resume credit and current synchronous owners.",
       "sample_cost": {
-        "revision": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
-        "comparison_revision": "c18242ac9fb23341a0dfa1c447a0bd58b92a5405",
-        "files": 32,
-        "functions": 197,
-        "parser_local_bindings": 8803,
-        "production_ast_before": 29574,
-        "production_ast_after": 30050,
-        "production_ast_delta": 476,
-        "test_ast_before": 10331,
-        "test_ast_after": 11820,
-        "test_ast_delta": 1489,
-        "total_ast_after": 41870,
-        "scope": "22 changed Go files including two new test files, plus10 rotated production/test files.30-file first sample plus2-file concurrent landing reconciliation; whole-file AST, bounded source inspection."
+        "revision": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+        "comparison_revision": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
+        "files": 30,
+        "functions": 366,
+        "parser_local_bindings": 13996,
+        "production_ast_before": 49184,
+        "production_ast_after": 49858,
+        "production_ast_delta": 674,
+        "test_ast_before": 17948,
+        "test_ast_after": 20535,
+        "test_ast_delta": 2587,
+        "total_ast_after": 70393,
+        "scope": "22 changed Go files (three new test files) plus8 unchanged rotated files. Whole-file parser counts include comments; a bounded subset of functions/callers was read."
       },
-      "complete_change_cost": "trained-admission +126production/+340test; trained-benchmark +323/+316; target-order +15/+18; judged-proof +0/+519; moss-early-refusals +12/+296. Total+476/+1489=+1965 Go AST. Separate retained evidence file40lines/4034bytes; target JSON399->418bytes. No new CUDA/schema files reported by gates. Serialized Order input and companion files are real product surface; checkpoint companions reportedly add under11MB and preserve serving behavior.",
-      "completed_reductions": "292 removes the17-node repeated parse and one embedded-document map construction. Whole target test580->598(+18) and production567->582(+15):35 added test nodes for order/refusal/comment changes offset the17-node reduction. Complete landing grows33 nodes, not a net source reduction.",
+      "complete_change_cost": "policy-moves+339production/+779test; ordinal-guard+0/+577; sampling-identity+240/+367; candidate-closure+95/+864. Total+674/+2587. One runtime-policy-move/v1 document contract, an optional serialized ServingObservation.Policy field and one16530-byte/62-enum ordinal pin. Other new static fixtures0; no new CUDA source. These are correctness/identity costs, not a net simplification claim.",
+      "completed_reductions": "294: import_test.go672->569(-103 including comments), versus the prior568-node hypothetical because the landed comment has one additional node. Store/catalog/Qwen directory/Register setups2->1. intake.go2795->2797(+2) separately passes context/store into candidate loading; combined pair3467->3366(-101), not a saving attributed to that API repair.",
       "sampled_tests": [
         {
           "classification": "merge",
-          "tests": "TestAViewedDirectoryValidatesAsItRegisters into TestARegisteredDirectoryRunsUnderItsRegisteredIdentity",
-          "retained_owner": "Existing registration/runtime identity test in internal/libraryintake/import_test.go",
-          "unique_cases": "Validation on the fresh store before Register; non-nil executor; request recipe equals registration recipe; loaded runtime model equals registered model; both resource closes retained.",
-          "cost": "294: test672->568(-104); intake.go2795 unchanged; compared3467->3363. Store/catalog/Qwen directory creation2->1, registration2->1, validation1 and runtime resolution1 retained; no new fixture/helper/gate."
+          "tests": "Former TestAViewedDirectoryValidatesAsItRegisters into TestARegisteredDirectoryRunsUnderItsRegisteredIdentity",
+          "retained_owner": "internal/libraryintake/import_test.go existing registration/runtime identity test",
+          "unique_cases": "Fresh-store validationAt and non-nil executor before Register; request.Recipe equals receipt recipe; loaded identity.Model equals receipt model; store and loaded Close defers.",
+          "cost": "Implemented294: test672->569(-103). Two store/catalog/tiny-directory/registration setups become one; validation preparation1 and runtime resolution1 remain. No new helper/fixture/gate."
         },
         {
           "classification": "simplify",
-          "tests": "Former TestTheDeclaredTrainingTargetsAreWhole, now TestATrainingTargetARunCouldNotStartFromIsRefused",
-          "retained_owner": "Mandatory declaredTargets initializer and synthetic parseTargets cases",
-          "unique_cases": "Duplicate embedded-file parse removed; synthetic valid,duplicate,zero-gain and new zero-order refusals remain.",
-          "cost": "292 completed17-node removal; whole file grows18 for new order behavior. No static fixture or device setup."
+          "tests": "TestACandidateValidatesInEveryDeclaredOrder",
+          "retained_owner": "Existing test in internal/modelrecipe/candidate_closure_test.go; candidate codecs and ValidateIdentity",
+          "unique_cases": "Both component orders and all three ablation orders, including forward/reverse with one component owning two ablations; exact identity validation and errors.",
+          "cost": "295 parsed864->845(-19), production candidate_compile.go6199 unchanged; compared7063->7044. Setup pairs16->1; validations96->6. Same id/component local helpers and six inner combinations; no fixture, import, gate or device setup added."
         },
         {
           "classification": "retain",
-          "tests": "TestACheckpointKeepsWhatServesItsModel",
-          "retained_owner": "CopyModelFiles -> hfrepo.CompanionFiles -> export.CopyFiles",
-          "unique_cases": "Config/tokenizer/template/generation files kept, model weights excluded, missing tokenizer refused. Shared caller paths are dense publishCheckpoint and trainMixture.",
-          "cost": "183 test nodes; existing temporary directories only. Companion bytes retained are correctness growth, not memory savings."
+          "tests": "TestAnUnloadableRecipeIsNotRunnable and existing candidate validation tests",
+          "retained_owner": "Shared inferencePathComplete/capabilityCatalog; ValidateCandidateRecipe and CompileCapability",
+          "unique_cases": "Whole inference runnable, missing Forward refused, representation bridge uses its catalog. Stored missing transform/controller/checkpoint refusal remains in candidate_validation_test.go.",
+          "cost": "Part of the864-node new file. Complete candidate-closure landing+95production/+864test; new helpers replace displaced checks and are included, fixture0."
         },
         {
           "classification": "retain",
-          "tests": "TestATrainedModelHasItsBenchmarkBeforeItsGuard; TestATrainedModelOwesNoAcceptedDenominator",
-          "retained_owner": "Existing onboarding fixture, onboarding.ready/benchmark, censusModels and declaredEntries",
-          "unique_cases": "Fresh and already-admitted models both get benchmark; only fresh gets validation. Trained entries excluded from two separately typed accepted catalogs.",
-          "cost": "onboard_test.go2526 total; trained-benchmark landing+323production/+316test, zero added static fixtures. Reuses existing fixture."
+          "tests": "TestEveryProfileOrdinalKeepsItsName",
+          "retained_owner": "profileEnums/declaredEnums and profile_ordinals.json",
+          "unique_cases": "Nested integer type reach, constant declaration order, blanks, removed pinned types and nonempty traversal. Explicit arithmetic value changes are outside this test's checked property.",
+          "cost": "577test AST,16530-byte/545-line static pin for62enums,0production. Per uncached test execution source glob/parsing and reflection are real setup; no saving claimed."
         },
         {
           "classification": "retain",
-          "tests": "TestTheSmallestModelsImprovementRecordIsComplete",
-          "retained_owner": "Committed improvement record and existing scorecard.Gaps",
-          "unique_cases": "Recorded identity kinds, target model/gap and command suffix, arithmetic gain/support/gap consistency, one measurement. No training re-execution.",
-          "cost": "519 test nodes plus4034-byte40-line record for zero production nodes. Local identity/number helpers serve multiple fields; full authenticity and session linkage are not asserted."
+          "tests": "runtime_policy_move_test.go and cmd/recipe/main_test.go candidate bound-policy case",
+          "retained_owner": "EnsureRuntimePolicy/MoveRuntimePolicy/ResolveRuntimePolicy",
+          "unique_cases": "Activation keeps earlier binding; blank reason refuses actual move; successful move carries From/To/reason; no-op allowed; candidate command reads bound policy.",
+          "cost": "Move file497nodes; main_test4797->5161(+364); loaded_program_test1947->1967(+20). Store/publication setups retained; whole policy landing+339/+779 includes294 reduction."
         },
         {
           "classification": "retain",
-          "tests": "TestNativeExpertBankTensors",
-          "retained_owner": "nativeExpertBankTensors and splitExpertResidency",
-          "unique_cases": "Fused/separate/mixed storage, adapted whole layer refusal, quantized/BF16/F32 eligibility, F16/flat exclusions, exact fit/one byte short and uint64 overflow.",
-          "cost": "531 test nodes; runner_weights474/expert_residency208 unchanged. Synthetic descriptors, no device/model setup."
+          "tests": "TestDeclaredSamplingIsBoundToTheRun and inference measurement policy assertion",
+          "retained_owner": "modelrecipe.BindServingPolicy shared by Handler.publishServing and cmd/recipe.measureInference",
+          "unique_cases": "Different effective temperatures have different policy/run IDs, repeated same input stable, measured observation references actual loaded policy. Existing invalid/nonfinite configuration refusals stay.",
+          "cost": "model_config_sampling_test931->1234(+303), inference_measure_test1806->1870(+64). Complete landing+240production/+367test; existing store fixture, no model inference added by these identity checks."
+        },
+        {
+          "classification": "merge",
+          "tests": "TestLoaderReleasesEverythingOnFailure",
+          "retained_owner": "Existing Load/release test and fakeDevice/newStores/mixedFixture",
+          "unique_cases": "Keep every allocation/write failure position, claimed/unclaimed mode, OOM-specific error,64-byte write chunk and16-byte cancellation chunk, zero live/unpublished state.",
+          "cost": "Existing240 remains: full test file5648; prior parsed5573(-75) unchanged at current source. Execution count is not reduced by folding the bodies. No new recommendation or run."
+        },
+        {
+          "classification": "simplify",
+          "tests": "TestHighFanoutReadsAreBatched",
+          "retained_owner": "artifact.ReadContents and Store.VisitContents; existing slices.Equal pattern",
+          "unique_cases": "One batch/zero individual opens, full caller order including length, missing identity refusal and PresentContents subset order.",
+          "cost": "Existing242 remains423->421 from retained parsed candidate. Current fixture still48 entries; no setup reduction or representative workload claim."
         },
         {
           "classification": "retain",
-          "tests": "TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias; TestSegmentedRetentionPreservesAuthorityClosure",
-          "retained_owner": "collectLiveSet/releaseLive and existing retention fixtures",
-          "unique_cases": "Typed versus textual references, absent pins counted, store-local refusal without chain advance, blob removal after release, alias survival and corrupted checkpoint replacement. Existing TestReleaseRefusesACommitAfterItsSnapshot retains concurrent-head refusal.",
-          "cost": "retention_test1101+segmented591; retention.go1512 unchanged. Necessary recovery cases retained; no new copy or crash run."
+          "tests": "TestStreamedThinkingHoldsItsOutputOnce; TestStreamedThinkingStopsAndFlushesAsABufferedTurnDoes",
+          "retained_owner": "Generation pump, Handler.streamAnthropicMessages and shared SSE emitter",
+          "unique_cases": "One retained output, hidden matched stop, flushed unmatched prefix, token counts/stop reason, no completed turn after cancellation. Buffered and streaming outputs need different assertions.",
+          "cost": "1016test AST, protocol_anthropic2748 unchanged. Allocation case creates6 handlers with1MiB payload and process GC/readings; no new ratchet or confidence run. The half-payload margin detects another copy, not a general allocation budget."
         },
         {
           "classification": "retain",
-          "tests": "TestOneWorkbenchEventStream",
-          "retained_owner": "downloadRegistry.observe/admit/cancel and runtimeActivityStream",
-          "unique_cases": "File/whole-percent progress publishes recorded values; initial state, admitted download and cancellation reach the one stream. Transfers retain their slot until unwind; resync and unsubscribe remain.",
-          "cost": "601 test nodes; runtime_activity1276/hub_workspace3137 unchanged. Existing252 owns fixture consolidation; no duplicate finding or SQA server."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestAMOSSRunIsRefusedBeforeItsFirstPicture; TestAPictureIsHeldOutByItsBytes",
-          "retained_owner": "Existing mossRouteFixture, trainMOSS and unchanged CheckTrainingGrid/refuseTrainedHeldOut",
-          "unique_cases": "Copied bytes and shifted grid must win before preparation of an undecodable picture. Retain pure copied-byte/missing-file checks and existing valid/cancelled route checks. Test is Windows-only, like the route.",
-          "cost": "293: route2329->2341(+12); held-out test211->507(+296), including regexp import and two local helpers. One existing compact archive extraction and two rejected-input route/store setups; no new static fixture or successful training/device run. Complete affected comparison4895->5203(+308), necessary sequencing coverage growth."
+          "tests": "TestDispatchContentionPreservesWork; existing loop continuation/recovery tests",
+          "retained_owner": "loop.Run with fakeWorld and existing authority/campaign owners",
+          "unique_cases": "No launch or parking during held ownership; budgets, explicit stops, accepted prerequisites and partial results remain.",
+          "cost": "Dispatch test104nodes, driver1276 unchanged. No scheduler, recurring poller, notification framework or new test requested."
         }
       ],
       "retained_results": [
         {
-          "commit": "e0e4799b3f5e3aa879f2e8d137c9eb3e5a902c9d",
-          "result": "test1m44.723s; lanes12m21.332s, device/webui/CUDA passed (CUDA1executed18cached). Bonsai outputs identical and peak5347.3MiB unchanged; no new performance win established."
+          "commit": "50471abfddbbed1491612d7499d828f3f83228f4",
+          "result": "test2m57.745s; lanes4m46.554s (device16.148s,webui2m59.119s,CUDA4m29.534s:9executed10cached). Identical Bonsai output/peak5347.3MiB;55.7073tokens/s."
         },
         {
-          "commit": "d3ef70e8a16b3995c0f9b4ba2a6b12e25d7bfbac",
-          "result": "test2m25.004s; lanes3m27.159s, device/webui/CUDA passed (4executed15cached). Retained prior checkpoint passed5cells after a manually published benchmark, so this record alone is not a no-handoff proof. Existing Qwen3.5-4B MMLU chat-template failure disclosed."
+          "commit": "4d17c66e5f893ccf8f1c659abd35f90ad1ceed4d",
+          "result": "test4m2.647s; lanes11m18.279s (device10m42.741s,webui2m54.145s,CUDA34.26s:0executed19cached). Retained inserted NormalizationPolicy head constant failed the new order pin; not rerun."
         },
         {
-          "commit": "3556f6ce05b8bf38af61c70bc2b80dc69a045386",
-          "result": "test2m3.846s; lanes853ms device/webui/CUDA skipped. File-order gain0.00796 did not meet0.01; seed1 experiment0.01740 near older0.01751. Target fixed untried training seed25 before next run; retained failure not hidden."
+          "commit": "2b4d5c5ab67b7ccf34000ee6fdb0f3415e29167c",
+          "result": "test3m7.479s/117packages; lanes17m15.574s (device10m43.515s,webui2m57.284s,CUDA6m31.19s:19executed0cached). Identical Bonsai output/peak,55.76tokens/s. Declared penalties with zero window remain filed under recipe-repairs/declared-penalty."
         },
         {
-          "commit": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
-          "result": "test3m56.122s; lanes829ms device/webui/CUDA skipped. Retained one-command seed25run642s, supported objective gain0.016534 on24cases,5measuredcells; next validate-trained no work. MMLU/serving regressions disclosed; base activation unchanged. No SQA run."
-        },
-        {
-          "commit": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
-          "result": "test1m47.905s; lanes55.418s CUDA passed (1executed18cached), device/webui skipped. verify2.653s. Commit reports refusal-order test fails when old order restored. No timing or memory benefit measured."
+          "commit": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+          "result": "test1m51.773s; lanes2m54.696s (device15.208s,webui2m53.853s,CUDA1m37.437s:1executed18cached). Retained pre-fix200-label comparison reported148 two-component and91 two-ablation refusals. Identical Bonsai output/peak,55.882tokens/s. No SQA reproduction."
         }
       ],
-      "automation_sequence": "main runs quietmachine.Workload(train), releases its lifetime, then measureTrained synchronously waits on exec.Command(...validate -trained). admitTrained finds unmeasured catalog entries; onboarding.ready skips revalidation of admitted models and benchmarks both paths before cell execution. measuredCells marks only fully acquired owed inference cells; failed/incomplete runs remain eligible. Reuse these owners and native credit. Retained end-to-end command establishes internal sequencing, not an autonomous gap launcher, detached-process final-exit delivery or next dispatch; driver.Run still returns ReasonWorkWaiting at initial ownership contention. Later MOSS landing moves both existing deterministic checks immediately after ResolveProfile and before mossPrepare/weights/trainer. It preserves session failure recording and changes only error precedence for already-refused inputs."
+      "automation_sequence": "Run checks budgets/stop, replays obligations, acquires current work and preserves accepted prerequisite progress. Improve files gaps before Fill, keeping finished evidence when later validation fails. Initial ErrWorkWaiting still returns ReasonWorkWaiting; cmd/loop.run prints the outcome then returns. This is a source-established continuation boundary, not evidence of a delivered wakeup. Native fixture preserves the waiting classification. No new delay measured; four gate completions do not establish supervision/next dispatch. Existing271/258 and plan unattended-driver rows remain the owners."
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7052,13 +7095,12 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "This chat previously implemented changes; no independent third-party claim.",
-      "No production tests, gates, models, services, benchmarks, profiles, agents or worker messages. Only scratch Go parsing/type analysis and report construction ran outside the repository.",
-      "AST/setup counts are proxies, not measured elapsed or memory savings. No whole-program imported-device type resolution; stdlib-only export file typechecked, other files use parser bindings plus traced callers.",
-      "294 is parsed only. Its validation call must remain before Register on the fresh store; moving it after registration would weaken the prerequisite case.",
-      "The new record test checks static document consistency and command suffix, not live store provenance, all process exits, actual session/measurement-record linkage or completion delivery. Its successful run claim is retained implementation evidence, not independently rerun.",
-      "642s spans training through measurement; -max-wall10m is the existing projected-wall guard passed as MaxProjectedWall to training, not an end-to-end hard deadline. No claim of generalization or population optimum from one model/run or repeated held-out cases.",
-      "No new crash reproduction or power-cut evidence. No blanket literal audit, additional selector, framework, telemetry, confidence run or recurring census."
+      "This chat previously implemented changes; this is not independent third-party review.",
+      "No application validation, model execution, service, benchmark, profile, worker dispatch/message or plan/skill change. Scratch Go tooling stayed outside the repository.",
+      "AST/setup counts are proxies; no elapsed or memory reduction measured.295 was parsed only. Type analysis covers actual selected integer enum declarations, not imported device packages or whole-program call graphs.",
+      "Selected enum constants resolve to current values (NormalizationRMS0 through NormalizationMAD5). The new guard protects declaration names/order; it is not a general numeric-expression or serialization-migration proof. No currently corrupted profile was demonstrated.",
+      "Retained gate times differ in selected work/cache hits and are not a controlled performance comparison. Numerical acceptance is independent of timing; Bonsai output/peak equality does not demonstrate other models' memory or quality.",
+      "No new crash reproduction/power-cut or completion-delivery experiment. Historical findings outside this sample retain their original evidence. No blanket literal audit, new selector, framework, telemetry, performance ratchet or recurring census."
     ],
   "master_lead_triage": {
     "at": "2026-11-02",
@@ -7710,11 +7752,11 @@
       }
     }
   },
-  "next_finding_number": 295,
+  "next_finding_number": 296,
   "publication_context": {
-      "checked_head": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
-      "assessment": "Pinned source/committed plan assessed; reread report immediately before replacement and preserve both owner objects plus unknown/implementation-owned finding fields raw-exact.",
-      "newer_commit_note": "Five implementation landings reconciled, including committed MOSS early refusal after the initial review sample.",
+      "checked_head": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+      "assessment": "Pinned committed source and plan assessed. Re-read report immediately before replacement; preserve both owner objects and every unknown/implementation-owned finding field raw-exact.",
+      "newer_commit_note": "Four implementation landings since29000010b reconciled. Worktree reward_run.go changes excluded.",
       "publication": "Explicit report-only path-limited Git commit under existing locks/hooks; no gate, branch switch, reset, stash, push or plan change."
     },
   "ranked_active_finding_ids": [
@@ -7728,7 +7770,7 @@
     "SQA-266",
     "SQA-257",
     "SQA-285",
-    "SQA-294",
+    "SQA-295",
     "SQA-287",
     "SQA-215",
     "SQA-276",
@@ -7777,45 +7819,43 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "121 stable findings:55 open,4 deferred,62 resolved. Close292 after removal of duplicate embedded-target parsing and293 after committed early MOSS admission. Add294 to merge directory validation identity into its existing registration/runtime identity fixture, saving104 test AST and one store/catalog/tiny-model setup.",
-      "Master now retains checkpoint companions, admits viewed text directories, supplies the benchmark before the guard, isolates trained models from accepted denominators, declares target order and refuses bad MOSS grid/copied held-out inputs before preparation. Five landings add476 production and1489 test AST, including the17-node removal under292. The519-node record test and4034-byte retained record add maintenance surface; the gate's zero static-fixture count does not make that cost disappear.",
-      "The retained seed25 command trained, judged and measured five cells in642s and a second validate -trained found nothing to reacquire. This is bounded end-to-end progress within one invoked command. It does not establish unattended gap dispatch, completion delivery or next-loop ownership;271/258 remain open.",
-      "Objective gain0.016534 exceeds the declared0.01 with reported detectable0.004384 on24 cases. The same held-out inputs had already been read by24 corpus runs in another store. A new seed is a different training draw, not a new held-out sample; support is within-case noise evidence, not protection against selection across those reads.",
-      "The same retained run worsens MMLU-Pro0.1696->0.1447, BBH0.3206->0.3033 and IFEval0.2989->0.2299, with inference321.3 versus505.7tokens/s and3.15 versus1.6s load. The record attributes slower serving to F32 checkpoint weights versus F16 base; that is not an isolated precision experiment. The base activation did not move. Existing close-the-loop/promote and time-and-memory/trained-precision own the implications; no duplicate finding or new SQA run.",
-      "Keep288 store durability first: its seal/cutover/repair source is unchanged. The concurrent9f3f440a8 landing closes293 with the existing checks moved before preparation and a retained refusal-order regression.283 retains exact recipe-state and remaining directory/media obligations despite newly fixed viewed-directory validation.",
-      "Rank3 expert banks derive from [inner,rows,experts]; the residency test's48/47bytes come from32-byteBF16bank+8-byteF32dense+8-byteconvertedvector. Checked sums and dtype geometry remain. Retention bisects by actual transactionFits rather than an arbitrary batch size; GUI whole-percent updates are a display unit and lifecycle events still publish independently."
+      "122 stable findings:55 open,4 deferred,63 resolved. Close294 after the committed directory-test merge. Add295 for removal of redundant identity-seed repetitions from the existing candidate-order test, with19 fewer test AST nodes and15 fewer component-pair setups. No new production reduction established.",
+      "Four implementation landings add674 production and2587 test AST nodes (+3261 total), including294's103-node reduction. Runtime-policy move evidence adds one document contract; the ordinal pin adds16530 static bytes. Correctness/identity coverage growth is counted as growth.",
+      "Keep288 first: sealLocked still renames then uses the Windows no-op directory sync before truncating the journal; ReplaceStore still has the two-rename interruption boundary; repair still directs every replay refusal to a sealed backup. Source was reread; historical crash figures were not reproduced.",
+      "Bound policy preservation and explicit reasoned policy moves are real progress. Serving observations now carry the effective policy identity through the shared BindServingPolicy owner. Missing held-out state attribution, directory/media reach and actual supervised continuation retain their existing findings; the new policy field is not a proof of those contracts.",
+      "The candidate regression already visits both component orders and opposite ablation orders. Distinct IDs cannot be sorted in both forward and reverse order, so sixteen label sets add repetition rather than deciding coverage for the missing-sort fault. Keep all six order combinations and the separate missing-forward/representation-bridge closure cases.",
+      "Numerical/geometry review: loader4readers/2buffers are a queueing choice with no optimality claim; descriptor offsets and checked alignment bound admitted reads, and failed/cancelled uploads remain unpublished and released. Batched-read fanout48 is a fixture, not a representative distribution. Thinking allocation best-of3 is a process-allocation proxy, not tail latency or a device-memory result. Strata remains a comparison."
     ],
-  "reviewed_at": "2026-11-02T22:03:45Z",
-  "reviewed_master": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
+  "reviewed_at": "2026-11-03T00:02:43Z",
+  "reviewed_master": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 9f3f440a831a42ad0239bc391a4481ead21eaf2d; committed plan blob 1e97a69d33fd11a0599dfd1490ba589dbd78c76c; unchanged skill.md blob 0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
-      "Fresh provisional conclusions for the30-file rotated sample preceded reading the current report. Four implementation landings since c18242ac9 reviewed, then the concurrent MOSS early-refusal landing reconciled from committed code and retained results; two more committed files parsed.",
-      "Rotated source/caller scope: trained checkpoint companion ownership, directory registration/validation, benchmark-before-guard admission, accepted catalog denominators and one-measurement recovery; target order and retained real improvement record. Beyond these landings: inference native expert/converted weight placement and teardown, database retention/blob release/head-conflict and segmented recovery, GUI download progress and runtime stream resynchronization.",
-      "Actual Go parser analysis of32 committed files:197 functions,8803 parser-local bindings, whole-file counts including comments. Detailed reading is bounded to named functions, callers and tests, not every declaration in large files. Full actual internal/export/files.go typechecked through standard-library imports:16 definitions,94 uses,3 method selections; no stubs.",
-      "One complete in-memory test consolidation parsed, not executed: import_test.go672->568. Prior findings and both current owner objects read after provisional conclusions. Old findings retain original evidence revisions unless explicitly rechecked; this is not a recurring full census."
+      "Pinned committed master bf95cc7fb8ca93db71873c52c5e1fa070744bf50; committed plan blob35fce88289b72c4a506b08b02e17b2936c348d52; unchanged skill.md blob0979804de4cced3f7a1f4af3d0d7c4c0e2d207d3. Campaign: Deliver multimodal Qwen3.8-Flash-Next UD-IQ4_XS and meet native Strata performance; master-lead lane.",
+      "Fresh provisional conclusions preceded reading the prior report. Reviewed four implementation landings since29000010b: policy moves, ordinal declaration guard, effective sampling identity and candidate closure. Rotated beyond the diff through model loader transfers/cleanup, batched database reads/blob lifetime, Anthropic thinking/GUI speech streaming and deterministic loop dispatch.",
+      "Actual Go parser analysis of30 committed Go files:22 changed and8 rotated;366 functions,13996 parser-local bindings, whole-file counts including comments. Detailed source inspection is bounded to named owners/callers/tests, not every declaration in large files. Actual architecture.go integer-enum declarations typechecked without dependency stubs:17 types,99 constants,117 definitions,51 uses; complete model/device packages were not typechecked.",
+      "Complete candidate test simplification parsed in memory: candidate_closure_test.go864->845. Six order combinations remain; setup pairs16->1 and ValidateIdentity calls96->6. No candidate/application test execution.",
+      "Reconciled current implementation responses and rechecked294,240,242,224,288 and271 at the pin. Sampling identity improvements do not by themselves close283 or258. Findings outside the bounded sample retain their original evidence revisions; no full recurring census."
     ],
   "sqa_response": {
-      "reviewed_master": "9f3f440a831a42ad0239bc391a4481ead21eaf2d",
-      "assessment": "Accept292's removal while counting target-order growth honestly. Close293 after the concurrent committed early-refusal repair and retained test. Add294 for104 fewer test nodes and one fewer directory/store setup. Credit the real trained-command chain while preserving288/271/258/283 priorities.",
+      "reviewed_master": "bf95cc7fb8ca93db71873c52c5e1fa070744bf50",
+      "assessment": "Accept294's landed merge with actual103-node test reduction; add295's19-node reduction and16->1 setup simplification. Count+3261 total Go AST and16530 fixture bytes across the four correctness landings. Keep durability and continuation priorities.",
       "new_findings": [
-        "SQA-294"
+        "SQA-295"
       ],
       "resolved_findings": [
-        "SQA-292",
-        "SQA-293"
+        "SQA-294"
       ],
       "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "30 committed Go files parsed before report reconciliation, then2 additional MOSS files at the later pin; stdlib export source typechecked, complete test-merge candidate parsed, five retained gate records and4034-byte real-run record read. No new validation workload.",
+      "evidence": "30 committed Go files parsed; actual enum declarations typechecked; complete order-test simplification parsed; four retained gate records read. Current sources confirm288/271 and existing240/242/224. No new application workload.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "48a42cac650a9e3b4fef31b049bf94f9f02dc5d2",
-        "status": "Preserve both owner objects exactly. Reviewer source checks accept292 and293 after the later committed MOSS landing;294 is a new consolidation recommendation."
+        "current_triage_head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
+        "status": "Both owner objects preserved exactly. Accept lead's294 implementation after reading current validation-before-registration and runtime identity checks.283 residual scope remains acknowledged;271/258 remain filed."
       },
-      "recommendation": "Merge validation identity coverage into its existing fixture. Keep exact evidence identities, held-out limitations, recovery and stop/budget contracts. Use current benchmark/dispatch/resume owners; no framework, selector, telemetry or additional run.",
-      "uncertainty": "No measured speed/memory saving from294; one retained training run is not an unattended scheduler proof or independent generalization evidence."
+      "recommendation": "Remove the redundant seed dimension inside the existing candidate order fixture. Preserve all six order combinations, exact identity/error handling and separate capability closure cases. Use existing native validation when implemented; no extra SQA run.",
+      "uncertainty": "Setup reduction is source-established, not measured wall/memory benefit. Policy identity does not prove held-out attribution, unattended continuation or arbitrary ordinal-value stability."
     }
 }

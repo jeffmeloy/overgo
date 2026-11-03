@@ -133,8 +133,13 @@ func (b blobStore) reader(id artifact.ID) (*blobReader, error) {
 	file, err := os.Open(destination)
 	offset, size, found := int64(0), int64(0), false
 	if errors.Is(err, os.ErrNotExist) {
-		if offset, size, found = b.packed(id); found {
-			file, err = os.Open(filepath.Join(b.root, blobPackFilename))
+		// The place is read from the index of the very pack file opened, so
+		// a pack another handle publishes meanwhile cannot move it.
+		pack, index, packErr := b.pack.open(b.root)
+		if offset, size, found = packEntry(index, id); packErr != nil || found {
+			file, err = pack, packErr
+		} else if pack != nil {
+			_ = pack.Close()
 		}
 	}
 	if err != nil {

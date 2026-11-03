@@ -24,8 +24,8 @@ import (
 // identity, a digest over the index, then the payloads the index points at.
 // Where a blob's bytes sit is a storage fact the journal never states, so
 // packing changes no commit. A loose file wins over a packed copy; the pack
-// is read only when the loose file is absent, and its index is loaded on the
-// first such miss.
+// is read only when the loose file is absent, and its index is read on the
+// first such miss and again whenever another pack has replaced the file.
 
 const (
 	blobPackFilename = "small.pack"
@@ -38,51 +38,49 @@ const (
 	packHeaderBytes = len(blobPackMagic) + 8
 )
 
-// blobPack is the loaded index of one store's pack, shared by the copies of
-// its blobStore.
+// blobPack is the index of one store's pack, shared by the copies of its
+// blobStore, with the file it was read from: any handle on the store may
+// publish a new pack, so an index holds only for the file it came from.
 type blobPack struct {
-	mu     sync.Mutex
-	loaded bool
-	index  []byte
+	mu    sync.Mutex
+	file  os.FileInfo
+	index []byte
 }
 
-// entries returns the verified index, loading it once; a store with no pack,
-// or one whose index does not match its digest, has none.
-func (p *blobPack) entries(root string) []byte {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if !p.loaded {
-		p.index, p.loaded = readPackIndex(filepath.Join(root, blobPackFilename)), true
+// open opens the pack under root and returns it with its verified index,
+// read again when the file is not the one the index was read from: a pack is
+// published by a rename, never written in place. A store with no pack has
+// neither; a pack whose index does not match its digest has no index.
+func (p *blobPack) open(root string) (*os.File, []byte, error) {
+	file, err := os.Open(filepath.Join(root, blobPackFilename))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil, nil
 	}
-	return p.index
-}
-
-// forget drops the loaded index after the pack file has been replaced.
-func (p *blobPack) forget() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.index, p.loaded = nil, false
-}
-
-func readPackIndex(path string) []byte {
-	file, err := os.Open(path)
 	if err != nil {
-		return nil
-	}
-	defer file.Close()
-	header := make([]byte, packHeaderBytes)
-	if _, err := io.ReadFull(file, header); err != nil || string(header[:len(blobPackMagic)]) != blobPackMagic {
-		return nil
+		return nil, nil, err
 	}
 	info, err := file.Stat()
 	if err != nil {
+		return nil, nil, errors.Join(err, file.Close())
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.file == nil || !os.SameFile(p.file, info) {
+		p.file, p.index = info, readPackIndex(io.NewSectionReader(file, 0, info.Size()))
+	}
+	return file, p.index, nil
+}
+
+func readPackIndex(file *io.SectionReader) []byte {
+	header := make([]byte, packHeaderBytes)
+	if _, err := io.ReadFull(file, header); err != nil || string(header[:len(blobPackMagic)]) != blobPackMagic {
 		return nil
 	}
 	// The index and its digest must fit in the file after the header, so a
 	// damaged count is refused before it sizes an allocation; the division
 	// also keeps the product from overflowing.
 	count := binary.BigEndian.Uint64(header[len(blobPackMagic):])
-	room := info.Size() - int64(packHeaderBytes) - sha256.Size
+	room := file.Size() - int64(packHeaderBytes) - sha256.Size
 	if room < 0 || count > uint64(room)/uint64(packEntryBytes) {
 		return nil
 	}
@@ -107,11 +105,20 @@ func packKey(id artifact.ID) ([]byte, error) {
 
 // packed finds where the pack holds id's payload.
 func (b blobStore) packed(id artifact.ID) (offset int64, size int64, found bool) {
+	// A pack that cannot be opened has no index, so it holds nothing.
+	file, index, _ := b.pack.open(b.root)
+	if file != nil {
+		_ = file.Close()
+	}
+	return packEntry(index, id)
+}
+
+// packEntry finds where the pack index names holds id's payload.
+func packEntry(index []byte, id artifact.ID) (offset int64, size int64, found bool) {
 	key, err := packKey(id)
-	if err != nil || b.pack == nil {
+	if err != nil {
 		return offset, size, found
 	}
-	index := b.pack.entries(b.root)
 	at, found := sort.Find(len(index)/packEntryBytes, func(entry int) int {
 		return bytes.Compare(key, index[entry*packEntryBytes:][:packKeyBytes])
 	})
@@ -131,7 +138,8 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 	// The pack is read once and every member held to its identity; a blob
 	// with no loose file is then answered by its place in the verified pack
 	// rather than by opening the pack again for each of its members.
-	if err := s.blobs.verifyPack(ctx); err != nil {
+	index, err := s.blobs.verifyPack(ctx)
+	if err != nil {
 		return 0, err
 	}
 	checked := 0
@@ -148,7 +156,7 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 		}
 		if _, statErr := os.Stat(path); statErr == nil {
 			err = s.blobs.verify(ctx, id)
-		} else if _, _, packed := s.blobs.packed(id); !packed {
+		} else if _, _, packed := packEntry(index, id); !packed {
 			err = fmt.Errorf("overgodb: blob %s is neither loose nor packed", id)
 		}
 		if err != nil {
@@ -161,27 +169,23 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 
 // verifyPack streams every pack member through one buffer and holds its bytes
 // to the digest its index entry names, so verification holds one member's
-// buffer rather than the pack, stopping between reads once ctx is done; a store
-// with no pack has nothing to verify.
-func (b blobStore) verifyPack(ctx context.Context) error {
+// buffer rather than the pack, stopping between reads once ctx is done, and
+// returns the index it verified; a store with no pack has nothing to verify.
+func (b blobStore) verifyPack(ctx context.Context) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
-	file, err := os.Open(filepath.Join(b.root, blobPackFilename))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
+	file, index, err := b.pack.open(b.root)
+	if err != nil || file == nil {
+		return nil, err
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	index := b.pack.entries(b.root)
 	if index == nil {
-		return errors.New("overgodb: blob pack index does not match its digest")
+		return nil, errors.New("overgodb: blob pack index does not match its digest")
 	}
 	buffer := make([]byte, inlineContentLimit)
 	hash := sha256.New()
@@ -189,17 +193,17 @@ func (b blobStore) verifyPack(ctx context.Context) error {
 		place := entry[packKeyBytes:]
 		offset, size := binary.BigEndian.Uint64(place), uint64(binary.BigEndian.Uint32(place[8:]))
 		if offset+size > uint64(info.Size()) {
-			return fmt.Errorf("overgodb: blob pack member %x lies outside the pack", entry[packKindBytes:packKeyBytes])
+			return nil, fmt.Errorf("overgodb: blob pack member %x lies outside the pack", entry[packKindBytes:packKeyBytes])
 		}
 		hash.Reset()
 		if _, err := io.CopyBuffer(hash, &backupReader{ctx: ctx, source: io.NewSectionReader(file, int64(offset), int64(size))}, buffer); err != nil {
-			return err
+			return nil, err
 		}
 		if !bytes.Equal(hash.Sum(nil), entry[packKindBytes:packKeyBytes]) {
-			return fmt.Errorf("overgodb: blob pack member %x bytes do not hash to their identity", entry[packKindBytes:packKeyBytes])
+			return nil, fmt.Errorf("overgodb: blob pack member %x bytes do not hash to their identity", entry[packKindBytes:packKeyBytes])
 		}
 	}
-	return nil
+	return index, nil
 }
 
 // writePack writes a pack -- header, index, index digest -- then streams each
@@ -291,7 +295,6 @@ func packBlobsUnder(ctx context.Context, store *Store, limit int64) (PackReport,
 		if err := fsatomic.SyncDirectory(blobs.root); err != nil {
 			return err
 		}
-		blobs.pack.forget()
 		report.Packed, report.PackedBytes = len(small), packed
 		for _, id := range small {
 			removed, err := blobs.remove(id)

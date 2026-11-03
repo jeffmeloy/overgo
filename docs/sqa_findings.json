@@ -1056,7 +1056,9 @@
         "uncertainty": "Migration+110included after deleting410-node declaration;helpers/wrappers/fixtures/config0delta. Opens7->4,TempDirs4->2,packing3->2,contents5->3,corruption writes3->2;unchanged Backup internals excluded. VerifyBlobs5->4 removes duplicate mismatch;direct loose verification and12readbacks remain. No measured elapsed/allocation/RSS saving or extra gate. Current production baseline reflects the already-landed identity-sort simplification."
       },
       "likely_effort": "Small same-file move and deletion, with no production change.",
-      "plan_references": [],
+      "plan_references": [
+        "store-durability/store-lifecycles"
+      ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
         "Delete the duplicate cancellation fixture only after its empty-store, corrupted-pack and loose-blob cancellation checks move to TestSmallBlobsArePacked; ordinary corruption must still return a non-cancellation error.",
@@ -7269,6 +7271,30 @@
         "plan_steps": [
           "store-durability/crash-points"
         ]
+      },
+      {
+        "comment": "store-lifecycles, the finding's lifecycle criterion. TestGeneratedStoreLifecycles drives 40 seeded lifecycles of 60 steps (commits, seals, closes leaving no, a few or any tail, opens, reads, releases, packs, repeats, stale heads) across two writers and a reader, each handle held after a refresh to a small reference of head and content bytes, and checks 6 sampled kill states of each against the crash harness's promises, under the crashpoints tag over the harness's overlay. Before the fix 31 of 40 lifecycles broke a promise through the stale pack index: absent blob, same length wrong bytes, a pack refused while reading its predecessor, bytes not hashing to their identity. The fix: blobPack keeps the file its index was read from, every lookup opens the pack and reads the index again when the opened file is another (os.SameFile on the handle's identity), and a read takes its offset from the index of the very file it reads; the packer's forget is gone. After: 0 of 40 in about 11 s, 0 of 200 in 25 s. The crash harness's crashShort now masks noise word by word, so a message is no longer written as a bare #. The remaining criterion is store-durability/fault-seam.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestGeneratedStoreLifecycles",
+          "internal/overgodb/blob_pack.go blobPack.open",
+          "internal/overgodb/blobs.go blobStore.reader"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/store-lifecycles"
+        ]
+      },
+      {
+        "comment": "Landed with store-durability/store-lifecycles. TestSmallBlobsArePacked now requires context.Canceled from VerifyBlobs on its store before the commit, from VerifyBlobs on the damaged backup pack, and from blobs.verify on the large loose blob, and holds the ordinary mismatch not to be a cancellation; TestBlobVerificationStopsWhenCancelled is deleted. With verifyPack's cancellation check off the test fails at the empty store.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestSmallBlobsArePacked"
+        ],
+        "finding_id": "SQA-223",
+        "plan_steps": [
+          "store-durability/store-lifecycles"
+        ]
       }
     ],
     "experiments": {
@@ -7309,7 +7335,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
-    "head": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
+    "head": "d4246ac3bbf79499adf52178633e9ed76e91a1ac",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7620,8 +7646,11 @@
         "note": "Landed with device-numerics/aligned-read. strataNativeShape bounds the flattened extent before any signed count, kQuantNativeProduct keeps a product past int32 on the span kernels at compile and launch alike with no q8_1 staging reserved, and both quantizers share the guard. TestAnOversizedKQuantProductKeepsItsSpanKernels compiles the finding's own shape on the host. Ordinary routing is unchanged: the executor's device suite passes. Awaits the reviewer's closure."
       },
       "SQA-223": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/blob_pack_test.go. Title-level triage, not re-verified at this head."
+        "action": "implemented",
+        "rows": [
+          "store-durability/store-lifecycles"
+        ],
+        "note": "Landed with store-durability/store-lifecycles, which touched the pack's files: the cancellation cases moved into TestSmallBlobsArePacked's empty store, damaged backup pack and loose blob, and TestBlobVerificationStopsWhenCancelled is gone. Awaits the reviewer's closure."
       },
       "SQA-237": {
         "action": "filed",

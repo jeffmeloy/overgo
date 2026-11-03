@@ -39,6 +39,14 @@ func TestEveryDurableOperationCanFail(t *testing.T) {
 	runCrashHarness(t, "TestRefusedOperationsKeepTheStoresPromises")
 }
 
+// TestGeneratedStoreLifecycles drives seeded lifecycles of commits, seals, closes, opens, reads, releases, packs, repeats
+// and stale heads across two writers and a reader, holds every handle to a small reference of keys, contents and head,
+// and holds a sample of the states a kill leaves in each to the store's promises.
+func TestGeneratedStoreLifecycles(t *testing.T) {
+	// Serial: it runs the package's tests again in a go test of its own, which compiles the package under an overlay.
+	runCrashHarness(t, "TestLifecyclesKeepTheStoresPromises")
+}
+
 // runCrashHarness runs one test of the crash harness in a go test of its own, over the overlay crashOverlay writes.
 func runCrashHarness(t *testing.T, harness string) {
 	t.Helper()
@@ -50,7 +58,7 @@ func runCrashHarness(t *testing.T, harness string) {
 		t.Fatalf("the crash harness fails: %v\n%s", err, output)
 	}
 	for line := range strings.Lines(string(output)) {
-		if strings.Contains(line, "crash_points_test.go") {
+		if strings.Contains(line, "crash_points_test.go") || strings.Contains(line, "crash_lifecycles_test.go") {
 			t.Log(strings.TrimSpace(line))
 		}
 	}

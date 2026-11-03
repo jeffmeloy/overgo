@@ -153,20 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 40,
-        "reason": "crash-points adds 44 production nodes, the journal that is zeros from its start counted as never begun, as the review's prototype does; store-lifecycles keeps 40 for forgetting a stale pack index, and fault-seam gives back the append seam's."
+        "nodes": 0,
+        "reason": "crash-points added 44 production nodes, the journal that is zeros from its start counted as never begun, as the review's prototype does; store-lifecycles adds 59, not 40: a read takes its offset from the index of the very pack file it opens, rather than the 40 nodes that only forget a stale index, so a pack another handle publishes meanwhile cannot move it; fault-seam gives back the append seam's."
       },
       "steps": [
-        {
-          "id": "store-lifecycles",
-          "title": "Drive the store through generated lifecycles",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestGeneratedStoreLifecycles$'",
-          "rationale": "No generated-sequence test of any lifecycle exists; every abnormal-path test is one case its author thought of. Commit, seal, close, open, read, release, pack and repeat across two writers and a reader, against a small reference of keys, contents and head, found a stale pack index: blobPack loads once (internal/overgodb/blob_pack.go:51-58) and only the packing handle forgets it (:294), so a second handle gets 'requires an absent blob' or the right length and the wrong bytes. 166 findings in 200 seeds, 0 in 1,500 with packing off. It is unreachable today only because cmd/overgodb/precheck.go:138-164 packs a private clone. Forget the index when the pack's file changes.\nServes: store correctness.\nDisappears: nothing.\nEvidence: 166 findings in 200 seeds today, 0 after.\nBatch: test code, after crash-points. About 0.1 to 0.6 s a seed; about 40 seeds in a commit.",
-          "depends_on": [
-            "store-durability/crash-points"
-          ]
-        },
         {
           "id": "fault-seam",
           "title": "Retire the append seam the crash harness replaces",

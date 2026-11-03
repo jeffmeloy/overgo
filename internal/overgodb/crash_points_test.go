@@ -510,29 +510,36 @@ func crashWinRuleStates(ops []crashOp, final int) []crashState {
 	return states
 }
 
-// crashShort is a path with the parts that differ from run to run, temporary directories, digests and counters, each
-// written #, so findings group by where they fell.
-func crashShort(path string) string {
-	var short strings.Builder
-	for _, part := range strings.FieldsFunc(filepath.ToSlash(path), func(r rune) bool { return r == '/' }) {
-		if short.Len() != 0 {
-			short.WriteByte('/')
-		}
-		run, hex := 0, 0
-		for _, r := range part {
-			if unicode.IsDigit(r) {
-				run++
-			}
-			if unicode.Is(unicode.ASCII_Hex_Digit, r) {
-				hex++
-			}
-		}
-		if run >= crashNoiseDigits || hex >= crashNoiseHexDigits {
+// crashShort is a path or a message with the words that differ from run to run, temporary directories, digests and
+// counters, each written #, so findings group by where they fell. A word runs between separators: anything but a
+// letter, a digit, '.', '-' or '_'.
+func crashShort(text string) string {
+	var short, word strings.Builder
+	digits, hex := 0, 0
+	flush := func() {
+		if digits >= crashNoiseDigits || hex >= crashNoiseHexDigits {
 			short.WriteByte('#')
+		} else {
+			short.WriteString(word.String())
+		}
+		word.Reset()
+		digits, hex = 0, 0
+	}
+	for _, r := range filepath.ToSlash(text) {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune(".-_", r) {
+			flush()
+			short.WriteRune(r)
 			continue
 		}
-		short.WriteString(part)
+		word.WriteRune(r)
+		if unicode.IsDigit(r) {
+			digits++
+		}
+		if unicode.Is(unicode.ASCII_Hex_Digit, r) {
+			hex++
+		}
 	}
+	flush()
 	return short.String()
 }
 

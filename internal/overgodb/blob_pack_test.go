@@ -27,20 +27,17 @@ func TestPackIndexRejectsImpossibleCounts(t *testing.T) {
 	t.Parallel()
 	entries := bytes.Repeat([]byte{1}, 2*packEntryBytes)
 	digest := sha256.Sum256(entries)
-	write := func(count uint64) string {
-		path := filepath.Join(t.TempDir(), blobPackFilename)
+	read := func(count uint64) []byte {
 		header := append([]byte(blobPackMagic), binary.BigEndian.AppendUint64(nil, count)...)
-		if err := os.WriteFile(path, slices.Concat(header, entries, digest[:]), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		return path
+		pack := slices.Concat(header, entries, digest[:])
+		return readPackIndex(io.NewSectionReader(bytes.NewReader(pack), 0, int64(len(pack))))
 	}
 	for _, count := range []uint64{math.MaxUint64, math.MaxUint64 / packEntryBytes, 3} {
-		if index := readPackIndex(write(count)); index != nil {
+		if index := read(count); index != nil {
 			t.Fatalf("count %d read an index of %d bytes from a two-entry file", count, len(index))
 		}
 	}
-	if index := readPackIndex(write(2)); !bytes.Equal(index, entries) {
+	if index := read(2); !bytes.Equal(index, entries) {
 		t.Fatalf("a count that fits read %d bytes, want the two entries", len(index))
 	}
 }
@@ -52,12 +49,20 @@ func TestPackIndexRejectsImpossibleCounts(t *testing.T) {
 // loose file; packing again reads the members from the pack it replaces; a
 // backup carries the pack and serves its members; and a pack whose index no
 // longer matches its digest serves nothing rather than the wrong bytes.
+// Verification answers its caller's cancellation before it reads: on a store
+// with nothing to verify, on a pack whose member no longer matches (whose read
+// would answer the mismatch) and on a loose blob.
 func TestSmallBlobsArePacked(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Create(root)
 	if err != nil {
 		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := store.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("an empty store's cancelled verification answered %v", err)
 	}
 	contents := []artifact.Content{
 		retentionContent(t, artifact.KindEvidence, "first small"),
@@ -133,8 +138,14 @@ func TestSmallBlobsArePacked(t *testing.T) {
 			if err := os.WriteFile(pack, document, storeFileMode); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := reopened.VerifyBlobs(t.Context()); err == nil {
-				t.Fatal("a changed byte in a packed payload passed verification")
+			if _, err := reopened.VerifyBlobs(t.Context()); err == nil || errors.Is(err, context.Canceled) {
+				t.Fatalf("a changed byte in a packed payload answered %v, want the mismatch", err)
+			}
+			if _, err := reopened.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
+				t.Fatalf("a cancelled verification of the damaged pack answered %v", err)
+			}
+			if err := reopened.blobs.verify(cancelled, contents[2].Descriptor.ID); !errors.Is(err, context.Canceled) {
+				t.Fatalf("a cancelled loose blob's verification answered %v", err)
 			}
 		}
 		if err := reopened.Close(); err != nil {
@@ -158,65 +169,6 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	defer damaged.Close()
 	if _, _, _, err := damaged.OpenContent(t.Context(), contents[0].Descriptor.ID); err == nil {
 		t.Fatal("a pack whose index does not match its digest still served a blob")
-	}
-}
-
-// TestBlobVerificationStopsWhenCancelled holds verification to its caller's
-// cancellation before it reads: a store with nothing to verify, a pack whose
-// member no longer matches (whose read would answer the mismatch) and a loose
-// blob each answer the cancellation.
-func TestBlobVerificationStopsWhenCancelled(t *testing.T) {
-	t.Parallel()
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
-	empty, err := Create(filepath.Join(t.TempDir(), "empty"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer empty.Close()
-	if _, err := empty.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
-		t.Fatalf("an empty store's cancelled verification answered %v", err)
-	}
-	root := filepath.Join(t.TempDir(), "store")
-	store, err := Create(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	contents := []artifact.Content{
-		retentionContent(t, artifact.KindEvidence, "packed small"),
-		retentionContent(t, artifact.KindEvidence, bytes.Repeat([]byte("loose "), inlineContentLimit)),
-	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cancel/fixture", Contents: contents}); err != nil {
-		t.Fatal(err)
-	}
-	if report, err := packBlobsUnder(t.Context(), store, int64(contents[0].Descriptor.Size)+int64(inlineContentLimit)); err != nil || report.Packed != 1 {
-		t.Fatalf("pack = %+v, %v; want the small blob packed", report, err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	pack := filepath.Join(root, blobDirectory, blobPackFilename)
-	document, err := os.ReadFile(pack)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document[len(document)-1] ^= 0xFF
-	if err := os.WriteFile(pack, document, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
-	damaged, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer damaged.Close()
-	if _, err := damaged.VerifyBlobs(t.Context()); err == nil || errors.Is(err, context.Canceled) {
-		t.Fatalf("the damaged pack's verification answered %v, want the mismatch", err)
-	}
-	if _, err := damaged.VerifyBlobs(cancelled); !errors.Is(err, context.Canceled) {
-		t.Fatalf("a cancelled verification of the damaged pack answered %v", err)
-	}
-	if err := damaged.blobs.verify(cancelled, contents[1].Descriptor.ID); !errors.Is(err, context.Canceled) {
-		t.Fatalf("a cancelled loose blob's verification answered %v", err)
 	}
 }
 

@@ -1,21 +1,22 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "Keep existing SQA-252 reduction, corrected for current five-frame startup and retained transport owner. No additional safe net production/test reduction established in this rotation; no quota.",
-      "priority": "Durability/recovery and evidence attribution remain ahead of compaction. No new evidence warrants reranking unrotated issues.",
+      "assessment": "Credit partial SQA-288 repairs, now including committed modeled crash/failure evidence, and measured stage-memory reductions. No additional safe net production/test reduction established; no quota.",
+      "priority": "Acknowledged-commit recovery remains first; memo shutdown, evidence identity and unattended continuation remain above compaction. Source rechecks do not support a priority change.",
       "declined_candidates": [
-        "Do not merge MOSS and Krea layer runners merely because both stream layers: MOSS rejects padding and passes multiple prompts through each block; Krea retains selected layers in slot order under a pad-key mask. Their shared arithmetic owners are already reused; a combined runner would add policy/ownership branches without a priced net saving.",
-        "Do not remove encodeHolding or fully decoded DenoiserWeights loaders: caption conditioning, native boundary/oracle checks and training/host readers still call them.",
-        "The two 74/76-node decoded-loader wrappers share an each/Close shape, but extracting another wrapper has no established complete net benefit after preserving distinct source opening and errors. No abstraction proposed.",
-        "Named selected in encodeBlocks is reset by return nil,err before its deferred selected-row loop, so earlier selected leases may remain until Close. The actual Condition/Recondition path is retired on execution/reset error by ModelSessionDirector; Generator.Close uses WithoutCancel and closes all executor pool allocations. No persistent production leak established. Recondition explicitly requires close after error; do not add a retry test/framework for an unsupported contract.",
-        "Retain retention's typed-parent, pinned/missing-root and live-store-local refusal cases and landing's captured-edit versus moved-trunk scenarios. Similar setup is insufficient to discard these distinct safety boundaries."
+        "Do not delete the new stage-lifetime test as a self-comparison: two requests test regrowth after freeing scratch, while frozen numerical fixtures own correctness. No equivalent retained lifetime owner was established.",
+        "Do not remove unwritten-tail or cutover coverage because both use committedJournal: they share setup but exercise distinct tail-corruption and absent-root recovery contracts. The actual shared helper already has two test callers.",
+        "The 460-node durable-rename scan is structural and costs a source discovery when executed. It does not prove crash durability or cover indirect function aliases. Retain its current requirement until an established behavioral owner subsumes it; do not expand it into another policy suite.",
+        "freeBuffers now serves releaseWorkspace and Close with the same workspace deletion/error aggregation. Preserve stage synchronization, WithoutCancel final close, Windows build admission and weight ownership; no extra cleanup wrapper recommended.",
+        "Do not generalize square5-frame64x64 stage fixtures, sin/cos values or retained timing pairs to arbitrary geometry/distributions. The fixture derives buffers from admitted model geometry; no concrete new rectangular/overflow bug established.",
+        "Crash/failure tests share runCrashHarness and crashCheck but exercise interruption versus returned errors. A combined child invocation could change isolation and tag/selection behavior; no fully priced safe consolidation established here. Keep the existing fault-seam migration owner and its distinct admission/catalog/uncertain-flush/orphan-blob cases."
       ]
     },
   "committed_plan": {
-    "git_blob": "1448a22fb32f342e361faacd06ed82db39155ef8",
+    "git_blob": "a1ac3966daf04c790d6627410d8e2cab5c9fca1a",
     "path": "docs/plan.json",
-    "revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
-    "sha256": "0e8b2a68204194d252a51ed0ad9e1a8292c5e9a2f1ac3d92b69f83c54cb1f575",
+    "revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+    "sha256": "ca58d024cac2f2ee57a4cdfac3dd0f33a89b7917362e2986126fb22d8b5a2d71",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
@@ -24,55 +25,86 @@
       "status": "open",
       "severity": "P1",
       "category": "durability",
-      "classification": "code-contradicts-written-rule",
-      "title": "Keep every acknowledged commit through a crash, and import the store rows that never reached the plan",
-      "evidence_commit": "f7cded0c151ebf38bf37304505ccd46164fc5a48",
+      "classification": "partially-addressed-repairs-and-modeled-crash-proof-with-lifecycle-work-pending",
+      "title": "Finish store lifecycle coverage and migrate the displaced append fault seam",
+      "evidence_commit": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
       "sources": [
         {
           "path": "internal/overgodb/store.go",
-          "symbol": "sealLocked: os.Rename of the sealed segment, SyncDirectory, then Truncate of the journal"
+          "symbol": "sealLocked -> fsatomic.Replace before journal truncate; open -> supersededSibling under writer exclusion; ReplaceStore"
+        },
+        {
+          "path": "internal/overgodb/log.go",
+          "symbol": "ensureHeader; pendingRotation; replayFrames; zeroFrom; tornBytes"
+        },
+        {
+          "path": "internal/fsatomic/replace_windows.go",
+          "symbol": "Replace; replace; posixRename"
         },
         {
           "path": "internal/fsatomic/sync_windows.go",
-          "symbol": "SyncDirectory is a no-op; 'Windows callers must publish namespace changes through Replace or flush a surviving hard link through SyncFile'"
+          "symbol": "SyncDirectory; SyncFile"
         },
         {
-          "path": "internal/overgodb/store.go",
-          "symbol": "ReplaceStore: two renames, the first undone only on a failed rename; Create: open(nil, root, openOrStart)"
+          "path": "internal/trainingprogram/checkpoint.go",
+          "symbol": "PublishCheckpoint; writeMomentum"
         },
         {
-          "path": "cmd/overgodb/repair.go",
-          "symbol": "'does not replay; restore it from a sealed backup'"
+          "path": "internal/overgodb/unwritten_tail_test.go",
+          "symbol": "TestAnUnwrittenTailEndsTheJournal; committedJournal; appendTo"
         },
         {
-          "path": "C:/Users/jeffm/Downloads/plan.json",
-          "symbol": "rows store-durability (5 steps) and fault-finding (6 steps), written 23:14 EST 2026-11-01, outside the repository"
+          "path": "internal/overgodb/cutover_kill_test.go",
+          "symbol": "TestAKillBetweenCutoverRenamesStartsNoEmptyStore"
+        },
+        {
+          "path": "internal/repoanalysis/durable_rename_test.go",
+          "symbol": "TestEveryDurableRenameGoesThroughItsOwner"
+        },
+        {
+          "path": "docs/plan.json",
+          "symbol": "store-durability/store-lifecycles; fault-seam; fault-finding"
+        },
+        {
+          "path": "internal/overgodb/durable_operations_test.go",
+          "symbol": "runCrashHarness; crashOverlay; rewriteDurableCalls"
+        },
+        {
+          "path": "internal/overgodb/crash_record_test.go",
+          "symbol": "crashRecorder; crashRun; crashSync; crashWrite"
+        },
+        {
+          "path": "internal/overgodb/crash_points_test.go",
+          "symbol": "crashKillStates; crashNTFSStates; crashWinRuleStates; crashCheck; TestCrashStatesKeepTheStoresPromises; TestRefusedOperationsKeepTheStoresPromises"
         }
       ],
-      "evidence": "The plan review the owner asked for (session 35d6688b) finished after the merge of its draft. Its first draft landed at e253bd92e at 23:12 EST on 2026-11-01. Its fault review reported two minutes later, and those rows went only to C:/Users/jeffm/Downloads/plan.json. No commit, no row of docs/plan.json and no finding names them, so nothing brings them to the lead. Read from source at this commit, the three store defects stand. (1) sealLocked publishes the sealed segment with os.Rename, calls fsatomic.SyncDirectory, which is a no-op on Windows, and then truncates the journal and syncs that. The comment on SyncDirectory says a Windows caller must publish through Replace or flush a surviving hard link, and this one does neither, so under the repository's own written rule the journal's emptying can reach the disk while the segment's name does not, and the commits the seal held are then in neither place. SQA-254 covered the same pattern for blobs only. (2) ReplaceStore moves the live store aside and then moves the candidate in, undoing the first rename only when the second returns an error. A process killed between them leaves no live store, and Create opens with openOrStart, so it starts an empty store at sequence 0 while store.superseded-* holds the commits. (3) cmd/overgodb/repair.go answers any store that does not replay with 'restore it from a sealed backup', which for a journal ending in zero bytes would discard commits the journal holds intact. The reproductions are the review session's: a zero tail stops every open, the kill between renames leaves the empty store, and a crash test with no production code covered 1,804 crash states and reported acknowledged commits lost by the seal. This session read the code and ran none of them. No power cut was run, and whether NTFS leaves a zero tail is untested, so how likely each crash is remains unmeasured.",
-      "recommended_change": "Import the two rows as the review session gave them: 'go run ./cmd/plan -add -from C:/Users/jeffm/Downloads/plan.json -before <the row now first>', and place fault-finding after store-durability. The file was written for a plan that still held web-ui-repairs and dispatch-truth, both finished, so both placements need a new anchor. store-durability's steps: durable-names publishes every durable name through its owner and adds a repository check; unwritten-tail ends the journal at a frame that never reached the disk; cutover-kill has Create refuse, under the lock, a missing root with a .superseded-* sibling, and name it; crash-points and store-lifecycles keep the crash and generated-sequence tests. Their rationales and verify lines stand in the file.",
-      "displaced_surface": "The plain rename in sealLocked, the openOrStart path of Create beside a superseded store, and repair's restore advice for a journal that holds intact commits.",
-      "impact": "The store holds every model's record, evidence and run. A crash during a seal or a cutover can lose acknowledged commits or start a server on an empty store beside the real one, and the repair command's advice can discard good commits.",
+      "evidence": "b41b8ca6d imports store-durability/fault-finding and replaces seal's bare rename/no-op directory sync with fsatomic.Replace before truncation; checkpoint publication uses that owner and flushes momentum.879c69153 recovers zero active tails at the last whole prefix, with writable truncation/TornTail reporting; nonzero corruption and torn sealed segments still refuse. ae4c940e9 makes Create refuse a missing root beside .superseded-* under writer exclusion, retaining the original store. Publication waited for the active gate;70bd1ab76 then landed the modeled crash/failure harness and expands ensureHeader to an entirely zero journal without sealed segments, regardless of length, with seek-to-start before rewrite; invalid nonzero full headers still reach replay refusal. The committed harness records322operations; retained526kill/616journaled-power/137Windows-rule states and351fail-once/fail-persistently operations keep its promises. Retained undo failures expose anchor/seal/zero-tail regressions. These are modeled materialized trees with simulated flushes, not killed processes or physical power cuts. The old append seam and its narrower assertions remain; committed store-lifecycles/fault-seam own the next work. Earlier external reproductions keep their provenance and are not new SQA measurements.",
+      "recommended_change": "Credit all four landed steps and imported rows; retire obsolete import/repair requests. Complete existing store-lifecycles, then fault-seam: migrate per-surface fault refusal, unchanged catalog/head after failed append, complete replay after uncertain flush, and orphaned durable-blob noncommit into the existing harness before deleting recordLog.writer/durableWriter/faultWriter/partWriter and displaced rotation bodies. Preserve recovery/identity/cancellation and keep the new failure model explicitly bounded. No additional SQA run, new scanner/framework or blanket deletion.",
+      "displaced_surface": "Landed durable names removes seal's plain rename/no-op SyncDirectory and checkpoint's encoded-document staging map; complete gate -16 production/+460 test AST. Unwritten-tail adds+371/+775, cutover refusal+117/+216: durability subtotal+472 production/+1451 test=+1923. New shared committedJournal serves both tail and cutover tests, with eleven four-commit fixture invocations; appendTo belongs to tail setup. No new static fixture/schema/CUDA entries reported. Structural scan adds repository discovery/planted source and maintenance of seven exempt files, not behavioral crash proof. Remaining lifecycle/seam migration cost must still be counted; do not recommend deleting an old fault owner without migrating distinct cases. Concurrent70bd1ab76 adds44production/8693testAST: current durability subtotal516production/10144test=10660. Harness files1178+1688+5827AST; two child native-test commands/overlays, modeled state reconstruction and eight workers add setup cost, despite zero static fixtures. No old seam/test deletion has landed. Remaining migration net saving is unpriced; do not claim a reduction before all four distinct old assertions and their setup are accounted for.",
+      "impact": "Protects acknowledged store history, training checkpoint publication and restart after cutover; avoids starting the server with an empty store beside original commits. Wrongly broad tail recovery would hide corruption, and dropping read-only/sealed distinctions risks data loss. Preserve original content/identity, no confidentiality relaxation. No source-based guarantee against every hardware/filesystem failure.",
       "expected_benefit": {
-        "outcome": "No acknowledged commit is lost at any crash point a test can reach, and a store that does not open is repaired without a restore.",
-        "uncertainty": "No power cut was run. The seal's loss is by the repository's written rule rather than an observed crash, and whether NTFS leaves a zero tail is untested. The value of the fault-finding rows that have not been prototyped (checkpoint-cuts, landing-stages) is a hypothesis their own text states."
+        "outcome": "Concrete namespace/tail/cutover repairs and a shared modeled crash/failure oracle now exist. Remaining closure is generated store lifecycle behavior and complete old-seam migration.",
+        "uncertainty": "No physical power-loss result. Fixed512-byte synthetic sectors,1/half/last torn-write cuts and metadata/flush ordering bound the model; syntax-based rewrite/final-tree equality do not alone establish exhaustive flush coverage. Retained undo failures provide real fault signals within this workload. A zeroed acknowledged trailer is not distinguishable from an unwritten one by zeros alone."
       },
-      "likely_effort": "Moderate: the review session reports the crash test needs no production code, and the three repairs are small. Each step's verify line names its test.",
+      "likely_effort": "Four steps landed; existing store-lifecycles and fault-seam remain. Full migration/setup savings unpriced until narrower contracts move.",
       "plan_references": [
-        "store-durability/durable-names",
-        "store-durability/unwritten-tail",
-        "store-durability/cutover-kill",
-        "store-durability/crash-points",
         "store-durability/store-lifecycles",
-        "fault-finding"
+        "store-durability/fault-seam",
+        "fault-finding/swap-lifecycles",
+        "fault-finding/queued-load",
+        "fault-finding/agent-lifecycles",
+        "fault-finding/decline-sequences",
+        "fault-finding/checkpoint-cuts",
+        "fault-finding/landing-stages",
+        "fault-finding/long-sequences"
       ],
-      "plan_coverage": "None: no row in docs/plan.json at f7cded0c1 names it. The rows stand only in C:/Users/jeffm/Downloads/plan.json.",
+      "plan_coverage": "The missing rows are committed. durable-names, unwritten-tail, cutover-kill and crash-points landed and were pruned; store-lifecycles and newly explicit fault-seam remain before fault-finding. No plan edited by SQA.",
       "closure_criteria": [
-        "store-durability and fault-finding stand in docs/plan.json, or the lead records why a step of theirs is dropped.",
-        "TestEveryDurableRenameGoesThroughItsOwner, TestAnUnwrittenTailEndsTheJournal and TestAKillBetweenCutoverRenamesStartsNoEmptyStore pass, and each is seen to fail before its repair.",
-        "Crash-point and lifecycle tests hold the store at every durable operation the scripted workload reaches."
+        "Keep four committed steps and retained undo failures; do not repeat their checks solely for confidence.",
+        "Complete the committed store lifecycle requirement and migrate all four narrower append-seam contracts into the retained harness before deleting old injection/setup paths; report net production/test/fixture/setup/maintenance cost.",
+        "Preserve read-only nonmutation, nonzero corruption/sealed-segment refusals, acknowledged identities, cutover recovery and cancellation. Bound modeled-state conclusions by sector/write-cut/namespace/rewriter assumptions; physical power-loss proof is not asserted or required as a new SQA workload."
       ],
-      "comparison": "Code read at the evidence commit. Nothing measured or reproduced by this session; the figures are the review session's.",
+      "comparison": "Use the already planned native lifecycle fixture and existing crashCheck/refusal workloads. Smallest deciding migration comparison: each old per-surface refusal/catalog/uncertain-flush/orphan-blob assertion still fails with its fault disabled after moving; only then delete its old owner and count complete before/after AST/setup. Retained anchor/seal/zero-tail undo results already decide their repairs. No extra model run, confidence suite or scheduler.",
       "raised_by": "Review session e8549e3e, 2026-11-02, on finding the rows of plan review session 35d6688b absent from the plan and the register"
     },
     {
@@ -6306,118 +6338,127 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA application tests, gates, services, model/device workloads, benchmarks, profiles or new fixture runs. Scratch Go parser/type analysis only; hypothetical source counted without compiling/running an application.",
+      "execution": "No SQA application tests, gates, model/device workloads, services, benchmarks, profiles or new fixture runs. Scratch Go parser/type analysis only.",
       "sample_cost": {
-        "revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
-        "comparison_revision": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
+        "revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+        "comparison_revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
         "files": [
-          "internal/latentimage/conditioning_model_verify_windows.go",
-          "internal/latentimage/conditioning_model_windows_test.go",
-          "internal/latentimage/encoder_program.go",
-          "internal/latentimage/generator_rotary_windows.go",
-          "internal/latentimage/model_encoder_windows.go",
-          "internal/latentimage/resident_pipeline_cuda_windows.go",
-          "internal/latentimage/text_one_block_windows_test.go",
-          "internal/latentvideo/denoiser.go",
-          "internal/latentvideo/denoiser_session.go",
-          "internal/latentvideo/denoiser_stream_windows_test.go",
-          "internal/latentvideo/reference_edit_checkpoint.go",
-          "internal/latentvideo/reference_edit_denoiser_session_windows.go",
+          "cmd/overgodb/repair.go",
+          "cmd/server/main.go",
+          "internal/latentvideo/codec_stages_windows_test.go",
+          "internal/latentvideo/reconstruction_cuda_windows.go",
+          "internal/latentvideo/reference_edit_runtime_cuda_windows.go",
           "internal/latentvideo/runtime.go",
-          "internal/cuda/executor/device_buffer_pool.go",
-          "internal/cuda/executor/executor.go",
-          "internal/inference/dense_read_release_windows_test.go",
+          "internal/latentvideo/vae_session.go",
+          "internal/overgodb/cutover_kill_test.go",
+          "internal/overgodb/log.go",
+          "internal/overgodb/store.go",
+          "internal/overgodb/unwritten_tail_test.go",
+          "internal/repoanalysis/durable_rename_test.go",
+          "internal/trainingprogram/checkpoint.go",
+          "internal/server/event_hub.go",
+          "internal/server/event_hub_test.go",
+          "internal/landing/spent.go",
+          "internal/landing/spent_test.go",
+          "internal/overgodb/query.go",
+          "internal/overgodb/query_plan_test.go",
+          "internal/overgodb/blob_pack.go",
           "internal/overgodb/retention.go",
-          "internal/overgodb/retention_test.go",
-          "internal/server/runtime_activity.go",
-          "internal/server/one_event_stream_test.go",
-          "internal/httpstream/duplex.go",
-          "internal/landing/lanes.go",
-          "internal/landing/checkout_free_test.go",
-          "internal/plan/measurement_run.go",
-          "internal/latentimage/resident_lifetime_windows_test.go",
-          "internal/latentimage/resident_pipeline_windows_test.go"
+          "internal/fsatomic/replace_windows.go",
+          "internal/fsatomic/sync_windows.go",
+          "internal/overgodb/crash_points_test.go",
+          "internal/overgodb/crash_record_test.go",
+          "internal/overgodb/durable_operations_test.go"
         ],
         "file_count": 26,
-        "functions": 273,
-        "parser_local_bindings": 11681,
-        "production_ast_before": 45895,
-        "production_ast_after": 47943,
-        "production_ast_delta": 2048,
-        "test_ast_before": 6193,
-        "test_ast_after": 7523,
-        "test_ast_delta": 1330,
-        "total_ast_after": 55466,
-        "scope": "All16 changed Go files plus10 rotated files. Three newly added tests have zero before nodes. Supplementary SQA-252 native/browser owner counts1790/489 are outside these totals."
+        "functions": 297,
+        "parser_local_bindings": 10828,
+        "production_ast_before": 37326,
+        "production_ast_after": 38048,
+        "production_ast_delta": 722,
+        "test_ast_before": 2044,
+        "test_ast_after": 12592,
+        "test_ast_delta": 10548,
+        "total_ast_after": 50640,
+        "scope": "All16 changed Go files across five landings plus10 rotated files, compared with8780ef3e. Seven new test files count from zero. Whole-file counts include comments; named snippets outside this list are not in totals."
       },
-      "complete_change_cost": "Actual whole-file deltas agree with retained gates: +2048 production/+1330 test. No new schema/CUDA entries/static fixture files; retained stage JSON599035bytes(+3) is still data maintenance. No latency/heap benefit inferred from AST.",
-      "completed_reductions": "Whole-encoder residency, eager full video host decoding and surplus dense prompt arena lifetime are displaced; their complete changes grow code. Shared encoderLayer/mossSmallEncoder reduce copied bodies, but their new consumers add execution/setup. Existing SQA-252 hypothetical removes a listener/client/scanner and five imports with no new helper.",
+      "complete_change_cost": "Total+11270AST:722production/10548test. Crash-points alone+44/+8693; its record predicts about45s additional store tests and retains23/22s modeled workloads. No new CUDA/schema/static fixture files reported; overlays/temp trees are generated setup with real execution/maintenance cost. media-stage-peaks.json599029bytes(-6) remains maintained data. Native cache credit does not erase test growth.",
+      "completed_reductions": "Removes overlapping stage scratch lifetimes and seal's bare rename/no-op directory sync; checkpoint marshaling no longer holds a map of encoded document bytes before writing. freeBuffers consolidates actual stage-release and Close callers; whole feature still grows. No new elapsed/heap saving inferred from AST.",
       "sampled_tests": [
         {
           "classification": "retain",
-          "tests": "TestATextEncoderHoldsOneBlockOnTheCard; testConditioningModelGolden",
-          "retained_owner": "mossSmallEncoder, native MOSS fixture, modelConditioner.encode/encodeEach",
-          "unique_cases": "Two prompt lengths, exact native hidden states for whole/streamed paths, weight-derived peak bound and no retained static weights. Existing golden boundary outputs and long-context cases stay.",
-          "cost": "New561-node test/helper file; existing conditioning test file977->1051(+74), total+635. Existing fixture reused, new resident-session/setup execution remains; no new binary fixture. Peak bound derives total minus largest block weights, not arbitrary timing."
+          "tests": "TestAVideoStageLeavesNoScratchForTheNext",
+          "retained_owner": "Existing Wan model fixture; Generator.Generate; vaeDecoderCUDASession.releaseWorkspace/freeBuffers",
+          "unique_cases": "One generator, two5-frame64x64 requests; zero arena/idle pool/VAE workspace between requests and exact nonempty float bits after regrowth. Frozen output tests retain independent numerical acceptance.",
+          "cost": "404 test AST, one model setup/two Generate calls with collected frame slices, no new static fixture/helper framework. Actual allocation size not measured by SQA; no net test reduction or universal peak bound claimed."
         },
         {
           "classification": "retain",
-          "tests": "TestADenoiserLoadHoldsOneTensorOnTheHost",
-          "retained_owner": "openDenoiserWeights/DenoiserWeights.each and existing Wan model fixture",
-          "unique_cases": "Exactly six compile-time timestep tensors decoded before upload; fresh-process host peak growth and session cleanup. Frozen Wan/LiveEdit output cases remain distinct.",
-          "cost": "298 test AST; one MeasurementProcess child and one session construction, no new static fixture. Five-frame64x64 clip is the fixture, quarter of weight bytes is an empirical regression allowance on it, not a universal streaming/GC bound. No new ratchet recommended."
+          "tests": "TestAnUnwrittenTailEndsTheJournal; TestAKillBetweenCutoverRenamesStartsNoEmptyStore",
+          "retained_owner": "committedJournal and appendTo in unwritten_tail_test.go; existing native store",
+          "unique_cases": "Both zero-tail forms across reader/writer/Create, after-seal zeros, nonzero corruption refusal, sealed-segment refusal, no-header bootstrap; cutover absent-root refusal and restored original head. Preserve read-only versus truncating-writer semantics and original corruption tests.",
+          "cost": "775+216=991 test AST. Six tail/open combinations plus four additional tail/header states and one cutover state use eleven committedJournal invocations, each four commits; count source setup, not timings. Shared helper already reused; no new static fixture. Manual rename models a boundary, not an actual killed process."
         },
         {
           "classification": "retain",
-          "tests": "TestALongReadLeavesADenseRunnerItsDecodeScratch",
-          "retained_owner": "existing native9B fixture runner and Executor.ReleasePromptMemory",
-          "unique_cases": "Short repeated request avoids recapture; long read returns arena to decode scale; short/long interleaving preserves output. Existing TestArenaMetrics still owns current/peak/prepared-versus-run arithmetic.",
-          "cost": "397 test AST, one9B model setup, five Generate calls: short/short/long/short/long, eight output tokens each. Self-comparison is an intentional interference oracle; it does not replace frozen numerical reference tests. No independent fresh-run numerical proof claimed."
+          "tests": "TestEveryDurableRenameGoesThroughItsOwner",
+          "retained_owner": "Existing gosyntax discovery plus seven declared file exemptions, including exactly three store cutover sites",
+          "unique_cases": "Direct os.Rename spellings including renamed import, declared exception count and planted violation. No type-resolved indirect-call or power-loss guarantee.",
+          "cost": "460 test AST; full internal/cmd source discovery and one planted tiny source fixture when executed. Keep only until its requirement has an established retained owner; no additional scanner, selector or coverage run."
         },
         {
           "classification": "merge",
-          "tests": "TestOneWorkbenchEventStream local transport/parser into existing runtimeServingProbe",
-          "retained_owner": "SQA-252 openRuntimeServingProbe/next/release/stop; TestWebUIBrowserServingStream owns real HTTP/auth/reconnect",
-          "unique_cases": "Keep file/percent progress table, exact payload, initial empty downloads, admitted/running and cancelled job. Consume runtime.sessions, runtime.activity, operation.snapshot, hub.downloads and resync before live events; stop before handler.Close.",
-          "cost": "Fresh complete hypothetical test601->488(-113); retained native probe1790 and browser489 unchanged:2880->2767. Production unchanged. One listener/client/body/scanner removed; one handler/stream goroutine retained and existing recorder/channel handshake reused. No helper, fixture, model/store setup or gate invocation added."
+          "tests": "TestProjectionQueryPlanEfficiency",
+          "retained_owner": "Same native eight-descriptor fixture and QueryPlanReport; SQA-253",
+          "unique_cases": "Retain five successful media/kind/skewed-pair/zero-match/seed cases, catalog fallback, required-index refusal and repeated-head determinism. Merge bodies into a local table, not cases away.",
+          "cost": "Current719 test AST and3720 query production recounted. Retained complete hypothetical719->533 and3720->3696; query_test3044 remains from prior analysis, not freshly recounted. All eight queries/one store/one commit unchanged; zero helper, fixture, selector growth."
         },
         {
           "classification": "retain",
-          "tests": "TestRetentionTypedLineage; TestRetentionPinnedRootsSurvive; TestRetentionRefusesLiveStoreLocalAlias",
-          "retained_owner": "collectLiveSet/releaseLive/releaseWriter.commit",
-          "unique_cases": "Typed parent versus untyped text; alias-less pins and counted missing pins; live physical authority and no chain advancement on refusal. Released blob removal remains after durable release facts under writer ownership.",
-          "cost": "retention.go1512 and retention_test.go1101 AST unchanged. Three store scenarios retain distinct requirements; no safe whole-fixture merge priced."
+          "tests": "TestEventHubFansOutOnce",
+          "retained_owner": "eventHub with existing operation.Manager",
+          "unique_cases": "Three subscribers see ordered transitions, settled-record notification and bounded coalesced snapshots; slow subscriber receives resync. Delivery is GUI-local, not an automation wakeup.",
+          "cost": "628 test AST, one manager/hub/pump and four subscriptions, unchanged. Source payloads and configured MaxStoredResponses determine queues; no timing threshold or distribution assumption."
         },
         {
           "classification": "retain",
-          "tests": "TestALandingWaitingOnARunLeavesTheCheckoutFree; TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn",
-          "retained_owner": "landing.letGo/takeTurnBack/inLaneTurn, newRowFixture/freedLog",
-          "unique_cases": "Checked candidate survives later checkout edits; successor can commit while device waits and moved trunk forces refusal. These outcomes are not duplicates.",
-          "cost": "checkout_free_test.go922 and lanes.go2669 unchanged. No additional worktree/lane fixture or run. A moved trunk can cost a normal second lane pass; do not advertise unconditional wall saving."
+          "tests": "TestLandingRecordsItsWaitsByCause",
+          "retained_owner": "newRowFixture and landing.recordSpent",
+          "unique_cases": "Preflight pass/refusal, moved-tree conflict, landed result and held-measurement wait. Keep failures/partial stages distinct from a successful timestamp.",
+          "cost": "697 test AST, one native repository fixture/four Run invocations plus quiet-owner exercise, unchanged. Timing assertions concern accounting order/positive elapsed, not numerical or performance acceptance."
         },
         {
           "classification": "retain",
-          "tests": "TestResidentDecodeCancellationReusesStorage; TestResidentLifetimeResourceAcceptance; TestResidentImagePipelineRetainsTextAndLatentOnDevice",
-          "retained_owner": "existing synthetic pipeline, resident lifetime helpers, RetainedOutputs.Release and session director retirement",
-          "unique_cases": "Decode cancellation with reusable storage, complete close-to-zero ownership, token/layer layout and independent host numerical reference. New streamed-encoder success coverage does not establish cancellation semantics.",
-          "cost": "resident_lifetime_windows_test1297 and resident_pipeline_windows_test1295 unchanged. Existing model/synthetic setups retained; no extra confidence run or newly invented retry contract."
+          "tests": "TestEveryDurableOperationIsACrashPoint; TestEveryDurableOperationCanFail; tagged TestCrashStatesKeepTheStoresPromises and TestRefusedOperationsKeepTheStoresPromises",
+          "retained_owner": "runCrashHarness/crashOverlay and crashCheck share source/fixture/recovery assertions across two distinct workloads",
+          "unique_cases": "Keep acknowledged head/content/alias survival, read-only nonmutation, journal-only replay versus checkpoint state, release/verify/replay/next-sequence recovery, and fail-once versus fail-from-here behavior. Old append-seam tests have additional per-surface refusal/catalog immutability contracts that must move before deletion.",
+          "cost": "New8693testAST=1178overlay/launch+1688recorder+5827harness; production+44. Two child commands each -count=1, two overlays/package discovery/build attempts, separate baseline workloads, 526+616+137 modeled crash states and351operations in each refusal mode in retained evidence; eight checking workers. Generated trees/data/overlay JSON, no static fixture files. No test/framework removal or measured setup reduction yet."
         }
       ],
       "retained_results": [
         {
-          "commit": "0acd5d9b87e13277edaf4210faf606c599253b09",
-          "result": "test3m53.37s/26packages; lanes2m51.516s, webui2m50.72s, CUDA1m55.328s4executed15cached, device skipped; scorecard not reached. Small encoder peak8887808 versus13212720bytes; retaining both prompt arenas fails12118528 versus9242112 bound in implementation's undo check."
+          "commit": "e62f57544b021c5b4852fbf950746d81a95121c7",
+          "result": "test3m45.029s/18packages; lanes2m49.278s, web2m48.446s, CUDA40.125s1executed18cached, device skipped; verify4.587s; scorecard not reached. Undo workspace release leaves67workspaces in retained failure. Optional81-frame Wan acceptance absent."
         },
         {
-          "commit": "4f1a4f2e8e8afa2ee9e111cd3dcbfb7e23bbc37f",
-          "result": "test3m48.522s/21packages; lanes2m49.538s, webui2m48.75s, CUDA52.705s2executed17cached, device skipped; scorecard not reached. Wan host growth305160192 versus5440901120bytes; no81-frame run."
+          "commit": "b41b8ca6d8abefb62218cf4ca93ce0e5c4cd5fed",
+          "result": "test3m1.362s/131packages; lanes16m48.774s, device10m14.816s, web2m55.388s, CUDA6m33.17s19executed0cached; verify15.533s; Bonsai output unchanged, peak5389.8MiB. Reverting seal rename makes structural test find4 sites instead of3; not crash proof."
         },
         {
-          "commit": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
-          "result": "test2m40.522s/67packages; lanes15m40.774s, device10m18.066s, webui2m53.071s, CUDA5m21.868s14executed5cached; verify21.327s; scorecard19.167s, Bonsai output identical, peak5389.8MiB(+42.5). Long9B/27B/Gemma samples one warmup+three runs, short9B five runs; retained scope, no SQA reproduction."
+          "commit": "879c69153cfdd07950cc7b970d49fdcb3743cbb0",
+          "result": "test2m49.508s/92packages; lanes15m47.532s, device10m20.918s, web2m53.881s, CUDA5m25.754s11executed8cached; verify2.843s; Bonsai output unchanged, peak5389.8MiB. Retained zero-check undo failures; no real power cut."
+        },
+        {
+          "commit": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
+          "result": "test3m1.637s/131packages; lanes16m49.856s, device10m14.655s, web2m55.251s, CUDA6m34.419s19executed0cached; verify2.484s; Bonsai output unchanged, peak5389.8MiB. Undo missing-root guard admits empty Create; deterministic source-state fixture."
+        },
+        {
+          "commit": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+          "result": "Concurrent crash-points landing:322recorded operations;526kill/616journaled-power/137Windows-rule states;351operations refused once and persistently, all modeled promises hold in retained23/22s. Undo anchor yields1548/1724findings, seal rename1209,zero-tail162. Gate test2m14.53s/6packages(overgodb69s);lanes15m44.654s,device10m21.849s,web2m53.366s,CUDA5m21.994s11executed8cached;verify1m15.779s;scorecard19.46s,Bonsai exact output/5389.8MiB unchanged. No SQA execution."
         }
       ],
-      "automation_sequence": "Existing landing host checks precede reached lanes; free space and cheap preflight expose setup failures early. letGo captures candidate and frees checkout/commit turn during device contention; inLaneTurn releases quiet ownership while waiting; independent lanes then run alongside serial shared lanes, failure cancels siblings, takeTurnBack refuses a changed parent. Native cache counts show4/15,2/17,14/5 executed/cached CUDA packages. MeasurementRun end/failure records are visible when hooks read them, not delivered wakeups. Loop.Run initial ErrWorkWaiting still returns; post-worker contention continues to that admission. SQA-261 closure stands; SQA-271/258 remain. No new observed unattended delay or recurrent failed prerequisite alleged; reuse current dispatch/process/resume owners, no scheduler/selector/telemetry."
+      "assumptions": "64KiB zeroFrom is an exhaustive bounded I/O chunk, not sampling; all remaining bytes must be zero. Active writable journals may truncate, read-only journals must not, sealed segments still refuse. fsatomic flags/rename offsets are Windows ABI values, not tunable thresholds; typecheck does not prove kernel power-failure semantics. Blob pack widths are on-disk format/SHA256, with count bounded by file size before allocation. Query index choice uses exact current cardinalities, no normality/independence assumption. Repeated clip equality is an interference check; retained latency pairs are descriptive, no statistical significance or general shape claim. Crash model512-byte sector is an explicit synthetic boundary grid, not queried device geometry; kill writes sample1/half/last-byte prefixes, not every byte cut. Journaled metadata-prefix and flush rules are assumptions. Eight workers bound test concurrency, not production geometry. Rewrite dispatch uses syntactic package/receiver names rather than go/types; final-tree equality catches missed byte mutations but cannot alone prove every flush was intercepted. Retained undo failures establish concrete fault sensitivity, not universal coverage.",
+      "automation_sequence": "Landing.Run rejects malformed rows/messages before stage work, defers recordSpent for reached runs, and records stage failure/completion locally. recordSpent writes JSON, it does not dispatch a worker. Existing candidate identity/host checks/turn release during device contention and lane/resume owners remain; no new scheduler or recurring workload justified. Run initial ErrWorkWaiting still returns, post-worker ErrWorkWaiting loops; retained source does not prove eventual unattended continuation. SQA-271/258 remain open, with no newly observed delay. Smallest remaining comparison is existing driver fixture ownership release -> one authorized dispatch, preserving stops/budgets/partial evidence; actual delivery needs an ordinary retained run, not SQA execution."
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7260,13 +7301,11 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "This chat previously implemented Overgo changes; this is not independent third-party review.",
-      "Only committed source reviewed; concurrent docs/plan.json, media-stage-peaks.json and latentvideo edits/untracked codec test excluded. No implementation, model/test/gate/service execution, worker messaging, plan/skill edit, push, branch switch/reset/stash or hook change.",
-      "Full type resolution only for actual httpstream package. Other packages/source callers use parser-local binding and targeted source tracing; whole parsed files are not fully audited.",
-      "Retained elapsed/memory values are implementation evidence. Driver-accounted device allocation peaks differ from physical VRAM; process peak growth is a high-water measurement. Small fixed cohorts do not establish normality, representative tails, independence or stationarity. Numerical acceptance remains separate from time.",
-      "captureSlots derives ordered1-based layer taps from validated descriptors; masks preserve attended positions. Six timestep tensors are compile inputs. DeviceBufferFreeShare64 is existing calibrated idle policy, not a new universal optimum. New memory tests retain empirical fixture scope; no blanket numeric lint or tuning knob proposed.",
-      "encodeBlocks local error cleanup was traced through actual retirement/Close owners; no runtime leak reproduction or unlimited-lifetime claim. Current Recondition does not promise reuse after error.",
-      "Unrotated findings preserve their original revisions/limits. SQA-252 replacement parsed only, not package-typechecked or executed; full production/test/setup cost includes controlled transport differences and retained browser owner."
+      "Bounded source/AST/type review plus retained implementation records, not independent third-party validation. No new tests/gates/workloads or statistical performance claim.",
+      "No process kill or power cut executed by SQA. New committed harness materializes modeled trees and simulates flushes under an overlay; its512-byte grid, sampled torn-write positions and journaled namespace ordering bound its conclusions. Zero-filled NTFS-tail prevalence remains unmeasured.",
+      "Changed files parsed whole; callers inspected at named boundaries. No full dependency, cross-platform or CUDA type resolution; no complete checkpoint callback durability proof. Crash harness AST rewriting is syntax-based, not a complete type-resolved durable-call census.",
+      "Frozen numerical cases remain distinct from regrowth/interference tests. Retained memory/latency results apply only to their stated fixtures. Strata is a comparison, not presumed optimal. The QSA prototype narrative's first-token direction is internally unclear; no direction inferred or new comparison requested.",
+      "Unrotated findings retain earlier evidence and are not newly certified. New safe net reduction not established; existing SQA-253 counts after migration are retained hypothetical results, not a new experiment."
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
@@ -7932,10 +7971,10 @@
   },
   "next_finding_number": 298,
   "publication_context": {
-      "checked_head": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
-      "assessment": "Pinned source/plan and retained records reviewed; re-read current report and HEAD immediately before replacement.",
-      "newer_commit_note": "Three new memory landings since previous reviewed source. Concurrent video/plan/stage-record work excluded.",
-      "publication": "Report-only path-limited Git commit with existing locks/hooks; unrelated index/worktree preserved. No production gate."
+      "checked_head": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+      "assessment": "Publication first deferred to active landing_turn.lock. After70bd1ab76 landed, source delta/three new tests/retained gate/current plan and report were reconciled; current report and HEAD re-read immediately before writing.",
+      "newer_commit_note": "Review advanced from ae4c940e9 to70bd1ab76 for crash-points, preserving all concurrent implementation comments. Newer uncommitted work, if any, remains excluded.",
+      "publication": "Report-only path-limited commit using existing locks/hooks; unrelated index/worktree preserved. No production gate."
     },
   "ranked_active_finding_ids": [
     "SQA-288",
@@ -7999,41 +8038,43 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "No new finding, closure or priority change: 124 entries, 57 open, 4 deferred, 63 resolved. No new safe net reduction established in the three memory changes. Corrected existing SQA-252 to include the initial resync frame: saving is 113 test AST nodes, not 127.",
-      "The three complete changes add 2048 production and 1330 test AST nodes, 3378 total. Image text streaming +1276/+635, video weight streaming +624/+298, dense read release +148/+397. Memory improvement does not make this a source reduction.",
-      "Credit existing shared owners with concrete callers: encoderLayer serves compileEncoderProgram and EncoderProgram.block; mossSmallEncoder serves testConditioningModelGolden and TestATextEncoderHoldsOneBlockOnTheCard. DenoiserWeights.each serves both CUDA upload owners and both fully decoded loaders. Retain full encoder/reference and loaded-weight paths still used by caption, native oracle, training and host execution.",
-      "Retained image record: new Krea prompt peak 32.47->26.11 GiB, lease 3.03s unchanged; MOSS1024 12.97->10.48 GiB and 102.7->102.5s. Real MOSS22/27-token hidden states equal and streamed encoding0.43GiB versus12.97. These are implementation measurements, not SQA execution or representative distributions.",
-      "Retained Wan session construction peak-working-set growth 5440901120->305160192 bytes for5641371904 weight bytes. Two short Wan and two LiveEdit frozen cases retained; the optional81-frame Wan case was not run. Streaming upload changes host lifetime, not its numerical contract.",
-      "Dense read release retains1.6-2.7GB less after long requests in three measured models, while first output worsens0.7-2.2% and decode0.4-0.9%. Five short9B runs report16.03 versus15.58ms and unchanged retained bytes/captures. Gate Bonsai peak is5389.8MiB, +42.5MiB, with identical output: do not repeat the prediction that every short-request peak holds.",
-      "Retain all three new tests: streamed encoder exact native output plus per-prompt arena release, video decoded-set/host peak, and dense long/short interleaving/recapture are distinct requirements. No displaced test owner establishes that any can be removed. Native Go caching remains responsible for unchanged packages.",
-      "docs/verification/media-stage-peaks.json is599035 committed bytes, +3 from the prior record. Existing writer/validator and eight-request record still have maintenance cost even though these gates report zero fixture-file growth."
+      "SQA-288 is partially addressed: rows imported; durable names, active zero tails and cutover refusal repaired; the concurrent70bd1ab76 landing now provides modeled crash/failure coverage. Keep P1 open for store-lifecycles and the remaining fault-seam migration. No new finding, full closure or priority change;57open,4deferred,63resolved.",
+      "Five complete changes add722production and10548testAST,11270total. Codec stages+206/+404;durable names-16/+460;unwritten tail+371/+775;cutover refusal+117/+216;crash points+44/+8693. The test growth is large and explicit; memory/recovery benefit is not source reduction.",
+      "No new safe code deletion established. Existing SQA-253 still has the same queryIndexPlan callers and 3720/719 production/test baselines; its retained complete proposal is -24 production/-186 test with no setup reduction. Similar shapes alone do not justify merging recovery cases.",
+      "Retained codec-stage measurements: Wan peak13.52->9.43GiB with348.8vs349.0s; LiveEdit81-frame peak27.14->21.07GiB with33.1vs32.9s; VAE roundtrip4.44->2.79GiB with1.1s unchanged. These are implementation observations for named fixtures, not SQA runs or population estimates.",
+      "Two short Wan and two LiveEdit frozen outputs remain exact in retained evidence; optional81-frame Wan acceptance was not run. The new second-request test checks deterministic regrowth/interference and no retained scratch; it is not an independent numerical oracle.",
+      "Do not infer delivery from recordSpent.Ended or a printed measurement end. Driver initial ownership contention still returns, while the post-worker branch continues. Existing native caching, candidate identity, gate/resume and independent host/device admission remain the right owners.",
+      "Implementation overlap remains disclosed. Preserve both implementation-owned top-level objects and every unknown finding field exactly. The formerly uncommitted crash-points comment is now matched to70bd1ab76; counts describe modeled states, not physical power cuts.",
+      "The crash harness adds a1178-node overlay/launch owner,1688-node recorder and5827-node modeled-state oracle. Two outer native tests independently generate overlays and run child go test -count=1 commands; modeled failure workloads are distinct, so no safe whole-body deletion is established. Existing fault-seam retirement must migrate all four narrower contracts before deletion."
     ],
-  "reviewed_at": "2026-11-03T08:11:52Z",
-  "reviewed_master": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+  "reviewed_at": "2026-11-03T10:24:32Z",
+  "reviewed_master": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 8780ef3e08280421caff4b2a01898f26c01c4fd3; plan blob 1448a22fb32f342e361faacd06ed82db39155ef8 and skill.md blob b4e6496176dae5abce498e1aba83e32b10640960 read first. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane. Concurrent video/plan/stage-record work excluded.",
-      "Provisional source conclusions preceded current-report reconciliation. Covered the three new memory landings plus retention/query-to-GUI streaming, bidirectional HTTP lifetime and gate/driver continuation beyond the latest diff.",
-      "Actual bounded AST analysis: 26 committed Go files (16 changed, 10 rotated), 273 function bodies, 11681 parser-local bindings, 55466 whole-file nodes including comments. Files are named in sample_cost. Large files parsed whole but read only at named owners/callers; no recurring repository census.",
-      "Actual stdlib-backed go/types check of committed internal/httpstream/duplex.go: 12 definitions, 44 uses, 10 selections, no stubs or application execution. Remaining packages have parser-local/source caller resolution, not a complete CUDA/application type check.",
-      "Reconciled SQA-252's existing stream-fixture proposal with current resync framing and parsed a complete hypothetical replacement; read retained owners for SQA-261/272 closure and SQA-271/258 continuation. Untouched ledger entries retain their earlier evidence scope; not all 124 findings recertified."
+      "Pinned committed master 70bd1ab76338010c36b22cf2bfd50ae20e49c386 after reconciling the concurrent crash-points landing; committed plan blob a1ac3966daf04c790d6627410d8e2cab5c9fca1a and unchanged skill.md blob b4e6496176dae5abce498e1aba83e32b10640960. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane.",
+      "Initial fresh provisional source conclusions at ae4c940e9 preceded prior-report reconciliation. Publication waited for the active implementation gate; then the new committed crash-points source/plan/result was inspected and included. Covered five landings plus query/blob/retention, GUI fan-out and gate/driver completion.",
+      "Actual bounded go/parser and go/ast analysis: 26 committed files, 297 function bodies, 10828 parser-local bindings, 50640 whole-file nodes including comments. Large files parsed whole, source read at named owners/callers; no recurring census.",
+      "Actual stdlib-backed go/types on current committed Windows fsatomic replace_windows.go and sync_windows.go together:85definitions,410uses,8selections, no stubs. Other packages use parser-local and source caller resolution; no full application/CUDA/alternate-platform type check.",
+      "Rechecked SQA-288's committed repairs and modeled crash/failure harness, SQA-253 query owners, SQA-286/283/284 and SQA-271/258 boundaries; SQA-277 evidence file unchanged. Unrotated ledger entries retain earlier scope; not all124 findings recertified."
     ],
   "sqa_response": {
-      "reviewed_master": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
-      "assessment": "No new/resolved finding or priority change. Credit three scoped memory improvements with +2048 production/+1330 test AST. Correct SQA-252's existing reduction to113 nodes including resync; preserve actual transport/lifetime coverage. SQA-261/272 remain resolved; continuation remains open.",
+      "reviewed_master": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+      "assessment": "SQA-288 partially addressed by imported plan owners, three source repairs and now committed modeled crash/failure evidence. Store-lifecycles and fault-seam remain. Stage-memory reductions credited with full+11270production/testAST growth across five landings. No new finding, full closure or priority change.",
       "new_findings": [],
       "resolved_findings": [],
-      "partially_addressed_findings": [],
+      "partially_addressed_findings": [
+        "SQA-288"
+      ],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "26 committed Go files parsed,273 functions; actual httpstream typecheck12defs/44uses/10selections. Complete SQA-252 hypothetical601->488 plus unchanged1790/489 owner counts. Three retained landing records read; no runtime validation.",
+      "evidence": "26committed files,297functions,50640AST; actual Windows fsatomic subset85defs/410uses/8selections. Five retained gates and source/caller review; no SQA runtime execution.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "29000010b5d4a76c47206d30e91e3096f9f97cfd",
-        "status": "SQA-252 triage files compact-tests/exact-folds; no claim implemented. SQA-261/272 implementation comments match retained source. Preserve both owner objects and every implementation-owned field exactly."
+        "current_triage_head": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
+        "status": "Four SQA-288 implementation comments now match committed source, including70bd1ab76 crash-points. Credit modeled promises and retained undo failures with explicit failure-model/rewriter limits. Preserve both owner objects and every implementation-owned field exactly."
       },
-      "recommendation": "Use existing runtimeServingProbe for the unchanged download-state scenario with its initial resync frame. Retain distinct streamed-memory/numerical/recovery tests and current gate/cache/resume owners; no new abstraction or review workload.",
-      "uncertainty": "Memory improvements are retained scoped observations, with honest latency/peak tradeoffs. No additional safe net reduction established in changed memory code, and no persistent production leak established in local encoder error cleanup."
+      "recommendation": "Finish existing store-lifecycles and fault-seam obligations before full recovery closure. Reuse current native fixture/durable owners; migrate narrower old fault assertions before deleting the seam. Do not add another scanner or confidence run. SQA-253 remains a priced compaction.",
+      "uncertainty": "Modeled crash trees are not real power-failure proof; sampled sector/write boundaries and syntax-based rewriting limit breadth. Memory savings are retained scoped observations. No new safe net code reduction established."
     }
 }

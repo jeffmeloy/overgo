@@ -6,11 +6,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
 	"overgo/internal/media"
+	"overgo/internal/textcheck"
 )
 
 type responseFile struct {
@@ -41,7 +41,11 @@ type responseFileRecord struct {
 	MediaType string `json:"media_type"`
 }
 
-var responseFileIDPattern = regexp.MustCompile(`^file_[A-Za-z0-9._-]+$`)
+// validResponseFileID says an identity is file_ and then letters, digits and ._- alone.
+func validResponseFileID(id string) bool {
+	rest, found := strings.CutPrefix(id, "file_")
+	return found && textcheck.Only(rest, textcheck.Alphanumeric+"._-")
+}
 
 func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	var policy ResponseFilePolicy
@@ -78,7 +82,7 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	}
 	policy.files = make(map[string]responseFile, len(policy.ResponseFiles.Files))
 	for id, record := range policy.ResponseFiles.Files {
-		if !responseFileIDPattern.MatchString(id) {
+		if !validResponseFileID(id) {
 			return nil, fmt.Errorf("response resource ID %q is invalid", id)
 		}
 		resolved, resolveErr := resolvePolicyPath(base, record.Path)

@@ -7,7 +7,6 @@ package gemma4convert
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -149,10 +148,12 @@ func towerProjectorMetadata(
 	}
 }
 
-var visionLayerPattern = regexp.MustCompile(`^model\.vision_tower\.encoder\.layers\.(\d+)\.(.+)$`)
-var audioLayerPattern = regexp.MustCompile(`^model\.audio_tower\.layers\.(\d+)\.(.+)$`)
-var audioSubsamplePattern = regexp.MustCompile(
-	`^model\.audio_tower\.subsample_conv_projection\.layer(\d+)\.(conv|norm)\.weight$`)
+// What begins a repeated tower tensor's name, before the layer's number.
+const (
+	visionLayerPrefix    = "model.vision_tower.encoder.layers."
+	audioLayerPrefix     = "model.audio_tower.layers."
+	audioSubsamplePrefix = "model.audio_tower.subsample_conv_projection.layer"
+)
 
 // towerFixedNames: one entry per non-repeating tensor.
 var towerFixedNames = map[string]string{
@@ -244,25 +245,26 @@ func towerTensorName(name string) (string, bool) {
 	if mapped, ok := towerFixedNames[name]; ok {
 		return mapped, true
 	}
-	if match := visionLayerPattern.FindStringSubmatch(name); match != nil {
-		mapped, ok := mapLayerSuffix(match[2], visionLinearModules, visionPlainSuffixes)
+	if layer, rest, named := safetensors.LayerName(name, visionLayerPrefix); named {
+		mapped, ok := mapLayerSuffix(rest, visionLinearModules, visionPlainSuffixes)
 		if !ok {
 			return "", false
 		}
-		return "v.blk." + match[1] + "." + mapped, true
+		return "v.blk." + layer + "." + mapped, true
 	}
-	if match := audioLayerPattern.FindStringSubmatch(name); match != nil {
-		mapped, ok := mapLayerSuffix(match[2], audioLinearModules, audioPlainSuffixes)
+	if layer, rest, named := safetensors.LayerName(name, audioLayerPrefix); named {
+		mapped, ok := mapLayerSuffix(rest, audioLinearModules, audioPlainSuffixes)
 		if !ok {
 			return "", false
 		}
-		return "a.blk." + match[1] + "." + mapped, true
+		return "a.blk." + layer + "." + mapped, true
 	}
-	if match := audioSubsamplePattern.FindStringSubmatch(name); match != nil {
-		if match[2] == "conv" {
-			return "a.conv." + match[1] + ".weight", true
-		}
-		return "a.conv." + match[1] + ".norm.weight", true
+	layer, rest, _ := safetensors.LayerName(name, audioSubsamplePrefix)
+	switch rest {
+	case "conv.weight":
+		return "a.conv." + layer + ".weight", true
+	case "norm.weight":
+		return "a.conv." + layer + ".norm.weight", true
 	}
 	return "", false
 }

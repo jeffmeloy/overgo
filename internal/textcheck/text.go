@@ -37,3 +37,20 @@ func LowerIdentifierByte(character byte) bool {
 	return character >= 'a' && character <= 'z' || character >= '0' && character <= '9' ||
 		character == '.' || character == '-' || character == '_'
 }
+
+// The character sets Only reads names against.
+const (
+	// Digits are the decimal digits.
+	Digits = "0123456789"
+	// HexDigits are the hexadecimal digits, in both cases.
+	HexDigits = Digits + "abcdefABCDEF"
+	// LowerAlphanumeric are the lower-case letters and the digits.
+	LowerAlphanumeric = "abcdefghijklmnopqrstuvwxyz" + Digits
+	// Alphanumeric are the letters, in both cases, and the digits.
+	Alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + LowerAlphanumeric
+)
+
+// Only says value is not empty and holds the given characters alone.
+func Only(value, characters string) bool {
+	return value != "" && strings.Trim(value, characters) == ""
+}

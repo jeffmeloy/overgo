@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -689,7 +688,8 @@ func readOptionalJSON(path string, destination any) error {
 	return nil
 }
 
-var layerNamePattern = regexp.MustCompile(`^model\.layers\.(\d+)\.(.+)$`)
+// layerNamePrefix begins a repeated layer's tensor name.
+const layerNamePrefix = "model.layers."
 
 func modelTensors(source *safetensors.Source, profile archProfile, config modelConfig) ([]gguf.TensorData, error) {
 	mapped, err := profileTensors(source, profile, config)
@@ -815,18 +815,18 @@ func modelTensorName(name string, profile archProfile) (string, bool) {
 	case "lm_head.weight":
 		return "output.weight", true
 	}
-	match := layerNamePattern.FindStringSubmatch(name)
-	if match == nil {
+	layer, rest, named := safetensors.LayerName(name, layerNamePrefix)
+	if !named {
 		return "", false
 	}
-	suffix, ok := layerTensorMapping[match[2]]
+	suffix, ok := layerTensorMapping[rest]
 	if !ok && profile.attentionBias {
-		suffix, ok = attentionBiasMapping[match[2]]
+		suffix, ok = attentionBiasMapping[rest]
 	}
 	if !ok {
 		return "", false
 	}
-	return "blk." + match[1] + "." + suffix, true
+	return "blk." + layer + "." + suffix, true
 }
 
 func ropePermuteHeads(destinationName string, profile archProfile, config modelConfig) uint32 {

@@ -687,7 +687,7 @@
      "contains": "func Qwen35ProjectorConversion(",
      "path": "internal/hfgguf/qwen35_projector.go",
      "role": "source",
-     "identity": "file:sha256:162cc8ec5641bdae018d517ab48e2be0af3c8d52c42690d4ea40de3c8c038650"
+     "identity": "file:sha256:97a021a0f704da8e69772ab535b116f9cfcedebb4bbd436ff0f463dc7a2f9f7e"
     },
     {
      "contains": "func CompileProjectedInputs(",
@@ -1013,7 +1013,7 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:4c372ec3545127b3809e0f1a662a0ea87bc9e1c54d9980f379b8fb804611ec4b"
+     "identity": "file:sha256:c7f31be80c2ccc6f6bc35d8703b7fe3a07776df2e37bae90e427b0c4a5c5bab9"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
@@ -1319,7 +1319,7 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:9b94d34ce524e19972832cb49e36eb3e4ea766d07e80547dba9e6bb05516ca48"
+     "identity": "file:sha256:bc5939b87b731f2ca7ef3a215a699ce5bbd0ad99d19e97657abbfa93c13646a1"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",

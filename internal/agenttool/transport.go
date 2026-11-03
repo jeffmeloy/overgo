@@ -90,7 +90,7 @@ func (e *Executor) manualEntry(name string) chan struct{} {
 
 // registerBuiltin binds one in-process implementation to a manual name.
 func (e *Executor) registerBuiltin(name string, implementation Builtin) error {
-	if !manualNamePattern.MatchString(name) || implementation == nil {
+	if !validManualName(name) || implementation == nil {
 		return fmt.Errorf("agent tool: invalid builtin registration %q", name)
 	}
 	builtins, ok := e.adapters[TransportBuiltin].(*builtinAdapter)

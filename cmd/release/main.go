@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/runrecord"
+	"overgo/internal/textcheck"
 )
 
 var releaseCommands = []string{
@@ -58,7 +58,14 @@ const (
 	releaseDirectoryMode = os.FileMode(0o755)
 )
 
-var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+// versionParts is how many numbers a release version has.
+const versionParts = 3
+
+// validVersion says a version is three decimal numbers joined by dots.
+func validVersion(version string) bool {
+	parts := strings.Split(version, ".")
+	return len(parts) == versionParts && !slices.ContainsFunc(parts, func(part string) bool { return !textcheck.Only(part, textcheck.Digits) })
+}
 
 type archiveEntry struct {
 	Name string
@@ -212,7 +219,7 @@ func readReleaseVersion(root string) (string, error) {
 		return "", fmt.Errorf("release: read %s: %w", versionFile, err)
 	}
 	version := strings.TrimSpace(string(raw))
-	if !versionPattern.MatchString(version) {
+	if !validVersion(version) {
 		return "", fmt.Errorf("release: invalid version %q", version)
 	}
 	return version, nil

@@ -496,7 +496,7 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 }
 
 func (h *Handler) resolveResponseFile(id string) (responseFile, bool) {
-	if h == nil || h.responseFiles == nil || !responseFileIDPattern.MatchString(id) {
+	if h == nil || h.responseFiles == nil || !validResponseFileID(id) {
 		return responseFile{}, false
 	}
 	file, ok := h.responseFiles.ResolveResponseFile(id)

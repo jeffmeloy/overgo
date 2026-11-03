@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,7 +24,8 @@ const (
 	qwen35TemporalPatchSlices = 2
 )
 
-var qwen35VisionLayerPattern = regexp.MustCompile(`^model\.visual\.blocks\.(\d+)\.(.+)$`)
+// qwen35VisionLayerPrefix begins a repeated vision block's tensor name.
+const qwen35VisionLayerPrefix = "model.visual.blocks."
 
 type qwen35VisionConfig struct {
 	Depth             uint32   `json:"depth"`
@@ -189,8 +189,8 @@ func qwen35ProjectorTensorName(source string) (string, bool) {
 	if destination, ok := fixed[source]; ok {
 		return destination, true
 	}
-	match := qwen35VisionLayerPattern.FindStringSubmatch(source)
-	if match == nil {
+	layer, rest, named := safetensors.LayerName(source, qwen35VisionLayerPrefix)
+	if !named {
 		return "", false
 	}
 	suffixes := map[string]string{
@@ -201,14 +201,14 @@ func qwen35ProjectorTensorName(source string) (string, bool) {
 		"norm1.weight": "ln1.weight", "norm1.bias": "ln1.bias",
 		"norm2.weight": "ln2.weight", "norm2.bias": "ln2.bias",
 	}
-	destination, ok := suffixes[match[2]]
+	destination, ok := suffixes[rest]
 	if !ok {
 		return "", false
 	}
-	if _, err := strconv.Atoi(match[1]); err != nil {
+	if _, err := strconv.Atoi(layer); err != nil {
 		return "", false
 	}
-	return "v.blk." + match[1] + "." + destination, true
+	return "v.blk." + layer + "." + destination, true
 }
 
 func qwen35TemporalPatchTensors(tensor safetensors.Tensor, config qwen35VisionConfig) ([]gguf.TensorData, error) {

@@ -148,6 +148,32 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "regex-out",
+      "title": "Read names and identifiers exactly, and hold every regex to a stated reason",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "this step measures what the preflight states; the parsers and the guard's tokenizer are estimated at 700, and each deletes regexes."
+      },
+      "steps": [
+        {
+          "id": "formats",
+          "title": "Read each text format with a parser, and leave a generator's output as it is",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTextFormatIsReadByRegex$'",
+          "rationale": "Five production files read a text format by regex: cmd/kernel-manifest (includes and PTX entries), cmd/gen-iq-tables and internal/tokenizer/gennfc (C tables), internal/server/document_text.go (a PDF stream dictionary), and internal/evaluation/ifeval_tokenizer_profile.go (back-references). Each format has an exact grammar, so read it with a small parser, line or token at a time. The generators' output must not change: compare what each writes before and after.\nServes: robustness of a format read.\nDisappears: regexp from five production files.\nEvidence: the test, and byte-identical generator output.\nBatch: host."
+        },
+        {
+          "id": "shell-guard",
+          "title": "The guard reads a command's words, not its spelling",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestTheGuardReadsACommandsWords$'",
+          "rationale": "internal/guard/guard.go reads shell commands with about twenty regexes, and so guesses at quoting, heredocs and command boundaries: it refused heredocs for holding a backslash anywhere in the command, and a quoted path holding a protected word. Tokenize a command into its words and operators once, then ask each rule of the words. Every case guard_test.go holds must keep its answer, and the cases it got wrong by regex become tests.\nServes: a guard that refuses what a command does, not what it spells.\nDisappears: regexp from the guard, and its false refusals.\nEvidence: guard_test.go, with the false refusals added.\nBatch: host."
+        }
+      ]
+    },
+    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",

@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"overgo/internal/sampling"
+	"overgo/internal/textcheck"
 )
 
-var chatToolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+// chatToolNameCharacters are what a tool's name may hold.
+const chatToolNameCharacters = textcheck.Alphanumeric + "_-"
 
 // ChatToolGrammar: returns lazy GBNF grammar that activates when model
 // begins tool-call delimiter advertised by its GGUF template
@@ -137,7 +138,7 @@ func hermesToolGrammar(
 		properties, _ := tool.Function.Parameters["properties"].(map[string]any)
 		propertyNames := make([]string, 0, len(properties))
 		for name := range properties {
-			if !chatToolNamePattern.MatchString(name) {
+			if !textcheck.Only(name, chatToolNameCharacters) {
 				return "", fmt.Errorf(
 					"tool %d parameter name %q is not tag-safe",
 					index,
@@ -196,7 +197,7 @@ func validateGrammarTool(tool ChatTool) error {
 	if err := validateChatTool(tool); err != nil {
 		return err
 	}
-	if !chatToolNamePattern.MatchString(tool.Function.Name) {
+	if !textcheck.Only(tool.Function.Name, chatToolNameCharacters) {
 		return fmt.Errorf(
 			"function name %q is not tag-safe",
 			tool.Function.Name,

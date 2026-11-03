@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/textcheck"
 )
 
 type schemaBuiltinRule struct {
@@ -53,7 +53,27 @@ var schemaStringFormatRules = map[string]schemaBuiltinRule{
 	"date-time-string": {content: `"\"" date-time "\""`, deps: []string{"date-time"}},
 }
 
-var invalidSchemaRuleCharacters = regexp.MustCompile(`[^a-zA-Z0-9-]+`)
+// schemaRuleCharacters are what a grammar rule's name may hold.
+const schemaRuleCharacters = textcheck.Alphanumeric + "-"
+
+// uuidFormats are the string formats a schema's uuid rule serves.
+var uuidFormats = []string{"uuid", "uuid1", "uuid2", "uuid3", "uuid4", "uuid5"}
+
+// spellRuleName spells a name in schemaRuleCharacters, a dash for each run of anything else.
+func spellRuleName(name string) string {
+	var spelled strings.Builder
+	replacing := false
+	for _, character := range name {
+		kept := strings.ContainsRune(schemaRuleCharacters, character)
+		if kept {
+			spelled.WriteRune(character)
+		} else if !replacing {
+			spelled.WriteByte('-')
+		}
+		replacing = !kept
+	}
+	return spelled.String()
+}
 
 type schemaConverter struct {
 	rules     map[string]string
@@ -92,7 +112,7 @@ func JSONSchemaToGrammar(input []byte) (string, error) {
 }
 
 func (converter *schemaConverter) addRule(name, rule string) string {
-	name = invalidSchemaRuleCharacters.ReplaceAllString(name, "-")
+	name = spellRuleName(name)
 	key := name
 	if existing, ok := converter.rules[key]; ok && existing != rule {
 		for suffix := 0; ; suffix++ {
@@ -341,7 +361,7 @@ func (converter *schemaConverter) visit(schema orderedJSONObject, name string) (
 		return converter.visitPattern(pattern, ruleName)
 	}
 	if (schemaType == "" || schemaType == "string") &&
-		regexp.MustCompile(`^uuid[1-5]?$`).MatchString(schemaFormat) {
+		slices.Contains(uuidFormats, schemaFormat) {
 		primitiveName := schemaFormat
 		if ruleName == "root" {
 			primitiveName = "root"
@@ -672,10 +692,7 @@ func (converter *schemaConverter) resolveRef(ref string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("unresolved JSON schema ref %q", ref)
 	}
-	name := "ref" + invalidSchemaRuleCharacters.ReplaceAllString(
-		strings.SplitN(ref, "#", 2)[len(strings.SplitN(ref, "#", 2))-1],
-		"-",
-	)
+	name := "ref" + spellRuleName(strings.SplitN(ref, "#", 2)[len(strings.SplitN(ref, "#", 2))-1])
 	if name == "ref" {
 		name = "ref-root"
 	}

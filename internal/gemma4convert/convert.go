@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/projector"
 	"overgo/internal/safetensors"
+	"overgo/internal/textcheck"
 )
 
 const gemma4ProjectorImageSize = 224
@@ -344,7 +344,7 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 	types := make([]int32, len(tokens))
 	for index, token := range tokens {
 		types[index] = 1
-		if byteTokenPattern.MatchString(token) {
+		if isByteToken(token) {
 			types[index] = 6
 		}
 	}
@@ -421,8 +421,18 @@ func tokenizerMetadata(directory string, vocabulary uint32) ([]gguf.Metadata, er
 	return metadata, nil
 }
 
-var byteTokenPattern = regexp.MustCompile(`^<0x[0-9A-Fa-f]{2}>$`)
-var layerNamePattern = regexp.MustCompile(`^model\.language_model\.layers\.(\d+)\.(.+)$`)
+// byteTokenDigits is how many hexadecimal digits a byte token spells its byte in.
+const byteTokenDigits = 2
+
+// isByteToken says a token spells one byte, as <0x41> does.
+func isByteToken(token string) bool {
+	digits, opened := strings.CutPrefix(token, "<0x")
+	digits, closed := strings.CutSuffix(digits, ">")
+	return opened && closed && len(digits) == byteTokenDigits && textcheck.Only(digits, textcheck.HexDigits)
+}
+
+// languageLayerPrefix begins a repeated language layer's tensor name.
+const languageLayerPrefix = "model.language_model.layers."
 
 func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(source.Tensors)+1)
@@ -431,8 +441,8 @@ func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool
 		destinationName, include := modelTensorName(sourceName)
 		if include && config.Text.SharedKVLayers > 0 &&
 			(strings.HasSuffix(destinationName, ".attn_k.weight") || strings.HasSuffix(destinationName, ".attn_v.weight")) {
-			match := layerNamePattern.FindStringSubmatch(sourceName)
-			if index, parseErr := strconv.ParseUint(match[1], binaryschema.DecimalRadix, binaryschema.Width32Bits); parseErr == nil && uint32(index) >= sharedKVStart {
+			layer, _, _ := safetensors.LayerName(sourceName, languageLayerPrefix)
+			if index, parseErr := strconv.ParseUint(layer, binaryschema.DecimalRadix, binaryschema.Width32Bits); parseErr == nil && uint32(index) >= sharedKVStart {
 				// shared-KV blocks never read k/v projections (spec.LayerHasKV)
 				continue
 			}
@@ -491,8 +501,8 @@ func modelTensorName(name string) (string, bool) {
 	case "model.language_model.per_layer_projection_norm.weight":
 		return "per_layer_proj_norm.weight", true
 	}
-	match := layerNamePattern.FindStringSubmatch(name)
-	if match == nil || strings.HasSuffix(name, "weight_scale") {
+	layer, rest, named := safetensors.LayerName(name, languageLayerPrefix)
+	if !named || strings.HasSuffix(name, "weight_scale") {
 		return "", false
 	}
 	mapping := map[string]string{
@@ -514,11 +524,11 @@ func modelTensorName(name string) (string, bool) {
 		"self_attn.q_proj.weight":           "attn_q.weight",
 		"self_attn.v_proj.weight":           "attn_v.weight",
 	}
-	suffix, ok := mapping[match[2]]
+	suffix, ok := mapping[rest]
 	if !ok {
 		return "", false
 	}
-	return "blk." + match[1] + "." + suffix, true
+	return "blk." + layer + "." + suffix, true
 }
 
 func modelTensorReader(

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -160,7 +159,10 @@ type Manual struct {
 	CapabilityIdentity *runrecord.CapabilityIdentity `json:"-"`
 }
 
-var manualNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
+// validManualName says a name begins with a lower-case letter and holds lower-case letters, digits and _.- after it.
+func validManualName(name string) bool {
+	return textcheck.Only(name, textcheck.LowerAlphanumeric+"_.-") && !strings.ContainsAny(name[:1], textcheck.Digits+"_.-")
+}
 
 var manualCodec = artifact.JSONDocumentCodec(
 	"agent tool manual", artifact.KindRecipe, ManualMediaType, ManualSchema,
@@ -233,7 +235,7 @@ func (manual *Manual) validate() error {
 	if manual.Version != ManualVersion {
 		return errors.New("agent tool: unsupported manual version")
 	}
-	if !manualNamePattern.MatchString(manual.Name) || !textcheck.Bounded(manual.Name, len(manual.Name), "\x00\r\n") {
+	if !validManualName(manual.Name) || !textcheck.Bounded(manual.Name, len(manual.Name), "\x00\r\n") {
 		return fmt.Errorf("agent tool: invalid manual name %q", manual.Name)
 	}
 	if manual.Description == "" || !textcheck.Bounded(manual.Description, len(manual.Description), "\x00\r\n") {
@@ -255,7 +257,7 @@ func (manual *Manual) validate() error {
 	}
 	seen := map[string]bool{}
 	for _, field := range manual.Arguments {
-		if !manualNamePattern.MatchString(field.Name) || seen[field.Name] {
+		if !validManualName(field.Name) || seen[field.Name] {
 			return fmt.Errorf("agent tool: manual %q argument names must be unique and lowercase", manual.Name)
 		}
 		if !field.Kind.Valid() {
@@ -352,7 +354,7 @@ func (transport Transport) validate(name string) error {
 			return fmt.Errorf("agent tool: mcp manual %q requires an absolute http(s) endpoint", name)
 		}
 		if transport.Program != "" || len(transport.Args) != 0 ||
-			!manualNamePattern.MatchString(transport.Target) ||
+			!validManualName(transport.Target) ||
 			!textcheck.Bounded(transport.Protocol, len(transport.Protocol), "\x00\r\n") || transport.Protocol == "" {
 			return fmt.Errorf("agent tool: mcp manual %q requires an exact target and protocol", name)
 		}

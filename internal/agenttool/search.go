@@ -130,14 +130,14 @@ func canonicalizeCatalogSnapshot(snapshot *CatalogSnapshot) error {
 	}
 	for index := range snapshot.Entries {
 		entry := &snapshot.Entries[index]
-		if !manualNamePattern.MatchString(entry.Name) || entry.Manual.Kind() != artifact.KindRecipe ||
+		if !validManualName(entry.Name) || entry.Manual.Kind() != artifact.KindRecipe ||
 			entry.Description == "" || !textcheck.Bounded(entry.Description, len(entry.Description), "\x00\r\n") ||
 			!entry.Effect.Valid() {
 			return errors.New("agent tool: invalid catalog entry")
 		}
 		entry.Arguments = slices.Clone(entry.Arguments)
 		for _, field := range entry.Arguments {
-			if !manualNamePattern.MatchString(field.Name) || !field.Kind.Valid() ||
+			if !validManualName(field.Name) || !field.Kind.Valid() ||
 				field.Description != "" && !textcheck.Bounded(field.Description, len(field.Description), "\x00\r\n") {
 				return errors.New("agent tool: invalid catalog field")
 			}

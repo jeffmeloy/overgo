@@ -23,3 +23,16 @@ func TestLowerIdentifier(t *testing.T) {
 		t.Fatal("lower identifier policy drifted")
 	}
 }
+
+// TestOnlyHoldsAValueToItsCharacters: every character counts, wherever it stands, and an empty value holds none.
+func TestOnlyHoldsAValueToItsCharacters(t *testing.T) {
+	t.Parallel()
+	if !Only("0x1F", HexDigits+"x") || !Only("abc_9", LowerAlphanumeric+"_") {
+		t.Fatal("a value of its characters is refused")
+	}
+	for _, value := range []string{"", "a b", " ab", "ab ", "a\nb", "ab\n"} {
+		if Only(value, LowerAlphanumeric) {
+			t.Errorf("%q reads as made of its characters", value)
+		}
+	}
+}

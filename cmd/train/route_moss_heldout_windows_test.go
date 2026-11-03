@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -64,15 +64,20 @@ func TestAMOSSRunIsRefusedBeforeItsFirstPicture(t *testing.T) {
 		t.Fatalf("a held-out copy = %v, want it refused before preparation", err)
 	}
 	scheduler := filepath.Join(root, "scheduler", "scheduler_config.json")
-	config, err := os.ReadFile(scheduler)
+	raw, err := os.ReadFile(scheduler)
 	if err != nil {
 		t.Fatal(err)
 	}
-	shifted := regexp.MustCompile(`"training_shift":\s*[0-9.]+`).ReplaceAllString(string(config), `"training_shift": 3`)
-	if shifted == string(config) {
-		t.Fatal("the fixture's scheduler states no training shift")
+	var config map[string]any
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatal(err)
 	}
-	write(scheduler, shifted)
+	config["training_shift"] = 3
+	shifted, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(scheduler, string(shifted))
 	if err := route(); err == nil || !strings.Contains(err.Error(), "training_shift") {
 		t.Fatalf("a shifted training grid = %v, want it refused before preparation", err)
 	}

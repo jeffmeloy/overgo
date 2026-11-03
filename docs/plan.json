@@ -167,49 +167,6 @@
       ]
     },
     {
-      "id": "close-the-loop",
-      "title": "Let a supported, charged verdict take a base model's place",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1000,
-        "reason": "A served-model slot, succession and rollback across models are new, beside owners of 292 nodes each (ActivateCapability, RollbackActivation, measured). The estimate is the least certain in this plan."
-      },
-      "steps": [
-        {
-          "id": "promote",
-          "title": "Let a supported, charged verdict take a base model's place",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -count=1 -run '^TestOnlyAChargedSupportedVerdictTakesTheBasesPlace$'",
-          "rationale": "No production caller of ActivateCapability reads a verdict, and skill.md:15 forbids promotion, so this row waits on decision gated-promotion. Observer.Verify activating a training recipe (internal/trainingworkflow/session_observation.go:323,352) stays a statement about the route, not the model.\nMoving an alias does not work as first written. An active alias is per model (internal/modelrecipe/lifecycle.go:987-989) and a trained text model is a new model, so activating it supersedes nothing, rollback refuses (rollback.go:64-66), a win cannot retire the base (lifecycle.go:179 needs a failed gate), and the next run's cells compare it with nothing (internal/scorecard/scorecard.go:414-417, record.go:450-452).\nDefine the slot a candidate takes, record the succession the scorecard reads, and keep the base for rollback. Reuse TrainingDecision, which has approved and refused states with Rollback: parent (internal/runrecord/training_decision.go:15-25). A verdict over a base that is not verified moves nothing. The hand activate stays: cmd/recipe/main.go:302,609 serves every intake.\nServes: held-out-quality improves without a person.\nDisappears: nothing.\nEvidence: passing, failing and uncharged verdicts, and a rollback.\nBatch: host lane.\n\nMeasured 2026-11-02 (docs/verification/improvement-run-qwen25-05b.txt): a supported verdict that meets its target does not make a better model. Seed 25 gained 0.01653 on wikitext token accuracy and read MMLU-Pro 0.1447 against the base's 0.1696; the file-order run read 0.1530. Promotion on one objective's verdict would have replaced the default with a model worse on the general suite, so whatever the owner decides, a promotion must also hold the candidate to the base on the suites the row measures, and the one measurement already gives those readings.",
-          "depends_on": [
-            "training-gaps/judged-proof",
-            "heldout-verdict/charge-objective",
-            "recipe-repairs/policy-moves"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-reach",
-      "title": "Reach the models run-from-files left out",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 157,
-        "reason": "media-derived measures 243, the listing and its catalog read; about 150 for speech-derived, the same for the transcription page."
-      },
-      "steps": [
-        {
-          "id": "speech-derived",
-          "title": "A speech model with no recipe says what it needs",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestASpeechModelWithNoRecipeSaysWhatItNeeds$'",
-          "rationale": "The transcription workspace lists activated speech recipes only (internal/server/transcription_workspace.go:81), so a speech model the store holds with no recipe is left off its page, as a media model was before model-reach/media-derived. Name what it needs there too, the onboarding command for its directory, and list it as a model that cannot run.\nServes: setup-steps for a speech model.\nDisappears: a silent absence.\nEvidence: its test.\nBatch: serving lane."
-        }
-      ]
-    },
-    {
       "id": "memory-bounds",
       "title": "Reduce what models hold on the card and the host",
       "owner": "master-lead",
@@ -1017,6 +974,7 @@
         "close-the-loop"
       ],
       "asked": "2026-11-01",
+      "answer": "Keep activation by hand and state in the purpose that a person activates",
       "doctrine": true
     },
     {

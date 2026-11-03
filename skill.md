@@ -6,7 +6,8 @@ description: The rules for Overgo development, written as one logical statement 
 # Intent
 
 - overgo = one Go-native system that serves, trains, evaluates and composes models on consumer hardware (check: internal/repoanalysis TestRSIRuntimeIsGoOnly, internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace)
-- purpose = recursive self-improvement through its own inference and training, unattended
+- purpose = recursive self-improvement through its own inference and training, unattended up to a judged candidate: a person chooses what runs and what training starts from
+- a trained model = a model of its own beside its base, never in its place: its base recorded, its scorecard row read against the base's, and no model is a default
 - goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`)
 - scorecard columns = `first-output`, `throughput`, `held-out-quality`, `failure-rate`, `load-time`, `peak-device-memory`, `setup-steps` (check: cmd/validate TestScorecardRowsEveryServableModel, cmd/validate TestScorecardHasNoUnexplainedCell)
 - loop = measure -> find the gap -> train or change -> judge on held-out data

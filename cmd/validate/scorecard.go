@@ -273,7 +273,11 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 	table.WriteString("\n| --- | --- |" + strings.Repeat(" --- |", len(metric.Columns)) + "\n")
 	var gaps, inapplicable []string
 	for _, row := range rows {
-		fmt.Fprintf(&table, "| %s | %s |", row.Name, row.Task)
+		name := row.Name
+		if row.Base != "" {
+			name += ", trained from " + row.Base
+		}
+		fmt.Fprintf(&table, "| %s | %s |", name, row.Task)
 		for _, column := range metric.Columns {
 			cell := row.Cells[column]
 			var text strings.Builder
@@ -513,8 +517,30 @@ func declarationShare(rows []scorecard.Row, named map[string][]string) string {
 }
 
 // cellText renders a measured cell with its unit and what it measures, and
-// a gap as a dash; the gap's reason prints below the table.
+// a gap as a dash; the gap's reason prints below the table. A trained model's
+// cell has its base's reading beside it.
 func cellText(column metric.Name, cell scorecard.Cell) string {
+	text := readingText(column, cell)
+	if cell.AgainstBase == nil || !cell.Measured() {
+		return text
+	}
+	base := *cell.AgainstBase
+	switch {
+	case column == metric.Failures:
+		return text + fmt.Sprintf(" (base %.3g%%)", base*percent)
+	case cell.Unit == "bytes":
+		return text + fmt.Sprintf(" (base %.3g GiB)", base/bytesPerGiB)
+	case cell.Unit == "ms" && base >= millisecondsPerSecond:
+		return text + fmt.Sprintf(" (base %.3g s)", base/millisecondsPerSecond)
+	case cell.Unit == "" || column == metric.Quality:
+		return text + fmt.Sprintf(" (base %.4g)", base)
+	default:
+		return text + fmt.Sprintf(" (base %.4g %s)", base, cell.Unit)
+	}
+}
+
+// readingText renders a cell's own reading.
+func readingText(column metric.Name, cell scorecard.Cell) string {
 	switch {
 	case cell.NotApplicable:
 		return "n/a"

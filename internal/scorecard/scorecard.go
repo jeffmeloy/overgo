@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -39,8 +40,11 @@ const catalogLimit = 4096
 // base model value on the same contract, from the held-out verdict that
 // judged the two; nil where no verdict judged the value against a base.
 type Cell struct {
-	Value         float64     `json:"value,omitzero"`
-	Base          *float64    `json:"base,omitempty"`
+	Value float64  `json:"value,omitzero"`
+	Base  *float64 `json:"base,omitempty"`
+	// AgainstBase is a trained model's base's reading of the same cell, shown beside it and judged by no gap: the owner
+	// chooses what runs and what training starts from.
+	AgainstBase   *float64    `json:"against_base,omitempty"`
 	Unit          string      `json:"unit,omitzero"`
 	Label         string      `json:"label,omitzero"`
 	Source        artifact.ID `json:"source,omitzero"`
@@ -237,6 +241,75 @@ var wholeOutputTasks = []recipe.Task{
 // Measured reports whether a record measures the cell.
 func (c Cell) Measured() bool { return c.Reason == "" }
 
+// sameMeasure says two models' readings are of one measure: the same metric and origin, on the same suite under the same
+// protocol, whatever recipe each ran under.
+func sameMeasure(left, right Contract) bool {
+	return left.Metric == right.Metric && left.Origin == right.Origin && left.Suite == right.Suite && left.Protocol == right.Protocol
+}
+
+// sameFiles says two recorded locations are the same model's files: one path, or a weights file and its directory.
+func sameFiles(left, right string) bool {
+	if left == "" || right == "" {
+		return false
+	}
+	left, right = filepath.Clean(left), filepath.Clean(right)
+	return strings.EqualFold(left, right) || strings.EqualFold(filepath.Dir(left), right) || strings.EqualFold(left, filepath.Dir(right))
+}
+
+// baseOf is the base a trained model's training recorded it was trained from, or none for a model no training made.
+func baseOf(ctx context.Context, store *overgodb.Store, model artifact.ID) (artifact.ID, error) {
+	parents, err := store.Parents(ctx, model)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	for _, edge := range parents {
+		if edge.Relation == artifact.RelationTrainedFrom {
+			return edge.Parent, nil
+		}
+	}
+	return artifact.ID{}, nil
+}
+
+// againstBase sets beside each trained model's measured cell its base's reading of the same cell, where the scorecard
+// holds the base's row for the task: the row of the base itself, or of the model its files serve, since a training reads a
+// base's weights file and its directory serves another identity of the same files. The reading is shown, and no gap judges it.
+func againstBase(rows []Row, locations map[artifact.ID]string) {
+	for index := range rows {
+		row := &rows[index]
+		if !row.TrainedFrom.Valid() {
+			continue
+		}
+		at := slices.IndexFunc(rows, func(base Row) bool { return base.Model == row.TrainedFrom && base.Task == row.Task })
+		if at < 0 {
+			at = slices.IndexFunc(rows, func(base Row) bool {
+				return base.Task == row.Task && base.Model != row.Model && sameFiles(locations[base.Model], locations[row.TrainedFrom])
+			})
+		}
+		if at < 0 {
+			continue
+		}
+		row.Base = rows[at].Name
+		for column, cell := range row.Cells {
+			if !cell.Measured() || cell.NotApplicable {
+				continue
+			}
+			// The base's reading on the same measure: its headline, or for quality another suite or protocol it was read on.
+			readings := []Cell{rows[at].Cells[column]}
+			if column == metric.Quality {
+				readings = append(readings, rows[at].Heldout...)
+			}
+			for _, base := range readings {
+				if base.Measured() && !base.NotApplicable && sameMeasure(base.Contract, cell.Contract) {
+					reading := base.Value
+					cell.AgainstBase = &reading
+					row.Cells[column] = cell
+					break
+				}
+			}
+		}
+	}
+}
+
 // Row is one activated model and task. Architecture is the architecture the
 // recipe's profile dependency declares; a recipe that resolves no
 // architecture profile, a media or specialized one, leaves it empty.
@@ -253,8 +326,12 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // conversion, is a new identity, and the rows of those models are its earlier
 // readings and their open declines its own.
 type Row struct {
-	Model        artifact.ID          `json:"model,omitzero"`
-	Name         string               `json:"name"`
+	Model artifact.ID `json:"model,omitzero"`
+	Name  string      `json:"name"`
+	// TrainedFrom is the base a trained model was trained from, as its training recorded it, and Base the name of the base's
+	// row, where the scorecard holds one: a trained model is read against its base, never in its place.
+	TrainedFrom  artifact.ID          `json:"trained_from,omitzero"`
+	Base         string               `json:"base,omitzero"`
 	Task         recipe.Task          `json:"task"`
 	Recipe       artifact.ID          `json:"recipe,omitzero"`
 	Architecture string               `json:"architecture,omitzero"`
@@ -392,12 +469,18 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 		}
 		name = cmp.Or(name, entry.Model.String())
 		benchmark, benchmarked := index.BenchmarksByLocation[entry.Location]
+		var trainedFrom artifact.ID
+		if entry.Trained {
+			if trainedFrom, err = baseOf(ctx, store, entry.Model); err != nil {
+				return nil, err
+			}
+		}
 		for _, capability := range entry.Capabilities {
 			architecture, err := declaredArchitecture(ctx, store, capability.Recipe)
 			if err != nil {
 				return nil, err
 			}
-			row := Row{Stale: capability.Stale, MeasuredOnce: entry.Measured, Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
+			row := Row{Stale: capability.Stale, MeasuredOnce: entry.Measured, TrainedFrom: trainedFrom, Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}, Succeeds: succeeded[capability.Task][entry.Model]}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -431,6 +514,10 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 	slices.SortFunc(rows, func(left, right Row) int {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
+	locations := make(map[artifact.ID]string, len(entries))
+	for _, entry := range entries {
+		locations[entry.Model] = entry.Location
+	}
 	// The uses choose which of a row's readings is read first, and the path
 	// comparison is stated on that one.
 	uses, err := ModelUses()
@@ -438,6 +525,7 @@ func build(ctx context.Context, store *overgodb.Store, entries []discovery.Catal
 		return nil, err
 	}
 	markUses(rows, uses)
+	againstBase(rows, locations)
 	return rows, comparePaths(rows)
 }
 

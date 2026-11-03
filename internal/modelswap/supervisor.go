@@ -102,7 +102,10 @@ type Supervisor struct {
 	current  *upstream
 	// loading is the servable a load outside the lock is bringing up: the device has room for one.
 	loading *Servable
-	closed  bool
+	// unstopped is a child whose Stop failed: it may still hold the device, so no child launches until a Stop of it
+	// succeeds, and Close reports it.
+	unstopped *upstream
+	closed    bool
 }
 
 // New binds a supervisor to its launcher. A zero idle timeout keeps an
@@ -133,7 +136,9 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		s.drained.Broadcast()
 	})
 	defer wake()
+	// The grace is the current child's: when it changes, another load having come between, the grace starts again.
 	var deadline *time.Timer
+	var graced *upstream
 	graceOver := false
 	defer func() {
 		if deadline != nil {
@@ -154,6 +159,9 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 			continue
 		}
 		s.dropExitedLocked()
+		if err := s.stopUnstoppedLocked(); err != nil {
+			return nil, err
+		}
 		if s.current != nil && s.current.servable == servable {
 			return s.leaseLocked(swap), nil
 		}
@@ -166,11 +174,19 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		// declare themselves held open must not veto the swap, so past the
 		// grace the old child stops anyway. The streams that do declare it
 		// (the workbench's activity stream) are not waited for at all.
+		if graced != s.current {
+			graced, graceOver = s.current, false
+			if deadline != nil {
+				deadline.Stop()
+				deadline = nil
+			}
+		}
 		if s.current.refs-s.current.held > 0 && !graceOver {
 			if deadline == nil {
+				owner := s.current
 				deadline = time.AfterFunc(s.grace, func() {
 					s.mu.Lock()
-					graceOver = true
+					graceOver = graceOver || graced == owner
 					s.mu.Unlock()
 					s.drained.Broadcast()
 				})
@@ -180,8 +196,11 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		}
 		swap.Drain = time.Since(draining)
 		stopping := time.Now()
-		s.stopCurrentLocked()
+		err := s.stopCurrentLocked()
 		swap.Stop = time.Since(stopping)
+		if err != nil {
+			return nil, err
+		}
 		break
 	}
 	swap.Launched = true
@@ -195,8 +214,8 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		return nil, err
 	}
 	if s.closed {
-		_ = process.Stop()
-		return nil, errors.New("model swap: supervisor is closed")
+		s.unstopped = &upstream{servable: servable, process: process}
+		return nil, errors.Join(errors.New("model swap: supervisor is closed"), s.stopUnstoppedLocked())
 	}
 	s.current = &upstream{servable: servable, process: process}
 	return s.leaseLocked(swap), nil
@@ -212,8 +231,15 @@ func (s *Supervisor) load(ctx context.Context, servable Servable, swap *SwapTime
 	swap.Launch = time.Since(launching)
 	readying := time.Now()
 	if err := process.Ready(ctx); err != nil {
-		_ = process.Stop()
-		return nil, fmt.Errorf("model swap: %q did not become ready: %w", servable.Name, err)
+		err = fmt.Errorf("model swap: %q did not become ready: %w", servable.Name, err)
+		// Stopped outside the lock, as it loaded; one that refuses to stop is kept.
+		if stopErr := process.Stop(); stopErr != nil {
+			s.mu.Lock()
+			s.unstopped = &upstream{servable: servable, process: process}
+			s.mu.Unlock()
+			err = errors.Join(err, fmt.Errorf("model swap: %q did not stop: %w", servable.Name, stopErr))
+		}
+		return nil, err
 	}
 	swap.Ready = time.Since(readying)
 	return process, nil
@@ -227,7 +253,8 @@ func (s *Supervisor) dropExitedLocked() {
 	}
 	select {
 	case <-s.current.process.Exited():
-		s.stopCurrentLocked()
+		// A child that refuses to stop even so is kept, and the next acquire stops it again.
+		_ = s.stopCurrentLocked()
 	default:
 	}
 }
@@ -256,14 +283,13 @@ func (s *Supervisor) Status() (Servable, bool) {
 	return s.current.servable, true
 }
 
-// Close stops the child and refuses further acquires.
+// Close stops the child and refuses further acquires. A child that does not stop is named in its error.
 func (s *Supervisor) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
-	s.stopCurrentLocked()
 	s.drained.Broadcast()
-	return nil
+	return s.stopCurrentLocked()
 }
 
 func (s *Supervisor) retainLocked() string {
@@ -332,16 +358,29 @@ func (s *Supervisor) stopIfIdle(owner *upstream) {
 	if s.current != owner || owner.refs > 0 {
 		return
 	}
-	s.stopCurrentLocked()
+	// A child that refuses to stop is kept, and the next acquire or Close stops it again.
+	_ = s.stopCurrentLocked()
 }
 
-func (s *Supervisor) stopCurrentLocked() {
-	if s.current == nil {
-		return
+// stopCurrentLocked stops the running child, and one an earlier Stop left running.
+func (s *Supervisor) stopCurrentLocked() error {
+	if s.current != nil {
+		if s.current.idleStop != nil {
+			s.current.idleStop.Stop()
+		}
+		s.unstopped, s.current = s.current, nil
 	}
-	if s.current.idleStop != nil {
-		s.current.idleStop.Stop()
+	return s.stopUnstoppedLocked()
+}
+
+// stopUnstoppedLocked stops the child a Stop left running, which is then let go; one that refuses again is kept.
+func (s *Supervisor) stopUnstoppedLocked() error {
+	if s.unstopped == nil {
+		return nil
 	}
-	_ = s.current.process.Stop()
-	s.current = nil
+	if err := s.unstopped.process.Stop(); err != nil {
+		return fmt.Errorf("model swap: %q did not stop: %w", s.unstopped.servable.Name, err)
+	}
+	s.unstopped = nil
+	return nil
 }

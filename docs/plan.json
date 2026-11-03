@@ -153,17 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 300,
+        "nodes": 82,
         "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
       },
       "steps": [
-        {
-          "id": "swap-lifecycles",
-          "title": "Hold the supervisor to one live child through generated lifecycles",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -count=1 -run '^TestGeneratedSwapLifecycles$'",
-          "rationale": "child-exit holds: a child that exits is launched again. The generator still finds two defects. Stop's error is discarded (internal/modelswap/supervisor.go:198,215,345), the child is dropped (:346), Close returns nil (:266), and serverProcess.Stop returns without waiting when Terminate is refused (launcher.go:236-238): 786 of 2,000 seeds. How often Terminate is refused is a hypothesis. graceOver outlives the child it timed (supervisor.go:137,173), so with two models waiting the second stops the first's new child as its lease is granted, wasting a whole load: 261 of 2,000 seeds. Keep a child that did not stop, refuse the next launch naming it until a repeated Stop succeeds, and have Close report it. Start the grace again when the current child changes.\nThe fake gains Exited, a Stop that refuses, loads of 0, 1, 7 and 40 virtual seconds, and Close in mid-sequence. After every operation the test asserts: at most one live child; Status names a model only with a live child or a load pending; a lease reaches a live child, which lives drainGrace unless it exits by itself; after Close and the last load no child lives, or Close returned an error naming it.\nThe harness and its two prototype repairs are in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving, so port it inverted.\nServes: failure-rate and load-time.\nDisappears: a child no one can stop, and a load thrown away.\nEvidence: 20,000 green seeds in 1.6 s with both repairs prototyped, 1,047 of 2,000 broken without.\nBatch: serving lane."
-        },
         {
           "id": "queued-load",
           "title": "End a request queued on a load with that load's refusal",

@@ -34,7 +34,7 @@ func main() {
 	clioptions.MainNamed("swap", run)
 }
 
-func run() error {
+func run() (err error) {
 	listen := flag.String("listen", "127.0.0.1:8080", "proxy listen address")
 	store := flag.String("repo", "", "OvergoDB root the children serve over; empty resolves through the data root")
 	binary := flag.String("server", "bin/overgo-server.exe", "built overgo server binary the supervisor launches")
@@ -63,7 +63,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer supervisor.Close()
+	// A child that did not stop outlives the proxy, so its name reaches the caller.
+	defer func() { err = errors.Join(err, supervisor.Close()) }()
 	// The cold start: with no default and no child the proxy serves the shell itself; the picker launches the first child,
 	// and the Library shares the retained repository with the catalog resolver. The workbench behind the shell answers
 	// downloads, validation and operations over the store, so an empty store reaches a served model without a child.

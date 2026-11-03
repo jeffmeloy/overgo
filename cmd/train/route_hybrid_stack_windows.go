@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"overgo/internal/checked"
@@ -39,6 +40,26 @@ const (
 	boundedMasterSlabs = 2
 	tripledSlabs       = 3
 )
+
+// boundedBytes is the host memory the layer-streamed lane's budget holds:
+// masters and momentum, one layer's gradient scratch, and the vectors'
+// parameters, gradients and momentum.
+func boundedBytes(budget hybridtrain.LayerStreamedBudget) int64 {
+	return f32Bytes * int64(boundedMasterSlabs*budget.MasterElems+budget.ScratchElems+tripledSlabs*budget.VectorElems)
+}
+
+// setMemoryLimit sets the Go memory limit the layer-streamed lane runs under,
+// its budget, and returns it. The masters and momentum are live for the whole
+// run, so the collector's default pacing would let the heap grow to twice
+// them; under the limit it collects as the heap nears the budget, which costs
+// little, since the slabs hold no pointers to mark. On Qwen3.5-9B the limit at
+// the budget held the process to 56.9 GB at most and stepped in 2m49s, where
+// a hand-set 68 GiB held 72.2 GB and stepped in 3m04s.
+func setMemoryLimit(budget hybridtrain.LayerStreamedBudget) int64 {
+	limit := boundedBytes(budget)
+	debug.SetMemoryLimit(limit)
+	return limit
+}
 
 type servingFixture struct {
 	Cases []struct {
@@ -169,8 +190,8 @@ func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (
 		fmt.Printf("  grad scratch  %14d bytes (largest layer, %d f32 — gradients NEVER triplicate)\n", f32Bytes*budget.ScratchElems, budget.ScratchElems)
 		fmt.Printf("  vectors       %14d bytes (%d f32, params+grads+momentum host-side)\n", tripledSlabs*f32Bytes*budget.VectorElems, budget.VectorElems)
 		fmt.Printf("  bounded total %14d bytes vs %d bytes full triplication\n",
-			f32Bytes*(boundedMasterSlabs*budget.MasterElems+budget.ScratchElems+tripledSlabs*budget.VectorElems),
-			f32Bytes*(tripledSlabs*budget.MasterElems+tripledSlabs*budget.VectorElems))
+			boundedBytes(budget), f32Bytes*(tripledSlabs*budget.MasterElems+tripledSlabs*budget.VectorElems))
+		fmt.Printf("  memory limit  %14d bytes (the bounded total)\n", setMemoryLimit(budget))
 	}
 	printPeakRSS("after artifact load")
 

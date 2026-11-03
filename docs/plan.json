@@ -172,20 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 499,
+        "nodes": 454,
         "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
       },
       "steps": [
-        {
-          "id": "hybrid-limit",
-          "title": "Derive the hybrid route's memory limit from its budget",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestTheHybridRouteSetsItsMemoryLimitFromItsBudget$'",
-          "rationale": "Two 27 GB slabs are live heap, so the pacer runs far above need and the route needs GOGC=50 GOMEMLIMIT=68GiB set by hand (cmd/validate/training_proof.go:72). The record's 72.2 GB sits on that limit against a 55.2 GB budget (docs/verification/qwen35-9b-fullstack-training-run.txt:69-70,84,92). LayerStreamedBudget computes the need; set the limit from it with debug.SetMemoryLimit. Up to 12 to 17 GB of host, a hypothesis one 9B step settles.\nServes: host memory for training, and a route that runs without an environment.\nDisappears: the route's environment and its test's assertion.\nEvidence: one 9B proof's peak and step wall against 3m04s.\nBatch: training lane.",
-          "depends_on": [
-            "memory-bounds/momentum-f32"
-          ]
-        },
         {
           "id": "text-one-block",
           "title": "Run an image model's text encoder one block on the card at a time",

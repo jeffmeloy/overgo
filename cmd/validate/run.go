@@ -56,7 +56,7 @@ const videoUserSize = "video-user-size"
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case trainingProof:
-		args, _, err := trainingRun(cell, store)
+		args, err := trainingRun(cell, store)
 		if err != nil {
 			return "", nil, err
 		}
@@ -328,8 +328,8 @@ func executeMeasured(ctx context.Context, output io.Writer, root, storeRoot stri
 func cellCommand(cell ModelValidation, store string) (name string, args, environment []string, err error) {
 	switch cell.Validation {
 	case trainingProof:
-		args, environment, err = trainingRun(cell, store)
-		return "go", args, environment, err
+		args, err = trainingRun(cell, store)
+		return "go", args, nil, err
 	case projectionProof:
 		args, environment, err = projectionRun(cell, store)
 		return "go", args, environment, err

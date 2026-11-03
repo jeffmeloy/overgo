@@ -57,19 +57,16 @@ const (
 )
 
 // trainingRoute is one route a training proof runs: the committed data its
-// recipe's objective reads, cmd/train's arguments that select and bound it,
-// and the environment its runs were recorded under.
+// recipe's objective reads, and cmd/train's arguments that select and bound it.
 type trainingRoute struct {
-	grounding   string
-	arguments   []string
-	environment []string
+	grounding string
+	arguments []string
 }
 
 var trainingRoutes = []trainingRoute{
 	{grounding: ditGrounding, arguments: []string{"-route", "dit", "-proof", "-schedule-index", "0", "-steps", routeSteps, "-max-wall", "60m"}},
 	{grounding: motGrounding, arguments: []string{"-route", "mot", "-proof", "-binding", "rxbrain", "-steps", routeSteps, "-max-wall", "30m"}},
-	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-proof", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"},
-		environment: []string{"GOGC=50", "GOMEMLIMIT=68GiB"}},
+	{grounding: hybridGrounding, arguments: []string{"-route", "hybrid-stack", "-proof", "-lane", "layer-streamed", "-steps", routeSteps, "-max-wall", "120m"}},
 	{grounding: mossGrounding, arguments: []string{"-route", "moss", "-proof", "-pictures", mossGrounding, "-size", mossSize, "-steps", routeSteps, "-max-wall", "30m"}},
 	{grounding: denseGrounding, arguments: []string{
 		"-proof", "-dataset", denseGrounding, "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical",
@@ -186,7 +183,7 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 }
 
 // trainingRun is the bounded run into store that re-verifies a training cell,
-// the environment it runs under, and the scratch directory its checkpoint is
+// and the scratch directory its checkpoint is
 // staged beneath, which -run removes after the run: the proof is the
 // verification the run records, and it keeps no checkpoint. A route trains a
 // directory's weights, a GGUF or a raw DiT checkpoint as its own flags name
@@ -195,7 +192,7 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 // -objective for text, and through its route for a table, or for a picture
 // the bridged pair's directory. It says why when no route grounds the cell's
 // recipe and no alias registers its objective, or the route lacks an input.
-func trainingRun(cell ModelValidation, store string) (args, environment []string, err error) {
+func trainingRun(cell ModelValidation, store string) (args []string, err error) {
 	at := slices.IndexFunc(trainingRoutes, func(route trainingRoute) bool { return route.grounding == cell.Grounding })
 	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
 	if at >= 0 {
@@ -206,9 +203,9 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	inputs := []string{"-model", filepath.Dir(cell.Location)}
 	switch {
 	case at < 0 && cell.Objective == "":
-		return nil, nil, errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
+		return nil, errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
 	case cell.Location == "":
-		return nil, nil, errors.New("a training run needs the model's weights")
+		return nil, errors.New("a training run needs the model's weights")
 	case at < 0 && cell.Route == tabularRoute:
 		// The catalog finds a table model by one head's weights, in the head's
 		// own directory; the route takes the model's, and trains the head the
@@ -224,7 +221,7 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	case cell.Grounding == motGrounding:
 		roots, err := dataroot.ResolveCurrent()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		inputs = append(inputs, "-fixtures", referenceFixtures(roots))
 	case cell.Grounding == hybridGrounding:
@@ -238,7 +235,7 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	case cell.Grounding == ditGrounding && filepath.Base(cell.Location) == ditWeights:
 		inputs = []string{"-model-dir", filepath.Dir(cell.Location)}
 	case cell.Grounding == ditGrounding && cell.Conditioning == "":
-		return nil, nil, errors.New("a raw DiT checkpoint trains against a video stack directory no other training activation names")
+		return nil, errors.New("a raw DiT checkpoint trains against a video stack directory no other training activation names")
 	case cell.Grounding == ditGrounding:
 		inputs = []string{"-model-dir", cell.Conditioning, "-checkpoint", cell.Location}
 	}
@@ -246,5 +243,5 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	// The preview names a caller-chosen output; acquisition replaces it with
 	// its own private directory before starting the producer.
 	args = append(append(args, "-store", store, "-out", "checkpoint"), inputs...)
-	return args, route.environment, nil
+	return args, nil
 }

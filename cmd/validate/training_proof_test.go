@@ -287,7 +287,6 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	refusing := 0
 	commands, environments := map[string][]string{}, map[string][]string{}
 	for _, sel := range plan.Run {
-		_, environments[sel.ModelName], _ = trainingRun(sel.ModelValidation, selected)
 		if sel.Validation == projectionProof {
 			_, environments[sel.ModelName], _ = projectionRun(sel.ModelValidation, selected)
 		}
@@ -380,9 +379,6 @@ func TestEveryScorecardCellHasABoundCommandOrIsRetired(t *testing.T) {
 	}
 	if !slices.Contains(verify, "-reverify") || verify[len(verify)-1] != exact.Location {
 		t.Errorf("%s runs %v, want its exact suite to re-verify the active recipe on its model", exact.ModelName, verify)
-	}
-	if !slices.Contains(environments[hybrid.ModelName], "GOMEMLIMIT=68GiB") {
-		t.Errorf("the hybrid stack runs without the memory limit its route was recorded under: %v", environments[hybrid.ModelName])
 	}
 	// A selected cell keeps its recipe even if another invocation replaces
 	// the active alias before its proof is read.

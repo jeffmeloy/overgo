@@ -7205,6 +7205,17 @@
         "plan_steps": [
           "store-durability/unwritten-tail"
         ]
+      },
+      {
+        "comment": "cutover-kill, the finding's cutover defect. Under the writer's lock, an open that would start a store at a name that holds none refuses when the name's directory holds a store a cutover moved aside (name.superseded-*), and names it, where Create had started an empty store at sequence 0 beside the commits. ReplaceStore names the store it moves aside with the same marker. TestAKillBetweenCutoverRenamesStartsNoEmptyStore moves a store aside as the cutover's first rename does: Create refuses naming it, leaves nothing at the name, Open refuses, and the store moved back opens at its head. It fails with the check undone (Create gave no error). The cutover's renames stay os.Rename, declared in TestEveryDurableRenameGoesThroughItsOwner.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestAKillBetweenCutoverRenamesStartsNoEmptyStore"
+        ],
+        "finding_id": "SQA-288",
+        "plan_steps": [
+          "store-durability/cutover-kill"
+        ]
       }
     ],
     "experiments": {
@@ -7247,7 +7258,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
-    "head": "b41b8ca6d8abefb62218cf4ca93ce0e5c4cd5fed",
+    "head": "879c69153cfdd07950cc7b970d49fdcb3743cbb0",
     "findings": {
       "SQA-004": {
         "action": "none",

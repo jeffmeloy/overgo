@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -299,9 +300,21 @@ func open(ctx context.Context, root string, mode openMode) (*Store, error) {
 		}
 		defer lock.Close()
 		// Asked under the lock: a cutover moves the store away while it holds it,
-		// and a writer that arrives then waits rather than finding nothing.
-		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) && mode == openExisting {
-			return nil, fmt.Errorf("%w: %s", errStoreAbsent, named)
+		// and a writer that arrives then waits rather than finding nothing. A
+		// cutover killed between its renames leaves the store moved aside and
+		// nothing at its name, and starting one there would serve an empty store
+		// beside it.
+		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+			if mode == openExisting {
+				return nil, fmt.Errorf("%w: %s", errStoreAbsent, named)
+			}
+			aside, err := supersededSibling(root)
+			if err != nil {
+				return nil, err
+			}
+			if aside != "" {
+				return nil, fmt.Errorf("overgodb: no store at %s, and %s holds the one a cutover moved aside; move it back before a store starts there", named, aside)
+			}
 		}
 	}
 	store := &Store{readOnly: readOnly, root: root, blobs: newBlobStore(root), tail: checkpointTail}
@@ -314,6 +327,25 @@ func open(ctx context.Context, root string, mode openMode) (*Store, error) {
 		}
 	}
 	return store, nil
+}
+
+// supersededMarker joins a store's name to the head it held when a cutover moved it aside.
+const supersededMarker = ".superseded-"
+
+// supersededSibling is a store a cutover moved aside from root and did not
+// replace (ReplaceStore), or nothing when root's directory holds none.
+func supersededSibling(root string) (string, error) {
+	entries, err := os.ReadDir(filepath.Dir(root))
+	if err != nil {
+		return "", err
+	}
+	prefix := filepath.Base(root) + supersededMarker
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), prefix) {
+			return filepath.Join(filepath.Dir(root), entry.Name()), nil
+		}
+	}
+	return "", nil
 }
 
 // resolvedRoot gives aliases of a store one writer authority, including a
@@ -361,7 +393,7 @@ func ReplaceStore(ctx context.Context, live, candidate, expectedHead string) (st
 		return "", err
 	}
 	defer candidateLock.Close()
-	superseded := fmt.Sprintf("%s.superseded-%.12s", live, expectedHead)
+	superseded := fmt.Sprintf("%s%s%.12s", live, supersededMarker, expectedHead)
 	if _, err := os.Lstat(superseded); err == nil {
 		return "", fmt.Errorf("overgodb: superseded path %q already exists", superseded)
 	} else if !os.IsNotExist(err) {

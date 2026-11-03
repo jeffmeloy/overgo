@@ -154,16 +154,9 @@
       "status": "open",
       "budget": {
         "nodes": 36,
-        "reason": "unwritten-tail adds 371 nodes against the prototype's 230: the open also says what it cut, Store.TornTail, which overgodb repair prints and the server logs, as the step asks, and a journal that never began is started. The steps after it keep the 36 nodes the estimate left them."
+        "reason": "cutover-kill adds 117 nodes: the guard under the writer's lock, the search of the store's directory for one moved aside, and one marker the cutover and the guard share. crash-points and store-lifecycles, mostly test code, keep the 36 they had."
       },
       "steps": [
-        {
-          "id": "cutover-kill",
-          "title": "Start no empty store beside a superseded one",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAKillBetweenCutoverRenamesStartsNoEmptyStore$'",
-          "rationale": "Reproduced. A kill between ReplaceStore's renames (internal/overgodb/store.go:382-391, which restores only on a failed rename) leaves no store: Open refuses, and Create (:238-246, consumer cmd/server/main.go:332) starts one at sequence 0 while store.superseded-* holds the commits. c4af5a1b6 closed this for Open, not Create. Under the lock, a missing root with a .superseded-* sibling refuses and names it.\nServes: failure-rate; no silently empty store in service.\nDisappears: a store emptied by a kill.\nEvidence: the probe inverted.\nBatch: store lane."
-        },
         {
           "id": "crash-points",
           "title": "Reopen the store from every tree a crash can leave",

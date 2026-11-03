@@ -259,6 +259,17 @@ func TestStateRestoresExactContinuation(t *testing.T) {
 	if err := second.Restore(state); err == nil {
 		t.Fatal("mismatched config accepted")
 	}
+
+	// A trainer that steps its leading parameters on a device holds their f32 momentum before the rest's f64: each
+	// lands on its own parameters.
+	state = first.Snapshot()
+	state.Momentum, state.MomentumF32 = []float64{0.25, 3}, []float32{0.5, -1.5}
+	if err := second.Restore(state); err != nil {
+		t.Fatal(err)
+	}
+	if got := second.Snapshot().Momentum; !slices.Equal(got, []float64{0.5, -1.5, 0.25, 3}) {
+		t.Fatalf("a state of f32 then f64 momentum restored as %v", got)
+	}
 }
 
 func mustPlan(t *testing.T, parameterCount int, specs []GroupSpec) Plan {

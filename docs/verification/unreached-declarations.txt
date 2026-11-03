@@ -157,7 +157,7 @@ group hybrid-device-resident-lane
 class: prototype
 surface: outside
 declarations: 48
-lines: 1852
+lines: 1848
 members: internal/devicemath/gated_delta_mix_cuda_windows.go
 members: internal/devicemath/gated_delta_net_cuda_windows.go
 members: internal/devicemath/gated_mlp_resident_cuda_windows.go

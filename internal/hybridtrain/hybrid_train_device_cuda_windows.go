@@ -11,7 +11,6 @@ import (
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
-	"overgo/internal/tensor/dtype"
 )
 
 // residency records device-loop weight and momentum movement.
@@ -141,9 +140,7 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 		muon:             muon, config: cfg,
 		momentum: make([]float32, len(m.matW)), vecOpt: vecOpt,
 	}
-	for index, value := range mat.Momentum {
-		training.momentum[index] = float32(value)
-	}
+	copy(training.momentum, mat.MomentumF32)
 	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
 	if trajectory != nil && options.Checkpoint != nil {
 		err = errors.Join(err, m.checkpointF32(options, training.momentum, mat.Step+len(trajectory), cfg, vecOpt))
@@ -248,9 +245,7 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 		vecGrad:    vecGrad, vecOpt: vecOpt,
 	}
 	training.stepped = mat.Step
-	for index, value := range mat.Momentum {
-		training.momentum[index] = float32(value)
-	}
+	copy(training.momentum, mat.MomentumF32)
 	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
 	if trajectory != nil && options.Checkpoint != nil {
 		err = errors.Join(err, m.checkpointF32(options, training.momentum, training.stepped, cfg, vecOpt))
@@ -285,11 +280,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 		_ = devicemath.FreeResident(worker, dW)
 		return nil, acc, err
 	}
-	var initialMomentum []float32
-	if options.Resume != nil {
-		initialMomentum = dtype.Float64SliceToFloat32(mat.Momentum)
-	}
-	dM, err := devicemath.AllocResidentF32(worker, len(m.matW), initialMomentum)
+	dM, err := devicemath.AllocResidentF32(worker, len(m.matW), mat.MomentumF32)
 	if err != nil {
 		_ = devicemath.FreeResident(worker, dW, dG)
 		return nil, acc, err

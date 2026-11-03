@@ -172,17 +172,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 868,
+        "nodes": 499,
         "reason": "Sum of the steps' estimates. text-one-block at 500 is the largest and least certain."
       },
       "steps": [
-        {
-          "id": "momentum-f32",
-          "title": "Keep a hybrid checkpoint's matrix momentum in the dtype it steps",
-          "status": "open",
-          "verify": "go test ./internal/hybridtrain -count=1 -run '^TestAHybridCheckpointKeepsMatrixMomentumInF32$'",
-          "rationale": "checkpointF32 copies the momentum to float64 beside the live slabs (internal/hybridtrain/progress.go:96-101, hybrid_train_device_cuda_windows.go:255-256): 54,274,293,760 bytes on 9B, 108.5 GB in all on a 96 GB machine, and cmd/train/route_hybrid_stack_windows.go:190-192 checkpoints on every run. The recorded 72.2 GB peak predates this path. The file then holds 8 bytes a parameter, about 80 GB of checkpoint (09746220c).\nMomentumF32 exists (internal/hostoptimizer/optimizer.go:21) and three trainers use it. The hybrid route's vector momentum stays f64 and a state holds one dtype (:168), so let a state hold both, matrix first, in one momentum file. Fix Restore's two copies, which both start at index zero (:146-149). Old f64 files keep loading.\nServes: host memory and disk for training; one 9B checkpoint 27.1 GB smaller.\nDisappears: the float64 slab.\nEvidence: a resume bit-identical to an unbroken run on the synthetic stack, then the next 9B proof's peak.\nBatch: training lane."
-        },
         {
           "id": "hybrid-limit",
           "title": "Derive the hybrid route's memory limit from its budget",

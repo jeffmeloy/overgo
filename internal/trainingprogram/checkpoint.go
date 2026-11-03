@@ -39,9 +39,13 @@ const (
 	// momentumFilename holds the resume sidecar's momentum as raw
 	// little-endian values in the dtype the trainer steps.
 	momentumFilename = "momentum.bin"
-	// momentumF32 and momentumF64 name the dtypes a momentum file holds.
-	momentumF32 = "f32"
-	momentumF64 = "f64"
+	// momentumF32 and momentumF64 name the dtypes a momentum file holds, and
+	// momentumF32F64 a file of f32 values then f64 ones, the momentum of a
+	// trainer that steps its leading parameters on a device and the rest on
+	// the host (hostoptimizer.State).
+	momentumF32    = "f32"
+	momentumF64    = "f64"
+	momentumF32F64 = "f32+f64"
 )
 
 type RNGState struct {
@@ -141,8 +145,10 @@ type resumeDocument struct {
 	Step         int                  `json:"step"`
 	Momentum     artifact.ID          `json:"momentum"`
 	DType        string               `json:"dtype"`
-	Stream       DatasetState         `json:"stream"`
-	RNG          []RNGState           `json:"rng"`
+	// F32Values is how many of an f32+f64 file's values are f32, the leading ones.
+	F32Values int          `json:"f32_values,omitzero"`
+	Stream    DatasetState `json:"stream"`
+	RNG       []RNGState   `json:"rng"`
 }
 
 func (c Checkpoint) ID() artifact.ID { return c.id }
@@ -182,12 +188,16 @@ func (c Checkpoint) document() checkpointDocument {
 }
 
 func (c Checkpoint) resume() resumeDocument {
-	_, dtype := momentumBytes(c.Optimizer)
-	return resumeDocument{
+	_, dtype := momentumParts(c.Optimizer)
+	document := resumeDocument{
 		Version: artifact.InitialDocumentVersion, Weights: c.Weights,
 		PlanIdentity: c.Optimizer.PlanIdentity, Config: c.Optimizer.Config, Step: c.Optimizer.Step,
 		Momentum: c.momentum, DType: dtype, Stream: c.Stream, RNG: c.RNG,
 	}
+	if dtype == momentumF32F64 {
+		document.F32Values = len(c.Optimizer.MomentumF32)
+	}
+	return document
 }
 
 // Batch binds a complete on-disk checkpoint to its canonical document, its
@@ -405,8 +415,8 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	}
 	// The momentum is hashed and streamed to disk from the trainer's own
 	// buffer.
-	values, _ := momentumBytes(spec.Optimizer)
-	momentum, err := artifact.IdentifyBytes(artifact.KindFile, values)
+	values, _ := momentumParts(spec.Optimizer)
+	momentum, err := momentumID(values)
 	if err != nil {
 		return Checkpoint{}, err
 	}
@@ -430,7 +440,10 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 		return checkpoint, nil
 	}
 	// Each document is written as the canonical bytes its identity hashes.
-	files := map[string][]byte{momentumFilename: values}
+	if err := writeMomentum(filepath.Join(stage, momentumFilename), values); err != nil {
+		return Checkpoint{}, err
+	}
+	files := map[string][]byte{}
 	for name, document := range map[string]any{CheckpointFilename: checkpoint.document(), resumeFilename: checkpoint.resume()} {
 		if files[name], err = json.Marshal(document); err != nil {
 			return Checkpoint{}, err
@@ -492,15 +505,48 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	return checkpoint, checkpoint.ValidateIdentity()
 }
 
-// momentumBytes views the momentum state holds as its little-endian bytes
-// in place, and names its dtype: the momentum file is written and read
-// through the view, so streaming it never holds a second copy. Every
-// target overgo builds for is little-endian.
-func momentumBytes(state hostoptimizer.State) ([]byte, string) {
-	if len(state.MomentumF32) != 0 {
-		return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(state.MomentumF32))), len(state.MomentumF32)*binaryschema.Uint32Bytes), momentumF32
+// momentumParts views the momentum state holds as its little-endian bytes
+// in place, in parameter order, and names their dtypes: one, or f32 then f64
+// for a state that holds both. The momentum file is written and read through
+// the views, so streaming it never holds a second copy. Every target overgo
+// builds for is little-endian.
+func momentumParts(state hostoptimizer.State) ([][]byte, string) {
+	f32 := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(state.MomentumF32))), len(state.MomentumF32)*binaryschema.Uint32Bytes)
+	f64 := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(state.Momentum))), len(state.Momentum)*binaryschema.Uint64Bytes)
+	switch {
+	case len(state.MomentumF32) == 0:
+		return [][]byte{f64}, momentumF64
+	case len(state.Momentum) == 0:
+		return [][]byte{f32}, momentumF32
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(state.Momentum))), len(state.Momentum)*binaryschema.Uint64Bytes), momentumF64
+	return [][]byte{f32, f64}, momentumF32F64
+}
+
+// momentumID is the identity of the momentum file parts make, in order.
+func momentumID(parts [][]byte) (artifact.ID, error) {
+	hasher, err := artifact.NewHasher(artifact.KindFile)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	for _, part := range parts {
+		hasher.Write(part)
+	}
+	id, _ := hasher.ID()
+	return id, nil
+}
+
+// writeMomentum writes the momentum file parts make, in order.
+func writeMomentum(path string, parts [][]byte) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	for _, part := range parts {
+		if _, err := file.Write(part); err != nil {
+			return errors.Join(err, file.Close())
+		}
+	}
+	return file.Close()
 }
 
 // CheckpointWeightsPath resolves current and legacy checkpoint layouts.
@@ -557,28 +603,36 @@ func (c Checkpoint) weights(directory string) (modelartifact.Inventory, error) {
 // parameters values.
 func readMomentum(path string, resume resumeDocument, parameters int) (hostoptimizer.State, error) {
 	state := hostoptimizer.State{PlanIdentity: resume.PlanIdentity, Config: resume.Config, Step: resume.Step}
-	switch resume.DType {
-	case momentumF32:
+	switch {
+	case resume.DType == momentumF32F64 && resume.F32Values > 0 && resume.F32Values < parameters:
+		state.MomentumF32, state.Momentum = make([]float32, resume.F32Values), make([]float64, parameters-resume.F32Values)
+	case resume.DType == momentumF32 && resume.F32Values == 0:
 		state.MomentumF32 = make([]float32, parameters)
-	case momentumF64:
+	case resume.DType == momentumF64 && resume.F32Values == 0:
 		state.Momentum = make([]float64, parameters)
 	default:
-		return state, fmt.Errorf("training checkpoint: momentum dtype %q is none a trainer steps", resume.DType)
+		return state, fmt.Errorf("training checkpoint: momentum of dtype %q with %d f32 values of %d is none a trainer steps", resume.DType, resume.F32Values, parameters)
 	}
-	data, _ := momentumBytes(state)
+	parts, _ := momentumParts(state)
 	file, err := os.Open(path)
 	if err != nil {
 		return state, fmt.Errorf("training checkpoint: resume sidecar: %w", err)
 	}
 	defer file.Close()
+	size := 0
+	for _, part := range parts {
+		size += len(part)
+	}
 	info, err := file.Stat()
-	if err != nil || info.Size() != int64(len(data)) {
+	if err != nil || info.Size() != int64(size) {
 		return state, errors.Join(fmt.Errorf("training checkpoint: the momentum file does not hold %d %s values", parameters, resume.DType), err)
 	}
-	if _, err := io.ReadFull(file, data); err != nil {
-		return state, err
+	for _, part := range parts {
+		if _, err := io.ReadFull(file, part); err != nil {
+			return state, err
+		}
 	}
-	if id, err := artifact.IdentifyBytes(artifact.KindFile, data); err != nil || id != resume.Momentum {
+	if id, err := momentumID(parts); err != nil || id != resume.Momentum {
 		return state, errors.Join(errors.New("training checkpoint: momentum file differs from its resume sidecar"), err)
 	}
 	return state, nil

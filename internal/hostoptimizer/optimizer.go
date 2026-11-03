@@ -12,7 +12,9 @@ import (
 
 // State is the portable optimizer progress and momentum. The momentum keeps
 // the dtype its trainer steps: Momentum holds the host optimizer's f64
-// values, MomentumF32 a device stepper's f32 values, and a state holds one.
+// values, MomentumF32 a device stepper's f32 values. A state that holds both
+// is of a trainer that steps its leading parameters on a device and the rest
+// on the host: MomentumF32 is theirs, in order, and Momentum the rest's.
 type State struct {
 	PlanIdentity string    `json:"plan_identity"`
 	Config       Config    `json:"config"`
@@ -163,10 +165,10 @@ func (o *Optimizer) Restore(state State) error {
 		return errors.New("optimizer state: config mismatch")
 	}
 	o.step = state.Step
-	copy(o.momentum, state.Momentum)
 	for index, value := range state.MomentumF32 {
 		o.momentum[index] = float64(value)
 	}
+	copy(o.momentum[len(state.MomentumF32):], state.Momentum)
 	return nil
 }
 
@@ -185,7 +187,7 @@ func ValidateState(state State, planIdentity string, parameterCount int) error {
 	if state.Step < 0 {
 		return errors.New("optimizer state: negative step")
 	}
-	if parameterCount < 0 || state.Parameters() != parameterCount || len(state.Momentum) != 0 && len(state.MomentumF32) != 0 {
+	if parameterCount < 0 || state.Parameters() != parameterCount {
 		return errors.New("optimizer state: momentum length mismatch")
 	}
 	for _, value := range state.Momentum {

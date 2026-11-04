@@ -9,7 +9,7 @@ const (
 	BundleVAEConvTile    = 96
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "8c7b8c3f7f9d8e3f2c5f7e29c7ba45dde3484aab74080549e2af9d914ebdcb15"
+	OpsF32SHA256         = "e71efbdc0c6feed4ef439c5cf522aa2dfd28ed97f79105d5b845a87a547d352c"
 	OpsNativeSHA256      = "ad5e65d99fdc41d367e0fb9ce84e49b1d515e0abeadc15822f54e10fefb03883"
 	StrataQsaSHA256      = "9ed6ba014378718d8c5469335f00ee87a617eb2e1695feaa80e4aa4e0a80e090"
 	StrataNativeSHA256   = "340c2ba09deddf93cc556578a364ee0e7ad0816136a569f96fc3c506c3ead954"

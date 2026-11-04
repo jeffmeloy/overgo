@@ -172,6 +172,7 @@ var graphRewriteCatalog = [...]graphRewrite{
 	{name: "bf16-append", apply: applyBF16AppendRewrite},
 	{name: "bf16-attention", apply: applyBF16AttentionRewrite},
 	{name: "bf16-argmax", apply: applyBF16ArgmaxRewrite},
+	{name: "moss-situ", apply: applyMOSSSituRewrite},
 	// Last, so a rounding another rewrite reads keeps to it.
 	{name: "rounded-elementwise", apply: applyRoundedElementwiseRewrite},
 }

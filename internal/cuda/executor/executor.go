@@ -942,6 +942,7 @@ const (
 	compiledFusionQ8PairPeer
 	compiledFusionQ8GatedAdd
 	compiledFusionRoundedElementwise
+	compiledFusionMOSSSitu
 )
 
 type compiledFusion struct {
@@ -960,7 +961,9 @@ type compiledFusion struct {
 	ropeAppend    ropeAppendFusion
 	bf16Gate      bf16GateFusion
 	// rounded is the elementwise product a BF16 rounding folds into (applyRoundedElementwiseRewrite).
-	rounded          *tensor.Tensor
+	rounded *tensor.Tensor
+	// situ is the bounds of a rounded SITU activation folded into one kernel (applyMOSSSituRewrite).
+	situ             mossSituFusion
 	bf16ProjAdd      bf16ProjAddFusion
 	bf16Attention    bf16AttentionFusion
 	streamSum        streamSumFusion
@@ -2258,6 +2261,8 @@ func launchCompiledFusion(
 		return "q8_pair", nil
 	case compiledFusionQ8GatedAdd:
 		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
+	case compiledFusionMOSSSitu:
+		return "moss_situ", launchMOSSSitu(state, functions, node, fusion.situ, pointers)
 	case compiledFusionRoundedElementwise:
 		return "rounded_elementwise", launchRoundedElementwise(state, functions, blas, q8Input, fusion.rounded, pointers)
 	default:

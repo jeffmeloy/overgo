@@ -73,16 +73,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 404,
-        "reason": "moss-denoiser adds 396 nodes, the rounding fold's rewrite, launch and kernel entries; moss-situ, filed with it, is estimated at 150 for its fused kernel's launch and rewrite; trained-precision and krea-prompt-cache keep the 250 they had."
+        "nodes": 956,
+        "reason": "moss-situ measured at 764 nodes against its estimate of 150, the chain walker most of it; moss-rotary, a fold of the same kind, is sized at 700 by it; trained-precision and krea-prompt-cache keep their 250."
       },
       "steps": [
         {
-          "id": "moss-situ",
-          "title": "MOSS's rounded SITU activation runs as one kernel",
+          "id": "moss-rotary",
+          "title": "MOSS's rounded rotary embedding runs as one kernel",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestARoundedSITUFoldsIntoOneKernel$'",
-          "rationale": "Measured after moss-denoiser (docs/verification/moss-denoiser-wall.json): a MOSS step takes 1.449 s against upstream's 1.036 s, and its kernels hold 99.7% of it. The rotary SITU activation (internal/latentimage/rotary_refinement.go, rotaryGraph.situ) is nine elementwise launches a call, each result rounded to BF16: two bounded tanh gates (a scale, a tanh, a scale each), a sigmoid and two products. Its kernels took 238 ms a step: scale 94.7, products 71.9, tanh 47.3, sigmoid 23.6.\nChange: one kernel computes the same per-operation F32 arithmetic with the same roundings, reading the gate and the hidden values once and writing the result once, folded in by a rewrite that recognizes the chain, as the GELU tanh fusion does; the training kernel moss_situ_f32 divides by the bounds and rounds nothing, so it is not the one. Measure the chain's share of a step first, and keep the parity picture bit for bit.\nServes: throughput for image generation.\nDisappears: eight of the nine launches of each SITU call and their reads and writes.\nEvidence: TestMOSSDenoiserWallIsAccountedFor's record re-read after the change; the parity picture unchanged.\nBatch: device."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestARoundedRotaryFoldsIntoOneKernel$'",
+          "rationale": "Measured after moss-situ (docs/verification/moss-denoiser-wall.json): a MOSS step takes 1.279 s against upstream's 1.036 s, and its kernels hold 98.2% of it. The rotary embedding (internal/latentimage/rotary_refinement.go, rotaryGraph.rotate) takes each head's halves by group slices, negates one by a scale, concatenates them, and adds two rounded broadcast products by the cosine and sine tables, each result rounded to BF16, for the query and the key of every layer. Its kernels' share of a step: broadcast products 95.6 ms in 1,032 launches, group slices 62.0 ms, the sums' share of add_bf16_round_f32 (52.3 ms), concatenations 13.3 ms.\nChange: one kernel computes the same per-operation F32 arithmetic with the same roundings from the head's values and the two tables, writing the rotated head once, folded in by a rewrite that recognizes the chain as moss-situ's does. Measure the chain's share of a step first; if it is under a tenth of the remaining gap, retire the step with the reading. Keep the parity picture bit for bit.\nServes: throughput for image generation.\nDisappears: the rotary chain's slices, concatenation and separate products.\nEvidence: TestMOSSDenoiserWallIsAccountedFor's record re-read after the change; the parity picture unchanged.\nBatch: device."
         },
         {
           "id": "trained-precision",

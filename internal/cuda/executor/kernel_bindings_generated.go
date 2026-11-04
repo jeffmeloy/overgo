@@ -156,6 +156,7 @@ const (
 	kernelMossRotateF32
 	kernelMossRowAffineF32
 	kernelMossSituBackwardF32
+	kernelMossSituBf16RoundF32
 	kernelMossSituF32
 	kernelMulMatBf16AddF32
 	kernelMulMatBf16AppendF32
@@ -640,6 +641,7 @@ var kernelFunctionNames = [...]string{
 	"moss_rotate_f32",
 	"moss_row_affine_f32",
 	"moss_situ_backward_f32",
+	"moss_situ_bf16_round_f32",
 	"moss_situ_f32",
 	"mul_mat_bf16_add_f32",
 	"mul_mat_bf16_append_f32",
@@ -1123,6 +1125,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	6,
 	5,
+	8,
 	4,
 	6,
 	7,
@@ -1607,6 +1610,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4},
 	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
@@ -1945,6 +1949,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

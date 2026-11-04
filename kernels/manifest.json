@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "da6f1768e8bd21745a043c517f4842461e0293f154daf1e46c8502b3c8b6f00c",
+      "sourceSha256": "adc756b7f15a18ea57379a8b670c3ce1f06429bd772163c3f520cd092872bc67",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -84,7 +84,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "8c7b8c3f7f9d8e3f2c5f7e29c7ba45dde3484aab74080549e2af9d914ebdcb15",
+      "assetSha256": "e71efbdc0c6feed4ef439c5cf522aa2dfd28ed97f79105d5b845a87a547d352c",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -235,6 +235,7 @@
         "moss_rotate_f32",
         "moss_row_affine_f32",
         "moss_situ_backward_f32",
+        "moss_situ_bf16_round_f32",
         "moss_situ_f32",
         "mul_mat_bf16_add_f32",
         "mul_mat_bf16_append_f32",
@@ -1518,6 +1519,21 @@
           "functions": [
             "moss_rotate_f32",
             "weighted_rms_norm_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".f32",
+            ".u32"
+          ],
+          "functions": [
+            "moss_situ_bf16_round_f32"
           ]
         },
         {

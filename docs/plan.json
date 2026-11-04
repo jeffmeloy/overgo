@@ -154,16 +154,6 @@
       },
       "steps": [
         {
-          "id": "decline-sequences",
-          "title": "Hold the decline rule through generated readings",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestGeneratedSlowQualityDecline$'",
-          "rationale": "A generated test finds scorecard-truth/quality-level unprompted: a share falling 1.00 to 0.45 over 11 readings, 5 cases at a time, stands against the first reading from reading 2 (tail 0.00098, limit 0.0228), and today files 0 and drops 1 at every reading. It runs in 0.2 s. Its body is in the prototypes folder named by store-durability/crash-points.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the test fails today and passes once that step lands.\nBatch: host lane, after quality-level.",
-          "depends_on": [
-            "scorecard-truth/quality-level"
-          ]
-        },
-        {
           "id": "checkpoint-cuts",
           "title": "Refuse a resume whose average is lost or changed",
           "status": "open",

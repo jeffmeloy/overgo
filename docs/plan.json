@@ -73,17 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 56,
+        "nodes": 79,
         "reason": "server-peak adds 75, measured: the fold in a file of its own and LiveEdit's codec. Estimates for the rest: one-allocation about 200 (a store's single allocation and its release), expert-census and drafted-state about 80 each (a census and a byte table)"
       },
       "steps": [
-        {
-          "id": "view-endpoint",
-          "title": "Release a built view tensor when a read reaches its end",
-          "status": "open",
-          "verify": "go test ./internal/gguf -count=1 -run '^TestAViewTensorIsReleasedAtItsEnd$'",
-          "rationale": "SQA-301 (P2): memory-bounds/view-release drops a built view tensor once the bytes reads took from it reach its size. The bytes counted need not be distinct: opening a view reads its directory with a read-ahead of up to a mebibyte, which counts a prefix of the first built tensor, so a later pass over that tensor in parts reaches the count before its end, drops it, builds it again for its last part and keeps it. Release a built tensor when a read reaches its last byte, and drop the count: the directory's prefix stays reusable until the load reaches the end, and a later read builds again.\nServes: host memory for models served from their own directory, as view-release meant.\nDisappears: the served count, and a tensor built twice and kept after its load.\nEvidence: a tensor larger than the read-ahead, read through in parts after the open, is built once and kept by nothing.\nBatch: host lane."
-        },
         {
           "id": "resident-programs",
           "title": "Hold a resident program's weights in one allocation",

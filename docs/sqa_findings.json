@@ -7859,6 +7859,18 @@
         "plan_steps": [
           "memory-bounds/view-endpoint"
         ]
+      },
+      {
+        "comment": "Landed with memory-bounds/view-endpoint. The counterexample the finding gives reproduces with the trunk's served count (dropped after 1,572,864 of 2,097,152 bytes) and passes with the endpoint release.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/gguf TestAViewTensorIsReleasedAtItsEnd",
+          "internal/gguf TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds"
+        ],
+        "finding_id": "SQA-301",
+        "plan_steps": [
+          "memory-bounds/view-endpoint"
+        ]
       }
     ],
     "experiments": {
@@ -7900,7 +7912,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "12677e63852c8ab7e38189614c976a51806fd1cd",
+    "head": "ddf424f337ad194b6251fb666e9a1d475cc1878b",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8582,11 +8594,11 @@
         "note": "Landed with landing-identity/whole-trailer: landedAgain keeps git's fixed-string search as a prefilter and refuses only where a parsed Landed-Row trailer value equals <item>/<step> as a whole string. No regular expression, under the owner's rule; the newest exact landing is found because every prefilter hit is checked, not only the first. Awaits the reviewer's closure."
       },
       "SQA-301": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
           "memory-bounds/view-endpoint"
         ],
-        "note": "Lead's judgement: a defect in the lead's own view-release, filed as the next memory-bounds step: release at the read that reaches a built tensor's end, as recommended, with the served count gone."
+        "note": "Landed with memory-bounds/view-endpoint: tensorBytes releases a built tensor at the read that reaches its last byte, and the served count is gone, as recommended. TestAViewTensorIsReleasedAtItsEnd reads a tensor twice the open's read-ahead through in four parts after the open: built once, kept through the load, released at its end; with the served count it is dropped three quarters through. Awaits the reviewer's closure."
       }
     }
   },

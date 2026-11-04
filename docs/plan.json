@@ -73,17 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 102,
+        "nodes": 47,
         "reason": "denoiser-stream adds about 624 nodes: Wan's and LiveEdit's denoiser weights open their source and decode a tensor as the session uploads it, through one opened set with its each and Close, and the loaded set that training and host runs read is built from it. The steps after it keep the 454 they had."
       },
       "steps": [
-        {
-          "id": "view-release",
-          "title": "Drop a GGUF view's built tensors when a load ends",
-          "status": "open",
-          "verify": "go test ./internal/gguf -count=1 -run '^TestAViewKeepsNoBuiltTensorsOnceItsLoadEnds$'",
-          "rationale": "A view keeps up to 1 GiB of tensors it built for its file's life (internal/gguf/view.go:28-32,172-181), and a served runner keeps its file open. A load reads each once. A read after load builds again, which cost the 4B 0.80 s in its signature (8ce06a06d), so keep that case fast or say it moved.\nServes: host memory for models served from a directory.\nDisappears: the kept tensors after load.\nEvidence: heap after open on a fixture view.\nBatch: host lane."
-        },
         {
           "id": "server-peak",
           "title": "Count a media runtime's sessions together in a server attempt's peak",

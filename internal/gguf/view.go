@@ -25,10 +25,11 @@ type ViewTensor struct {
 	Open    func() (io.Reader, error)
 }
 
-// viewCacheBytes bounds what a view keeps of the tensors it built: a load reads
-// each tensor once, front to back, so the ones read last are the ones read again
-// by the next reads that reach them; a Qwen3.5-4B's largest built tensor, a
-// linear-attention input projection with its value heads reordered, is 42 MB.
+// viewCacheBytes bounds what a view keeps of the tensors it built and has not yet
+// served whole: a load reads each tensor once, front to back, in reads that may
+// end inside one, so a tensor is kept until its last byte is read and then
+// dropped (tensorBytes); a Qwen3.5-4B's largest built tensor, a linear-attention
+// input projection with its value heads reordered, is 42 MB.
 const viewCacheBytes = 1 << 30
 
 // View parses, without writing it, the GGUF image Write would produce from
@@ -86,10 +87,11 @@ type viewSource struct {
 	built []builtTensor
 }
 
-// builtTensor is the bytes Open gave for one region, newest last.
+// builtTensor is the bytes Open gave for one region, newest last, and how many of them reads have taken.
 type builtTensor struct {
 	region int
 	data   []byte
+	served uint64
 }
 
 // ReadAt fills destination with the image from offset: header bytes, tensor
@@ -150,7 +152,9 @@ func regionAt(regions []viewRegion, at uint64) int {
 }
 
 // tensorBytes fills part with region index's bytes from within: read in place,
-// or from what Open gave, built once while it stays among the newest kept.
+// or from what Open gave, built once and kept until reads have taken as many
+// bytes as it holds, so a view that a load has read through keeps nothing it
+// built, and a read after builds again.
 func (s *viewSource) tensorBytes(index int, within uint64, part []byte) error {
 	region := s.regions[index]
 	if region.tensor.Payload != nil {
@@ -181,5 +185,8 @@ func (s *viewSource) tensorBytes(index int, within uint64, part []byte) error {
 		at = len(s.built) - 1
 	}
 	copy(part, s.built[at].data[within:])
+	if s.built[at].served += uint64(len(part)); s.built[at].served >= uint64(len(s.built[at].data)) {
+		s.built = slices.Delete(s.built, at, at+1)
+	}
 	return nil
 }

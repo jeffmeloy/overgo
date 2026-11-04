@@ -87,8 +87,13 @@ func (c *CompiledGraph) prefetchArena(arena uint64, prefetch *moePrefetch) uint6
 // marks no stream waited for.
 func (p *moePrefetch) end(state *device.State, copies driver.Stream) error {
 	var errs []error
+	// A run with an arena may have copies writing it whether or not their mark was recorded (a later copy or the mark
+	// failed): they finish before the arena goes back to a request or the experts' loan.
+	if p.base != 0 {
+		errs = append(errs, state.Driver.StreamSynchronize(copies))
+	}
 	if p.copied != 0 {
-		errs = append(errs, state.Driver.StreamSynchronize(copies), state.Driver.ReleaseEvent(p.copied))
+		errs = append(errs, state.Driver.ReleaseEvent(p.copied))
 		p.copied = 0
 	}
 	for half, mark := range p.read {

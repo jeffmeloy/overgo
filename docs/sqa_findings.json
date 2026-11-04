@@ -7360,6 +7360,17 @@
         "plan_steps": [
           "memory-bounds/silu-window-gate"
         ]
+      },
+      {
+        "comment": "Landed with prefetch-drain/drain. end synchronizes moeCopyStream when p.base != 0 before clearing the prefetch, independent of p.copied, and releases a recorded mark separately with joined errors. The deciding case uses the existing fixture worker and driver: a 128 MiB MemcpyHtoDAsync from pinned memory into an arena, end with no mark, StreamQuery done. No fault injection was added; under the old guard the case failed on three runs of three, under the new one it passed on three of three.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestAFailedPrefetchDrainsItsCopies"
+        ],
+        "finding_id": "SQA-305",
+        "plan_steps": [
+          "prefetch-drain/drain"
+        ]
       }
     ],
     "experiments": {
@@ -7399,7 +7410,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "a2527370e1a4eac9811c808610174a8115016ecf",
+    "head": "c857f459a89f446c25aa850a196443ad03bb3bc0",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8102,11 +8113,11 @@
         "note": "Landed with delta-cursor/envelope-head: a successful envelope's head, sequence and projection version are the returned delta's, and only the resync reply reads Store.Head and the current projection contract, as recommended. The existing HTTP fixture, renamed TestADeltaEnvelopeNamesTheDeltaItCarries and its decoding folded into one closure, gains limit=1 over the two commits: the envelope names the first commit's coordinate with the delta truncated, and resuming from it returns the second, untruncated, at the full window's coordinate. Bootstrap and foreign-projection resync are unchanged. With the trunk's handler the window case fails, its envelope naming the third commit. Awaits the reviewer's closure."
       },
       "SQA-305": {
-        "action": "scheduled",
+        "action": "implemented",
         "rows": [
           "prefetch-drain/drain"
         ],
-        "note": "Scheduled as its own row after bf16-cache: end drains the copy stream whenever the run had a prefetch arena, whatever the mark, before the arena is reused or lent."
+        "note": "Landed. moePrefetch.end drains the copy stream whenever the run had a prefetch arena (p.base != 0), whatever the mark, then releases the mark; TestAFailedPrefetchDrainsItsCopies submits a pinned copy into an arena with no mark and finds the stream drained when end returns. Awaits the reviewer's closure."
       }
     }
   },

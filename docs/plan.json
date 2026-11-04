@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "prefetch-drain",
-      "title": "Drain a prompt read's expert prefetch copies whatever their completion mark",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 120,
-        "reason": "SQA-305 parsed its source repair at 12 production nodes; the deciding case in the existing executor lifetime fixture is unmeasured."
-      },
-      "steps": [
-        {
-          "id": "drain",
-          "title": "Join a prefetch's submitted copies before its arena is reused or lent",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestAFailedPrefetchDrainsItsCopies$'",
-          "rationale": "SQA-305 (P2): moePrefetch.ahead submits host-to-card copies before it records their completion mark, and moePrefetch.end synchronizes the copy stream only where a mark was recorded (internal/cuda/executor/moe_prefetch.go). A later copy or the mark failing leaves earlier copies in flight with no mark, and the prompt read's arena can then go back to a request or to the experts' loan (ReleasePromptMemory) while they still write it.\nChange: end drains the copy stream whenever the run had a prefetch arena, independent of the mark, before it clears the prefetch's state; the mark's release and the drain's errors join.\nServes: failure-rate.\nDisappears: the assumption that no mark means no copy in flight.\nEvidence: the smallest case the existing executor lifetime fixture can force: a submitted copy, a failed mark, the drain before reuse. If the fixture cannot force that order without new fault-injection machinery, the step records that limit and lands the source repair with the normal three-mode parity held.\nBatch: alone."
-        }
-      ]
-    },
-    {
       "id": "time-and-memory",
       "title": "Cut host memory, run time and media peak memory",
       "owner": "master-lead",

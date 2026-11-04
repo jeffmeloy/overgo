@@ -230,15 +230,30 @@ type heldTensor struct {
 	value DeviceTensor
 	// host is a mapped tensor's pinned host bytes.
 	host []byte
+	// pooled says the tensor lies in its store's one allocation for the load (heldBlock), freed with it.
+	pooled bool
 }
 
-// free frees the upload: a mapped tensor's host bytes, another's card allocation.
+// free frees the upload: a mapped tensor's host bytes, another's card allocation; a pooled one's block frees it.
 func (h heldTensor) free(ctx context.Context) error {
-	if h.host != nil {
+	switch {
+	case h.pooled:
+		return nil
+	case h.host != nil:
 		return h.store.mem.(hostMappedMemory).freeHosted(ctx, [][]byte{h.host})
 	}
 	return h.store.mem.free(ctx, []driver.DevicePtr{h.value.Pointer})
 }
+
+// heldBlock is the one card allocation a load makes for a store's tensors, no store has adopted yet.
+type heldBlock struct {
+	store   *deviceTensorStore
+	pointer driver.DevicePtr
+}
+
+// residentAlignment is where each tensor of a store's one allocation begins, the alignment a card allocation itself
+// gives, so a kernel reads a tensor as it read one allocated alone.
+const residentAlignment = 256
 
 type loadRun struct {
 	shards   []gguf.Shard
@@ -247,6 +262,7 @@ type loadRun struct {
 	segments [][]*segment
 	hashers  []*artifact.Hasher
 	held     []heldTensor
+	pools    []heldBlock
 	// experts is the residency the pass fills, owned by expertStore until it publishes.
 	experts     *expertResidency
 	expertStore *DeviceWeights
@@ -254,7 +270,18 @@ type loadRun struct {
 
 // allocate makes every upload's device memory before the pass reads a byte,
 // so an expert residency measures the card against what the rest will hold.
+// A store's card tensors share one allocation, each at an aligned offset: the
+// card gives memory in pages of mebibytes, so a tensor allocated alone loses up
+// to a page to rounding.
 func (r *loadRun) allocate(ctx context.Context) error {
+	type pending struct {
+		piece  *segment
+		index  int
+		value  DeviceTensor
+		offset uint64
+	}
+	var order []*deviceTensorStore
+	totals, placed := map[*deviceTensorStore]uint64{}, map[*deviceTensorStore][]pending{}
 	for _, routed := range r.segments {
 		for _, piece := range routed {
 			info := piece.info
@@ -286,16 +313,32 @@ func (r *loadRun) allocate(ctx context.Context) error {
 						return fmt.Errorf("allocate %s tensor %q in mapped host memory: %w", destination.store.kind, info.Name, err)
 					}
 					value.Pointer, piece.pointers[index], piece.hosts[index] = pointer, pointer, host
-					r.held = append(r.held, heldTensor{destination.store, info.Name, value, host})
+					r.held = append(r.held, heldTensor{store: destination.store, name: info.Name, value: value, host: host})
 					continue
 				}
-				pointer, err := destination.store.mem.alloc(ctx, size)
-				if err != nil {
-					return fmt.Errorf("allocate %s tensor %q: %w", destination.store.kind, info.Name, err)
+				store := destination.store
+				aligned, fits := checked.Align(size, residentAlignment)
+				if !fits {
+					return fmt.Errorf("%s tensor %q size overflows", store.kind, info.Name)
 				}
-				value.Pointer, piece.pointers[index] = pointer, pointer
-				r.held = append(r.held, heldTensor{destination.store, info.Name, value, nil})
+				if _, seen := totals[store]; !seen {
+					order = append(order, store)
+				}
+				placed[store] = append(placed[store], pending{piece, index, value, totals[store]})
+				totals[store] += aligned
 			}
+		}
+	}
+	for _, store := range order {
+		block, err := store.mem.alloc(ctx, totals[store])
+		if err != nil {
+			return fmt.Errorf("allocate %s tensors: %w", store.kind, err)
+		}
+		r.pools = append(r.pools, heldBlock{store, block})
+		for _, tensor := range placed[store] {
+			pointer := block + driver.DevicePtr(tensor.offset)
+			tensor.value.Pointer, tensor.piece.pointers[tensor.index] = pointer, pointer
+			r.held = append(r.held, heldTensor{store: store, name: tensor.piece.info.Name, value: tensor.value, pooled: true})
 		}
 	}
 	return nil
@@ -645,8 +688,18 @@ func (r *loadRun) publish(ctx context.Context) error {
 			return fmt.Errorf("%s tensor %q is already loaded", upload.store.kind, upload.name)
 		}
 	}
+	for _, pool := range r.pools {
+		pool.store.blocks = append(pool.store.blocks, pool.pointer)
+	}
+	r.pools = nil
 	for _, upload := range r.held {
 		upload.store.tensors[upload.name] = upload.value
+		if upload.pooled {
+			if upload.store.pooled == nil {
+				upload.store.pooled = make(map[string]bool)
+			}
+			upload.store.pooled[upload.name] = true
+		}
 		if upload.host != nil {
 			if upload.store.hosted == nil {
 				upload.store.hosted = make(map[string][]byte)
@@ -668,7 +721,10 @@ func (r *loadRun) release() error {
 	for _, upload := range r.held {
 		errs = append(errs, upload.free(context.Background()))
 	}
-	r.held = nil
+	for _, pool := range r.pools {
+		errs = append(errs, pool.store.mem.free(context.Background(), []driver.DevicePtr{pool.pointer}))
+	}
+	r.held, r.pools = nil, nil
 	if residency := r.experts; residency != nil {
 		r.experts = nil
 		errs = append(errs, r.expertStore.onDevice(context.Background(), func(*device.State, expertMemory) error { return residency.close() }))

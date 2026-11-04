@@ -86,6 +86,10 @@ type deviceTensorStore struct {
 	tensors map[string]DeviceTensor
 	// hosted is the host bytes of the tensors held in pinned host memory the card maps (Loader.Mapped).
 	hosted map[string][]byte
+	// blocks are the allocations loads made for the store's tensors (loadRun.allocate), and pooled names the tensors
+	// that lie in one, freed with it rather than alone.
+	blocks []driver.DevicePtr
+	pooled map[string]bool
 	closed bool
 }
 
@@ -148,10 +152,15 @@ func (s *deviceTensorStore) Close() error {
 			hosted = append(hosted, host)
 			continue
 		}
-		pointers = append(pointers, value.Pointer)
+		if !s.pooled[name] {
+			pointers = append(pointers, value.Pointer)
+		}
 	}
+	pointers = append(pointers, s.blocks...)
 	clear(s.tensors)
 	clear(s.hosted)
+	clear(s.pooled)
+	s.blocks = nil
 	err := s.mem.free(context.Background(), pointers)
 	if len(hosted) != 0 {
 		err = errors.Join(err, s.mem.(hostMappedMemory).freeHosted(context.Background(), hosted))

@@ -142,7 +142,9 @@
         "uncertainty": "No new helper/wrapper/static fixture, model or store setup. Keep one View construction and two tensor Open closures; two additional first-tensor reads. Sizing both existing payloads to2MiB instead of4KiB adds roughly4MiB fixture input plus built/read copies; actual peak/setup time unmeasured. One bounded correctness case replaces the accidental small-fixture assumption. Implementation must count actual complete cost; do not add a gate, benchmark or confidence run."
       },
       "likely_effort": "Small shared-owner condition simplification plus one extension of the existing native fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "memory-bounds/view-endpoint"
+      ],
       "plan_coverage": "New advisory on memory-bounds/view-release, landed ef5605c4b and pruned at this pin. No open plan row is claimed to own this repair; SQA does not edit the plan.",
       "closure_criteria": [
         "An admitted partially read-ahead first tensor completes a multi-chunk sequential pass with no built data retained and no rebuild during that pass.",
@@ -1496,7 +1498,7 @@
       },
       "likely_effort": "Trivial local owner reuse; no caller migration.",
       "plan_references": [
-        "consolidate/cell-step-reads"
+        "memory-bounds/one-allocation"
       ],
       "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
       "closure_criteria": [
@@ -7834,6 +7836,29 @@
         "plan_steps": [
           "session-rules/message-form"
         ]
+      },
+      {
+        "comment": "Landed with memory-bounds/one-allocation, which touches device_load.go, device_tensor_store.go and device_load_test.go. encodeF32's body is driver.Bytes(values), as the finding recommends; TestDeviceConvertedWeightsEncodesStorage and the device suite pass unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/modeldevice TestDeviceConvertedWeightsEncodesStorage",
+          "internal/modeldevice TestLoaderUploadsVerifiedBytesToTheDevice"
+        ],
+        "finding_id": "SQA-219",
+        "plan_steps": [
+          "memory-bounds/one-allocation"
+        ]
+      },
+      {
+        "comment": "Scheduled with memory-bounds/one-allocation as memory-bounds/view-endpoint, the step after it: tensorBytes releases a built tensor when a read reaches its last byte, and the served count goes. Its check reads a tensor larger than the open's read-ahead through in parts after the open.",
+        "disposition": "scheduled",
+        "evidence": [
+          "docs/plan.json memory-bounds/view-endpoint"
+        ],
+        "finding_id": "SQA-301",
+        "plan_steps": [
+          "memory-bounds/view-endpoint"
+        ]
       }
     ],
     "experiments": {
@@ -7875,7 +7900,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "2ac72eb814a116a4e39b02e90199c898d1aa6450",
+    "head": "12677e63852c8ab7e38189614c976a51806fd1cd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8246,11 +8271,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/cuda/executor/graph_exec_cache.go. Title-level triage, not re-verified at this head."
       },
       "SQA-219": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
-          "consolidate/cell-step-reads"
+          "memory-bounds/one-allocation"
         ],
-        "note": "Lead's judgement: filed. A one-line reuse, batched with its neighbours."
+        "note": "Landed with memory-bounds/one-allocation, the row that next touched its files: encodeF32 returns driver.Bytes(values), and its unused unsafe import is gone; the encoder's signature and every caller are unchanged. Awaits the reviewer's closure."
       },
       "SQA-204": {
         "action": "filed",
@@ -8555,6 +8580,13 @@
           "landing-identity/whole-trailer"
         ],
         "note": "Landed with landing-identity/whole-trailer: landedAgain keeps git's fixed-string search as a prefilter and refuses only where a parsed Landed-Row trailer value equals <item>/<step> as a whole string. No regular expression, under the owner's rule; the newest exact landing is found because every prefilter hit is checked, not only the first. Awaits the reviewer's closure."
+      },
+      "SQA-301": {
+        "action": "filed",
+        "rows": [
+          "memory-bounds/view-endpoint"
+        ],
+        "note": "Lead's judgement: a defect in the lead's own view-release, filed as the next memory-bounds step: release at the read that reaches a built tensor's end, as recommended, with the served count gone."
       }
     }
   },

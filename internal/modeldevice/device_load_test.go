@@ -99,11 +99,15 @@ func (d *fakeDevice) contents(t *testing.T, value DeviceTensor) []byte {
 	t.Helper()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	held, live := d.live[value.Pointer]
-	if !live {
-		t.Fatalf("tensor %q is not live", value.Info.Name)
+	// A tensor lies at its pointer within a live allocation, alone or among its store's others.
+	size := cmp.Or(value.Size, value.Info.Size)
+	for base, held := range d.live {
+		if value.Pointer >= base && uint64(value.Pointer-base)+size <= uint64(len(held)) {
+			return slices.Clone(held[value.Pointer-base:][:size])
+		}
 	}
-	return slices.Clone(held)
+	t.Fatalf("tensor %q is not live", value.Info.Name)
+	return nil
 }
 
 // stores are the three stores a resident load fills, on one fake device.
@@ -276,13 +280,19 @@ func (f fixture) check(t *testing.T, file *gguf.File, s stores, read func(*testi
 	return routed
 }
 
-// checkFake holds the fake device to exactly the routed tensors: nothing else
-// is live, and every store holds what it was routed.
+// checkFake holds the fake device to exactly the routed tensors: every store
+// holds what it was routed, in one allocation for each store that holds any,
+// and nothing else is live.
 func (f fixture) checkFake(t *testing.T, file *gguf.File, s stores, device *fakeDevice) {
 	t.Helper()
-	routed := f.check(t, file, s, device.contents)
-	if device.liveCount() != routed || s.loaded() != routed {
-		t.Fatalf("live allocations = %d, stored tensors = %d, want %d", device.liveCount(), s.loaded(), routed)
+	routed, filled := f.check(t, file, s, device.contents), 0
+	for _, store := range []*deviceTensorStore{s.raw.deviceTensorStore, s.f32.deviceTensorStore, s.bf16.deviceTensorStore} {
+		if len(store.tensors) != 0 {
+			filled++
+		}
+	}
+	if device.liveCount() != filled || s.loaded() != routed {
+		t.Fatalf("live allocations = %d, stored tensors = %d, want %d allocations and %d tensors", device.liveCount(), s.loaded(), filled, routed)
 	}
 }
 
@@ -537,7 +547,14 @@ func TestLoaderReleasesEverythingOnFailure(t *testing.T) {
 		if claimed {
 			expect = claim
 		}
-		for failure := 1; failure <= 7; failure++ {
+		// Each allocation a clean load makes fails in turn: one for each store the load fills.
+		counted := newFakeDevice()
+		counting := NewLoader(source.parse(t))
+		source.route(counting, newStores(counted), counting.file)
+		if err := counting.Load(t.Context(), expect); err != nil {
+			t.Fatal(err)
+		}
+		for failure := 1; failure <= counted.allocs; failure++ {
 			t.Run(fmt.Sprintf("allocation %d claimed=%t", failure, claimed), func(t *testing.T) {
 				file, device := source.parse(t), newFakeDevice()
 				device.failAlloc = failure
@@ -552,6 +569,8 @@ func TestLoaderReleasesEverythingOnFailure(t *testing.T) {
 					t.Fatalf("%d allocations live, %d tensors stored", device.liveCount(), s.loaded())
 				}
 			})
+		}
+		for failure := 1; failure <= 7; failure++ {
 			t.Run(fmt.Sprintf("write %d claimed=%t", failure, claimed), func(t *testing.T) {
 				file, device := source.parse(t), newFakeDevice()
 				device.failWrite = failure

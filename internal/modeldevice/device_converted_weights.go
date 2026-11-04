@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"unsafe"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -61,11 +60,7 @@ func (w *DeviceConvertedWeights) Input(builder *tensor.Builder, name string) (*t
 }
 
 func encodeF32(values []float32, _ int) []byte {
-	if len(values) == tensor.FirstOffset {
-		return nil
-	}
-	byteCount := len(values) * int(unsafe.Sizeof(values[tensor.FirstOffset]))
-	return unsafe.Slice((*byte)(unsafe.Pointer(&values[tensor.FirstOffset])), byteCount)
+	return driver.Bytes(values)
 }
 
 // encodeF16 rounds each value to its nearest f16, ties to even.

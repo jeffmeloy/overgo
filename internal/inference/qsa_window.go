@@ -34,6 +34,20 @@ type qsaLive struct {
 // it on.
 var errQSAStaleLive = errors.New("inference: the sequence's live state holds other tokens than the cache")
 
+// windowLive is where the storage's sequence keeps its live state for its verify windows: in its QSA cells or its
+// attention cells; nil for a storage of neither.
+func (s *deviceCacheStorage) windowLive() **qsaLive {
+	switch {
+	case s == nil:
+		return nil
+	case s.qsa != nil:
+		return &s.qsa.live
+	case s.cells != nil:
+		return &s.cells.live
+	}
+	return nil
+}
+
 // names reports whether cache's fixed values are the live state's.
 func (l *qsaLive) names(cache *deviceKVCache) bool {
 	if l == nil || len(cache.Keys) != len(l.keys) {
@@ -50,10 +64,14 @@ func (l *qsaLive) names(cache *deviceKVCache) bool {
 // staleLive reports whether the cache names its sequence's live state at other tokens than its own: a later window
 // moved that state on, so the cache's fixed state is gone.
 func (c *deviceKVCache) staleLive() bool {
-	if c == nil || c.storage == nil || c.storage.qsa == nil {
+	if c == nil {
 		return false
 	}
-	live := c.storage.qsa.live
+	slot := c.storage.windowLive()
+	if slot == nil {
+		return false
+	}
+	live := *slot
 	return live.names(c) && live.tokens != c.Tokens
 }
 
@@ -73,24 +91,27 @@ func (l *qsaLive) release(ctx context.Context) error {
 // the live state at its tokens, else a cache beside it that holds the storage and names the live state, into which
 // past's fixed values are copied first (the prompt read hands its state to the verifier).
 func (r *Runner) liveDeviceCache(ctx context.Context, past *deviceKVCache) (*deviceKVCache, error) {
-	if past == nil || past.storage == nil || past.storage.qsa == nil {
-		return nil, errors.New("inference: a verify window's past holds no QSA cells")
+	var slot **qsaLive
+	if past != nil {
+		slot = past.storage.windowLive()
 	}
-	cells := past.storage.qsa
-	if cells.live.names(past) {
-		if cells.live.tokens != past.Tokens {
+	if slot == nil {
+		return nil, errors.New("inference: a verify window's past holds no cells")
+	}
+	if (*slot).names(past) {
+		if (*slot).tokens != past.Tokens {
 			return nil, errQSAStaleLive
 		}
 		return past, nil
 	}
-	if cells.live == nil {
+	if *slot == nil {
 		live, err := r.newQSALive(ctx, past)
 		if err != nil {
 			return nil, err
 		}
-		cells.live = live
+		*slot = live
 	}
-	live := cells.live
+	live := *slot
 	var copies []executor.DeviceRangeCopy
 	add := func(target, source executor.DeviceValue) error {
 		if target.Pointer == 0 {
@@ -162,6 +183,10 @@ func (r *Runner) newQSALive(ctx context.Context, past *deviceKVCache) (*qsaLive,
 		return nil
 	}
 	for layer := range past.Keys {
+		// A layer over attention cells keeps its keys and values in its cells, which a window writes in place.
+		if r.holdsCells(layer) {
+			continue
+		}
 		_, schema, err := r.deviceCacheSchema(layer, past.Tokens)
 		if err != nil {
 			return nil, err
@@ -407,12 +432,21 @@ type qsaCommitGraph struct {
 
 // commitWindowLocked commits a window over a live past: the window's first kept tokens advance the sequence's live
 // state, which holds past's tokens and then past's tokens and the kept ones; a one-token window committed itself.
-func (r *Runner) commitWindowLocked(ctx context.Context, cells *qsaCells, pastTokens uint32, tokens, kept int) error {
+func (r *Runner) commitWindowLocked(ctx context.Context, storage *deviceCacheStorage, pastTokens uint32, tokens, kept int) error {
 	layout := r.qsaWindowLayouts[tokens]
-	if cells == nil || cells.live == nil || kept < 1 || kept > tokens {
+	slot := storage.windowLive()
+	if slot == nil || *slot == nil || kept < 1 || kept > tokens {
 		return errors.New("inference: a window commit is invalid")
 	}
-	live := cells.live
+	live := *slot
+	// A commit is compiled for its cells' geometry: a QSA runner's capacity and streamed slots, a cell runner's capacity.
+	cells := storage.qsa
+	var capacity, slots uint32
+	if cells != nil {
+		capacity, slots = cells.capacity, cells.slots
+	} else {
+		capacity = storage.cells.capacity
+	}
 	if tokens == tensor.SingletonExtent {
 		live.tokens = pastTokens + 1
 		return nil
@@ -420,7 +454,7 @@ func (r *Runner) commitWindowLocked(ctx context.Context, cells *qsaCells, pastTo
 	if layout == nil {
 		return errors.New("inference: a window commit's window was never built")
 	}
-	key := qsaCommitKey{tokens: uint32(tokens), capacity: cells.capacity, slots: cells.slots}
+	key := qsaCommitKey{tokens: uint32(tokens), capacity: capacity, slots: slots}
 	commit := r.qsaCommits[key]
 	if commit == nil {
 		built, err := r.buildWindowCommit(layout, uint64(tokens), live, cells)
@@ -456,7 +490,7 @@ func (r *Runner) commitWindowLocked(ctx context.Context, cells *qsaCells, pastTo
 		if state.IndexerPooled == nil {
 			continue
 		}
-		if layer >= len(cells.layers) || r.qsaRope == nil {
+		if cells == nil || layer >= len(cells.layers) || r.qsaRope == nil {
 			return errors.New("inference: a QSA commit has no cells to bind")
 		}
 		held := cells.layers[layer]

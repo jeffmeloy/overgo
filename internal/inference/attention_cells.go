@@ -107,6 +107,8 @@ type attentionCells struct {
 	// written is the cells the sequence's steps have appended through these cells, after which a ring has written over
 	// the pages its window passed.
 	written uint32
+	// live is the sequence's fixed state where its verify windows read it, nil before its first (qsa_window.go).
+	live *qsaLive
 }
 
 // attentionLayerCells is one layer's cells, zero for a layer that keeps none; ring marks a sliding layer's pools that
@@ -310,6 +312,9 @@ func appendCellRun(copies []executor.DeviceRangeCopy, target, source driver.Devi
 func (c *attentionCells) release(ctx context.Context) error {
 	if c == nil || c.buffer == nil {
 		return nil
+	}
+	if err := c.live.release(ctx); err != nil {
+		return err
 	}
 	err := c.buffer.Release(ctx)
 	if err == nil {

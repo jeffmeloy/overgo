@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/testutil"
 )
 
@@ -18,6 +19,8 @@ import (
 //     shares another's K/V and a llama layer keep the F32 cache
 //   - Strata's QSA layers: a block-sparse gated attention at Strata's geometry, Flash-Next's, and no other; its verify
 //     windows where every gated-delta layer is at the verify kernels' geometry too (state 128, conv 4)
+//   - Strata's verify windows over attention cells: the qwen35 family's cells where its gated-delta layers are at that
+//     geometry, and no cell runner without gated-delta layers
 //   - drafting by default: a model whose file carries its own next-token layer, and no model without one
 func TestPortedMechanismsFollowModelFacts(t *testing.T) {
 	// Serial: device fixtures share the one card.
@@ -39,6 +42,10 @@ func TestPortedMechanismsFollowModelFacts(t *testing.T) {
 			return writeHermeticQwen35GGUFShaped(t, "d", hermeticContext, qwen35CellsWidth, qwen35CellsHeads, qwen35CellsKVHeads)
 		}, OpenOptions{F32Cache: true}, facts{drafts: true}},
 		{"qwen35 at a geometry no kernel holds", writeHermeticQwen35GGUF, OpenOptions{}, facts{drafts: true}},
+		{"qwen35 at the family's gated-delta geometry", func(t *testing.T) string {
+			family := qwen35Geometry{embedding: 64, ffn: 64, inner: 256, state: 128, groups: 1, rank: 2, gates: dtype.Q8_0}
+			return writeQwen35Fixture(t, family, "d", hermeticContext, qwen35CellsWidth, qwen35CellsHeads, qwen35CellsKVHeads)
+		}, OpenOptions{}, facts{cells: true, windows: true, drafts: true}},
 		{"gemma-4 at its instantiated geometries", func(t *testing.T) string { return testutil.HermeticGemma4CellsGGUF(t, hermeticContext) },
 			OpenOptions{}, facts{cells: true}},
 		{"gemma-4 sharing K/V", func(t *testing.T) string { return testutil.HermeticGemma4SharedKVGGUF(t, hermeticContext) },

@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "memory-bounds",
-      "title": "Reduce what models hold on the card and the host",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 237,
-        "reason": "Estimate: a SiLU form of the window step (about 40 nodes and its kernel lines), window gates from quantized alpha and beta (about 150), and the cell runner windows, a patch of about 200 production nodes kept in tmp/memory-bounds/cell-windows.patch."
-      },
-      "steps": [
-        {
-          "id": "cell-windows",
-          "title": "Verify the qwen35 family's drafts in Strata's window verifier over its attention cells",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35DraftsVerifyInAWindow$'",
-          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its two span slots of every position's state took 627,654,912 bytes each, about 1.17 GiB of the 1.30 GiB drafting costs. Strata's verifier keeps no state a position: its windows read the sequence's fixed state where it sits and replay the kept tokens at their commit. memory-bounds/window-verify wrote the cell runner's side, kept as tmp/memory-bounds/cell-windows.patch with its test: attentionCells holds the live state as qsaCells does (deviceCacheStorage.windowLive), the live state skips the layers over attention cells, whose keys and values the window writes in place, the commit takes the storage and a QSA runner's geometry only where it has one, and qsaWindowSet admits a cell runner. Apply it once the window holds the family's layers (silu-window-gate, quantized-window-gates); TestQwen35DraftsVerifyInAWindow holds a drafted request to the plain one's tokens with no span slot taken. Serves: peak-device-memory for Qwen3.8-27B, Qwen3.5-4B and Bonsai-27B when they draft."
-        }
-      ]
-    },
-    {
       "id": "bf16-cache",
       "title": "Store the key-value cache in BF16",
       "owner": "master-lead",

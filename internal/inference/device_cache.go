@@ -469,29 +469,35 @@ func (r *Runner) forwardDeviceWindowLocked(
 		return nil, err
 	}
 	if len(tokenIDs) == tensor.SingletonExtent {
-		if err := r.commitWindowLocked(ctx, past.storage.qsa, past.Tokens, len(tokenIDs), len(tokenIDs)); err != nil {
+		if err := r.commitWindowLocked(ctx, past.storage, past.Tokens, len(tokenIDs), len(tokenIDs)); err != nil {
 			return nil, errors.Join(err, next[0].Release(context.Background()))
 		}
 	}
 	return next[0], nil
 }
 
-// windowsDecode reports whether the runner decodes through Strata's verifier: a QSA runner whose every recurrent layer
+// windowsDecode reports whether the runner decodes through Strata's verifier: a cell runner whose every recurrent layer
 // steps a window by Strata's verify kernels (qsaWindowSet).
 func (r *Runner) windowsDecode() bool { return r.qsaWindows }
 
-// qsaWindowSet reports whether a QSA runner's every recurrent layer steps a verify window by Strata's verify kernels
-// (model.Spec.HoldsGatedDeltaWindow), so the runner decodes through Strata's verifier.
+// qsaWindowSet reports whether a cell runner's every recurrent layer steps a verify window by Strata's verify kernels
+// (model.Spec.HoldsGatedDeltaWindow), so the runner decodes through Strata's verifier: a QSA runner's cells, or the
+// attention cells of the qwen35 family, whose drafts had verified in spans keeping every position's state (span slots).
 func (r *Runner) qsaWindowSet() bool {
-	if r.qsaLayers == nil {
+	if !r.cellsRunner() {
 		return false
 	}
+	recurrent := false
 	for layer, weights := range r.weights.Layers {
-		if plan := r.layerProgram(layer).Layer(); plan.Recurrent && !r.spec.HoldsGatedDeltaWindow(plan, weights) {
-			return false
+		if plan := r.layerProgram(layer).Layer(); plan.Recurrent {
+			if !r.spec.HoldsGatedDeltaWindow(plan, weights) {
+				return false
+			}
+			recurrent = true
 		}
 	}
-	return true
+	// A cell runner verifies in windows for its gated-delta state; one without, gemma-4 over its cells, has none to keep.
+	return r.qsaLayers != nil || recurrent
 }
 
 // forwardDeviceCachedModeLocked: single-branch forward under a chosen output
@@ -1719,8 +1725,8 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	var windowRows []model.LayerWindow
 	var windowOne *tensor.Tensor
 	if window {
-		if r.qsaLayers == nil || sequences != tensor.SingletonExtent || len(checkpoints) != 0 || tokensPerSequence > tensor.GatedDeltaWindowTokens {
-			return fail(errors.New("a verify window takes a QSA runner's one sequence of at most its most tokens, without checkpoints"))
+		if !r.cellsRunner() || sequences != tensor.SingletonExtent || len(checkpoints) != 0 || tokensPerSequence > tensor.GatedDeltaWindowTokens {
+			return fail(errors.New("a verify window takes a cell runner's one sequence of at most its most tokens, without checkpoints"))
 		}
 		control, controlErr := r.qsaWindowControl(ctx)
 		if controlErr != nil {

@@ -534,8 +534,8 @@ func (r *Runner) generateDeviceSpeculative(
 			if len(spanTokens) > tensor.SingletonExtent {
 				// The commit waits for the next draft, which reads only the window's rows and its own cache, so the
 				// experts' advance runs behind the draft as before; the next window, or the request's end, runs it first.
-				cells, pastTokens, tokens := boundary.storage.qsa, boundary.Tokens, len(spanTokens)
-				deferred = func() error { return r.commitWindowLocked(ctx, cells, pastTokens, tokens, kept) }
+				storage, pastTokens, tokens := boundary.storage, boundary.Tokens, len(spanTokens)
+				deferred = func() error { return r.commitWindowLocked(ctx, storage, pastTokens, tokens, kept) }
 			}
 			if err := r.followNGramHistory(ctx, span, boundary, spanTokens[:kept]); err != nil {
 				return ids, boundary, false, "", errors.Join(err, span.Release(context.Background()))

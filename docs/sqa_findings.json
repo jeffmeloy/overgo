@@ -7362,6 +7362,18 @@
         "plan_steps": [
           "check-speed/browser-reach"
         ]
+      },
+      {
+        "comment": "Landed with chosen-models/named-set, which reduces repeated cycle work by the models a run is given rather than by identity: a full run measures the models docs/verification/measured_models.json names, one per runtime path, with each trained model's one measurement and every model's first, and leaves every other reading standing (Plan.Chosen, NotChosen). On today's catalog 38 measured models span 37 runtime paths, so the list leaves out only Qwen3.5-9B, whose hybrid inference and trainer Qwen3.5-4B shares: 9 cells, 24.5 of 167.5 minutes by the cells' recorded costs. run-once/run-wall, the finding's row, is unchanged.",
+        "disposition": "context",
+        "evidence": [
+          "cmd/validate TestAFullRunMeasuresTheModelsItWasGiven",
+          "docs/verification/measured_models.json"
+        ],
+        "finding_id": "SQA-266",
+        "plan_steps": [
+          "chosen-models/named-set"
+        ]
       }
     ],
     "experiments": {
@@ -7401,7 +7413,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "758b38cb9d77ca835ed695f66c50c7103cd6a5b2",
+    "head": "09c50dc5016fa1c1b25e213c1512029d561f3381",
     "findings": {
       "SQA-004": {
         "action": "none",

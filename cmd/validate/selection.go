@@ -82,8 +82,43 @@ type Plan struct {
 	SkipInappropriate  []Selected `json:"skip_inappropriate"`
 	// MeasuredOnce is the cells of trained models whose one measurement finished, which no run of every model repeats.
 	MeasuredOnce []Selected `json:"measured_once"`
+	// NotChosen is the cells of models a full run was not given (Chosen), whose last readings stand.
+	NotChosen []Selected `json:"not_chosen"`
 
 	Suites []SelectedSuite `json:"suites"`
+}
+
+// measuredModelsFile lists the models a full run measures again, by the names -model takes: one per runtime path,
+// which the lead picks, and those the owner adds.
+const measuredModelsFile = "docs/verification/measured_models.json"
+
+// Chosen is the plan of a full run that measures the models it is given: those chosen, each trained model's one
+// measurement and every model's first, of which the baseline holds no reading. Another model's cells are not chosen,
+// and its last reading stands until a run is given it, by the list or by -model.
+func (plan Plan) Chosen(chosen func(ModelValidation) bool, baseline *scorecard.Record) Plan {
+	keep := func(cells []Selected) []Selected {
+		return slices.DeleteFunc(slices.Clone(cells), func(sel Selected) bool {
+			if chosen(sel.ModelValidation) || sel.Trained && !sel.Measured || !readBefore(baseline, sel.ModelValidation) {
+				return false
+			}
+			sel.Reason, sel.Promotion = "not chosen: its last reading stands until "+measuredModelsFile+" or -model names it", ""
+			plan.NotChosen = append(plan.NotChosen, sel)
+			return true
+		})
+	}
+	plan.Run, plan.Background = keep(plan.Run), keep(plan.Background)
+	return plan
+}
+
+// readBefore says whether the baseline holds a reading of the cell's model on its task.
+func readBefore(baseline *scorecard.Record, cell ModelValidation) bool {
+	if baseline == nil {
+		return false
+	}
+	at := slices.IndexFunc(baseline.Rows, func(row scorecard.Row) bool { return row.Model == cell.Model && row.Task == cell.Kind })
+	return at >= 0 && slices.ContainsFunc(metric.Columns, func(column metric.Name) bool {
+		return slices.ContainsFunc(baseline.Rows[at].Measured(column), func(read scorecard.Cell) bool { return read.Measured() && read.Source.Valid() })
+	})
 }
 
 // OnlyModel is the plan of the models named alone: their cells, and no lane, so a decline's row is judged by its own

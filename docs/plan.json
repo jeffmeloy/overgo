@@ -7,7 +7,7 @@
     },
     {
       "governs": "standing",
-      "text": "One run serves every obligation whose identity and contract match, written once as one record with many readers (check: cmd/loop TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit, internal/evaluation TestEvaluationAtAnUnchangedPlanReusesItsCampaign, internal/capabilityruntime TestStoredResultIsReusedOnlyUnderItsOwnIdentity). A run never judges what it produced (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration, internal/trainingworkflow TestHeldoutRunTrainsOnlyOnTrainingRecords, internal/runrecord TestTrainingDecisionWithholdsPromotionUntilEvaluation). Every contract a comparison reads and every retained protocol is a cell the cycle runs (check: cmd/validate TestEveryComparedContractHasACell, cmd/validate TestCycleRunsWhatPromotionCompares)."
+      "text": "One run serves every obligation whose identity and contract match, written once as one record with many readers (check: cmd/loop TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit, internal/evaluation TestEvaluationAtAnUnchangedPlanReusesItsCampaign, internal/capabilityruntime TestStoredResultIsReusedOnlyUnderItsOwnIdentity). A run never judges what it produced (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration, internal/trainingworkflow TestHeldoutRunTrainsOnlyOnTrainingRecords, internal/runrecord TestTrainingDecisionWithholdsPromotionUntilEvaluation). Every contract a comparison reads and every retained protocol is a cell of its model, which a full run measures when it is given the model (check: cmd/validate TestEveryComparedContractHasACell, cmd/validate TestCycleRunsWhatPromotionCompares, cmd/validate TestAFullRunMeasuresTheModelsItWasGiven)."
     },
     {
       "governs": "standing",
@@ -143,44 +143,6 @@
   ],
   "lane": "master-lead",
   "items": [
-    {
-      "id": "check-speed",
-      "title": "Cut the repeated work in each commit's checks",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "browser-reach adds 72: the reach names the path and the package it entered through, and the lanes stage writes it; browser-split keeps 60, an estimate for a narrower reach of the browser lane"
-      },
-      "steps": [
-        {
-          "id": "browser-split",
-          "title": "Reach the browser lane through the code its tests run",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt$'",
-          "rationale": "Measured by browser-reach: a change to internal/latentvideo, latentimage, diffusionimage, mediacapability, inference or modelswap reaches the browser lane through internal/server, whose package imports every model runtime. Of the last 142 gate lines, 93 ran the lane; in 77 it ran beside the device lanes and cost no wall; in 16 it ran alone, about 2m50s each, 45 minutes in all.\nTwo of its 110 browser test files call media runtimes (webui_browser_moss_generation_windows_test.go, webui_browser_remembered_test.go), so a media change must still reach those. Read the next gate lines, which now name what pulled each lane in, for the commits that ran the lane alone through a runtime package. If they are most of the 16, reach the lane through the code its tests run: the server's own files and the page reach every browser test, and a runtime package reaches only the tests that call it, through a -run of their own or a package of their own.\nServes: development velocity.\nDisappears: a browser run for a change no browser test runs, at most 45 minutes in 200 commits.\nEvidence: the next gate lines' lane reach, and the lanes stage's wall of a media commit.\nBatch: host lane."
-        }
-      ]
-    },
-    {
-      "id": "chosen-models",
-      "title": "A full run measures the models it is given",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 150,
-        "reason": "Estimate: the named set and its selection in cmd/validate, and the lines that say otherwise."
-      },
-      "steps": [
-        {
-          "id": "named-set",
-          "title": "Measure the owner's models, the newly trained and one per runtime path a change reaches",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAFullRunMeasuresTheModelsItWasGiven$'",
-          "rationale": "SelectValidation runs every other activated cell every cycle: 'nothing here asks whether its evidence still holds' (cmd/validate/selection.go:138, 'run: re-acquired every cycle' at :179), and plan paragraph 2 makes that doctrine: 'Every contract a comparison reads and every retained protocol is a cell the cycle runs'. The owner, 2026-11-02: 'I could have 1000 models, I don't need to test all of them every time something changes'.\nSkipping the cells whose identity did not move would have acted in 1 of 4 run pairs, since every execution identity holds the executor's closure, so the saving is in choosing the models. A full run measures a named set: the models the owner selects, the models trained since their last reading (measured once already), and one model per runtime path the run's changes reach. Whoever wants the rest names it. Rewrite paragraph 2 and skill.md's line on a run of every model to match. time-and-memory/run-wall shortens the test phase and is unchanged.\nServes: development velocity and the owner's choice: a run's measuring phase falls with the models it leaves out.\nDisappears: measuring every catalogued model in every run.\nEvidence: the next run's measured set and its measuring wall, against the 2026-10-31 run's 3h08m.\nBatch: validate."
-        }
-      ]
-    },
     {
       "id": "run-once",
       "title": "Do each piece of a full measurement run's setup once",
@@ -491,6 +453,25 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestAKreaPromptMetAgainPlacesNoTextEncoder$'",
           "rationale": "memory-bounds/text-one-block ran both image encoders a layer at a time and left Krea without the conditioning cache MOSS's rotary path has (internal/latentimage/conditioning_cache.go): a Krea session keeps the one prompt it last fused, so a request that returns to an earlier prompt, or alternates two, runs the text encoder again. Krea's new prompt took about 3 s in the lease that encodes it (docs/verification/media-stage-peaks.json, krea new prompt, model session leased), against 0.01 s for the same prompt on a new seed.\nKeep a Krea prompt's selected-layer rows on the host as MOSS keeps its hidden states, bounded the same way, and fuse a prompt met again from them, placing no encoder layer. Hold the picture to the one its prompt makes when encoded fresh, byte for byte.\nServes: first-output for image generation on a prompt met again.\nDisappears: nothing.\nEvidence: the test, and a repeated prompt's prepare time in the next stage record.\nBatch: media lane."
+        }
+      ]
+    },
+    {
+      "id": "check-speed",
+      "title": "Cut the repeated work in each commit's checks",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "browser-reach adds 72: the reach names the path and the package it entered through, and the lanes stage writes it; browser-split keeps 60, an estimate for a narrower reach of the browser lane"
+      },
+      "steps": [
+        {
+          "id": "browser-split",
+          "title": "Reach the browser lane through the code its tests run",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestAMediaRuntimeChangeReachesOnlyTheBrowserTestsThatCallIt$'",
+          "rationale": "Measured by browser-reach: a change to internal/latentvideo, latentimage, diffusionimage, mediacapability, inference or modelswap reaches the browser lane through internal/server, whose package imports every model runtime. Of the last 142 gate lines, 93 ran the lane; in 77 it ran beside the device lanes and cost no wall; in 16 it ran alone, about 2m50s each, 45 minutes in all.\nTwo of its 110 browser test files call media runtimes (webui_browser_moss_generation_windows_test.go, webui_browser_remembered_test.go), so a media change must still reach those. Read the next gate lines, which now name what pulled each lane in, for the commits that ran the lane alone through a runtime package. If they are most of the 16, reach the lane through the code its tests run: the server's own files and the page reach every browser test, and a runtime package reaches only the tests that call it, through a -run of their own or a package of their own.\nServes: development velocity.\nDisappears: a browser run for a change no browser test runs, at most 45 minutes in 200 commits.\nEvidence: the next gate lines' lane reach, and the lanes stage's wall of a media commit.\nBatch: host lane."
         }
       ]
     },

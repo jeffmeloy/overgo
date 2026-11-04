@@ -393,6 +393,44 @@ func TestSelectValidationStableEmpty(t *testing.T) {
 	}
 }
 
+// TestAFullRunMeasuresTheModelsItWasGiven holds a full run to the models it is given: a chosen model is measured again,
+// a trained model takes its one measurement and a model the scorecard holds no reading of its first, while a model read
+// before and not chosen is left out, its last reading standing, with a reason that says how to measure it.
+func TestAFullRunMeasuresTheModelsItWasGiven(t *testing.T) {
+	t.Parallel()
+	model := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, name) }
+	chosen, unchosen, trained, unread := model("chosen"), model("read before"), model("trained"), model("never read")
+	cell := func(id artifact.ID) ModelValidation {
+		return ModelValidation{
+			Model: id, ModelName: id.String(), Location: "C:/models/m.gguf", Kind: recipe.TaskInference, Modality: "text",
+			Validation: servingValidation, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "served"),
+		}
+	}
+	newlyTrained := cell(trained)
+	newlyTrained.Trained = true
+	read := func(id artifact.ID) scorecard.Row {
+		return scorecard.Row{Model: id, Task: recipe.TaskInference, Cells: map[metric.Name]scorecard.Cell{
+			metric.Throughput: {Value: 1, Source: testutil.ArtifactID(t, artifact.KindEvidence, "read "+id.String())},
+		}}
+	}
+	baseline := &scorecard.Record{Rows: []scorecard.Row{read(chosen), read(unchosen), read(trained), {Model: unread, Task: recipe.TaskInference}}}
+	every := SelectValidation(Inputs{Registered: []ModelValidation{cell(chosen), cell(unchosen), newlyTrained, cell(unread)}, Scorecard: baseline})
+	plan := every.Chosen(func(mv ModelValidation) bool { return mv.Model == chosen }, baseline)
+	var measured []artifact.ID
+	for _, sel := range slices.Concat(plan.Run, plan.Background) {
+		measured = append(measured, sel.Model)
+	}
+	if want := []artifact.ID{chosen, trained, unread}; !slices.Equal(slices.SortedFunc(slices.Values(measured), artifact.CompareID), slices.SortedFunc(slices.Values(want), artifact.CompareID)) {
+		t.Fatalf("a full run given one model measures %v, want the chosen, the newly trained and the never read", measured)
+	}
+	if len(plan.NotChosen) != 1 || plan.NotChosen[0].Model != unchosen || !strings.Contains(plan.NotChosen[0].Reason, measuredModelsFile) {
+		t.Fatalf("a full run leaves out %+v, want the model read before and not chosen, with a reason naming the list", plan.NotChosen)
+	}
+	if len(every.Run)+len(every.Background) != 4 || len(every.NotChosen) != 0 {
+		t.Fatalf("a run given no list measures %d cells and leaves out %d, want every model's", len(every.Run)+len(every.Background), len(every.NotChosen))
+	}
+}
+
 // TestATrainedModelIsMeasuredOnce: a trained model not yet measured runs every cell in a run of every model, and
 // validate -trained runs those cells alone, the background ones too. Its measurement counts only when every cell of it was
 // acquired. Measured, a run of every model leaves it out and says why, and a run that names it still measures it.

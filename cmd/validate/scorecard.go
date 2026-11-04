@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -112,6 +113,11 @@ func modelNamed(ctx context.Context, store *overgodb.Store, name, validation str
 	if err != nil {
 		return nil, err
 	}
+	return namedIn(rows, name, validation), nil
+}
+
+// namedIn is the cells the name answers to, among the scorecard's rows: a row's name, a weights file's or an identity.
+func namedIn(rows []scorecard.Row, name, validation string) func(ModelValidation) bool {
 	models := map[artifact.ID]bool{}
 	for _, row := range rows {
 		if row.Name == name {
@@ -121,7 +127,38 @@ func modelNamed(ctx context.Context, store *overgodb.Store, name, validation str
 	return func(cell ModelValidation) bool {
 		return (models[cell.Model] || cell.ModelName == name || cell.Model.String() == name) &&
 			(validation == "" || cell.Validation == validation)
-	}, nil
+	}
+}
+
+// chosenModels is the models measuredModelsFile beneath root names, each as -model names one, and whether the
+// checkout holds the list: without it a full run measures every model. A name no registered model answers to refuses,
+// so a misspelt name cannot leave a model out unseen.
+func chosenModels(ctx context.Context, store *overgodb.Store, root string, registered []ModelValidation) (func(ModelValidation) bool, bool, error) {
+	var list struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := jsonfile.Decode(filepath.Join(root, filepath.FromSlash(measuredModelsFile)), &list); errors.Is(err, fs.ErrNotExist) {
+		return nil, false, nil
+	} else if err != nil {
+		return nil, false, err
+	}
+	rows, err := scorecard.Build(ctx, store)
+	if err != nil {
+		return nil, false, err
+	}
+	var named []func(ModelValidation) bool
+	for _, model := range list.Models {
+		each := namedIn(rows, model.Name, "")
+		if !slices.ContainsFunc(registered, each) {
+			return nil, false, fmt.Errorf("%s names %q, which no registered model answers to", measuredModelsFile, model.Name)
+		}
+		named = append(named, each)
+	}
+	return func(cell ModelValidation) bool {
+		return slices.ContainsFunc(named, func(each func(ModelValidation) bool) bool { return each(cell) })
+	}, true, nil
 }
 
 // openGap fails while the gap key names is open on the scorecard the store

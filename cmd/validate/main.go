@@ -306,6 +306,15 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
+	if *smokeModel == "" && !*trained {
+		chosen, listed, err := chosenModels(ctx, store, *root, registered)
+		if err != nil {
+			return err
+		}
+		if listed {
+			plan = plan.Chosen(chosen, compared)
+		}
+	}
 	if *smokeModel != "" {
 		named, err := modelNamed(ctx, store, *smokeModel, *cellValidation)
 		if err != nil {

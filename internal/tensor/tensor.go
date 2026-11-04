@@ -106,6 +106,8 @@ const (
 	OpCopyIndexed
 	// OpCellAttention is an attention layer over Strata's int8 K/V cells, appended in place (Builder.CellAttention).
 	OpCellAttention
+	// OpCacheStore holds a cache's F32 rows at the cache's type (Builder.StoreCache).
+	OpCacheStore
 )
 
 // GatedDeltaConvAttributes declares a gated-delta layer's state width, its key and value heads, the epsilon of its
@@ -713,6 +715,9 @@ func (b *Builder) Concat(left, right *Tensor, axis uint32) *Tensor {
 
 // WriteCache: explicit cache-write topology.
 func (b *Builder) WriteCache(left, right *Tensor, axis uint32, mode CacheWriteMode) *Tensor {
+	if mode == CacheWriteConcat && left != nil && right != nil && left.Type == dtype.BF16 && right.Type == dtype.F32 {
+		right = b.StoreCache(right, left.Type)
+	}
 	switch mode {
 	case CacheWriteConcat:
 		return b.Concat(left, right, axis)
@@ -726,7 +731,19 @@ func (b *Builder) WriteCache(left, right *Tensor, axis uint32, mode CacheWriteMo
 	}
 }
 
-// AppendCache: bounded fixed-capacity append.
+// StoreCache holds input's F32 values at a cache's type, each value's nearest BF16.
+func (b *Builder) StoreCache(input *Tensor, cacheType dtype.Type) *Tensor {
+	if b.err != nil {
+		return nil
+	}
+	if input == nil || input.Type != dtype.F32 || cacheType != dtype.BF16 {
+		b.setError(errors.New("a cache stores F32 values as BF16"))
+		return nil
+	}
+	return b.add("", cacheType, input.Shape, OpCacheStore, []*Tensor{input}, nil)
+}
+
+// AppendCache: bounded fixed-capacity append. F32 rows append to a BF16 cache rounded to the nearest BF16.
 func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
 	if b == nil {
 		return nil
@@ -738,7 +755,7 @@ func (b *Builder) AppendCache(left, right *Tensor, axis uint32) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	if left == nil || right == nil || left.Type != right.Type ||
+	if left == nil || right == nil || (left.Type != right.Type && (left.Type != dtype.BF16 || right.Type != dtype.F32)) ||
 		left.Shape.Rank == 0 || left.Shape.Rank != right.Shape.Rank ||
 		axis+1 != uint32(left.Shape.Rank) ||
 		left.Shape.Dims[axis] != uint64(b.cacheAppend.SourceCapacityTokens) {

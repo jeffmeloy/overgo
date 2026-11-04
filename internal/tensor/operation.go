@@ -168,6 +168,7 @@ var operationDescriptors = [...]OperationDescriptor{
 	{OpQSACommit, "qsa_commit", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
 	{OpCopyIndexed, "copy_indexed", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
 	{OpCellAttention, "cell_attention", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpCacheStore, "cache_store", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
 }
 
 // DescribeOperation: typed operation lookup.
@@ -254,7 +255,8 @@ func CompileOutputTargetContract(node *Tensor) (OutputTargetContract, error) {
 			return OutputTargetContract{}, errors.New("cache append attributes are invalid")
 		}
 		inputBytes, sizeErr := node.Inputs[0].Shape.Bytes(node.Inputs[0].Type)
-		writeBytes, writeErr := node.Inputs[1].Shape.Bytes(node.Inputs[1].Type)
+		// The appended rows land at the cache's type, which a BF16 cache's F32 rows are rounded to.
+		writeBytes, writeErr := node.Inputs[1].Shape.Bytes(node.Type)
 		inner := uint64(1)
 		for axis := uint32(0); axis < attributes.Axis; axis++ {
 			if inner > math.MaxUint64/node.Shape.Dims[axis] {

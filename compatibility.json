@@ -844,7 +844,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:3e5d383c06187603de3278f80b01a8bb0000dbe42d57d665ebc8492e020defae"
+     "identity": "file:sha256:11b9baca03f01441f7175d2d2a58136ff41f9372984396e7cc1bed8604116527"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -865,7 +865,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:3c7829df6e5d07f6249915a98a10259a01cafcdd8ffb88c81b3fe264a8c2c350"
+     "identity": "file:sha256:0a70205a84ae09925bac6c37c75260030b54c155aaf41223f1152126463dff43"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -886,13 +886,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:3561fac90bb048455131e48e339d7eac31fd5302144ddae95a3bb9cfc0f92a32"
+     "identity": "file:sha256:62d6b5b31b4e3385963139026996ea11dbe02e96213292b83409702ffb5b6bf8"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:66ec7e29837a1351339f59ebee098be47e9a06b518a7d2a5b0c3cb89ce51aa1f"
+     "identity": "evidence:sha256:4ccd13e7c07316a0e8e3937e3ce0cc52d2255b6988d185e6c57df3a928339677"
     }
    ],
    "id": "editable-prompt-cache",
@@ -1304,7 +1304,7 @@
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3ccc9f15bab4d10aaeba6ae6ebd9604d712289aa6b8d99e15af05e64e44519a1"
+     "identity": "evidence:sha256:4de16086362da3b9f2c6098a2e95a18b8dd9468eac8b921f347ea82b90790a05"
     }
    ],
    "id": "paged-continuous-cache",

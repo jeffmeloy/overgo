@@ -189,10 +189,15 @@ func (e *Executor) allocateDeviceBuffer(ctx context.Context, bytes uint64, acqui
 }
 
 func (b *DeviceBuffer) Value(shape tensor.Shape) (DeviceValue, error) {
+	return b.ValueAs(shape, dtype.F32)
+}
+
+// ValueAs is the buffer as a value of shape stored as storage.
+func (b *DeviceBuffer) ValueAs(shape tensor.Shape, storage dtype.Type) (DeviceValue, error) {
 	if b == nil {
 		return DeviceValue{}, errors.New("CUDA device buffer is unavailable")
 	}
-	bytes, err := shape.Bytes(dtype.F32)
+	bytes, err := shape.Bytes(storage)
 	if err != nil {
 		return DeviceValue{}, err
 	}
@@ -2567,7 +2572,9 @@ func execute(
 		if node.Op == tensor.OpInput {
 			continue
 		}
-		if node.Type != dtype.F32 {
+		// A cache's writes (store, concatenation, append) output the cache, which may hold BF16.
+		cacheWrite := node.Op == tensor.OpCacheAppend || node.Op == tensor.OpCacheStore || node.Op == tensor.OpConcat
+		if node.Type != dtype.F32 && (!cacheWrite || node.Type != dtype.BF16) {
 			return nil, fmt.Errorf("CUDA executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		if frame.skipped {

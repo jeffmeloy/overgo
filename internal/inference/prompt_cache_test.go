@@ -12,6 +12,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -227,7 +228,7 @@ func TestTrimDeviceCacheSuffix(t *testing.T) {
 	cache := fixture.cache()
 	cache.Position = fixtureTokens
 	cache.Logits = []float32{1, 2}
-	if err := trimDeviceCacheSuffix(cache, fixtureKeptTokens, recipe.SessionCapacity); err != nil {
+	if err := trimDeviceCacheSuffix(cache, fixtureKeptTokens, recipe.SessionCapacity, dtype.F32); err != nil {
 		t.Fatal(err)
 	}
 	if cache.Tokens != fixtureKeptTokens ||

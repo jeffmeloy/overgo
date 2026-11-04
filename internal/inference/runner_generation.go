@@ -195,7 +195,7 @@ func (r *Runner) Generate(
 						} else if trimErr := trimDeviceCacheSuffix(
 							retainedPrefix,
 							uint32(base),
-							r.program.Decode.Session,
+							r.program.Decode.Session, r.cacheType,
 						); trimErr != nil {
 							return nil, "", trimErr
 						} else {
@@ -214,7 +214,7 @@ func (r *Runner) Generate(
 				} else if trimErr := trimDeviceCacheSuffix(
 					retainedPrefix,
 					uint32(cached-1),
-					r.program.Decode.Session,
+					r.program.Decode.Session, r.cacheType,
 				); trimErr != nil {
 					return nil, "", trimErr
 				} else {

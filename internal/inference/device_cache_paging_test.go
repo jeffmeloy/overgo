@@ -102,18 +102,18 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 
 func TestDeviceCacheStorageViewsBoundEachLayer(t *testing.T) {
 	group := executor.DeviceValue{Pointer: driver.DevicePtr(4096), Shape: tensor.MustShape(16), CapacityBytes: 64}
-	key, err := deviceCacheStorageView(group, 0, tensor.MustShape(2, 2))
+	key, err := deviceCacheStorageView(group, 0, tensor.MustShape(2, 2), dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := deviceCacheStorageView(group, 4, tensor.MustShape(3, 4))
+	value, err := deviceCacheStorageView(group, 4, tensor.MustShape(3, 4), dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if key.Pointer != group.Pointer || key.CapacityBytes != 16 || value.Pointer != group.Pointer+16 || value.CapacityBytes != 48 {
 		t.Fatalf("cache views overlap or expose adjacent storage: key=%+v value=%+v", key, value)
 	}
-	if _, err := deviceCacheStorageView(group, 16, tensor.MustShape(1)); err == nil {
+	if _, err := deviceCacheStorageView(group, 16, tensor.MustShape(1), dtype.F32); err == nil {
 		t.Fatal("out-of-group cache view accepted")
 	}
 	storage := &deviceCacheStorage{keys: []executor.DeviceValue{key}, values: []executor.DeviceValue{value}}
@@ -127,7 +127,7 @@ func TestDeviceCacheStorageViewsBoundEachLayer(t *testing.T) {
 	}
 	builder := tensor.NewBuilder()
 	graph := deviceBatchGraph{keys: []*tensor.Tensor{builder.Input("key", dtype.F32, tensor.MustShape(2, 3))}, values: []*tensor.Tensor{builder.Input("value", dtype.F32, value.Shape)}}
-	if deviceCacheStorageFits(storage, deviceCacheTargetPlan{layers: []deviceCacheTargetLayer{{key: deviceCacheTargetValue{enabled: true, capacity: graph.keys[0].Shape}, value: deviceCacheTargetValue{enabled: true, capacity: graph.values[0].Shape}}}}) {
+	if deviceCacheStorageFits(storage, deviceCacheTargetPlan{layers: []deviceCacheTargetLayer{{key: deviceCacheTargetValue{enabled: true, capacity: graph.keys[0].Shape}, value: deviceCacheTargetValue{enabled: true, capacity: graph.values[0].Shape}}}}, dtype.F32) {
 		t.Fatal("cache growth crossed into another layer's storage")
 	}
 }
@@ -147,7 +147,7 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 		KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
 	cache := fixture.cache()
-	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity, dtype.F32); err != nil {
 		t.Fatal(err)
 	}
 	fixturePageTokens := cachePageTokens(fixtureTokens, recipe.SessionCapacity)
@@ -198,7 +198,7 @@ func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 		Keys: []executor.DeviceValue{fixed}, Values: []executor.DeviceValue{fixed},
 		Tokens: 3,
 	}
-	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity, dtype.F32); err != nil {
 		t.Fatal(err)
 	}
 	for index, page := range cache.Pages {
@@ -232,13 +232,13 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 			Shape:   tensor.MustShape(keyWidth, keyHeads, uint64(cache.Tokens)),
 		}
 	}
-	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity, dtype.F32); err != nil {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
+		if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity, dtype.F32); err != nil {
 			b.Fatal(err)
 		}
 	}

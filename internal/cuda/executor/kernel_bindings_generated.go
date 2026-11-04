@@ -13,13 +13,18 @@ const (
 	kernelArgmaxF32
 	kernelArgmaxQ80InputPartialsF32
 	kernelAtanF32
+	kernelAttentionDecodeBf16CacheF32
 	kernelAttentionDecodeCombineF32
 	kernelAttentionDecodeF32
 	kernelAttentionF32
+	kernelAttentionFlash128Bf16CacheF32
 	kernelAttentionFlash128F32
+	kernelAttentionFlash256Bf16CacheF32
 	kernelAttentionFlash256F32
+	kernelAttentionFlash64Bf16CacheF32
 	kernelAttentionFlash64F32
 	kernelAttentionNativeBf16F32
+	kernelAttentionOnlineBf16CacheF32
 	kernelAttentionOnlineF32
 	kernelAttentionOnlineFinalizeF32
 	kernelAttentionOnlineInitF32
@@ -35,6 +40,7 @@ const (
 	kernelCausalSoftmaxBatchedF32
 	kernelCausalSoftmaxF32
 	kernelClampF32
+	kernelConcatBf16
 	kernelConcatF32
 	kernelConv1dSameF32
 	kernelConv2dBiasBackwardF32
@@ -42,7 +48,9 @@ const (
 	kernelConv2dIm2colF32
 	kernelConv2dInputBackwardF32
 	kernelConv2dWeightBackwardF32
+	kernelCopyBf16
 	kernelCopyF32
+	kernelCopyTokenOffsetBf16CacheF32
 	kernelCopyTokenOffsetF32
 	kernelDequantRowsIq4NlF16
 	kernelDequantRowsIq4XsF16
@@ -481,13 +489,18 @@ var kernelFunctionNames = [...]string{
 	"argmax_f32",
 	"argmax_q8_0_input_partials_f32",
 	"atan_f32",
+	"attention_decode_bf16_cache_f32",
 	"attention_decode_combine_f32",
 	"attention_decode_f32",
 	"attention_f32",
+	"attention_flash_128_bf16_cache_f32",
 	"attention_flash_128_f32",
+	"attention_flash_256_bf16_cache_f32",
 	"attention_flash_256_f32",
+	"attention_flash_64_bf16_cache_f32",
 	"attention_flash_64_f32",
 	"attention_native_bf16_f32",
+	"attention_online_bf16_cache_f32",
 	"attention_online_f32",
 	"attention_online_finalize_f32",
 	"attention_online_init_f32",
@@ -503,6 +516,7 @@ var kernelFunctionNames = [...]string{
 	"causal_softmax_batched_f32",
 	"causal_softmax_f32",
 	"clamp_f32",
+	"concat_bf16",
 	"concat_f32",
 	"conv_1d_same_f32",
 	"conv_2d_bias_backward_f32",
@@ -510,7 +524,9 @@ var kernelFunctionNames = [...]string{
 	"conv_2d_im2col_f32",
 	"conv_2d_input_backward_f32",
 	"conv_2d_weight_backward_f32",
+	"copy_bf16",
 	"copy_f32",
+	"copy_token_offset_bf16_cache_f32",
 	"copy_token_offset_f32",
 	"dequant_rows_iq4_nl_f16",
 	"dequant_rows_iq4_xs_f16",
@@ -948,13 +964,18 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	3,
 	3,
+	18,
 	5,
 	18,
 	25,
 	15,
 	15,
 	15,
+	15,
+	15,
+	15,
 	12,
+	24,
 	24,
 	6,
 	5,
@@ -971,6 +992,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	5,
 	8,
+	8,
 	10,
 	6,
 	20,
@@ -978,6 +1000,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	17,
 	17,
 	3,
+	3,
+	5,
 	5,
 	5,
 	5,
@@ -1416,13 +1440,18 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4, 4},
 	{8, 8, 4},
 	{8, 8, 4},
+	{8, 8, 8, 8, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 4, 8},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 8, 4, 4, 4, 4, 4, 4, 4, 4, 8},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4},
@@ -1439,6 +1468,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
@@ -1446,6 +1476,8 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4},
+	{8, 8, 4},
+	{8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
@@ -1881,6 +1913,14 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

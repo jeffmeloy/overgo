@@ -167,7 +167,7 @@ func (r *Runner) bindSpanSlot(
 		r.spanned = spanned
 	}
 	for _, item := range outputs {
-		value, err := deviceCacheStorageView(whole, item.offset/cacheScalarBytes, item.shape)
+		value, err := deviceCacheStorageView(whole, item.offset/cacheScalarBytes, item.shape, dtype.F32)
 		if err != nil {
 			return nil, err
 		}

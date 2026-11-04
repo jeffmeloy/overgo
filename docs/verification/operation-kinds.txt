@@ -74,11 +74,11 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 == switches ==
 family: internal/tensor.Op
 switches: 10
-lines: 1855
+lines: 1899
 functions: 10
 packages: 4
-constants: 75
-operations-by-switches: 1=3 2=35 3=27 4=10
+constants: 76
+operations-by-switches: 1=3 2=35 3=28 4=10
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
 lines: 110
@@ -90,11 +90,11 @@ row: a method of each of the nine attribute types with per-step values, in one i
 table: yes
 
 switch: internal/cuda/executor/launch_attention_layout.go#launchAttentionLayout
-lines: 320
-constants: 7
-clauses: 8
-dispatch-lines: 11
-decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), of concat as an append in place when its output is its left input, of cache_append as a copy and a write at a device-resident offset, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again, and of cell_attention as an attention layer's int8 cells appended and read by Strata's kernels at the layer's geometry
+lines: 360
+constants: 8
+clauses: 9
+dispatch-lines: 12
+decides: the device launch of reshape as a copy, of attention by one of six paths (the split single-query decode kernel, the tensor-core prompt kernel, the batched matrix products, the tiled kernel, the online kernel and the plain kernel), attention over a BF16 cache by the decode, tensor-core prompt and online kernels that widen it as they read it, of concat as an append in place when its output is its left input, F32 or BF16, of cache_store as F32 rows stored as BF16, of cache_append as a copy and a write at a device-resident offset, a BF16 cache's rows rounded as they land, of qsa_attention as Strata's QSA layer, its kernels launched in Strata's order (in place over its fixed state for a verify window), of qsa_commit as the window's commit, its tail restored and its kept rows' keys appended again, and of cell_attention as an attention layer's int8 cells appended and read by Strata's kernels at the layer's geometry
 row: the entry of each operation, while attention's choice of path is attention's own and stays whole in its function
 table: yes
 
@@ -154,7 +154,7 @@ table: no
 
 switch: internal/tensor/attributes.go#emptyAttributes.validFor
 lines: 10
-constants: 28
+constants: 29
 clauses: 2
 dispatch-lines: 9
 decides: which operations carry no attributes
@@ -162,8 +162,8 @@ row: a column of internal/tensor/operation.go#operationDescriptors naming each o
 table: yes
 
 switch: internal/tensor/reference/executor.go#executeNode
-lines: 238
-constants: 72
+lines: 242
+constants: 73
 clauses: 73
 dispatch-lines: 76
 decides: the host arithmetic of every operation that is not a view or an input, by an inline loop for scale, clamp, signed_sqrt, xielu and the unary activations and by a named function for the rest
@@ -171,14 +171,14 @@ row: one entry per operation holding its function or a function literal, with ea
 table: yes
 
 == estimate ==
-table-dispatch-lines: 180
+table-dispatch-lines: 181
 estimated-scaffolding-deleted: 192
-table-deleted: 372
+table-deleted: 373
 estimated-rows-added: 129
 estimated-frames-added: 67
 estimated-machinery-added: 44
 table-added: 240
-table-net: 132
+table-net: 133
 table-net-range: -54 144
 makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
 not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel

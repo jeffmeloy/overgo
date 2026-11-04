@@ -158,7 +158,7 @@ func (r *Runner) commitSpanCheckpoint(ctx context.Context, span, boundary *devic
 	}
 	span.Tokens, span.Position = checkpoint.tokens, checkpoint.position
 	span.Selection, span.session, span.checkpoints = executor.DeviceValue{}, nil, nil
-	return rebuildDeviceCachePages(span, r.program.Decode.Session)
+	return rebuildDeviceCachePages(span, r.program.Decode.Session, r.cacheType)
 }
 
 // followNGramHistory gives a span that keeps only its first tokens the lexical history of those tokens after its

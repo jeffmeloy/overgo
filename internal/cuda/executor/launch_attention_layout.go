@@ -218,6 +218,25 @@ func flashAttentionKernel(width uint64) (kernelFunctionID, uint32, bool) {
 	return 0, 0, false
 }
 
+// bf16CacheKernels are the kernels that read a BF16 cache, by the F32 cache's kernel each replaces.
+var bf16CacheKernels = map[kernelFunctionID]kernelFunctionID{
+	kernelAttentionDecodeF32:   kernelAttentionDecodeBf16CacheF32,
+	kernelAttentionFlash64F32:  kernelAttentionFlash64Bf16CacheF32,
+	kernelAttentionFlash128F32: kernelAttentionFlash128Bf16CacheF32,
+	kernelAttentionFlash256F32: kernelAttentionFlash256Bf16CacheF32,
+	kernelAttentionOnlineF32:   kernelAttentionOnlineBf16CacheF32,
+}
+
+// BF16CacheAttention reports whether a model's attention may keep its keys and values in a BF16 cache: every attention
+// read of the cache then takes a kernel that widens BF16 as it reads, a prompt the tensor-core kernel (admitted, as
+// AttentionAttributes.TensorCores, for causal attention without sinks, block masks, ALiBi or symmetric or chunked
+// windows, heads as wide as it takes), a decode the decode kernel and anything else the online kernel. The
+// strided-batched and tiled paths read F32 alone, so a prompt the tensor-core kernel would not take keeps an F32 cache.
+func BF16CacheAttention(headWidth uint64) bool {
+	_, _, ok := flashAttentionKernel(headWidth)
+	return ok
+}
+
 // flashAttention reports a prompt's causal attention the tensor-core kernel reads, where its model admits the kernel
 // (AttentionAttributes.TensorCores, from the profile; its products split into FP16 roundings and their remainders since
 // one rounding of each moved dense models' held-out quality): grouped or not, with an optional
@@ -584,6 +603,16 @@ func launchAttentionLayout(
 		query := pointers.input(0)
 		key := pointers.input(1)
 		value := pointers.input(2)
+		bf16Cache := keyNode.Type == dtype.BF16
+		kernelFor := func(function kernelFunctionID) (kernelFunctionID, error) {
+			if !bf16Cache {
+				return function, nil
+			}
+			if replacement, ok := bf16CacheKernels[function]; ok {
+				return replacement, nil
+			}
+			return 0, errors.New("attention over a BF16 cache reaches a path that reads F32 alone")
+		}
 		var relativeBias driver.DevicePtr
 		var sinks driver.DevicePtr
 		var blockIDs driver.DevicePtr
@@ -670,8 +699,12 @@ func launchAttentionLayout(
 			if blocks > math.MaxUint32 {
 				return errors.New("decode attention launch size exceeds uint32")
 			}
+			decode, err := kernelFor(kernelAttentionDecodeF32)
+			if err != nil {
+				return err
+			}
 			if err := launchGridSharedABI(
-				state, functions[kernelAttentionDecodeF32],
+				state, functions[decode],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
@@ -695,6 +728,10 @@ func launchAttentionLayout(
 				return errors.New("flash attention launch size exceeds uint32")
 			}
 			sharedBytes := uint64(keys) * uint64(keyWidth+attentionFlashKeyPad+valueWidth+attentionFlashValuePad) * f32Bytes
+			function, err := kernelFor(function)
+			if err != nil {
+				return err
+			}
 			return launchGridSharedABI(
 				state, functions[function],
 				driver.Dim3{X: uint32(blocks), Y: keyValueHeads, Z: sequences},
@@ -706,14 +743,14 @@ func launchAttentionLayout(
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the
 		// score tile bounded by the derived query chunk; owns every
 		// qualifying dense-MHA workload when the score staging is resident.
-		if attributes.MemoryEfficientF32 {
+		if attributes.MemoryEfficientF32 && !bf16Cache {
 			return launchGridSharedABI(state, functions[kernelAttentionTiledF32],
 				driver.Dim3{X: (queryTokens + attentionF32Rows - 1) / attentionF32Rows, Y: queryHeads, Z: sequences},
 				driver.Dim3{X: attentionF32Threads, Y: 1, Z: 1}, attentionF32SharedWords*uint32(f32ScalarBytes),
 				&query, &key, &value, &keyBias, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences, &scale)
 		}
-		if !attributes.NaiveF32 && blas != nil && blas.scores != 0 &&
+		if !attributes.NaiveF32 && !bf16Cache && blas != nil && blas.scores != 0 &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 {
 			chunk, keyChunk, scoreBytes, ok := blasAttentionGeometry(
 				queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens,
@@ -743,7 +780,7 @@ func launchAttentionLayout(
 			attentionTiledThreads  = uint32(256)
 		)
 		tiledShared := uint64(2*attentionTiledTile*keyWidth+attentionTiledTile*valueWidth) * f32Bytes
-		if causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 &&
+		if !bf16Cache && causal == 0 && relativeBias == 0 && sinks == 0 && blockIDs == 0 &&
 			softcap == 0 && maxALiBiBias == 0 && window == 0 && symmetricWindow == 0 &&
 			queryStart == 0 && keyValueTokens == keyCapacityTokens &&
 			keyWidth <= attentionTiledMaxWidth && valueWidth <= attentionTiledMaxWidth &&
@@ -767,8 +804,12 @@ func launchAttentionLayout(
 			if blocks > math.MaxUint32 {
 				return errors.New("online attention launch size exceeds uint32")
 			}
+			online, err := kernelFor(kernelAttentionOnlineF32)
+			if err != nil {
+				return err
+			}
 			return launchGridABI(
-				state, functions[kernelAttentionOnlineF32],
+				state, functions[online],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionOnlineThreads, Y: 1, Z: 1},
 				&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
@@ -777,8 +818,12 @@ func launchAttentionLayout(
 				&relativeBuckets, &relativeBidirectional,
 			)
 		}
+		naive, err := kernelFor(kernelAttentionF32)
+		if err != nil {
+			return err
+		}
 		return launch1DABI(
-			state, functions[kernelAttentionF32], count,
+			state, functions[naive], count,
 			&query, &key, &value, &relativeBias, &sinks, &blockIDs, &keyBias, &output,
 			&keyWidth, &valueWidth, &queryHeads, &keyValueHeads, &queryTokens, &keyValueTokens, &sequences,
 			&scale, &softcap, &maxALiBiBias, &causal, &queryStart, &window, &symmetricWindow,
@@ -792,15 +837,20 @@ func launchAttentionLayout(
 		count := shapeCount32(node.Shape)
 		left := pointers.input(0)
 		right := pointers.input(1)
+		// A BF16 cache's rows join as BF16.
+		copyKernel, concatKernel := kernelCopyF32, kernelConcatF32
+		if node.Type == dtype.BF16 {
+			copyKernel, concatKernel = kernelCopyBf16, kernelConcatBf16
+		}
 		if output == left && axis+1 == uint32(node.Shape.Rank) {
-			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(dtype.F32)
+			leftBytes, sizeErr := node.Inputs[0].Shape.Bytes(node.Type)
 			if sizeErr != nil || uint64(output) > math.MaxUint64-leftBytes {
 				return errors.New("concat append offset overflows")
 			}
 			rightCount := shapeCount32(node.Inputs[1].Shape)
 			destination := output + driver.DevicePtr(leftBytes)
 			return launch1DABI(
-				state, functions[kernelCopyF32], rightCount,
+				state, functions[copyKernel], rightCount,
 				&right, &destination, &rightCount,
 			)
 		}
@@ -814,9 +864,13 @@ func launchAttentionLayout(
 		}
 		leftAxis, rightAxis := uint32(node.Inputs[0].Shape.Dims[axis]), uint32(node.Inputs[1].Shape.Dims[axis])
 		return launch1DABI(
-			state, functions[kernelConcatF32], count,
+			state, functions[concatKernel], count,
 			&left, &right, &output, &innerSize, &leftAxis, &rightAxis, &axis, &count,
 		)
+	case tensor.OpCacheStore:
+		count := shapeCount32(node.Shape)
+		input := pointers.input(0)
+		return launch1DABI(state, functions[kernelF32ToBf16], count, &input, &output, &count)
 	case tensor.OpCacheAppend:
 		attributes := runtimeAttributes.(tensor.CacheAppendAttributes)
 		if attributes.Axis+1 != uint32(node.Shape.Rank) {
@@ -826,9 +880,14 @@ func launchAttentionLayout(
 		right := pointers.input(1)
 		leftCount, rightCount := shapeCount32(node.Inputs[0].Shape), shapeCount32(node.Inputs[1].Shape)
 		outputCount := shapeCount32(node.Shape)
+		// A BF16 cache copies its rows as they are and rounds the appended F32 rows to BF16.
+		copyKernel, appendKernel := kernelCopyF32, kernelCopyTokenOffsetF32
+		if node.Type == dtype.BF16 {
+			copyKernel, appendKernel = kernelCopyBf16, kernelCopyTokenOffsetBf16CacheF32
+		}
 		if output != left {
 			if err := launch1DABI(
-				state, functions[kernelCopyF32], leftCount, &left, &output, &leftCount,
+				state, functions[copyKernel], leftCount, &left, &output, &leftCount,
 			); err != nil {
 				return err
 			}
@@ -858,7 +917,7 @@ func launchAttentionLayout(
 			return err
 		}
 		return launch1DABI(
-			state, functions[kernelCopyTokenOffsetF32], rightCount,
+			state, functions[appendKernel], rightCount,
 			&right, &output, &offsetPointer, &innerCount, &rightCount,
 		)
 	default:

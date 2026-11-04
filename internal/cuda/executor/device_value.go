@@ -186,17 +186,35 @@ func (v DeviceValue) copySegment(storage dtype.Type, start, count uint64) (Devic
 //   - each value's shape names the elements read from its pointer
 //   - a zero pointer, or a shape larger than a known capacity, is refused before any copy.
 func (e *Executor) ReadDeviceValues(ctx context.Context, values []DeviceValue) ([][]float32, error) {
+	return e.ReadDeviceValuesAs(ctx, values, nil)
+}
+
+// ReadDeviceValuesAs copies device values to the host as F32 in one worker transaction, value i stored as storage[i]
+// (F32 where storage is nil): a BF16 value widens exactly.
+func (e *Executor) ReadDeviceValuesAs(ctx context.Context, values []DeviceValue, storage []dtype.Type) ([][]float32, error) {
+	if storage != nil && len(storage) != len(values) {
+		return nil, fmt.Errorf("CUDA device read has %d values and %d types", len(values), len(storage))
+	}
 	host := make([][]float32, len(values))
+	halves := make([][]uint16, len(values))
 	for index, value := range values {
-		elements, err := transferElements(value)
+		stored := storedType(storage, index)
+		elements, err := transferElements(value, stored)
 		if err != nil {
 			return nil, fmt.Errorf("CUDA device read %d: %w", index, err)
 		}
 		host[index] = make([]float32, elements)
+		if stored == dtype.BF16 {
+			halves[index] = make([]uint16, elements)
+		}
 	}
 	err := e.transfer(ctx, func(state *device.State) error {
 		for index, value := range values {
-			if err := state.Driver.MemcpyDtoH(driver.Bytes(host[index]), value.Pointer); err != nil {
+			destination := driver.Bytes(host[index])
+			if halves[index] != nil {
+				destination = driver.Bytes(halves[index])
+			}
+			if err := state.Driver.MemcpyDtoH(destination, value.Pointer); err != nil {
 				return err
 			}
 		}
@@ -205,6 +223,11 @@ func (e *Executor) ReadDeviceValues(ctx context.Context, values []DeviceValue) (
 	if err != nil {
 		return nil, err
 	}
+	for index, half := range halves {
+		for element, bits := range half {
+			host[index][element] = dtype.BF16ToFloat32(bits)
+		}
+	}
 	return host, nil
 }
 
@@ -212,21 +235,37 @@ func (e *Executor) ReadDeviceValues(ctx context.Context, values []DeviceValue) (
 //   - data[i] holds exactly the elements values[i]'s shape names
 //   - a zero pointer, a count mismatch, or a shape larger than a known capacity is refused before any copy.
 func (e *Executor) WriteDeviceValues(ctx context.Context, values []DeviceValue, data [][]float32) error {
-	if len(values) != len(data) {
-		return fmt.Errorf("CUDA device write has %d values and %d host slices", len(values), len(data))
+	return e.WriteDeviceValuesAs(ctx, values, data, nil)
+}
+
+// WriteDeviceValuesAs copies host F32 data into device values in one worker transaction, value i stored as storage[i]
+// (F32 where storage is nil): a BF16 value takes each value's nearest BF16.
+func (e *Executor) WriteDeviceValuesAs(ctx context.Context, values []DeviceValue, data [][]float32, storage []dtype.Type) error {
+	if len(values) != len(data) || (storage != nil && len(storage) != len(values)) {
+		return fmt.Errorf("CUDA device write has %d values, %d host slices and %d types", len(values), len(data), len(storage))
 	}
+	sources := make([][]byte, len(values))
 	for index, value := range values {
-		elements, err := transferElements(value)
+		stored := storedType(storage, index)
+		elements, err := transferElements(value, stored)
 		if err != nil {
 			return fmt.Errorf("CUDA device write %d: %w", index, err)
 		}
 		if len(data[index]) != elements {
 			return fmt.Errorf("CUDA device write %d has %d host values, its shape holds %d", index, len(data[index]), elements)
 		}
+		sources[index] = driver.Bytes(data[index])
+		if stored == dtype.BF16 {
+			half := make([]uint16, elements)
+			for element, item := range data[index] {
+				half[element] = dtype.Float32ToBF16(item)
+			}
+			sources[index] = driver.Bytes(half)
+		}
 	}
 	return e.transfer(ctx, func(state *device.State) error {
 		for index, value := range values {
-			if err := state.Driver.MemcpyHtoD(value.Pointer, driver.Bytes(data[index])); err != nil {
+			if err := state.Driver.MemcpyHtoD(value.Pointer, sources[index]); err != nil {
 				return err
 			}
 		}
@@ -346,11 +385,19 @@ func (e *Executor) CopyDeviceRanges(ctx context.Context, copies []DeviceRangeCop
 	})
 }
 
-func transferElements(value DeviceValue) (int, error) {
+// storedType is value index's storage type: F32 unless storage names another.
+func storedType(storage []dtype.Type, index int) dtype.Type {
+	if storage == nil {
+		return dtype.F32
+	}
+	return storage[index]
+}
+
+func transferElements(value DeviceValue, storage dtype.Type) (int, error) {
 	if value.Pointer == 0 {
 		return 0, errors.New("device value pointer is zero")
 	}
-	bytes, err := value.Shape.Bytes(dtype.F32)
+	bytes, err := value.Shape.Bytes(storage)
 	if err != nil {
 		return 0, err
 	}

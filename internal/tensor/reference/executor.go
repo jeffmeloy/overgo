@@ -156,7 +156,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 			output[i] = min(max(value, attributes.Minimum), attributes.Maximum)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
-	case tensor.OpBF16Round:
+	case tensor.OpBF16Round, tensor.OpCacheStore:
 		return mapValues(node.Shape, inputs[0], dtype.RoundBF16), nil
 	case tensor.OpSignedSqrt:
 		minimum := float64(node.Attrs.(tensor.SignedSqrtAttributes).Minimum)
@@ -355,6 +355,10 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpConcat:
 		return concat(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.ConcatAttributes).Axis)
 	case tensor.OpCacheAppend:
+		if node.Type == dtype.BF16 {
+			// A BF16 cache holds each appended value at its nearest BF16.
+			return cacheAppend(node.Shape, inputs[0], mapValues(inputs[1].Shape, inputs[1], dtype.RoundBF16), node.Attrs.(tensor.CacheAppendAttributes))
+		}
 		return cacheAppend(node.Shape, inputs[0], inputs[1], node.Attrs.(tensor.CacheAppendAttributes))
 	case tensor.OpQSAAttention:
 		return qsaAttention(node.Shape, inputs, node.Attrs.(tensor.QSAAttentionAttributes))

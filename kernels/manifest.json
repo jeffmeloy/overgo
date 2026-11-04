@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "a0b13c0b15b0492e0991e050acd0a71cc36b5cf04e4d1eb2f4f1df2085aa3438",
+      "sourceSha256": "5985ea47296e921e184fb148915be4890194ef48505e1b969dd705adf4b2a49c",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -84,7 +84,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "b83a71d6a37b291680ef0c05af8be6fee67147056309d2c760ef32152b3c96b5",
+      "assetSha256": "dcd7d0d1ce1c178b83e1695833ff50fd99ca8b746ffd166b0daa7e2172377a63",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -92,13 +92,18 @@
         "argmax_f32",
         "argmax_q8_0_input_partials_f32",
         "atan_f32",
+        "attention_decode_bf16_cache_f32",
         "attention_decode_combine_f32",
         "attention_decode_f32",
         "attention_f32",
+        "attention_flash_128_bf16_cache_f32",
         "attention_flash_128_f32",
+        "attention_flash_256_bf16_cache_f32",
         "attention_flash_256_f32",
+        "attention_flash_64_bf16_cache_f32",
         "attention_flash_64_f32",
         "attention_native_bf16_f32",
+        "attention_online_bf16_cache_f32",
         "attention_online_f32",
         "attention_online_finalize_f32",
         "attention_online_init_f32",
@@ -114,6 +119,7 @@
         "causal_softmax_batched_f32",
         "causal_softmax_f32",
         "clamp_f32",
+        "concat_bf16",
         "concat_f32",
         "conv_1d_same_f32",
         "conv_2d_bias_backward_f32",
@@ -121,7 +127,9 @@
         "conv_2d_im2col_f32",
         "conv_2d_input_backward_f32",
         "conv_2d_weight_backward_f32",
+        "copy_bf16",
         "copy_f32",
+        "copy_token_offset_bf16_cache_f32",
         "copy_token_offset_f32",
         "dequant_rows_iq4_nl_f16",
         "dequant_rows_iq4_xs_f16",
@@ -360,6 +368,7 @@
           ],
           "functions": [
             "activated_gate_f32",
+            "copy_token_offset_bf16_cache_f32",
             "copy_token_offset_f32",
             "embedding_gather_rows_f32",
             "fp8_to_f16",
@@ -466,6 +475,7 @@
             "bf16_round_f32",
             "bf16_to_f32",
             "causal_softmax_f32",
+            "copy_bf16",
             "copy_f32",
             "exp_f32",
             "f16_to_f32",
@@ -481,6 +491,32 @@
             "silu_native_f32",
             "softplus_f32",
             "tanh_f32"
+          ]
+        },
+        {
+          "parameters": [
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".u64",
+            ".u32",
+            ".u32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".f32",
+            ".u32",
+            ".u32",
+            ".u64"
+          ],
+          "functions": [
+            "attention_decode_bf16_cache_f32",
+            "attention_decode_f32"
           ]
         },
         {
@@ -507,31 +543,6 @@
             "rope_half_f32",
             "top_k_pairs_f32",
             "transpose_2d_f32"
-          ]
-        },
-        {
-          "parameters": [
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".u64",
-            ".u32",
-            ".u32",
-            ".u32",
-            ".f32",
-            ".u32",
-            ".f32",
-            ".u32",
-            ".u32",
-            ".u64"
-          ],
-          "functions": [
-            "attention_decode_f32"
           ]
         },
         {
@@ -585,8 +596,11 @@
             ".f32"
           ],
           "functions": [
+            "attention_flash_128_bf16_cache_f32",
             "attention_flash_128_f32",
+            "attention_flash_256_bf16_cache_f32",
             "attention_flash_256_f32",
+            "attention_flash_64_bf16_cache_f32",
             "attention_flash_64_f32"
           ]
         },
@@ -638,6 +652,7 @@
             ".u32"
           ],
           "functions": [
+            "attention_online_bf16_cache_f32",
             "attention_online_f32"
           ]
         },
@@ -765,6 +780,7 @@
             ".u32"
           ],
           "functions": [
+            "concat_bf16",
             "concat_f32"
           ]
         },

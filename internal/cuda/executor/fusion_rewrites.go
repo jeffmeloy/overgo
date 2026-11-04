@@ -961,7 +961,8 @@ func addendEpilogueCompatible(node, addend *tensor.Tensor) bool {
 func applyBF16AppendRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
-		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
+		// Both fused appends write F32 rows; a BF16 cache takes its rows through the converting append.
+		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 || node.Type != dtype.F32 {
 			continue
 		}
 		if compiled.hasFusion(node, compiledFusionRopeAppend) {
@@ -1024,7 +1025,8 @@ func applyBF16ArgmaxRewrite(context *rewriteContext) {
 func applyRopeAppendRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
-		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 {
+		// Both fused appends write F32 rows; a BF16 cache takes its rows through the converting append.
+		if node.Op != tensor.OpCacheAppend || len(node.Inputs) != 2 || node.Type != dtype.F32 {
 			continue
 		}
 		rope := node.Inputs[1]

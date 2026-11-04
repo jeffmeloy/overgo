@@ -8,7 +8,6 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
 
@@ -160,7 +159,7 @@ func (r *Runner) readDevicePromptLocked(
 // them leaves as they are (a copy beside a 240,000-token Flash-Next cache asked another 14 GiB); nil otherwise.
 //   - past is one of those entries or the one cache beside them, since the runner's own steps hold a storage in turn
 func (r *Runner) reusableDeviceCacheStorage(past *deviceKVCache, plan deviceCacheTargetPlan) *deviceCacheStorage {
-	if past == nil || !past.storage.aliases(past) || !deviceCacheStorageFits(past.storage, plan) {
+	if past == nil || !past.storage.aliases(past) || !deviceCacheStorageFits(past.storage, plan, r.cacheType) {
 		return nil
 	}
 	entries := make(map[*deviceKVCache]struct{})
@@ -202,7 +201,7 @@ func (r *Runner) checkDevicePrefillMemory(ctx context.Context, execution *execut
 		if err != nil {
 			return err
 		}
-		bytes, err := shape.Bytes(dtype.F32)
+		bytes, err := shape.Bytes(r.cacheType)
 		if err != nil {
 			return err
 		}

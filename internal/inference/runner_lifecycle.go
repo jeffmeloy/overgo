@@ -250,6 +250,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if !options.F32Cache {
 		runner.cellLayers = runner.cellLayerSet()
 	}
+	runner.cacheType = runner.cacheTypeOf(options.F32Cache)
 	runner.qsaWindows = runner.qsaWindowSet()
 	if runner.strataDraft != nil {
 		readied := processmeasure.Stage(ctx, "strata round")

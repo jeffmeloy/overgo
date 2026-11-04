@@ -578,6 +578,55 @@ extern "C" __global__ void copy_token_offset_f32(
     }
 }
 
+// copy_token_offset_bf16_cache_f32: copy_token_offset_f32 into a BF16 cache, each value rounded to the nearest BF16.
+extern "C" __global__ void copy_token_offset_bf16_cache_f32(
+        const float * input,
+        __nv_bfloat16 * output,
+        const unsigned int * offset_rows,
+        unsigned int inner,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned long long base =
+            (unsigned long long) offset_rows[0] * (unsigned long long) inner;
+        output[base + index] = __float2bfloat16_rn(input[index]);
+    }
+}
+
+// concat_bf16 is concat_f32 over BF16 values: a cache's rows joined along an axis.
+extern "C" __global__ void concat_bf16(
+        const __nv_bfloat16 * left,
+        const __nv_bfloat16 * right,
+        __nv_bfloat16 * output,
+        unsigned int inner,
+        unsigned int left_axis,
+        unsigned int right_axis,
+        unsigned int axis,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned int inner_index = index % inner;
+        const unsigned int axis_outer = index / inner;
+        const unsigned int output_axis = left_axis + right_axis;
+        const unsigned int axis_index = axis_outer % output_axis;
+        const unsigned int outer_index = axis_outer / output_axis;
+        output[index] = axis_index < left_axis
+            ? left[(outer_index * left_axis + axis_index) * inner + inner_index]
+            : right[(outer_index * right_axis + axis_index - left_axis) * inner + inner_index];
+    }
+}
+
+// copy_bf16 copies count BF16 values.
+extern "C" __global__ void copy_bf16(
+        const __nv_bfloat16 * input,
+        __nv_bfloat16 * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = input[index];
+    }
+}
+
 extern "C" __global__ void silu_f32(
         const float * input,
         float * output,
@@ -6096,10 +6145,20 @@ extern "C" __global__ void attention_f32(
 // queries are the last query_tokens positions, so query t reads the keys
 // through its own position, the device count less the queries after it,
 // and its row walks them exactly as a one-query step at that count does.
-extern "C" __global__ void attention_decode_f32(
+// cache_read widens one cache element to f32: an F32 cache's as it is, a BF16 cache's exactly.
+__device__ __forceinline__ float cache_read(const float * cache, size_t index) {
+    return cache[index];
+}
+
+__device__ __forceinline__ float cache_read(const __nv_bfloat16 * cache, size_t index) {
+    return __bfloat162float(cache[index]);
+}
+
+template <typename KV>
+__device__ __forceinline__ void attention_decode(
         const float * query,
-        const float * key,
-        const float * value,
+        const KV * key,
+        const KV * value,
         float * output,
         unsigned int key_width,
         unsigned int value_width,
@@ -6176,7 +6235,7 @@ extern "C" __global__ void attention_decode_f32(
                 float keys[DECODE_READS_IN_FLIGHT];
 #pragma unroll
                 for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
-                    keys[read] = key[key_offset + channel + read];
+                    keys[read] = cache_read(key, key_offset + channel + read);
                 }
 #pragma unroll
                 for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
@@ -6184,7 +6243,7 @@ extern "C" __global__ void attention_decode_f32(
                 }
             }
             for (; channel < key_width; ++channel) {
-                dot += query[query_offset + channel] * key[key_offset + channel];
+                dot += query[query_offset + channel] * cache_read(key, key_offset + channel);
             }
             float score = dot * scale;
             if (softcap > 0.0f) {
@@ -6229,7 +6288,7 @@ extern "C" __global__ void attention_decode_f32(
                     for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
                         const unsigned int value_offset = ((sequence * key_value_stride + token + read * value_groups) *
                             key_value_heads + key_value_head) * value_width;
-                        values[read] = value[value_offset + channel];
+                        values[read] = cache_read(value, value_offset + channel);
                     }
 #pragma unroll
                     for (unsigned int read = 0; read < DECODE_READS_IN_FLIGHT; ++read) {
@@ -6239,7 +6298,7 @@ extern "C" __global__ void attention_decode_f32(
                 for (; token < tile_end; token += value_groups) {
                     const unsigned int value_offset =
                         ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
-                    weighted += scores[token - tile_first] * value[value_offset + channel];
+                    weighted += scores[token - tile_first] * cache_read(value, value_offset + channel);
                 }
             }
             if (value_groups > 1) {
@@ -6277,6 +6336,54 @@ extern "C" __global__ void attention_decode_f32(
     }
 }
 
+// attention_decode_f32 reads an F32 cache, attention_decode_bf16_cache_f32 a BF16 one, each key and value widened to
+// f32 as it is read, so both take the same products in the same order.
+extern "C" __global__ void attention_decode_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        const unsigned int * key_value_token_count,
+        unsigned int key_value_stride,
+        unsigned int sequences,
+        unsigned int query_tokens,
+        float scale,
+        unsigned int window,
+        float softcap,
+        unsigned int tile_tokens,
+        unsigned int splits,
+        float * partials) {
+    attention_decode<float>(query, key, value, output, key_width, value_width, query_heads, key_value_heads, key_value_token_count,
+        key_value_stride, sequences, query_tokens, scale, window, softcap, tile_tokens, splits, partials);
+}
+
+extern "C" __global__ void attention_decode_bf16_cache_f32(
+        const float * query,
+        const __nv_bfloat16 * key,
+        const __nv_bfloat16 * value,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        const unsigned int * key_value_token_count,
+        unsigned int key_value_stride,
+        unsigned int sequences,
+        unsigned int query_tokens,
+        float scale,
+        unsigned int window,
+        float softcap,
+        unsigned int tile_tokens,
+        unsigned int splits,
+        float * partials) {
+    attention_decode<__nv_bfloat16>(query, key, value, output, key_width, value_width, query_heads, key_value_heads, key_value_token_count,
+        key_value_stride, sequences, query_tokens, scale, window, softcap, tile_tokens, splits, partials);
+}
+
 // attention_decode_combine_f32: one block per (sequence, query, head) row folds
 // the split partials of attention_decode_f32 into the output, each split
 // weighted by the exponential of its maximum against the row maximum
@@ -6312,10 +6419,11 @@ extern "C" __global__ void attention_decode_combine_f32(
     }
 }
 
-extern "C" __global__ void attention_online_f32(
+template <typename KV>
+__device__ __forceinline__ void attention_online(
         const float * query,
-        const float * key,
-        const float * value,
+        const KV * key,
+        const KV * value,
         const float * relative_bias,
         const float * sinks,
         const float * block_ids,
@@ -6399,7 +6507,7 @@ extern "C" __global__ void attention_online_f32(
                     ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * key_width;
                 float dot = 0.0f;
                 for (unsigned int channel = 0; channel < key_width; ++channel) {
-                    dot += query[query_offset + channel] * key[key_offset + channel];
+                    dot += query[query_offset + channel] * cache_read(key, key_offset + channel);
                 }
                 float score = dot * scale;
                 if (alibi_slope > 0.0f) {
@@ -6442,7 +6550,7 @@ extern "C" __global__ void attention_online_f32(
         if (threadIdx.x < value_width) {
             const unsigned int value_offset =
                 ((sequence * key_value_tokens + key_token) * key_value_heads + key_value_head) * value_width;
-            weighted = weighted * shared_alpha + shared_beta * value[value_offset + threadIdx.x];
+            weighted = weighted * shared_alpha + shared_beta * cache_read(value, value_offset + threadIdx.x);
         }
         __syncthreads();
     }
@@ -6451,6 +6559,64 @@ extern "C" __global__ void attention_online_f32(
             ((sequence * query_tokens + query_token) * query_heads + query_head) * value_width;
         output[output_offset + threadIdx.x] = weighted / shared_sum;
     }
+}
+
+// attention_online_f32 reads an F32 cache, attention_online_bf16_cache_f32 a BF16 one, each key and value widened to f32
+// as it is read.
+extern "C" __global__ void attention_online_f32(
+        const float * query,
+        const float * key,
+        const float * value,
+        const float * relative_bias,
+        const float * sinks,
+        const float * block_ids,
+        const float * key_bias,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        float scale,
+        float softcap,
+        float max_alibi_bias,
+        unsigned int causal,
+        unsigned int query_start,
+        unsigned int window,
+        unsigned int symmetric_window,
+        unsigned int relative_buckets,
+        unsigned int relative_bidirectional) {
+    attention_online<float>(query, key, value, relative_bias, sinks, block_ids, key_bias, output, key_width, value_width, query_heads, key_value_heads, query_tokens, key_value_tokens, sequences, scale, softcap, max_alibi_bias, causal, query_start, window, symmetric_window, relative_buckets, relative_bidirectional);
+}
+
+extern "C" __global__ void attention_online_bf16_cache_f32(
+        const float * query,
+        const __nv_bfloat16 * key,
+        const __nv_bfloat16 * value,
+        const float * relative_bias,
+        const float * sinks,
+        const float * block_ids,
+        const float * key_bias,
+        float * output,
+        unsigned int key_width,
+        unsigned int value_width,
+        unsigned int query_heads,
+        unsigned int key_value_heads,
+        unsigned int query_tokens,
+        unsigned int key_value_tokens,
+        unsigned int sequences,
+        float scale,
+        float softcap,
+        float max_alibi_bias,
+        unsigned int causal,
+        unsigned int query_start,
+        unsigned int window,
+        unsigned int symmetric_window,
+        unsigned int relative_buckets,
+        unsigned int relative_bidirectional) {
+    attention_online<__nv_bfloat16>(query, key, value, relative_bias, sinks, block_ids, key_bias, output, key_width, value_width, query_heads, key_value_heads, query_tokens, key_value_tokens, sequences, scale, softcap, max_alibi_bias, causal, query_start, window, symmetric_window, relative_buckets, relative_bidirectional);
 }
 
 // attention_online_init_f32: zero the query-chunk output rows and reset
@@ -7243,7 +7409,31 @@ extern "C" __global__ void __launch_bounds__(512, 1) attention_native_bf16_f32(
 #define ATTENTION_FLASH_VALUE_PAD 4u
 
 // attention_flash_stage copies a tile of KEYS cache rows from first into shared rows of STRIDE floats; rows past the
-// keys zero-fill, so a masked key's value multiplies a zero probability by zeros.
+// keys zero-fill, so a masked key's value multiplies a zero probability by zeros. A BF16 cache's rows read eight
+// channels a thread and widen as they land, so its tile is the F32 cache's of the same values; the copy waits on its
+// read where the F32 copy runs beside the product.
+template <unsigned int WIDTH, unsigned int KEYS, unsigned int STRIDE>
+__device__ __forceinline__ void attention_flash_stage(
+        const __nv_bfloat16 * cache, float * tile, unsigned int first, unsigned int keys, size_t token_stride) {
+    const unsigned int copies = KEYS * (WIDTH / 8u);
+    for (unsigned int copy = threadIdx.x; copy < copies; copy += ATTENTION_FLASH_THREADS) {
+        const unsigned int row = copy / (WIDTH / 8u);
+        const unsigned int channel = (copy % (WIDTH / 8u)) * 8u;
+        float4 * destination = reinterpret_cast<float4 *>(tile + row * STRIDE + channel);
+        if (first + row < keys) {
+            const uint4 packed = *reinterpret_cast<const uint4 *>(cache + (size_t) (first + row) * token_stride + channel);
+            const __nv_bfloat162 * pairs = reinterpret_cast<const __nv_bfloat162 *>(&packed);
+            const float2 a = __bfloat1622float2(pairs[0]), b = __bfloat1622float2(pairs[1]);
+            const float2 c = __bfloat1622float2(pairs[2]), d = __bfloat1622float2(pairs[3]);
+            destination[0] = make_float4(a.x, a.y, b.x, b.y);
+            destination[1] = make_float4(c.x, c.y, d.x, d.y);
+        } else {
+            destination[0] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            destination[1] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+    }
+}
+
 template <unsigned int WIDTH, unsigned int KEYS, unsigned int STRIDE>
 __device__ __forceinline__ void attention_flash_stage(
         const float * cache, float * tile, unsigned int first, unsigned int keys, size_t token_stride) {
@@ -7260,11 +7450,11 @@ __device__ __forceinline__ void attention_flash_stage(
     }
 }
 
-template <unsigned int WIDTH, unsigned int KEYS>
+template <unsigned int WIDTH, unsigned int KEYS, typename KV>
 __device__ __forceinline__ void attention_flash(
         const float * query,
-        const float * key,
-        const float * value,
+        const KV * key,
+        const KV * value,
         const float * key_bias,
         float * output,
         unsigned int query_heads,
@@ -7348,8 +7538,8 @@ __device__ __forceinline__ void attention_flash(
     const unsigned int key_begin = causal && window > 0u && first_limit > window ? first_limit - window : 0u;
 
     const size_t token_stride = (size_t) key_value_heads * WIDTH;
-    const float * key_cache = key + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
-    const float * value_cache = value + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+    const KV * key_cache = key + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
+    const KV * value_cache = value + (size_t) sequence * key_capacity_tokens * token_stride + key_value_head * WIDTH;
 
     float weighted[WIDTH / 8u][4];
 #pragma unroll
@@ -7494,8 +7684,9 @@ __device__ __forceinline__ void attention_flash(
 // attention_flash_64_f32, attention_flash_128_f32 and attention_flash_256_f32 take heads of 64, 128 and 256
 // channels; the key tiles narrow as the heads widen, so a block's accumulators and tiles fit two blocks a
 // multiprocessor.
-#define ATTENTION_FLASH_ARGUMENTS \
-        const float * query, const float * key, const float * value, const float * key_bias, float * output, \
+// attention_flash_<width>_bf16_cache_f32 read a BF16 cache.
+#define ATTENTION_FLASH_ARGUMENTS(KV) \
+        const float * query, const KV * key, const KV * value, const float * key_bias, float * output, \
         unsigned int query_heads, unsigned int key_value_heads, unsigned int query_tokens, \
         unsigned int key_value_tokens, unsigned int key_capacity_tokens, float scale, unsigned int query_start, \
         unsigned int causal, unsigned int window, float softcap
@@ -7503,15 +7694,30 @@ __device__ __forceinline__ void attention_flash(
         query, key, value, key_bias, output, query_heads, key_value_heads, query_tokens, key_value_tokens, \
         key_capacity_tokens, scale, query_start, causal, window, softcap
 
-extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_64_f32(ATTENTION_FLASH_ARGUMENTS) {
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_64_f32(ATTENTION_FLASH_ARGUMENTS(float)) {
     attention_flash<64u, 64u>(ATTENTION_FLASH_FORWARD);
 }
 
-extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_128_f32(ATTENTION_FLASH_ARGUMENTS) {
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_128_f32(ATTENTION_FLASH_ARGUMENTS(float)) {
     attention_flash<128u, 32u>(ATTENTION_FLASH_FORWARD);
 }
 
-extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_256_f32(ATTENTION_FLASH_ARGUMENTS) {
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_256_f32(ATTENTION_FLASH_ARGUMENTS(float)) {
+    attention_flash<256u, 16u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_64_bf16_cache_f32(
+        ATTENTION_FLASH_ARGUMENTS(__nv_bfloat16)) {
+    attention_flash<64u, 64u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_128_bf16_cache_f32(
+        ATTENTION_FLASH_ARGUMENTS(__nv_bfloat16)) {
+    attention_flash<128u, 32u>(ATTENTION_FLASH_FORWARD);
+}
+
+extern "C" __global__ void __launch_bounds__(ATTENTION_FLASH_THREADS) attention_flash_256_bf16_cache_f32(
+        ATTENTION_FLASH_ARGUMENTS(__nv_bfloat16)) {
     attention_flash<256u, 16u>(ATTENTION_FLASH_FORWARD);
 }
 extern "C" __global__ void concat_f32(

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -534,7 +535,7 @@ func (r *Runner) retainDecodedPromptCache(
 	})
 }
 
-func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.SessionPolicy) error {
+func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.SessionPolicy, stored dtype.Type) error {
 	if cache == nil || keep == 0 || keep >= cache.Tokens {
 		return errors.New("inference: invalid device prompt cache suffix trim")
 	}
@@ -570,5 +571,5 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.Ses
 	cache.session = nil
 	cache.Logits = nil
 	cache.Candidates = nil
-	return rebuildDeviceCachePages(cache, session)
+	return rebuildDeviceCachePages(cache, session, stored)
 }

@@ -201,13 +201,13 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 		}
 		for layer := range cache.Keys {
 			cache.Keys[layer], err = executor.SplitPackedValue(
-				packedKeys[layer], item.Past.Keys[layer].Shape, dtype.F32, uint64(sequence),
+				packedKeys[layer], item.Past.Keys[layer].Shape, r.cacheType, uint64(sequence),
 			)
 			if err != nil {
 				return fail(fmt.Errorf("inference: split packed key layer %d: %w", layer, err))
 			}
 			cache.Values[layer], err = executor.SplitPackedValue(
-				packedValues[layer], item.Past.Values[layer].Shape, dtype.F32, uint64(sequence),
+				packedValues[layer], item.Past.Values[layer].Shape, r.cacheType, uint64(sequence),
 			)
 			if err != nil {
 				return fail(fmt.Errorf("inference: split packed value layer %d: %w", layer, err))
@@ -229,7 +229,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 				}
 			}
 		}
-		if err = rebuildDeviceCachePages(cache, r.program.Decode.Session); err != nil {
+		if err = rebuildDeviceCachePages(cache, r.program.Decode.Session, r.cacheType); err != nil {
 			return fail(err)
 		}
 		next[sequence] = cache
@@ -262,17 +262,18 @@ func (r *Runner) packDeviceBatchCaches(
 	for _, item := range appends[1:] {
 		hasSelection = hasSelection && item.Past.Selection.Pointer != 0
 	}
-	if packed, ok := packedDeviceBatchView(appends); ok {
+	if packed, ok := packedDeviceBatchView(appends, r.cacheType); ok {
 		return packed, nil, nil
 	}
 	copies := make([]executor.DeviceCopy, 0, len(first.Keys)*2)
 	stateNames := make([][]model.CacheStateName, len(first.Keys))
-	collect := func(selectValue func(*deviceKVCache) executor.DeviceValue) error {
+	// The keys and values pack at the cache's type, the states and selection at F32.
+	collect := func(stored dtype.Type, selectValue func(*deviceKVCache) executor.DeviceValue) error {
 		values := make([]executor.DeviceValue, len(appends))
 		for index, item := range appends {
 			values[index] = selectValue(item.Past)
 		}
-		copySpec, copyErr := executor.PackedCopy(values, dtype.F32)
+		copySpec, copyErr := executor.PackedCopy(values, stored)
 		if copyErr != nil {
 			return copyErr
 		}
@@ -280,17 +281,17 @@ func (r *Runner) packDeviceBatchCaches(
 		return nil
 	}
 	for layer := range first.Keys {
-		if err := collect(func(cache *deviceKVCache) executor.DeviceValue { return cache.Keys[layer] }); err != nil {
+		if err := collect(r.cacheType, func(cache *deviceKVCache) executor.DeviceValue { return cache.Keys[layer] }); err != nil {
 			return nil, nil, fmt.Errorf("inference: pack key layer %d: %w", layer, err)
 		}
-		if err := collect(func(cache *deviceKVCache) executor.DeviceValue { return cache.Values[layer] }); err != nil {
+		if err := collect(r.cacheType, func(cache *deviceKVCache) executor.DeviceValue { return cache.Values[layer] }); err != nil {
 			return nil, nil, fmt.Errorf("inference: pack value layer %d: %w", layer, err)
 		}
 		if layer < len(first.States) {
 			stateNames[layer] = first.States[layer].SortedNames()
 		}
 		for _, name := range stateNames[layer] {
-			if err := collect(func(cache *deviceKVCache) executor.DeviceValue {
+			if err := collect(dtype.F32, func(cache *deviceKVCache) executor.DeviceValue {
 				return cache.States[layer][name].Value
 			}); err != nil {
 				return nil, nil, fmt.Errorf("inference: pack state %q layer %d: %w", name, layer, err)
@@ -298,7 +299,7 @@ func (r *Runner) packDeviceBatchCaches(
 		}
 	}
 	if hasSelection {
-		if err := collect(func(cache *deviceKVCache) executor.DeviceValue { return cache.Selection }); err != nil {
+		if err := collect(dtype.F32, func(cache *deviceKVCache) executor.DeviceValue { return cache.Selection }); err != nil {
 			return nil, nil, fmt.Errorf("inference: pack device selection: %w", err)
 		}
 	}
@@ -331,14 +332,16 @@ func (r *Runner) packDeviceBatchCaches(
 	return packed, owner, nil
 }
 
-func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
+// packedDeviceBatchView is the appends' pasts as one packed cache where they lie side by side, their keys and values
+// stored as stored.
+func packedDeviceBatchView(appends []deviceBatchAppend, stored dtype.Type) (*deviceKVCache, bool) {
 	first := appends[0].Past
 	packed := &deviceKVCache{
 		Keys: make([]executor.DeviceValue, len(first.Keys)), Values: make([]executor.DeviceValue, len(first.Values)),
 		States: make([]deviceLayerStates, len(first.States)), Tokens: first.Tokens,
 		Position: first.Position,
 	}
-	view := func(selectValue func(*deviceKVCache) (executor.DeviceValue, bool)) (executor.DeviceValue, bool) {
+	view := func(storedType dtype.Type, selectValue func(*deviceKVCache) (executor.DeviceValue, bool)) (executor.DeviceValue, bool) {
 		values := make([]executor.DeviceValue, len(appends))
 		for index, item := range appends {
 			var ok bool
@@ -347,11 +350,11 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 				return executor.DeviceValue{}, false
 			}
 		}
-		return executor.PackedView(values, dtype.F32)
+		return executor.PackedView(values, storedType)
 	}
 	for layer := range packed.Keys {
 		var ok bool
-		packed.Keys[layer], ok = view(func(cache *deviceKVCache) (executor.DeviceValue, bool) {
+		packed.Keys[layer], ok = view(stored, func(cache *deviceKVCache) (executor.DeviceValue, bool) {
 			if layer >= len(cache.Keys) {
 				return executor.DeviceValue{}, false
 			}
@@ -360,7 +363,7 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 		if !ok {
 			return nil, false
 		}
-		packed.Values[layer], ok = view(func(cache *deviceKVCache) (executor.DeviceValue, bool) {
+		packed.Values[layer], ok = view(stored, func(cache *deviceKVCache) (executor.DeviceValue, bool) {
 			if layer >= len(cache.Values) {
 				return executor.DeviceValue{}, false
 			}
@@ -373,7 +376,7 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 			continue
 		}
 		for _, name := range first.States[layer].SortedNames() {
-			state, stateOK := view(func(cache *deviceKVCache) (executor.DeviceValue, bool) {
+			state, stateOK := view(dtype.F32, func(cache *deviceKVCache) (executor.DeviceValue, bool) {
 				if layer >= len(cache.States) {
 					return executor.DeviceValue{}, false
 				}
@@ -392,7 +395,7 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 		}
 	}
 	if first.Selection.Pointer != 0 {
-		selection, ok := view(func(cache *deviceKVCache) (executor.DeviceValue, bool) {
+		selection, ok := view(dtype.F32, func(cache *deviceKVCache) (executor.DeviceValue, bool) {
 			return cache.Selection, cache.Selection.Pointer != 0
 		})
 		if !ok {

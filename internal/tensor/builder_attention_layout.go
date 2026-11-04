@@ -367,8 +367,15 @@ func (b *Builder) buildAttention(
 		b.setError(errors.New("attention input is nil"))
 		return nil
 	}
-	if query.Type != key.Type || query.Type != value.Type {
+	// F32 queries read a BF16 cache's keys and values on the decode, tensor-core and online kernels, which widen each as
+	// they read it; the other attention paths read F32 alone.
+	bf16Cache := query.Type == dtype.F32 && key.Type == dtype.BF16 && value.Type == dtype.BF16
+	if (query.Type != key.Type || query.Type != value.Type) && !bf16Cache {
 		b.setError(errors.New("attention input types differ"))
+		return nil
+	}
+	if bf16Cache && (options.naiveF32 || options.memoryEfficientF32 || options.nativeMath) {
+		b.setError(errors.New("attention over a BF16 cache takes the decode, tensor-core or online kernel"))
 		return nil
 	}
 	if options.memoryEfficientF32 && (query.Type != dtype.F32 || options.naiveF32 ||

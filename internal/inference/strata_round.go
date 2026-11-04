@@ -547,7 +547,7 @@ func (r *Runner) endStrataRound(ctx context.Context, round *strataRound, past *d
 			next.States[index] = states.Clone()
 		}
 	}
-	if err := rebuildDeviceCachePages(next, r.program.Decode.Session); err != nil {
+	if err := rebuildDeviceCachePages(next, r.program.Decode.Session, r.cacheType); err != nil {
 		return nil, errors.Join(err, next.Release(context.Background()))
 	}
 	return next, nil

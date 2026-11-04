@@ -20,6 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/strataspec"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -222,6 +223,8 @@ type preparedModel struct {
 	// cellLayers answers, a layer each, whether the runner builds the layer over attention cells (cellLayerSet); nil for
 	// none.
 	cellLayers []bool
+	// cacheType is the type the runner's device cache keeps its keys and values at (cacheTypeOf): F32, or BF16.
+	cacheType dtype.Type
 
 	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
 	grammarVocabularyMu sync.Mutex

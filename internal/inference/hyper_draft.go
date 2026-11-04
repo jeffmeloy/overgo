@@ -295,8 +295,8 @@ func (r *Runner) ensureHyperDraftHistory(ctx context.Context, cells uint32) erro
 	whole, err := buffer.Value(tensor.MustShape(keyElements + valueElements))
 	if err == nil {
 		history := &hyperDraftHistory{buffer: buffer, capacity: capacity}
-		if history.keys, err = deviceCacheStorageView(whole, 0, keyShape); err == nil {
-			history.values, err = deviceCacheStorageView(whole, keyElements, valueShape)
+		if history.keys, err = deviceCacheStorageView(whole, 0, keyShape, dtype.F32); err == nil {
+			history.values, err = deviceCacheStorageView(whole, keyElements, valueShape, dtype.F32)
 		}
 		if err == nil {
 			draft.history, draft.steps, draft.writes = history, map[uint32]*hyperDraftStep{}, map[uint32]*hyperDraftStep{}

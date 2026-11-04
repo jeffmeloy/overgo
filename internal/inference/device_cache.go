@@ -288,7 +288,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 				&cache.Keys[layerIndex],
 				&cache.Values[layerIndex],
 			} {
-				if err := shiftDeviceTokenState(value, cache.Tokens, discard); err != nil {
+				if err := shiftDeviceTokenState(value, cache.Tokens, discard, r.cacheType); err != nil {
 					return fmt.Errorf("inference: layer %d device cache: %w", layerIndex, err)
 				}
 			}
@@ -298,7 +298,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 				if !state.Mode.TokenAligned() {
 					continue
 				}
-				if err := shiftDeviceTokenState(&state.Value, cache.Tokens, discard); err != nil {
+				if err := shiftDeviceTokenState(&state.Value, cache.Tokens, discard, dtype.F32); err != nil {
 					return fmt.Errorf("inference: layer %d state %q: %w", layerIndex, name, err)
 				}
 				cache.States[layerIndex][name] = state
@@ -307,16 +307,17 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	}
 	cache.Tokens = uint32(remaining)
 	cache.session = nil
-	return rebuildDeviceCachePages(cache, r.program.Decode.Session)
+	return rebuildDeviceCachePages(cache, r.program.Decode.Session, r.cacheType)
 }
 
 func shiftDeviceTokenState(
 	value *executor.DeviceValue,
 	tokens uint32,
 	discard uint64,
+	stored dtype.Type,
 ) error {
 	view, err := value.SliceLastAxisExactExtent(
-		dtype.F32, discard, uint64(tokens)-discard, uint64(tokens),
+		stored, discard, uint64(tokens)-discard, uint64(tokens),
 	)
 	if err != nil {
 		return fmt.Errorf("shifted device cache: %w", err)
@@ -379,10 +380,10 @@ func (r *Runner) compactDeviceCacheForAppend(
 			{"key", cache.Keys[layerIndex]},
 			{"value", cache.Values[layerIndex]},
 		} {
-			copySpec, copyErr := item.value.Copy(dtype.F32)
+			copySpec, copyErr := item.value.Copy(r.cacheType)
 			if !recurrent {
 				copySpec, copyErr = item.value.CopyWithoutLastAxisRange(
-					dtype.F32, uint64(keep), uint64(discard), uint64(cache.Tokens),
+					r.cacheType, uint64(keep), uint64(discard), uint64(cache.Tokens),
 				)
 			}
 			if copyErr != nil {
@@ -443,7 +444,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 			Mode: target.mode, Value: values[stateOffset+index],
 		}
 	}
-	if err := rebuildDeviceCachePages(next, r.program.Decode.Session); err != nil {
+	if err := rebuildDeviceCachePages(next, r.program.Decode.Session, r.cacheType); err != nil {
 		_ = next.Release(context.Background())
 		return nil, err
 	}
@@ -1288,7 +1289,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 		if cache.checkpoints, checkpointErr = collectSpanCheckpoints(retained, graph); checkpointErr != nil {
 			return fail(checkpointErr)
 		}
-		if pageErr := rebuildDeviceCachePages(cache, r.program.Decode.Session); pageErr != nil {
+		if pageErr := rebuildDeviceCachePages(cache, r.program.Decode.Session, r.cacheType); pageErr != nil {
 			return fail(pageErr)
 		}
 		next[index] = cache
@@ -1429,7 +1430,8 @@ func (r *Runner) prepareDeviceCacheTargets(
 				if err != nil {
 					return fail(err)
 				}
-				bytes, err := shape.Bytes(dtype.F32)
+				// A BF16 cache keeps no state beside its keys and values (cacheTypeOf), so its every element is BF16.
+				bytes, err := shape.Bytes(r.cacheType)
 				if err != nil {
 					return fail(err)
 				}
@@ -1437,20 +1439,20 @@ func (r *Runner) prepareDeviceCacheTargets(
 				if err != nil {
 					return fail(err)
 				}
-				group, err = storage.buffer.Value(shape)
+				group, err = storage.buffer.ValueAs(shape, r.cacheType)
 				if err != nil {
 					return fail(err)
 				}
 			}
 		}
 		storages[branch] = storage
-		bind := func(target deviceCacheTargetValue, stored *executor.DeviceValue) error {
+		bind := func(target deviceCacheTargetValue, stored *executor.DeviceValue, storedType dtype.Type) error {
 			if !target.enabled {
 				return nil
 			}
 			if group.Pointer != 0 {
 				var err error
-				*stored, err = deviceCacheStorageView(group, target.offset, target.capacity)
+				*stored, err = deviceCacheStorageView(group, target.offset, target.capacity, storedType)
 				if err != nil {
 					return err
 				}
@@ -1460,10 +1462,10 @@ func (r *Runner) prepareDeviceCacheTargets(
 			return targets.SetSlot(target.slot, active)
 		}
 		for layer, target := range plans[branch].layers {
-			if err := bind(target.key, &storage.keys[layer]); err != nil {
+			if err := bind(target.key, &storage.keys[layer], r.cacheType); err != nil {
 				return fail(err)
 			}
-			if err := bind(target.value, &storage.values[layer]); err != nil {
+			if err := bind(target.value, &storage.values[layer], r.cacheType); err != nil {
 				return fail(err)
 			}
 			if len(target.states) != 0 && storage.states[layer] == nil {
@@ -1472,7 +1474,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 			for name, value := range target.states {
 				state := storage.states[layer][name]
 				state.Mode = model.CacheStateToken
-				if err := bind(value, &state.Value); err != nil {
+				if err := bind(value, &state.Value, dtype.F32); err != nil {
 					return fail(err)
 				}
 				storage.states[layer][name] = state
@@ -1492,21 +1494,22 @@ func (r *Runner) prepareDeviceCacheTargets(
 	return targets, storages, nil
 }
 
-func deviceCacheStorageView(group executor.DeviceValue, offset uint64, shape tensor.Shape) (executor.DeviceValue, error) {
+func deviceCacheStorageView(group executor.DeviceValue, offset uint64, shape tensor.Shape, stored dtype.Type) (executor.DeviceValue, error) {
 	elements, err := shape.Elements()
 	if err != nil {
 		return executor.DeviceValue{}, err
 	}
-	view, err := group.SliceLastAxis(dtype.F32, offset, elements)
+	view, err := group.SliceLastAxis(stored, offset, elements)
 	if err != nil {
 		return executor.DeviceValue{}, err
 	}
 	view.Shape = shape
-	view.CapacityBytes, err = shape.Bytes(dtype.F32)
+	view.CapacityBytes, err = shape.Bytes(stored)
 	return view, err
 }
 
-func deviceCacheStorageFits(storage *deviceCacheStorage, plan deviceCacheTargetPlan) bool {
+// deviceCacheStorageFits reports whether storage holds plan's targets, its keys and values stored as stored.
+func deviceCacheStorageFits(storage *deviceCacheStorage, plan deviceCacheTargetPlan, stored dtype.Type) bool {
 	if storage == nil || len(storage.keys) != len(plan.layers) || len(storage.values) != len(plan.layers) {
 		return false
 	}
@@ -1516,19 +1519,19 @@ func deviceCacheStorageFits(storage *deviceCacheStorage, plan deviceCacheTargetP
 	if plan.cellCapacity != 0 && (storage.cells == nil || storage.cells.capacity != plan.cellCapacity) {
 		return false
 	}
-	fits := func(target deviceCacheTargetValue, value executor.DeviceValue) bool {
+	fits := func(target deviceCacheTargetValue, value executor.DeviceValue, stored dtype.Type) bool {
 		if !target.enabled {
 			return true
 		}
-		bytes, err := target.capacity.Bytes(dtype.F32)
+		bytes, err := target.capacity.Bytes(stored)
 		return err == nil && value.Pointer != 0 && bytes <= value.CapacityBytes
 	}
 	for layer, target := range plan.layers {
-		if !fits(target.key, storage.keys[layer]) || !fits(target.value, storage.values[layer]) {
+		if !fits(target.key, storage.keys[layer], stored) || !fits(target.value, storage.values[layer], stored) {
 			return false
 		}
 		for name, value := range target.states {
-			if layer >= len(storage.states) || !fits(value, storage.states[layer][name].Value) {
+			if layer >= len(storage.states) || !fits(value, storage.states[layer][name].Value, dtype.F32) {
 				return false
 			}
 		}
@@ -1845,6 +1848,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		current, streams = result.Output, result.Streams
 		current = addDeepstackRows(builder, prefix+fmt.Sprintf("blk.%d.deepstack_output", layerIndex), current, plan.DeepstackAfter, projected.DeepstackEmbeddings, hostFeeds)
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
+		// A prompt without a past writes its F32 keys and values to a BF16 cache as BF16; an append writes them so itself.
+		if r.cacheType == dtype.BF16 && result.Key != nil && result.Key.Type == dtype.F32 {
+			keys[layerIndex], values[layerIndex] = builder.StoreCache(result.Key, r.cacheType), builder.StoreCache(result.Value, r.cacheType)
+		}
 		states[layerIndex] = result.States
 		layerCheckpoints[layerIndex] = result.Checkpoints
 		if window {
@@ -1938,7 +1945,12 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
 	}
 	inputDevice := func(suffix string, value executor.DeviceValue) *tensor.Tensor {
-		input := builder.Input(name(suffix), dtype.F32, value.Shape)
+		// The keys and values are read at the cache's type, its states at F32.
+		stored := dtype.F32
+		if suffix == cacheKeyInputName || suffix == cacheValueInputName {
+			stored = r.cacheType
+		}
+		input := builder.Input(name(suffix), stored, value.Shape)
 		deviceFeeds.Add(input, value.Pointer)
 		return input
 	}
@@ -1981,9 +1993,11 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	return bindLayerGraphCacheInputs(schema, source, inputDevice, inputZero), nil
 }
 
+// rebuildDeviceCachePages cuts the cache's keys and values, stored as stored, into the session's pages.
 func rebuildDeviceCachePages(
 	cache *deviceKVCache,
 	session recipe.SessionPolicy,
+	stored dtype.Type,
 ) error {
 	if cache == nil {
 		return errors.New("inference: device cache is nil")
@@ -2015,13 +2029,13 @@ func rebuildDeviceCachePages(
 		for layer := range cache.Keys {
 			var err error
 			page.Keys[layer], err = cache.Keys[layer].SliceLastAxisIfExtent(
-				dtype.F32, uint64(start), uint64(count), uint64(cache.Tokens),
+				stored, uint64(start), uint64(count), uint64(cache.Tokens),
 			)
 			if err != nil {
 				return fmt.Errorf("inference: device cache key layer %d page: %w", layer, err)
 			}
 			page.Values[layer], err = cache.Values[layer].SliceLastAxisIfExtent(
-				dtype.F32, uint64(start), uint64(count), uint64(cache.Tokens),
+				stored, uint64(start), uint64(count), uint64(cache.Tokens),
 			)
 			if err != nil {
 				return fmt.Errorf("inference: device cache value layer %d page: %w", layer, err)
@@ -2061,7 +2075,15 @@ func (r *Runner) downloadDeviceCache(ctx context.Context, cache *deviceKVCache) 
 			reads = append(reads, layerStates[name].Value)
 		}
 	}
-	data, err := r.cuda.ReadDeviceValues(ctx, reads)
+	// The keys and values read at the cache's type, the states at F32.
+	stored := make([]dtype.Type, len(reads))
+	for index := range stored {
+		stored[index] = dtype.F32
+		if index < primaries {
+			stored[index] = r.cacheType
+		}
+	}
+	data, err := r.cuda.ReadDeviceValuesAs(ctx, reads, stored)
 	if err != nil {
 		return nil, err
 	}
@@ -2107,21 +2129,22 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 	storage := &deviceCacheStorage{
 		refs: 1, keys: make([]executor.DeviceValue, layers), values: make([]executor.DeviceValue, layers), states: make([]deviceLayerStates, layers),
 	}
-	// placement holds one host tensor, its allocated shape and offset, and where its views go.
+	// placement holds one host tensor, its allocated shape, offset and stored type, and where its views go.
 	type placement struct {
 		value     reference.Value
 		allocated tensor.Shape
 		offset    uint64
+		stored    dtype.Type
 		assign    func(active, allocated executor.DeviceValue)
 	}
 	var placements []placement
 	var elements uint64
-	place := func(value reference.Value, allocated tensor.Shape, assign func(active, allocated executor.DeviceValue)) error {
+	place := func(value reference.Value, allocated tensor.Shape, stored dtype.Type, assign func(active, allocated executor.DeviceValue)) error {
 		count, err := allocated.Elements()
 		if err != nil {
 			return err
 		}
-		placements = append(placements, placement{value: value, allocated: allocated, offset: elements, assign: assign})
+		placements = append(placements, placement{value: value, allocated: allocated, offset: elements, stored: stored, assign: assign})
 		var fits bool
 		if elements, fits = checked.Add64(elements, count); !fits {
 			return errors.New("inference: uploaded cache extent overflows")
@@ -2148,7 +2171,7 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 			if target {
 				allocated, _ = tensor.WithTrailingExtent(allocated, capacity)
 			}
-			if err := place(primary.value, allocated, func(active, allocated executor.DeviceValue) {
+			if err := place(primary.value, allocated, r.cacheType, func(active, allocated executor.DeviceValue) {
 				*primary.active = active
 				if target {
 					*primary.stored = allocated
@@ -2171,7 +2194,7 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 				}
 				allocated, _ = tensor.WithTrailingExtent(allocated, capacity)
 			}
-			if err := place(state.Value, allocated, func(active, allocated executor.DeviceValue) {
+			if err := place(state.Value, allocated, dtype.F32, func(active, allocated executor.DeviceValue) {
 				cache.States[layer][name] = deviceLayerState{Mode: state.Mode, Value: active}
 				if state.Mode.TokenAligned() {
 					storage.states[layer][name] = deviceLayerState{Mode: state.Mode, Value: allocated}
@@ -2188,7 +2211,8 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := shape.Bytes(dtype.F32)
+	// A BF16 cache keeps no state beside its keys and values (cacheTypeOf), so its every element is BF16.
+	bytes, err := shape.Bytes(r.cacheType)
 	if err != nil {
 		return nil, err
 	}
@@ -2196,20 +2220,21 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 		return nil, err
 	}
 	cache.storage = storage
-	group, err := storage.buffer.Value(shape)
+	group, err := storage.buffer.ValueAs(shape, r.cacheType)
 	writes := make([]executor.DeviceValue, len(placements))
 	data := make([][]float32, len(placements))
+	stored := make([]dtype.Type, len(placements))
 	for index := 0; err == nil && index < len(placements); index++ {
 		item := placements[index]
 		var allocated executor.DeviceValue
-		if allocated, err = deviceCacheStorageView(group, item.offset, item.allocated); err == nil {
-			writes[index], data[index] = allocated, item.value.Data
+		if allocated, err = deviceCacheStorageView(group, item.offset, item.allocated, item.stored); err == nil {
+			writes[index], data[index], stored[index] = allocated, item.value.Data, item.stored
 			writes[index].Shape = item.value.Shape
 			item.assign(writes[index], allocated)
 		}
 	}
 	if err == nil {
-		err = r.cuda.WriteDeviceValues(ctx, writes, data)
+		err = r.cuda.WriteDeviceValuesAs(ctx, writes, data, stored)
 	}
 	if err != nil {
 		return nil, errors.Join(err, cache.Release(context.Background()))
@@ -2219,7 +2244,7 @@ func (r *Runner) uploadDeviceCache(ctx context.Context, host *KVCache) (*deviceK
 			cache.Keys[layer], cache.Values[layer] = cache.Keys[plan.KVSource], cache.Values[plan.KVSource]
 		}
 	}
-	if err := rebuildDeviceCachePages(cache, r.program.Decode.Session); err != nil {
+	if err := rebuildDeviceCachePages(cache, r.program.Decode.Session, r.cacheType); err != nil {
 		return nil, errors.Join(err, cache.Release(context.Background()))
 	}
 	return cache, nil

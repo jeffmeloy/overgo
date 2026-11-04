@@ -149,16 +149,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 400,
+        "nodes": 8,
         "reason": "Estimate, unmeasured. model-process changes how cmd/validate launches cells; hash-once passes digests between phases; answer-score splits one identity."
       },
       "steps": [
         {
-          "id": "run-wall",
-          "title": "Reduce the longer test runs inside a full measurement run",
+          "id": "past-adoptions",
+          "title": "Move what only guards a past adoption out of the lanes, read from their package walls",
           "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTheRunRecordHoldsEachPackagesWallAndPeak$'",
-          "rationale": "Measure first. The 2026-10-31 run spent 5h30m of 9h05m in the longer test runs and 3h08m measuring. cmd/validate/lane_walls.go:21-44 keeps walls of a minute or more in process state, and they never reach the run record. Record each package's wall there, with its peak working set: internal/processcontrol/supervisor_windows.go:108-109 declares PeakProcessMemoryUsed, unread, and that finds the package recorded at 49 GiB. internal/testprocess/measure.go sees only the direct child, and go test's binary is a grandchild, so the job counter is the right owner.\nMove what only guards a past adoption behind pairtest, as earlier cost four tests 237 minutes. SQA-266 asks the same.\nBesides the pairtest move: the models lane builds with -tags modeltest,integration, so the untagged tests a commit's test stage already ran get no cache hit (internal/landing/lanes.go:134-136,208-214, unverified); internal/inference, routedlm, latentimage, mosstrain and cmd/train run in both the cuda and the models lane (lanes.go:199-214, unverified); the audio lane runs -count=1 and is never cached (internal/landing/lanes.go:126); lanes run one after another (cmd/validate/run.go:236-239, unverified). After it lands, one full measurement run reads the pairtest move's effect.\nPredicted: under 2 hours for that phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work.\nEvidence: phase walls across two runs.\nBatch: validate lane."
+          "verify": "go test ./internal/landing -count=1 -run '^TestNoTestRunsInTwoCycleLanes$'",
+          "rationale": "run-wall puts each lane package's wall and peak in the run record, which the next full run fills. From it, move what only guards a past adoption behind pairtest, as earlier moves cost four tests 237 minutes (SQA-266). Remove the overlaps the review found:\n- The models lane builds with -tags modeltest,integration, so the untagged tests a commit's test stage already ran get no cache hit (internal/landing/lanes.go:134-136,208-214, unverified).\n- internal/inference, routedlm, latentimage, mosstrain and cmd/train run in both the cuda and the models lane (lanes.go:199-214, unverified).\n- The audio lane runs -count=1 and is never cached (lanes.go:126).\n- Lanes run one after another (cmd/validate/run.go:236-239, unverified).\nThe package that raised a lane's peak is the one whose recorded peak exceeds the one before; the 49 GiB package the review saw is read from it.\nPredicted: under 2 hours for the lanes phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work in the lanes phase.\nEvidence: the lanes phase's wall across two runs, and its packages' walls.\nBatch: validate lane, after the next full run."
         },
         {
           "id": "model-process",

@@ -481,6 +481,7 @@ func acquire(ctx context.Context, output io.Writer, root, name string, args []st
 		}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
 			fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
 			ended = append(ended, done.Package)
+			watch.ran(done)
 			// A failed lane runs no cell: once a test has failed, a long package still queued is not waited for.
 			if !stopped && len(watch.failed()) > 0 && slices.ContainsFunc(queued(packages, ended), watch.long) {
 				stopped = true

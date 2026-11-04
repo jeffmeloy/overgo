@@ -247,6 +247,18 @@ func (t processTree) terminate() error {
 	return nil
 }
 
+// peakProcessBytes is the most memory any one process of the job has committed; zero when the job cannot be read.
+func (t processTree) peakProcessBytes() uint64 {
+	limits := jobExtendedLimits{}
+	if t.job == 0 {
+		return 0
+	}
+	if ok, _, _ := procQueryInformationJob.Call(t.job, uintptr(jobObjectExtendedLimitClass), uintptr(unsafe.Pointer(&limits)), unsafe.Sizeof(limits), 0); ok == 0 {
+		return 0
+	}
+	return uint64(limits.PeakProcessMemoryUsed)
+}
+
 func (t processTree) close() error {
 	if t.job == 0 {
 		return nil

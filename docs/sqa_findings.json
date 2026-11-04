@@ -460,7 +460,7 @@
       },
       "likely_effort": "Small launch/owner reuse first; broader credit redesign is unpriced.",
       "plan_references": [
-        "run-once/run-wall"
+        "run-once/past-adoptions"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: time-and-memory/run-wall. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -7374,6 +7374,17 @@
         "plan_steps": [
           "chosen-models/named-set"
         ]
+      },
+      {
+        "comment": "Landed with run-once/run-wall. processcontrol.Supervised reports its job's peak process memory (Windows' PeakProcessMemoryUsed, read live and frozen at exit, Receipt.PeakProcessBytes); testevidence starts a lane through Start and puts that peak on each package's terminal event; validate writes each package's wall and peak into the run record's running phase (plan.RecordPackage, sharing recordRunning with RecordFailure). TestTheRunRecordHoldsEachPackagesWallAndPeak holds a two-package lane's record, the package that commits 256 MiB raising the peak. The finding's move of past-adoption guards is run-once/past-adoptions.",
+        "disposition": "implemented",
+        "evidence": [
+          "cmd/validate TestTheRunRecordHoldsEachPackagesWallAndPeak"
+        ],
+        "finding_id": "SQA-266",
+        "plan_steps": [
+          "run-once/run-wall"
+        ]
       }
     ],
     "experiments": {
@@ -7413,7 +7424,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "09c50dc5016fa1c1b25e213c1512029d561f3381",
+    "head": "56eb72895ec83e59b0a2d2fdb81ffa4fc0f06e3f",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7655,9 +7666,9 @@
       "SQA-266": {
         "action": "existing-row",
         "rows": [
-          "run-once/run-wall"
+          "run-once/past-adoptions"
         ],
-        "note": "time-and-memory/run-wall moved, unchanged but for the review's added overlaps, to run-once/run-wall, the first step of the review's row (2026-11-03) that does each piece of a full run's setup once."
+        "note": "run-once/run-wall landed the measurement: each lane package's wall and the lane's peak process memory by its end go into the run record's running phase. The move of what guards only a past adoption, which this finding asks for, is run-once/past-adoptions, read from the next full run's package walls."
       },
       "SQA-232": {
         "action": "implemented",

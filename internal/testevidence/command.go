@@ -29,11 +29,15 @@ type GoTestOptions struct {
 }
 
 // PackageProgress is one package's terminal event: the action go test
-// reported (pass, fail or skip) and the elapsed time it measured.
+// reported (pass, fail or skip), the elapsed time it measured, and the most
+// memory any one process of the command had committed by then. With -p=1 the
+// packages run one at a time, so a package whose peak exceeds the one before
+// raised it.
 type PackageProgress struct {
-	Package string
-	Action  string
-	Elapsed time.Duration
+	Package   string
+	Action    string
+	Elapsed   time.Duration
+	PeakBytes uint64
 }
 
 // TestProgress is a top-level test's lifecycle event: run when it starts, and the action that ended it (pass, fail
@@ -110,16 +114,27 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	command.Stdout, command.Stderr = writer, writer
+	supervised, err := processcontrol.Start(ctx, command)
+	if err != nil {
+		return GoTestReport{}, err
+	}
 	finished := make(chan error, 1)
 	go func() {
-		receipt, err := processcontrol.Run(ctx, command)
+		receipt, err := supervised.Wait(ctx)
 		if receipt.ExitCode != 0 {
 			err = errors.Join(err, fmt.Errorf("test process exited with status %d", receipt.ExitCode))
 		}
 		writer.Close()
 		finished <- err
 	}()
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, testProgressObserver(options.Tests, options.DiagnosticBytes, deadline.observe)))
+	progress := options.Progress
+	if progress != nil {
+		progress = func(done PackageProgress) {
+			done.PeakBytes = supervised.PeakProcessBytes()
+			options.Progress(done)
+		}
+	}
+	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(progress, testProgressObserver(options.Tests, options.DiagnosticBytes, deadline.observe)))
 	if parseErr != nil {
 		cancel(parseErr)
 	}

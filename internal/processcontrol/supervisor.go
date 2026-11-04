@@ -33,14 +33,16 @@ type Command struct {
 
 // Receipt is the terminal evidence of one supervised execution: how it
 // ended, whether the tree had to be terminated, how much output each
-// pipe drained, and the measured wall time.
+// pipe drained, the measured wall time, and the most memory any one process
+// of the tree committed, zero where the operating system does not say.
 type Receipt struct {
-	ExitCode       int
-	Interrupted    bool
-	TreeTerminated bool
-	StdoutBytes    int64
-	StderrBytes    int64
-	WallNS         int64
+	ExitCode         int
+	Interrupted      bool
+	TreeTerminated   bool
+	StdoutBytes      int64
+	StderrBytes      int64
+	WallNS           int64
+	PeakProcessBytes uint64
 }
 
 // Supervised is one running process tree under supervision.
@@ -63,6 +65,8 @@ type Supervised struct {
 	finished   bool
 	receipt    Receipt
 	receiptErr error
+	// peak is the tree's peak process memory, read as it ended, before its job closed.
+	peak uint64
 }
 
 // Start launches the command under tree containment and begins
@@ -189,15 +193,17 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	if s.finished {
 		return s.receipt, s.receiptErr
 	}
+	s.peak = s.tree.peakProcessBytes()
 	_ = s.tree.close()
 	s.finished = true
 	wall, wallErr := s.clock.Elapsed()
 	s.receipt = Receipt{
-		ExitCode:       s.command.ProcessState.ExitCode(),
-		TreeTerminated: s.terminated,
-		StdoutBytes:    s.stdoutBytes,
-		StderrBytes:    s.stderrBytes,
-		WallNS:         int64(wall),
+		ExitCode:         s.command.ProcessState.ExitCode(),
+		TreeTerminated:   s.terminated,
+		StdoutBytes:      s.stdoutBytes,
+		StderrBytes:      s.stderrBytes,
+		WallNS:           int64(wall),
+		PeakProcessBytes: s.peak,
 	}
 	if wallErr != nil {
 		s.receiptErr = fmt.Errorf("processcontrol: wall: %w", wallErr)
@@ -209,6 +215,17 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		s.receiptErr = errors.Join(s.receiptErr, fmt.Errorf("processcontrol: cancellation terminated the tree: %w", ctx.Err()))
 	}
 	return s.receipt, s.receiptErr
+}
+
+// PeakProcessBytes is the most memory any one process of the tree has committed so far, or, once the tree has ended,
+// at most: a reader of a long run learns which part of it raised the peak as the part ends.
+func (s *Supervised) PeakProcessBytes() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finished {
+		return s.peak
+	}
+	return s.tree.peakProcessBytes()
 }
 
 // Done closes when the process tree and its pipes reach a terminal state.

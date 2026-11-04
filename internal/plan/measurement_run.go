@@ -47,6 +47,23 @@ type MeasurementPhase struct {
 	Passed   bool      `json:"passed,omitzero"`
 	Credited bool      `json:"credited,omitzero"`
 	Failed   []string  `json:"failed,omitempty"`
+	// Packages is each test package a lane of the phase ran, as its process records it the moment the package ends
+	// (RecordPackage): on 2026-10-31 the lanes took 5h30m of the run's 9h05m, and the walls of a minute or more were
+	// kept only in the lane's own process state.
+	Packages []PackageRun `json:"packages,omitempty"`
+}
+
+// PackageRun is one test package of a lane: its wall as go test measured it, and the most memory any one process of
+// the lane had committed by its end, which a package raised when it exceeds the one before.
+type PackageRun struct {
+	Package   string        `json:"package"`
+	Wall      time.Duration `json:"wall_ns"`
+	PeakBytes uint64        `json:"peak_bytes,omitzero"`
+}
+
+// RecordPackage adds a package a lane ran to the phase of the run recorded at path that is running.
+func RecordPackage(path string, ran PackageRun) error {
+	return recordRunning(path, func(phase *MeasurementPhase) { phase.Packages = append(phase.Packages, ran) })
 }
 
 // runRecordMode is the run record's file mode: local process state.
@@ -63,6 +80,12 @@ func MeasurementRunPath(root string) string {
 // RecordFailure adds failed to the phase of the run recorded at path that is running; a record with no phase
 // running is left as it is.
 func RecordFailure(path, failed string) error {
+	return recordRunning(path, func(phase *MeasurementPhase) { phase.Failed = append(phase.Failed, failed) })
+}
+
+// recordRunning changes the phase of the run recorded at path that is running, and keeps the record; a record with
+// no phase running is left as it is.
+func recordRunning(path string, change func(*MeasurementPhase)) error {
 	var run MeasurementRun
 	if err := jsonfile.Decode(path, &run); err != nil {
 		return err
@@ -71,7 +94,7 @@ func RecordFailure(path, failed string) error {
 	if at < 0 {
 		return nil
 	}
-	run.Phases[at].Failed = append(run.Phases[at].Failed, failed)
+	change(&run.Phases[at])
 	return jsonfile.Write(path, run, runRecordMode)
 }
 

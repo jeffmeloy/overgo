@@ -152,6 +152,17 @@ func (w *laneWatch) observe(progress testevidence.TestProgress) {
 	}
 }
 
+// ran adds a package the lane ran, its wall and the lane's peak process memory by its end, to the run record where a
+// measurement run gives one.
+func (w *laneWatch) ran(done testevidence.PackageProgress) {
+	if w.record == "" {
+		return
+	}
+	if err := plan.RecordPackage(w.record, plan.PackageRun{Package: done.Package, Wall: done.Elapsed, PeakBytes: done.PeakBytes}); err != nil {
+		fmt.Fprintf(w.output, "validate -run: the run record %s does not name %s: %v\n", w.record, done.Package, err)
+	}
+}
+
 // close stops the reports of tests still running and keeps the walls recorded; a wall that cannot be kept changes
 // no verdict.
 func (w *laneWatch) close() {

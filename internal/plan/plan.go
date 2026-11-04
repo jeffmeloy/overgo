@@ -254,7 +254,7 @@ func Validate(d Plan) error {
 // is neither standing, the campaign's, nor a row's with the ids of its rows,
 // each once. Its text is one paragraph, since a second one after a blank line
 // would be governed by the first one's name. A row it names may have left the
-// plan: only the close-out refuses a paragraph for what is closed.
+// plan: the paragraph leaves with the last of its rows (Advance).
 func validateDoctrine(d Plan) error {
 	if d.DoctrineBefore != "" && len(d.Doctrine) != 0 {
 		return errors.New("plan: the doctrine is stored both as one string and as paragraphs; keep the paragraphs")
@@ -278,15 +278,13 @@ func validateDoctrine(d Plan) error {
 }
 
 // outlivedDoctrine refuses a close-out that would leave a paragraph governing
-// what is closed: the campaign, or rows none of which the plan still holds.
-// Nothing removes a paragraph but a person, who drops it or stores it as
-// standing.
+// the campaign it closes: one that drops it, or stores it as standing, decides.
+// A paragraph governing rows has left with the last of them (Advance).
 func outlivedDoctrine(d Plan) error {
 	for index, paragraph := range d.Doctrine {
-		held := slices.ContainsFunc(d.Items, func(item Item) bool { return slices.Contains(paragraph.Rows, item.ID) })
-		if paragraph.Governs == governsCampaign || paragraph.Governs == governsRow && !held {
-			return fmt.Errorf("plan: the close-out would leave doctrine paragraph %d governing what is closed, %s %q; remove it or store it as %s first",
-				index+1, paragraph.Governs, paragraph.Rows, governsStanding)
+		if paragraph.Governs == governsCampaign {
+			return fmt.Errorf("plan: the close-out would leave doctrine paragraph %d governing the campaign it closes; remove it or store it as %s first",
+				index+1, governsStanding)
 		}
 	}
 	return nil
@@ -498,8 +496,9 @@ func normalizedRole(role string) string {
 // Advance completes one step by REMOVING it: the plan holds only
 // future, blocked, and in-progress work, and completion history lives
 // in Git through the gate's structured trailers, not as retained rows.
-// An item whose last step completes leaves the plan with it, and the
-// close-out row leaves only when no doctrine paragraph governs what it closes.
+// An item whose last step completes leaves the plan with it, a paragraph
+// governing rows leaves with the last of them, and the close-out row leaves
+// only when no doctrine paragraph governs what it closes.
 // A row a decision holds cannot leave: the landing reads no dispatch.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
 	if decision, held := holdingDecision(d, itemID); held {
@@ -509,6 +508,10 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	// A paragraph governing rows leaves with the last of them: every session reads the paragraphs.
+	advanced.Doctrine = slices.DeleteFunc(slices.Clone(advanced.Doctrine), func(paragraph Paragraph) bool {
+		return paragraph.Governs == governsRow && !slices.ContainsFunc(advanced.Items, func(item Item) bool { return slices.Contains(paragraph.Rows, item.ID) })
+	})
 	if _, open := exactPlanItem(advanced, itemID); itemID == closeoutItem && !open {
 		if err := outlivedDoctrine(advanced); err != nil {
 			return Plan{}, err

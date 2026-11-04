@@ -7687,6 +7687,17 @@
         "plan_steps": [
           "one-doctrine/session-contract"
         ]
+      },
+      {
+        "comment": "one-doctrine/row-paragraphs changes plan.Advance's paragraphs and the close-out check in internal/plan/plan.go, not the landed-row identity this finding concerns, which landing-identity/whole-trailer implemented in internal/landing.",
+        "disposition": "context",
+        "evidence": [
+          "internal/plan TestARowParagraphLeavesWithItsLastRow"
+        ],
+        "finding_id": "SQA-300",
+        "plan_steps": [
+          "one-doctrine/row-paragraphs"
+        ]
       }
     ],
     "experiments": {
@@ -7728,7 +7739,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "a4d3e530841316583be88bb7277a9aa203bea4c3",
+    "head": "712ee25ac4f32b88305fc5e3459bfcd6c4977aac",
     "findings": {
       "SQA-004": {
         "action": "none",

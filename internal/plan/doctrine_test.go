@@ -27,10 +27,9 @@ func standingDoctrine(document Plan) Plan {
 // paragraphs that each say what they govern: the campaign, the rows named, or,
 // standing, nothing that ends. The plan's own validation refuses a paragraph
 // that names nothing, by its number, and refuses none for a row that has left:
-// a row's landing changes no paragraph. Only the close-out refuses, when its
-// last step would leave a paragraph that governs the campaign, or rows none of
-// which the plan still holds, and it passes once a person has removed the
-// paragraph or stored it as standing. The doctrine as one string, which an
+// a row's landing takes the paragraphs no row left in the plan holds. The
+// close-out refuses when its last step would leave a paragraph that governs the
+// campaign, and passes once it is removed or stored as standing. The doctrine as one string, which an
 // earlier commit and a lane's plan hold, is still read and is never saved; it
 // converts to standing paragraphs word for word, and the checkout's own plan
 // is already converted.
@@ -91,7 +90,7 @@ func TestDoctrineParagraphsNameWhatTheyGovern(t *testing.T) {
 		}
 	})
 
-	t.Run("a row that lands changes no paragraph", func(t *testing.T) {
+	t.Run("a row that lands takes only the paragraph no other row holds", func(t *testing.T) {
 		document := Plan{Campaign: "fixture", Items: []Item{item("first", "do"), item("second", "do")}, Doctrine: []Paragraph{
 			governing(governsStanding), governing(governsCampaign), governing(governsRow, "first"), governing(governsRow, "first", "second"),
 		}}
@@ -99,15 +98,15 @@ func TestDoctrineParagraphsNameWhatTheyGovern(t *testing.T) {
 		if err != nil {
 			t.Fatalf("landing a row's last step while paragraphs govern it and the campaign is refused: %v", err)
 		}
-		if len(advanced.Items) != 1 || !reflect.DeepEqual(advanced.Doctrine, document.Doctrine) {
-			t.Fatalf("landing the first row's last step left %d rows and the doctrine %+v, want one row and every paragraph as it was", len(advanced.Items), advanced.Doctrine)
+		if want := []Paragraph{document.Doctrine[0], document.Doctrine[1], document.Doctrine[3]}; len(advanced.Items) != 1 || !reflect.DeepEqual(advanced.Doctrine, want) {
+			t.Fatalf("landing the first row's last step left %d rows and the doctrine %+v, want one row and every paragraph but the first row's own", len(advanced.Items), advanced.Doctrine)
 		}
 		if len(document.Items) != 2 || len(document.Doctrine) != 4 {
 			t.Fatal("the advance changed the caller's plan")
 		}
 	})
 
-	t.Run("the close-out refuses a paragraph whose campaign or rows are closed", func(t *testing.T) {
+	t.Run("the close-out refuses a paragraph whose campaign is closed", func(t *testing.T) {
 		// The close-out row has two steps, and a row beside it is still open when it closes.
 		closed := func(paragraphs ...Paragraph) error {
 			document := Plan{Campaign: "fixture", Items: []Item{item(closeoutItem, "check", "close"), item("open", "do")}, Doctrine: paragraphs}
@@ -123,16 +122,17 @@ func TestDoctrineParagraphsNameWhatTheyGovern(t *testing.T) {
 			"a row that is still open":    governing(governsRow, "open"),
 			"rows, one of them open":      governing(governsRow, "landed", "open"),
 			"the campaign, made standing": {Governs: governsStanding, Text: governing(governsCampaign).Text},
+			// A paragraph of rows that have left went with the last of them.
+			"a row that has landed":  governing(governsRow, "landed"),
+			"rows that have landed":  governing(governsRow, "landed", "earlier"),
+			"the close-out row only": governing(governsRow, closeoutItem),
 		} {
 			if err := closed(governing(governsStanding), paragraph); err != nil {
 				t.Errorf("the close-out is refused for a paragraph that governs %s: %v", name, err)
 			}
 		}
 		for name, paragraph := range map[string]Paragraph{
-			"the campaign":           governing(governsCampaign),
-			"a row that has landed":  governing(governsRow, "landed"),
-			"rows that have landed":  governing(governsRow, "landed", "earlier"),
-			"the close-out row only": governing(governsRow, closeoutItem),
+			"the campaign": governing(governsCampaign),
 		} {
 			if err := closed(governing(governsStanding), paragraph); err == nil || !strings.Contains(err.Error(), "paragraph 2") {
 				t.Errorf("the close-out passed with a paragraph that governs %s, or its refusal does not name paragraph 2: %v", name, err)

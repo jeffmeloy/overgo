@@ -68,55 +68,15 @@
       ]
     },
     {
-      "id": "memory-bounds",
-      "title": "Reduce what models hold on the card and the host",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 26,
-        "reason": "resident-programs adds 295, measured: a program's chunks of whole pages, placing and letting go of an input in one, and the session freeing each chunk once, doc comments counted. expert-census and drafted-state keep about 80 each"
-      },
-      "steps": [
-        {
-          "id": "window-verify",
-          "title": "Verify the qwen35 family's drafts in Strata's window verifier",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35DraftsVerifyInAWindow$'",
-          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its widest verify span over three drafted chat answers held two positions, whose 48 recurrent layers' states took 156,893,184 bytes (about 78 MB a position, 3.27 MB a layer), and whose hidden rows and selections another 156,934,152. Each of its two span slots is 627,654,912 bytes, about 1.17 GiB together, the bulk of the 1.30 GiB drafting was measured to cost (d184ff653). Strata's verifier, which internal/inference/qsa_window.go already runs for QSA runners, reads a sequence's fixed state where it sits, keeps each window's rows at the runner's own addresses, and commits the kept tokens. It keeps no state for each position, and it already handles gated-delta layers, which the qwen35 family's recurrent layers are. Verify the qwen35 family's drafts in that window, and retire their span slots.\nServes: peak-device-memory for the drafting qwen35 models (Qwen3.8-27B, Qwen3.5-4B, Bonsai-27B).\nDisappears: the span slots' per-position states on the qwen35 family.\nEvidence: the 27B's drafted peak against its plain peak, and the drafted text equal to the plain greedy text.\nBatch: serving lane."
-        }
-      ]
-    },
-    {
       "id": "serving-path",
       "title": "Remove repeated work from a served request and a server start",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 500,
+        "nodes": 356,
         "reason": "Estimate, unmeasured. kv-bf16 and graph-reuse change the inference surface and go before one measurement run."
       },
       "steps": [
-        {
-          "id": "serving-record",
-          "title": "Return a response before its serving record is written",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestAResponseDoesNotWaitForItsServingRecord$'",
-          "rationale": "After a generation returns, the handler recompiles the recipe to read its identity (servingIdentity, internal/server/serving_observation.go:50-65, which reaches Describe's ValidateServing and CompileProgram, internal/modelrecipe/description.go:23-34) and commits a serving record under a handler-wide mutex (serving_observation.go:71; called at internal/server/server_admin.go:1093-1118) before it returns.\nThe identity cannot change while a model is loaded, so read it at load. Hand the record to one background writer that Close drains, so every record is still written and concurrent requests stop queuing on the mutex.\nMeasure first: time publishServing on the smallest served model.\nServes: inference.\nDisappears: a recipe compile and a store commit on each request's path.\nEvidence: request wall with and without the writer, records equal.\nBatch: serving lane."
-        },
-        {
-          "id": "kv-bf16",
-          "title": "Store the key-value cache in BF16",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestTheKeyValueCacheIsStoredInBF16$'",
-          "rationale": "Cache storage is allocated as F32 (internal/inference/device_cache.go:1421,1494,2180), twice the bytes of BF16; llama.cpp's default cache type is f16. peak-by-length (5c7774a11) now reads peak device memory at 4K and 16K, so the next full run gives the earlier numbers this is judged against.\nJudge it on held-out quality, as a fast native path is, and on peak device memory at 16K.\nServes: inference; peak-device-memory at long prompts.\nDisappears: half the cache's bytes.\nEvidence: peak at 4K and 16K, held-out cells.\nBatch: one commit with the other surface moves, before one measurement run."
-        },
-        {
-          "id": "store-once",
-          "title": "Open the store once when the server starts",
-          "status": "open",
-          "verify": "go test ./cmd/server -count=1 -run '^TestTheServerOpensItsStoreOnce$'",
-          "rationale": "A server start opens the store read-only three times (cmd/server/transcription.go:22, cmd/server/main.go:251, internal/modelcli/model.go:164, the last timed as the load's store open stage) and loads the discovery memo four times (transcription.go:27, main.go:262, model.go:172, internal/server/server.go:715). time-and-memory/store-open measured an open at 2.72 s on 2026-10-13, decoding seven projections.\nPass one read-only handle and one memo through the start. The writer open (main.go:332) stays apart, since a writer open starved concurrent serves (model.go:158-160).\nServes: load-time.\nDisappears: two opens and three memo loads per start.\nEvidence: the load's store open stage before and after.\nBatch: serving lane, with time-and-memory/store-open."
-        },
         {
           "id": "graph-reuse",
           "title": "Keep captured decode graphs by use rather than clearing them",
@@ -137,6 +97,44 @@
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestFirstOutputStagesAreRecordedForTheSmallestModels$'",
           "rationale": "Measure first. The README's first output: Qwen2.5-0.5B 117 ms, MiniCPM5-1B 113, Unlimited-OCR 128, Carbon-500M 117, Bonsai-27B 109, Qwen3.5-4B 143, against Qwen3.5-9B 39 ms. Model size does not explain it.\nHypothesis: one-time setup (graph capture, module load, library setup) runs on the first request for some recipes and at load for others; loading Bonsai's PTX modules at open once cut its first request from 111 to 85 ms. Compare recipe measure -journey's stages on the 0.5B and the 9B, and retire this step if they share no fixed part.\nServes: first-output.\nDisappears: nothing until measured.\nEvidence: journey stages of both models.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "memory-bounds",
+      "title": "Reduce what models hold on the card and the host",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 26,
+        "reason": "resident-programs adds 295, measured: a program's chunks of whole pages, placing and letting go of an input in one, and the session freeing each chunk once, doc comments counted. expert-census and drafted-state keep about 80 each"
+      },
+      "steps": [
+        {
+          "id": "window-verify",
+          "title": "Verify the qwen35 family's drafts in Strata's window verifier",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35DraftsVerifyInAWindow$'",
+          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its widest verify span over three drafted chat answers held two positions, whose 48 recurrent layers' states took 156,893,184 bytes (about 78 MB a position, 3.27 MB a layer), and whose hidden rows and selections another 156,934,152. Each of its two span slots is 627,654,912 bytes, about 1.17 GiB together, the bulk of the 1.30 GiB drafting was measured to cost (d184ff653). Strata's verifier, which internal/inference/qsa_window.go already runs for QSA runners, reads a sequence's fixed state where it sits, keeps each window's rows at the runner's own addresses, and commits the kept tokens. It keeps no state for each position, and it already handles gated-delta layers, which the qwen35 family's recurrent layers are. Verify the qwen35 family's drafts in that window, and retire their span slots.\nServes: peak-device-memory for the drafting qwen35 models (Qwen3.8-27B, Qwen3.5-4B, Bonsai-27B).\nDisappears: the span slots' per-position states on the qwen35 family.\nEvidence: the 27B's drafted peak against its plain peak, and the drafted text equal to the plain greedy text.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "bf16-cache",
+      "title": "Store the key-value cache in BF16",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 600,
+        "reason": "Estimate: a decode attention variant reading BF16 keys and values, the appends' conversion, and the cache's mixed layout."
+      },
+      "steps": [
+        {
+          "id": "cache-store",
+          "title": "Store the key-value cache in BF16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestTheKeyValueCacheIsStoredInBF16$'",
+          "rationale": "Cache storage is allocated as F32 (internal/inference/device_cache.go:1421,1494,2180), twice the bytes of BF16; llama.cpp's default cache type is f16. peak-by-length (5c7774a11) now reads peak device memory at 4K and 16K, so the next full run gives the earlier numbers this is judged against.\nJudge it on held-out quality, as a fast native path is, and on peak device memory at 16K.\nServes: inference; peak-device-memory at long prompts.\nDisappears: half the cache's bytes.\nEvidence: peak at 4K and 16K, held-out cells.\nBatch: one commit with the other surface moves, before one measurement run.\nScope, read for serving-path: only the prompt-length native attention reads BF16 keys and values (attention_native_bf16_f32, kernels/cuda/ops_f32.cu); the decode attention reads the F32 cache, the cache appends write F32, and the recurrent states share the cache's one buffer (device_cache.go). So the decode attention gains a BF16 variant, the appends convert, and the recurrent states stay F32 beside BF16 keys and values: a row of its own, after the smaller serving-path steps."
         }
       ]
     },

@@ -82,6 +82,29 @@ func (flags *ModelFlags) OpenRunnerWithOptions(
 	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), options)
 }
 
+// OpenRunnerFromStore is OpenRunnerWithOptions over a store its caller opened read-only from the flags' repository, so
+// a start that resolved other things from the store opens it once. It closes the store once the recipe is resolved,
+// before the weights load, as an open of its own does.
+func (flags *ModelFlags) OpenRunnerFromStore(
+	ctx context.Context,
+	store *overgodb.Store,
+	path string,
+	options inference.OpenOptions,
+) (*inference.Runner, error) {
+	roots, err := dataroot.ResolveCurrent()
+	if err == nil && (flags == nil || flags.Repository == nil) {
+		err = errors.New("model recipe repository is required")
+	}
+	var repository string
+	if err == nil {
+		repository, err = flags.repositoryPath(roots)
+	}
+	if err != nil {
+		return nil, errors.Join(err, store.Close())
+	}
+	return open(ctx, repository, store, roots.ResolveModelPath(path), options, false)
+}
+
 // RepositoryPath returns the exact store selected by model-loading flags.
 func (flags *ModelFlags) RepositoryPath() (string, error) {
 	if flags == nil || flags.Repository == nil {
@@ -114,7 +137,7 @@ func OpenRunner(
 	repository, path string,
 	options inference.OpenOptions,
 ) (*inference.Runner, error) {
-	return open(ctx, repository, path, options, false)
+	return open(ctx, repository, nil, path, options, false)
 }
 
 // OpenServedRunner opens the model at path as it is served: with the draft its active speculation recipe binds where
@@ -126,32 +149,38 @@ func OpenServedRunner(
 	repository, path string,
 	options inference.OpenOptions,
 ) (*inference.Runner, error) {
-	return open(ctx, repository, path, options, true)
+	return open(ctx, repository, nil, path, options, true)
 }
 
+// open opens the runner over store, or over a read-only open of repository of its own when store is nil.
 func open(
 	ctx context.Context,
-	repository, path string,
+	repository string,
+	store *overgodb.Store,
+	path string,
 	options inference.OpenOptions,
 	served bool,
 ) (*inference.Runner, error) {
 	if strings.TrimSpace(repository) == "" {
-		return nil, errors.New("model recipe repository is required")
+		return nil, errors.Join(errors.New("model recipe repository is required"), store.Close())
 	}
-	runner, err := openRunner(ctx, repository, path, options, true, served)
+	runner, err := openRunner(ctx, repository, store, path, options, true, served)
 	if errors.Is(err, artifact.ErrContentMismatch) {
 		// The memo was stale: the file changed without a new size or modification
 		// time, and nothing was served. Resolve it again by hashing, under the
 		// identity its bytes have now.
 		fmt.Fprintf(os.Stderr, "model %s: its remembered identity does not match its bytes; hashing the file\n", path)
-		return openRunner(ctx, repository, path, options, false, served)
+		return openRunner(ctx, repository, nil, path, options, false, served)
 	}
 	return runner, err
 }
 
+// openRunner opens the runner over store, closing it once the recipe is resolved; a nil store is opened here.
 func openRunner(
 	ctx context.Context,
-	repository, path string,
+	repository string,
+	store *overgodb.Store,
+	path string,
 	options inference.OpenOptions,
 	remembered, served bool,
 ) (*inference.Runner, error) {
@@ -159,11 +188,14 @@ func openRunner(
 	// starved concurrent serves and self-deadlocked the smoke lane against
 	// its own child process.
 	// The parts of a load name themselves to a request that keeps a ledger of them (processmeasure).
-	opened := processmeasure.Stage(ctx, "store open")
-	store, err := overgodb.OpenReadOnly(repository)
-	opened()
-	if err != nil {
-		return nil, fmt.Errorf("open model recipe repository: %w", err)
+	if store == nil {
+		opened := processmeasure.Stage(ctx, "store open")
+		var err error
+		store, err = overgodb.OpenReadOnly(repository)
+		opened()
+		if err != nil {
+			return nil, fmt.Errorf("open model recipe repository: %w", err)
+		}
 	}
 	resolved := processmeasure.Stage(ctx, "recipe resolve")
 	var memo *discovery.Memo

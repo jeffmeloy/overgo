@@ -208,7 +208,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	remote, err := resolveRemoteServing(shutdownContext, repositoryPath, modelReference)
+	// One read-only open of the store serves each resolution of the start, and the runner's open closes it before the
+	// weights load; each resolution opening its own cost a start four opens of the store.
+	store, err := overgodb.OpenReadOnly(repositoryPath)
+	if err != nil {
+		return fmt.Errorf("open model recipe repository: %w", err)
+	}
+	defer store.Close()
+	remote, err := resolveRemoteServing(shutdownContext, store, modelReference)
 	if err != nil {
 		return err
 	}
@@ -223,6 +230,10 @@ func run() error {
 		if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
 			hubRoot = roots.Models
 		}
+		// What serves holds its own stores; the start's read-only one closes before it does.
+		if err := store.Close(); err != nil {
+			return err
+		}
 		return serveRemote(shutdownContext, remote, serveOptions{
 			address: *address, apiKey: apiKey, modelID: *modelID,
 			maxTokens: *maxTokens, maxConcurrent: *maxConcurrent,
@@ -230,11 +241,14 @@ func run() error {
 			requestTimeout: *requestTimeout, repository: repositoryPath, hubRoot: hubRoot, webuiDir: *webuiDir,
 		})
 	}
-	native, err := resolveTranscriptionServing(shutdownContext, repositoryPath, modelReference)
+	native, err := resolveTranscriptionServing(shutdownContext, store, modelReference)
 	if err != nil {
 		return err
 	}
 	if native != nil {
+		if err := store.Close(); err != nil {
+			return err
+		}
 		return serveTranscription(shutdownContext, *native, transcriptionPolicy, serveOptions{
 			address: *address, apiKey: apiKey, modelID: *modelID, maxConcurrent: *maxConcurrent,
 			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
@@ -248,10 +262,6 @@ func run() error {
 	var vision, audio projector.Session
 	reserve, bind := modelcli.ModelReserve(shutdownContext)
 	{
-		store, openErr := overgodb.OpenReadOnly(repositoryPath)
-		if openErr != nil {
-			return fmt.Errorf("open model recipe repository: %w", openErr)
-		}
 		model, resolvedRecipe, identityErr := modelcli.ResolveModel(shutdownContext, store, modelReference)
 		if identityErr != nil {
 			return errors.Join(identityErr, store.Close())
@@ -283,7 +293,6 @@ func run() error {
 				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal, MemoryReserve: reserve,
 			})
 		}
-		err = errors.Join(err, store.Close())
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
@@ -294,7 +303,7 @@ func run() error {
 			}
 		}
 	}
-	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
+	runner, err := modelFlags.OpenRunnerFromStore(shutdownContext, store, modelReference, openOptions)
 	if err != nil {
 		return err
 	}

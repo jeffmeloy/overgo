@@ -19,12 +19,7 @@ import (
 // resolveTranscriptionServing selects declared native transcription without
 // interpreting its weights as GGUF. A model with an inference activation keeps
 // the existing inference launch path and its optional transcription workspace.
-func resolveTranscriptionServing(ctx context.Context, repository, reference string) (*recipe.Definition, error) {
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
+func resolveTranscriptionServing(ctx context.Context, store *overgodb.Store, reference string) (*recipe.Definition, error) {
 	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, generationCatalogLimit, discovery.LoadMemo(ctx, store), recipe.TaskTranscription)
 	if err != nil {
 		return nil, err

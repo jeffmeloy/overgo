@@ -30,12 +30,7 @@ type remoteServing struct {
 // remote declarations: a remote location or a remote model's identity
 // serves through the relay, and any other reference is a local model
 // path, reported as nil.
-func resolveRemoteServing(ctx context.Context, repository, reference string) (*remoteServing, error) {
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return nil, fmt.Errorf("open model recipe repository: %w", err)
-	}
-	defer store.Close()
+func resolveRemoteServing(ctx context.Context, store *overgodb.Store, reference string) (*remoteServing, error) {
 	provider, modelID, remote, err := remoteprovider.Reference(ctx, store, generationCatalogLimit, reference)
 	if err != nil || !remote {
 		return nil, err

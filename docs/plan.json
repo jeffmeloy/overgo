@@ -149,17 +149,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 14,
-        "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
+        "nodes": 100,
+        "reason": "checkpoint-cuts adds 299: the companions a checkpoint names, identified at publication and held at load, in the resume document and the checkpoint's identity; landing-stages and long-sequences keep 100, mostly test code and a hook in the cycle's checks"
       },
       "steps": [
-        {
-          "id": "checkpoint-cuts",
-          "title": "Refuse a resume whose average is lost or changed",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAResumeRefusesAnAverageItsCheckpointDoesNotName$'",
-          "rationale": "LoadCheckpoint already refuses every byte cut and every missing file of checkpoint.json, model.safetensors, momentum.bin and resume.json (measured), so the first check would pass today. The hole is average/, which sits outside the digest chain: a flipped byte in average/weights.safetensors resumes, and a missing average/state.json resumes with no average and no error (measured, internal/trainingworkflow/checkpoint_steps.go:319-321). The PEFT directory is the same (read). Name their digests in the resume document.\nServes: training hours kept.\nDisappears: a resume that silently drops its average.\nEvidence: a flipped byte and a missing file each refused by name.\nBatch: training lane."
-        },
         {
           "id": "landing-stages",
           "title": "Leave the trunk alone at every stage's failure",

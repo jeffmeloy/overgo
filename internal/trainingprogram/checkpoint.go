@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -127,9 +129,10 @@ type Checkpoint struct {
 	Stream    DatasetState        `json:"-"`
 	Optimizer hostoptimizer.State `json:"-"`
 	RNG       []RNGState          `json:"-"`
-	// momentum identifies the sidecar's momentum file; it is valid only
-	// while the sidecar's state is held.
-	momentum artifact.ID
+	// momentum identifies the sidecar's momentum file, and companions the files the sidecar names beside it; both
+	// are valid only while the sidecar's state is held.
+	momentum   artifact.ID
+	companions map[string]artifact.ID
 }
 
 type checkpointDocument struct {
@@ -151,6 +154,9 @@ type resumeDocument struct {
 	F32Values int          `json:"f32_values,omitzero"`
 	Stream    DatasetState `json:"stream"`
 	RNG       []RNGState   `json:"rng"`
+	// Companions is each file a run wrote in a directory of the checkpoint's own, the average and an adapter among
+	// them, by its path there, with its digest: a resume holds each to it, as it holds the weights and the momentum.
+	Companions map[string]artifact.ID `json:"companions,omitempty"`
 }
 
 func (c Checkpoint) ID() artifact.ID { return c.id }
@@ -194,7 +200,7 @@ func (c Checkpoint) resume() resumeDocument {
 	document := resumeDocument{
 		Version: artifact.InitialDocumentVersion, Weights: c.Weights,
 		PlanIdentity: c.Optimizer.PlanIdentity, Config: c.Optimizer.Config, Step: c.Optimizer.Step,
-		Momentum: c.momentum, DType: dtype, Stream: c.Stream, RNG: c.RNG,
+		Momentum: c.momentum, DType: dtype, Stream: c.Stream, RNG: c.RNG, Companions: c.companions,
 	}
 	if dtype == momentumF32F64 {
 		document.F32Values = len(c.Optimizer.MomentumF32)
@@ -415,6 +421,10 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	if err != nil {
 		return Checkpoint{}, err
 	}
+	companions, err := companionFiles(stage)
+	if err != nil {
+		return Checkpoint{}, err
+	}
 	// The momentum is hashed and streamed to disk from the trainer's own
 	// buffer.
 	values, _ := momentumParts(spec.Optimizer)
@@ -429,7 +439,7 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 		RNG: slices.Clone(spec.RNG), Processors: slices.Clone(spec.Processors),
 		Projectors: slices.Clone(spec.Projectors), Codecs: slices.Clone(spec.Codecs),
 		Lineage: slices.Clone(spec.Lineage), RouterControllers: cloneRouterControllerStates(spec.RouterControllers),
-		Accumulation: spec.Accumulation, momentum: momentum,
+		Accumulation: spec.Accumulation, momentum: momentum, companions: companions,
 	}
 	if inventory.Manifest.ID.Valid() {
 		checkpoint.version = completeCheckpointVersion
@@ -502,8 +512,56 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	if err != nil {
 		return Checkpoint{}, err
 	}
+	if err := holdCompanions(directory, resume.Companions); err != nil {
+		return Checkpoint{}, err
+	}
 	checkpoint.Stream, checkpoint.RNG, checkpoint.Optimizer, checkpoint.momentum = resume.Stream, resume.RNG, state, resume.Momentum
+	checkpoint.companions = resume.Companions
 	return checkpoint, checkpoint.ValidateIdentity()
+}
+
+// companionFiles identifies each file in a directory of the stage's own, by its slash path beneath the stage: what a run
+// writes beside the weights, the moving average and an adapter, which the resume names so that a resume holds it.
+func companionFiles(stage string) (map[string]artifact.ID, error) {
+	entries, err := os.ReadDir(stage)
+	if err != nil {
+		return nil, err
+	}
+	companions := map[string]artifact.ID{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		err := filepath.WalkDir(filepath.Join(stage, entry.Name()), func(path string, file fs.DirEntry, err error) error {
+			if err != nil || file.IsDir() {
+				return err
+			}
+			relative, err := filepath.Rel(stage, path)
+			if err != nil {
+				return err
+			}
+			companions[filepath.ToSlash(relative)], err = artifact.IdentifyFile(artifact.KindFile, path)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return companions, nil
+}
+
+// holdCompanions refuses a checkpoint whose named companion is missing or holds other bytes than its digest names.
+func holdCompanions(directory string, companions map[string]artifact.ID) error {
+	for _, name := range slices.Sorted(maps.Keys(companions)) {
+		id, err := artifact.IdentifyFile(artifact.KindFile, filepath.Join(directory, filepath.FromSlash(name)))
+		if err != nil {
+			return fmt.Errorf("training checkpoint: the resume names %s, which cannot be read: %w", name, err)
+		}
+		if id != companions[name] {
+			return fmt.Errorf("training checkpoint: %s differs from the digest the resume names", name)
+		}
+	}
+	return nil
 }
 
 // momentumParts views the momentum state holds as its little-endian bytes

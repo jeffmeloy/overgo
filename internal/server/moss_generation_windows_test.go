@@ -160,9 +160,9 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		}
 	})
 	listed, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
-	// An unvalidated candidate is listed with what it needs, and is not offered to run.
-	if err != nil || len(listed) != 1 || listed[0].Refusal == "" || listed[0].Recipe.Valid() {
-		t.Fatal("unvalidated candidate offered", listed, err)
+	// An unvalidated candidate is offered to run, its state beside it.
+	if err != nil || len(listed) != 1 || listed[0].Refusal != "" || listed[0].Recipe != receipt.Recipe || listed[0].Verification != modelrecipe.StateNotVerified {
+		t.Fatal("unvalidated candidate not offered", listed, err)
 	}
 	var submission workflowResponse
 	request(http.MethodPost, "/library/validate", map[string]any{"path": root}, http.StatusAccepted, &submission)
@@ -172,7 +172,7 @@ func TestMOSSImageGenerationContract(t *testing.T) {
 		t.Fatal("validation task or completion lost", status)
 	}
 	listed, err = workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
-	if err != nil || len(listed) != 1 || listed[0].Refusal != "" || listed[0].Recipe != receipt.Recipe {
+	if err != nil || len(listed) != 1 || listed[0].Refusal != "" || listed[0].Recipe != receipt.Recipe || listed[0].Verification != modelrecipe.StateVerified {
 		t.Fatal("activation not offered", listed, err)
 	}
 	controls := listed[0].Controls

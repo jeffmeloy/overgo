@@ -84,8 +84,8 @@ func BindGenerationCatalog[
 }
 
 // storeGenerationWorkspace is the generation workspace over the store
-// (professional GUI campaign, gui-generation-workspace): every active
-// media recipe the store declares lists as a capability with the controls
+// (professional GUI campaign, gui-generation-workspace): every active or
+// candidate media recipe the store declares lists as a capability with the controls
 // its request declares and the media inputs its recipe binds, executes
 // through the same executors the recipe command uses, and publishes its
 // output as a media artifact. Any launcher gets it with the store; no
@@ -124,9 +124,10 @@ func recordedInput(output any) (artifact.Content, bool) {
 	return measured.Input, true
 }
 
-// WorkflowCapabilities lists one capability per active media recipe with
-// present bytes, controls declared by the executor's request type, and a
-// refusal on the entry when its request carries what a page cannot type.
+// WorkflowCapabilities lists one capability per active or candidate media
+// recipe with present bytes, controls declared by the executor's request
+// type, its verification beside it, and a refusal on the entry when its
+// request carries what a page cannot type.
 func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	if workspace == nil || kind != workflowGeneration {
 		return nil, nil
@@ -159,7 +160,7 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 				continue
 			}
 			selection, executionErr := modelrecipe.ResolveActiveExecution(ctx, workspace.store, entry.Model, capability.Task, modelrecipe.SessionWarm)
-			program, refusal := selection.Program, ""
+			program, refusal, state := selection.Program, "", modelrecipe.StateVerified
 			if executionErr != nil {
 				// An activation whose execution the store cannot resolve (a
 				// recipe declaring no component session, a model without a
@@ -169,63 +170,117 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 				if _, program, err = modelrecipe.ResolveActiveCapability(ctx, workspace.store, entry.Model, capability.Task); err != nil {
 					return nil, fmt.Errorf("generation workspace: %s for %s: %w", capability.Task, entry.Model, err)
 				}
-				refusal = executionErr.Error()
-			}
-			definition := program.Definition()
-			stages := program.Stages()
-			if len(stages) == 0 {
-				continue
+				refusal, state = executionErr.Error(), modelrecipe.StateBroken
 			}
 			directory, _ := workspace.executionPath(ctx, entry.Model, entry.Location)
-			var declared []workflowControl
-			if workspace.catalog.Controls != nil && refusal == "" {
-				declared, refusal = workspace.catalog.Controls(stages[0].Module.ID, directory)
+			if listing, staged := workspace.listing(entry, directory, program, selection, refusal, state); staged {
+				capabilities = append(capabilities, listing)
 			}
-			capabilities = append(capabilities, WorkflowCapability{
-				Task: capability.Task, Recipe: definition.ID, Stages: stages,
-				Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: declared,
-				Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location, Refusal: refusal,
-				execution: selection, directory: directory,
-			})
 		}
 	}
 	registered, _, err := discovery.RegisteredCatalog(ctx, workspace.store, workspace.limit, workspace.memo)
 	if err != nil {
 		return nil, err
 	}
-	return append(capabilities, unrecipedMedia(registered, listed, func(entry discovery.CatalogEntry) (string, error) {
-		return workspace.executionPath(ctx, entry.Model, entry.Location)
-	})...), nil
-}
-
-// unrecipedMedia lists each media model the store holds with no active recipe, as a capability the page shows and cannot
-// run, saying what it needs: a source profile names its task, and no recipe is active for it. A model whose files no
-// profile names lists nothing here, since nothing can say what it would run.
-func unrecipedMedia(registered []discovery.CatalogEntry, listed map[artifact.ID]bool, directoryOf func(discovery.CatalogEntry) (string, error)) []WorkflowCapability {
-	var waiting []WorkflowCapability
 	for _, entry := range registered {
 		if !entry.Present || listed[entry.Model] || len(entry.Capabilities) != 0 {
 			continue
 		}
-		directory, err := directoryOf(entry)
+		directory, err := workspace.executionPath(ctx, entry.Model, entry.Location)
 		if err != nil {
 			continue
 		}
-		identity, err := hfrepo.InspectIdentity(directory)
+		candidates, err := workspace.candidates(ctx, entry, directory)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		source, err := modelrecipe.ResolveGenerationSource("", identity)
-		if err != nil || !slices.Contains(generationTasks, source.Task) {
-			continue
+		if len(candidates) == 0 {
+			candidates = unrecipedMedia(entry, directory)
 		}
-		waiting = append(waiting, WorkflowCapability{
-			Task: source.Task, Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location,
-			Refusal: fmt.Sprintf("no %s recipe is active for this model: go run ./cmd/validate -onboard %s registers, validates and activates one",
-				source.Task, filepath.ToSlash(directory)),
-		})
+		capabilities = append(capabilities, candidates...)
 	}
-	return waiting
+	return capabilities, nil
+}
+
+// listing is the capability a page shows for program over entry's files, with the controls its first stage declares;
+// staged is false for a program with no stage to run.
+func (workspace *storeGenerationWorkspace) listing(entry discovery.CatalogEntry, directory string, program recipe.Program, execution modelrecipe.CapabilityEvidenceSelection, refusal string, state modelrecipe.VerificationState) (WorkflowCapability, bool) {
+	definition := program.Definition()
+	stages := program.Stages()
+	if len(stages) == 0 {
+		return WorkflowCapability{}, false
+	}
+	var declared []workflowControl
+	if workspace.catalog.Controls != nil && refusal == "" {
+		declared, refusal = workspace.catalog.Controls(stages[0].Module.ID, directory)
+	}
+	return WorkflowCapability{
+		Task: definition.Task, Recipe: definition.ID, Stages: stages,
+		Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: declared,
+		Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location, Refusal: refusal, Verification: state,
+		execution: execution, directory: directory,
+	}, true
+}
+
+// candidates lists each media recipe the store holds over entry's model that nothing has activated, as a registration
+// publishes one: offered to run as validation would run it, with its state beside it, since nothing has verified it.
+func (workspace *storeGenerationWorkspace) candidates(ctx context.Context, entry discovery.CatalogEntry, directory string) ([]WorkflowCapability, error) {
+	contract := recipe.DefinitionDocumentContract()
+	found, err := workspace.store.Query(ctx, overgodb.Query{
+		Artifact: &entry.Model, Follow: overgodb.FollowChildren, MaxDepth: 1, Relation: artifact.RelationDependsOn,
+		MediaType: contract.MediaType, Schema: contract.Schema, Projection: overgodb.ProjectArtifacts, MaxResults: workspace.limit,
+	})
+	if err == nil && found.Truncated {
+		err = fmt.Errorf("generation workspace: model %s has more recipes than the listing bound %d", entry.Model, workspace.limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var candidates []WorkflowCapability
+	for _, descriptor := range found.Artifacts {
+		definition, err := recipe.RequireDefinition(ctx, workspace.store, descriptor.ID)
+		if err != nil {
+			return nil, err
+		}
+		if _, known := workspace.catalog.Execute[definition.Task]; !known || definition.Model != entry.Model || !slices.Contains(generationTasks, definition.Task) {
+			continue
+		}
+		// A candidate whose execution does not resolve is shown with why, as a broken activation is; one this build
+		// cannot compile has no stage to show.
+		program, err := modelrecipe.CompileCapability(definition)
+		var execution modelrecipe.CapabilityEvidenceSelection
+		if err == nil {
+			execution, err = modelrecipe.CompileCandidateExecution(ctx, workspace.store, program)
+		}
+		refusal := ""
+		if err != nil {
+			refusal = err.Error()
+		}
+		if listing, staged := workspace.listing(entry, directory, program, execution, refusal, modelrecipe.StateNotVerified); staged {
+			candidates = append(candidates, listing)
+		}
+	}
+	return candidates, nil
+}
+
+// unrecipedMedia lists a media model the store holds with no recipe this build can run, as a capability the page shows
+// and cannot run, saying what it needs: a source profile names its task, and no recipe it holds compiles. A model whose files no
+// profile names lists nothing here, since nothing can say what it would run.
+func unrecipedMedia(entry discovery.CatalogEntry, directory string) []WorkflowCapability {
+	identity, err := hfrepo.InspectIdentity(directory)
+	if err != nil {
+		return nil
+	}
+	source, err := modelrecipe.ResolveGenerationSource("", identity)
+	if err != nil || !slices.Contains(generationTasks, source.Task) {
+		return nil
+	}
+	return []WorkflowCapability{{
+		Task: source.Task, Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location,
+		Refusal: fmt.Sprintf("no %s recipe this build can run is held for this model: go run ./cmd/validate -onboard %s registers and validates one",
+			source.Task, filepath.ToSlash(directory)),
+		Verification: modelrecipe.StateNotVerified,
+	}}
 }
 
 // ExecuteWorkflow runs a listed capability against its model bytes with the
@@ -242,7 +297,7 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	task, recipeID, listed := capability.Task, capability.Recipe, capability.execution.Activation.Definition
 	execute, known := workspace.catalog.Execute[task]
 	if !known || listed.ID != recipeID || listed.Task != task {
-		return operation.Completion{}, fmt.Errorf("generation workspace: recipe %s is not an active %s capability", recipeID, task)
+		return operation.Completion{}, fmt.Errorf("generation workspace: recipe %s is not a listed %s capability", recipeID, task)
 	}
 	if workspace.catalog.OutputContent == nil {
 		return operation.Completion{}, errors.New("generation workspace: the catalog publishes no output")

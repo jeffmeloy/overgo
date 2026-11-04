@@ -656,7 +656,7 @@
     let evidence = servedEvidence;
     if (active) {
       name = taskModel.picker.selectedOptions[0]?.textContent || 'Choose a model';
-      evidence = [capability?.task, capability?.model, capability?.recipe, capability?.refusal].filter(Boolean).join(' · ');
+      evidence = [capability?.task, capability?.model, capability?.recipe, capability?.verification, capability?.refusal].filter(Boolean).join(' · ');
     }
     pill.textContent = servedName;
     pill.title = servedName + ' — choose a model';

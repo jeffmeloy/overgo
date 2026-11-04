@@ -382,7 +382,7 @@
         for (const capability of capabilities) {
           capabilitySelect.appendChild(el("option", {
             value: capability.recipe, disabled: !!capability.refusal, title: capability.refusal || "",
-            text: capability.task + " / " + (capability.name || fmt.shortID(capability.recipe)) + (capability.refusal ? " (" + capability.refusal + ")" : ""),
+            text: capability.task + " / " + (capability.name || fmt.shortID(capability.recipe)) + overgo.unverified(capability) + (capability.refusal ? " (" + capability.refusal + ")" : ""),
           }));
         }
         let fields = new Map();

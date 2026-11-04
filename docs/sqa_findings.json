@@ -7492,6 +7492,29 @@
         "plan_steps": [
           "fault-finding/queued-order"
         ]
+      },
+      {
+        "comment": "Landed with any-model-runs/unvalidated-runs, which changes a source this finding credits: unrecipedMedia now lists only a media model with no recipe at all. A model whose registration published a candidate recipe is offered to run through that candidate, with verification 'not verified' beside it on the workspace's wire (WorkflowCapability.Verification); an activated one carries 'verified', or 'verification broken' when its execution does not resolve. The run records the candidate recipe that ran. The finding's own subject, binding recorded verification to the recipe and task that ran in evaluation, serving attempts and training observation, is untouched.",
+        "disposition": "context",
+        "evidence": [
+          "internal/server TestAnUnvalidatedModelRunsWithItsStateShown",
+          "internal/server TestAMediaModelWithNoRecipeSaysWhatItNeeds"
+        ],
+        "finding_id": "SQA-283",
+        "plan_steps": [
+          "any-model-runs/unvalidated-runs"
+        ]
+      },
+      {
+        "comment": "any-model-runs/unvalidated-runs touches internal/server/webui/composer.js only to add the label a generation picker shows beside an unverified model (overgo.unverified). The tool card's output tail is unchanged, so this finding stands as filed.",
+        "disposition": "context",
+        "evidence": [
+          "internal/server/webui/composer.js unverified"
+        ],
+        "finding_id": "SQA-284",
+        "plan_steps": [
+          "any-model-runs/unvalidated-runs"
+        ]
       }
     ],
     "experiments": {
@@ -7532,7 +7555,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "dd1dce514f001d6c4632cd0f78b3dc4ada07c6b7",
+    "head": "9122df958443d998af1056f04f6d68e8b85c8d34",
     "findings": {
       "SQA-004": {
         "action": "none",

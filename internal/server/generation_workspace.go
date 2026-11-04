@@ -103,6 +103,9 @@ type WorkflowCapability struct {
 	Name     string      `json:"name,omitzero"`
 	Location string      `json:"location,omitzero"`
 	Refusal  string      `json:"refusal,omitzero"`
+	// Verification is what the store records of the model's verification for the task, shown beside a capability
+	// that runs whatever it says: a candidate nothing has verified runs as an activated one does.
+	Verification modelrecipe.VerificationState `json:"verification,omitzero"`
 	// Host: the run executes on the host processor and needs no device memory.
 	Host bool `json:"host,omitzero"`
 	// Note states what the page cannot derive from the controls, such as how
@@ -513,10 +516,15 @@ func (h *Handler) submitWorkflow(
 func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 	// A task is served by every model activated for it, so the recipe is
 	// the identity; a task listed twice under one recipe is the fault.
+	// One listed with a refusal and no stages is shown and never run.
 	seen := make(map[artifact.ID]bool, len(capabilities))
 	for _, capability := range capabilities {
-		if !capability.Task.Valid() || capability.Recipe.Kind() != artifact.KindRecipe || len(capability.Stages) == 0 {
+		shown := capability.Refusal != "" && len(capability.Stages) == 0
+		if !capability.Task.Valid() || !shown && (capability.Recipe.Kind() != artifact.KindRecipe || len(capability.Stages) == 0) {
 			return errors.New("workflow workspace: invalid runtime capability")
+		}
+		if shown {
+			continue
 		}
 		if seen[capability.Recipe] {
 			return fmt.Errorf("workflow workspace: duplicate capability %s for %q", capability.Recipe, capability.Task)

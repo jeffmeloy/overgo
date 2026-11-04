@@ -12,9 +12,9 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAMediaModelWithNoRecipeSaysWhatItNeeds: a media model the store holds with no active recipe is listed, not left off
-// the page, with what it needs to run, and it cannot be run. A model already listed, one with an activation, one absent and
-// one whose files no source profile names list nothing more.
+// TestAMediaModelWithNoRecipeSaysWhatItNeeds: a media model the store holds with no recipe at all is listed, not left off
+// the page, with what it needs to run, and it cannot be run; the listing a page reads still passes its checks. One whose
+// files no source profile names lists nothing.
 func TestAMediaModelWithNoRecipeSaysWhatItNeeds(t *testing.T) {
 	t.Parallel()
 	directory := func(config string) string {
@@ -26,20 +26,16 @@ func TestAMediaModelWithNoRecipeSaysWhatItNeeds(t *testing.T) {
 	}
 	image, text := directory(`{"model_type":"uvit"}`), directory(`{"model_type":"llama"}`)
 	waiting := testutil.ArtifactID(t, artifact.KindModel, "waiting")
-	listedModel := testutil.ArtifactID(t, artifact.KindModel, "listed")
-	registered := []discovery.CatalogEntry{
-		{Model: waiting, Present: true, Location: filepath.Join(image, "model.safetensors")},
-		{Model: listedModel, Present: true, Location: filepath.Join(image, "other.safetensors")},
-		{Model: testutil.ArtifactID(t, artifact.KindModel, "active"), Present: true, Location: filepath.Join(image, "a.safetensors"),
-			Capabilities: []discovery.Capability{{Task: recipe.TaskImageGen}}},
-		{Model: testutil.ArtifactID(t, artifact.KindModel, "absent"), Location: filepath.Join(image, "gone.safetensors")},
-		{Model: testutil.ArtifactID(t, artifact.KindModel, "text"), Present: true, Location: filepath.Join(text, "model.safetensors")},
-	}
-	got := unrecipedMedia(registered, map[artifact.ID]bool{listedModel: true}, func(entry discovery.CatalogEntry) (string, error) {
-		return filepath.Dir(entry.Location), nil
-	})
+	got := unrecipedMedia(discovery.CatalogEntry{Model: waiting, Present: true, Location: filepath.Join(image, "model.safetensors")}, image)
 	if len(got) != 1 || got[0].Model != waiting || got[0].Task != recipe.TaskImageGen || got[0].Recipe.Valid() ||
 		!strings.Contains(got[0].Refusal, "validate -onboard "+filepath.ToSlash(image)) {
-		t.Fatalf("listed %+v, want the waiting image model alone, saying what it needs", got)
+		t.Fatalf("listed %+v, want the waiting image model, saying what it needs", got)
+	}
+	if err := validateWorkflowCapabilities(got); err != nil {
+		t.Fatalf("the page's listing refuses a model it shows: %v", err)
+	}
+	if other := unrecipedMedia(discovery.CatalogEntry{Model: testutil.ArtifactID(t, artifact.KindModel, "text"), Present: true,
+		Location: filepath.Join(text, "model.safetensors")}, text); len(other) != 0 {
+		t.Fatalf("listed %+v for a model no source profile names", other)
 	}
 }

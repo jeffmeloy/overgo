@@ -674,7 +674,7 @@
         const speechFields = el('div', { class: 'row' });
         if (mode === 'speech') speechSettings.append(el('h3', { text: 'Speech options' }), speechFields);
         const picker = el("select", { class: "text w-auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
-          value: capability.recipe || capability.model, text: capability.name || fmt.shortID(capability.recipe || capability.model), disabled: !!capability.refusal, title: capability.refusal || "" })));
+          value: capability.recipe || capability.model, text: (capability.name || fmt.shortID(capability.recipe || capability.model)) + overgo.unverified(capability), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
         // capability that made it; "this model" keeps the picked one's. A thumb opens the record.
         const rail = el("div", { class: "intake-strip gallery", role: "group", "aria-label": "Recent " + (kind || "stored") + " outputs" });

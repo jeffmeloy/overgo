@@ -143,6 +143,8 @@
   // with that refusal instead of being run and shown as something it is not.
   const offered = (capability) => capability.refusal || outputKind(capability) ? capability :
     { ...capability, refusal: "The workbench cannot show " + (declaredOutput(capability) || "undeclared") + " output yet" };
+  // unverified: a listed capability's state beside its name when nothing has verified it; it runs all the same.
+  const unverified = (capability) => capability.verification && capability.verification !== "verified" ? " · " + capability.verification : "";
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -1016,6 +1018,7 @@
   overgo.bodyControl = bodyControl;
   overgo.outputKind = outputKind;
   overgo.offered = offered;
+  overgo.unverified = unverified;
   overgo.toolStep = toolStep;
   overgo.restoreAgentThread = restoreAgentThread;
   overgo.mediaPlayer = mediaPlayer;

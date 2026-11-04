@@ -61,6 +61,26 @@ func activateModel(t *testing.T, store *overgodb.Store, define func(artifact.ID)
 func activateModelAt(t *testing.T, store *overgodb.Store, location string, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
 	t.Helper()
 	ctx := t.Context()
+	model, definition := candidateModelAt(t, store, location, define)
+	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence", definition.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active", definition, verification,
+		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	return model
+}
+
+// candidateModelAt publishes the weights file at location as a model and the
+// definition built over it as its candidate, as a registration does.
+func candidateModelAt(t *testing.T, store *overgodb.Store, location string, define func(artifact.ID) (recipe.Definition, error)) (artifact.ID, recipe.Definition) {
+	t.Helper()
+	ctx := t.Context()
 	payload, err := os.ReadFile(location)
 	if err != nil {
 		t.Fatal(err)
@@ -89,18 +109,7 @@ func activateModelAt(t *testing.T, store *overgodb.Store, location string, defin
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence", definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active", definition, verification,
-		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	return manifest.ID
+	return manifest.ID, definition
 }
 
 // tinyPNG is a valid one-pixel RGB PNG as an executor would encode it.

@@ -62,14 +62,14 @@ func activateModelAt(t *testing.T, store *overgodb.Store, location string, defin
 	t.Helper()
 	ctx := t.Context()
 	model, definition := candidateModelAt(t, store, location, define)
-	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
+	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated/"+definition.ID.String(), definition, recipe.StatusValidated, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence", definition.ID)
+	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence/"+definition.ID.String(), definition.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active", definition, verification,
+	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active/"+definition.ID.String(), definition, verification,
 		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func candidateModelAt(t *testing.T, store *overgodb.Store, location string, defi
 		t.Fatal(err)
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/generation/model",
+		Key:       "fixture/generation/model/" + manifest.ID.String(),
 		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len(payload))}},
 		Manifests: []artifact.Manifest{manifest},
 		Locations: []artifact.LocationEvent{{Location: artifact.Location{
@@ -106,7 +106,7 @@ func candidateModelAt(t *testing.T, store *overgodb.Store, location string, defi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate", definition); err != nil {
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
 	return manifest.ID, definition

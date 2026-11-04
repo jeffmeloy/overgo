@@ -61,6 +61,11 @@ func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.Eviden
 		if summary, measured := evidence.BenchmarksByLocation[entry.Location]; measured {
 			model.Benchmark = &summary
 		}
+		for _, candidate := range entry.Candidates {
+			if !slices.Contains(model.Candidates, candidate.Task) {
+				model.Candidates = append(model.Candidates, candidate.Task)
+			}
+		}
 		for _, capability := range entry.Capabilities {
 			model.Capabilities = append(model.Capabilities, catalogCapability{
 				Task: string(capability.Task), Recipe: idText(capability.Recipe),
@@ -125,6 +130,9 @@ type catalogModel struct {
 	// lives in, so the page can take the key when the entry is refused.
 	KeyEnvironment string              `json:"key_environment,omitzero"`
 	Capabilities   []catalogCapability `json:"capabilities,omitempty"`
+	// Candidates names the tasks the recipes a registration published run, for a model nothing has activated: what it
+	// would run, unverified, so the chooser offers one that runs as text.
+	Candidates []recipe.Task `json:"candidates,omitempty"`
 	// Benchmark and Evals surface the model's committed evidence beside
 	// its entry: perf from the latest benchmark claim, quality from the
 	// latest evaluation per derived suite.

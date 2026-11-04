@@ -190,10 +190,7 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 		if err != nil {
 			continue
 		}
-		candidates, err := workspace.candidates(ctx, entry, directory)
-		if err != nil {
-			return nil, err
-		}
+		candidates := workspace.candidates(ctx, entry, directory)
 		if len(candidates) == 0 {
 			candidates = unrecipedMedia(entry, directory)
 		}
@@ -222,27 +219,12 @@ func (workspace *storeGenerationWorkspace) listing(entry discovery.CatalogEntry,
 	}, true
 }
 
-// candidates lists each media recipe the store holds over entry's model that nothing has activated, as a registration
-// publishes one: offered to run as validation would run it, with its state beside it, since nothing has verified it.
-func (workspace *storeGenerationWorkspace) candidates(ctx context.Context, entry discovery.CatalogEntry, directory string) ([]WorkflowCapability, error) {
-	contract := recipe.DefinitionDocumentContract()
-	found, err := workspace.store.Query(ctx, overgodb.Query{
-		Artifact: &entry.Model, Follow: overgodb.FollowChildren, MaxDepth: 1, Relation: artifact.RelationDependsOn,
-		MediaType: contract.MediaType, Schema: contract.Schema, Projection: overgodb.ProjectArtifacts, MaxResults: workspace.limit,
-	})
-	if err == nil && found.Truncated {
-		err = fmt.Errorf("generation workspace: model %s has more recipes than the listing bound %d", entry.Model, workspace.limit)
-	}
-	if err != nil {
-		return nil, err
-	}
+// candidates lists each media recipe the catalog holds over entry's model, which nothing has activated: offered to run as
+// validation would run it, with its state beside it, since nothing has verified it.
+func (workspace *storeGenerationWorkspace) candidates(ctx context.Context, entry discovery.CatalogEntry, directory string) []WorkflowCapability {
 	var candidates []WorkflowCapability
-	for _, descriptor := range found.Artifacts {
-		definition, err := recipe.RequireDefinition(ctx, workspace.store, descriptor.ID)
-		if err != nil {
-			return nil, err
-		}
-		if _, known := workspace.catalog.Execute[definition.Task]; !known || definition.Model != entry.Model || !slices.Contains(generationTasks, definition.Task) {
+	for _, definition := range entry.Candidates {
+		if _, known := workspace.catalog.Execute[definition.Task]; !known || !slices.Contains(generationTasks, definition.Task) {
 			continue
 		}
 		// A candidate whose execution does not resolve is shown with why, as a broken activation is; one this build
@@ -260,7 +242,7 @@ func (workspace *storeGenerationWorkspace) candidates(ctx context.Context, entry
 			candidates = append(candidates, listing)
 		}
 	}
-	return candidates, nil
+	return candidates
 }
 
 // unrecipedMedia lists a media model the store holds with no recipe this build can run, as a capability the page shows

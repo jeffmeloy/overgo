@@ -144,21 +144,21 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "any-model-runs",
-      "title": "Any model or checkpoint runs, its state shown",
+      "id": "landing-identity",
+      "title": "Match a landed step by its whole trailer",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 120,
-        "reason": "unvalidated-runs adds 366, measured: finding a model's candidate recipes through the store's lineage and compiling their execution, a verification field on every generation listing, the listing check passing an entry shown and never run, and the per-model fallback; chat-chooser keeps an estimated 120"
+        "nodes": 40,
+        "reason": "Estimate: the trailer query and a whole-value comparison replace the substring search."
       },
       "steps": [
         {
-          "id": "chat-chooser",
-          "title": "Offer every model that runs as text in the chat page's chooser, its state beside it",
+          "id": "whole-trailer",
+          "title": "Refuse a step as landed again only on its own whole Landed-Row trailer",
           "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestWebUIBrowserChooserOffersAnUnverifiedModel$'",
-          "rationale": "unvalidated-runs checked what its rationale asked it to confirm, that the checkpoints a training run registers can be chosen in the chat page, and they cannot. A training run registers its model as a candidate (internal/trainingworkflow/trained_model.go:294, RegisterCandidate then MarkTrained) and activates nothing. The chat page's chooser offers only catalog entries with an active text recipe (internal/server/webui/boot.js, the picker's filter item.present \u0026\u0026 item.recipe), so a trained model, like any model nothing has verified, is listed in the Library and never offered to serve. The swap proxy would serve it: it resolves any present catalog entry (internal/modelswap/catalog.go matchServable over discovery.ModelCatalog). Offer every present model the catalog says would run as text in the chooser, with its state beside it, as the generation workspace now offers a media candidate; the catalog must say what an unverified model would run, since an unverified image model also has no active recipe.\nServes: the owner's choice of what runs, 'should be able to select whatever model and checkpoint I want'.\nDisappears: a trained model the chooser leaves out.\nEvidence: a browser check chooses a registered, unactivated text model in the chat page's chooser and serves it, its state shown.\nBatch: server."
+          "verify": "go test ./internal/landing -count=1 -run '^TestAStepIsLandedOnlyByItsOwnWholeTrailer$'",
+          "rationale": "SQA-300 (P2): landedAgain (internal/landing/landing.go) finds a landed step with git log --fixed-strings --grep='Landed-Row: \u003citem\u003e/\u003cstep\u003e', which matches the text anywhere in a message. A new step whose id is a prefix of a landed one (any-model-runs/unvalidated beside the landed any-model-runs/unvalidated-runs) is refused as landed again, and a message that quotes a trailer in its prose counts as a landing. Match the whole trailer line: read the Landed-Row trailers git parses (git log --format=%(trailers:key=Landed-Row,valueonly)) and compare each value to \u003citem\u003e/\u003cstep\u003e as a string. The owner's rule is to avoid regular expressions, so this takes the place of the finding's anchored --extended-regexp; keep l.builtOn() and the error's advice.\nServes: a landing judged by the steps it actually landed.\nDisappears: a refusal of a new step for a landed step whose id merely contains its own.\nEvidence: the check lands a step whose id is a prefix of a landed step's, and still refuses the landed step itself.\nBatch: landing."
         }
       ]
     },

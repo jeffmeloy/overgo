@@ -37,6 +37,9 @@ type CatalogEntry struct {
 	// Trained says a training run produced the model, and Measured that its one measurement finished, after which a run of
 	// every model leaves it out. Both stay off the census's wire, as State does.
 	Trained, Measured bool `json:"-"`
+	// Candidates are the recipes the store holds over a present model nothing has activated, as its registration
+	// publishes them: what the model would run, unverified. They stay off the census's wire, as State does.
+	Candidates []recipe.Definition `json:"-"`
 	// KeyEnvironment names the variable a hosted model's provider key
 	// lives in (empty for a local model), so a page can take the key when
 	// the entry is refused for its absence.
@@ -239,7 +242,38 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		if len(entry.Capabilities) == 0 && !includeInactive {
 			continue
 		}
+		if len(entry.Capabilities) == 0 && entry.Present {
+			if entry.Candidates, err = candidates(ctx, store, model, limit); err != nil {
+				return nil, false, err
+			}
+		}
 		entries = append(entries, entry)
 	}
 	return entries, truncated, nil
+}
+
+// candidates reads the recipes the store holds over model, which every recipe names as its model dependency.
+func candidates(ctx context.Context, store *overgodb.Store, model artifact.ID, limit int) ([]recipe.Definition, error) {
+	contract := recipe.DefinitionDocumentContract()
+	found, err := store.Query(ctx, overgodb.Query{
+		Artifact: &model, Follow: overgodb.FollowChildren, MaxDepth: 1, Relation: artifact.RelationDependsOn,
+		MediaType: contract.MediaType, Schema: contract.Schema, Projection: overgodb.ProjectArtifacts, MaxResults: limit,
+	})
+	if err == nil && found.Truncated {
+		err = fmt.Errorf("discovery: model %s has more recipes than the listing bound %d", model, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var definitions []recipe.Definition
+	for _, descriptor := range found.Artifacts {
+		definition, err := recipe.RequireDefinition(ctx, store, descriptor.ID)
+		if err != nil {
+			return nil, err
+		}
+		if definition.Model == model {
+			definitions = append(definitions, definition)
+		}
+	}
+	return definitions, nil
 }

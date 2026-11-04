@@ -126,7 +126,9 @@
         "uncertainty": "Replacement not implemented or parsed. Actual test/migration cost must be counted at implementation. Existing temporary Git fixture can hold direct landedAgain cases; estimate2-3 additional local empty commits/query assertions, no extra repository setup or gate/production workload. No elapsed/memory saving measured. Do not infer the entire landing package is reduced."
       },
       "likely_effort": "Small query replacement and one extension to the existing native landing recovery fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "landing-identity/whole-trailer"
+      ],
       "plan_coverage": "New advisory in the owner just changed by f1ddd8143 (fault-finding/landing-stages, now pruned). SQA does not add or change plan rows.",
       "closure_criteria": [
         "A historical row/do-again does not reject a newly filed row/do; an embedded prose occurrence does not establish the row's landing.",
@@ -7596,6 +7598,50 @@
         "plan_steps": [
           "any-model-runs/unvalidated-runs"
         ]
+      },
+      {
+        "comment": "Landed with any-model-runs/chooser-offers. The capability catalog now reads, for a present model nothing has activated, the recipes the store holds over it (CatalogEntry.Candidates, off the census wire), and the generation workspace reads its candidates from there rather than querying itself. The catalog's model state and its task attribution, this finding's subject, are unchanged.",
+        "disposition": "context",
+        "evidence": [
+          "internal/server TestTheCatalogSaysWhatAnUnactivatedModelRuns"
+        ],
+        "finding_id": "SQA-283",
+        "plan_steps": [
+          "any-model-runs/chooser-offers"
+        ]
+      },
+      {
+        "comment": "any-model-runs/chooser-offers touches internal/server/hub_workspace.go only to name an unactivated model's candidate tasks on the catalog's wire (catalogModel.Candidates). catalogModels still calls keepMemo as before, so the memo's shutdown ordering stands as filed.",
+        "disposition": "context",
+        "evidence": [
+          "internal/server/hub_workspace.go catalogListing"
+        ],
+        "finding_id": "SQA-286",
+        "plan_steps": [
+          "any-model-runs/chooser-offers"
+        ]
+      },
+      {
+        "comment": "any-model-runs/chooser-offers touches internal/server/hub_workspace.go's catalog listing, not the download registry this finding's fold concerns; it stays with compact-tests/exact-folds.",
+        "disposition": "context",
+        "evidence": [
+          "internal/server/hub_workspace.go catalogListing"
+        ],
+        "finding_id": "SQA-252",
+        "plan_steps": [
+          "any-model-runs/chooser-offers"
+        ]
+      },
+      {
+        "comment": "Scheduled with any-model-runs/chooser-offers as landing-identity/whole-trailer, the row after it. The step compares each parsed Landed-Row trailer value to the step as a whole string instead of the recommended anchored --extended-regexp, under the owner's rule to avoid regular expressions; the defect it closes is the same.",
+        "disposition": "scheduled",
+        "evidence": [
+          "docs/plan.json landing-identity/whole-trailer"
+        ],
+        "finding_id": "SQA-300",
+        "plan_steps": [
+          "landing-identity/whole-trailer"
+        ]
       }
     ],
     "experiments": {
@@ -7637,7 +7683,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "9122df958443d998af1056f04f6d68e8b85c8d34",
+    "head": "1deb8f70e1f99df256ddee5e480cfdee4126b665",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8310,6 +8356,11 @@
           "fault-finding/queued-order"
         ],
         "note": "Landed with fault-finding/queued-order: the queued refusal is read before the branch that waits on a load in progress, reusing the pendingLoad the request already holds. Awaits the reviewer's closure."
+      },
+      "SQA-300": {
+        "rows": [
+          "landing-identity/whole-trailer"
+        ]
       }
     }
   },

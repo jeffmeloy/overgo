@@ -1125,7 +1125,7 @@
         await api.get("/health?swap=" + encodeURIComponent(item.model), { onHeaders: (headers) => { via = headers.get("X-Overgo-Swap-Proxy"); phases = swapPhases(headers.get("X-Overgo-Swap-Phases")); } });
         invalidateModel();
         const manifest = await api.get("/workspace/manifest");
-        if (manifest.model && manifest.model.model === item.model && manifest.model.recipe === item.recipe) {
+        if (manifest.model && manifest.model.model === item.model && (manifest.model.recipe || "") === (item.recipe || "")) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
           // Reopening history can request its original model; other switches start a fresh chain.
           if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
@@ -1189,9 +1189,10 @@
       try {
         const catalog = await api.get("/catalog/models");
         if (panel !== currentPanel) return;
-        // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
-        // task capabilities and a serve control; a stale activation with the loader's reason and no control.
-        const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
+        // Every entry with bytes on disk that runs as text is listed: an activated one with its evidence, declared
+        // task capabilities and a serve control; one nothing has verified with its state and a serve control; a stale
+        // activation with the loader's reason and no control.
+        const entries = (catalog.models || []).filter((item) => item.present && (item.recipe || (item.candidates || []).includes("inference")));
         const names = modelNames(entries);
         // An empty store names the two ways in; each opens the Library tab's form.
         if (!entries.length) {
@@ -1209,7 +1210,8 @@
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
-            } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null);
+            } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null,
+              item.verification && item.verification !== "verified" ? el("span", { class: "tag", title: item.verification_reason || "It runs from its own files, and nothing has measured it.", text: item.verification }) : null);
             // What the model does and what was measured of it read on the row; its identities wait in the details.
             const does = (item.capabilities || []).map((capability) => capability.task === "inference" ? "text" : capability.task).join(", ");
             const summary = [does, evidenceLine(item)].filter(Boolean).join(" · ");

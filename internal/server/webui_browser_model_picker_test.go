@@ -13,7 +13,9 @@ import (
 // leg's server answers in the catalog's shape: the header states the served
 // model's measured evidence, each row carries its evidence and capability
 // tags, the served row says so, a stale row gives its reason and offers no
-// Serve, the note names the last model this browser served, and a switch
+// Serve, a model nothing has verified that runs as text is offered with its
+// state while one that makes images is not, the note names the last model
+// this browser served, and a switch
 // shows its progress on the row and as an operation chip, then reports that
 // the server did not confirm the model with a way to retry.
 func TestWebUIBrowserModelPicker(t *testing.T) {
@@ -46,6 +48,11 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 			"capabilities": []map[string]any{{"task": "inference", "recipe": "recipe:other", "tier": "verified"}}},
 		{"model": "model:stale", "location": "C:/models/stale.gguf", "present": true, "recipe": "recipe:stale",
 			"stale": "architecture qwen9 is not supported"},
+		// Nothing has activated either: a trained model whose candidate runs as text, and an image model.
+		{"model": "model:trained", "location": "C:/models/trained.gguf", "present": true, "recipe": "",
+			"verification": "not verified", "candidates": []string{"inference"}},
+		{"model": "model:painter", "location": "C:/models/painter.safetensors", "present": true, "recipe": "",
+			"verification": "not verified", "candidates": []string{"image-gen"}},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +82,7 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 
 	// The picker lists each row with its evidence, tags and control.
 	check(`(() => { try { localStorage.setItem('overgo.model', 'remembered.gguf'); } catch (_) {} document.getElementById('model-pill').click(); return true; })()`)
-	settle(`[...document.querySelectorAll('dialog[open] .row[tabindex]')].length === 3`)
+	settle(`[...document.querySelectorAll('dialog[open] .row[tabindex]')].length === 4`)
 	check(`(() => {
   window.pickerRow = (name) => [...document.querySelectorAll('dialog[open] .row[tabindex]')].find(row => row.querySelector('.mono').textContent === name);
   window.pickerTags = (name) => [...pickerRow(name).querySelectorAll('.tag')].map(tag => tag.textContent);
@@ -85,6 +92,7 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 	check(`document.querySelector('dialog[open] .note').textContent.includes('last time you served remembered.gguf')`)
 	check(`pickerRow(` + "`" + served + "`" + `).textContent.includes('120 prompt tok/s') && pickerTags(` + "`" + served + "`" + `).join(',') === 'inference,embedding · contract-tested,Serving'`)
 	check(`!!pickerButton('other.gguf', 'Serve') && pickerTags('other.gguf').join(',') === 'inference'`)
+	check(`pickerTags('trained.gguf').join(',') === 'not verified' && !!pickerButton('trained.gguf', 'Serve') && !pickerRow('painter.safetensors')`)
 	check(`pickerTags('stale.gguf').includes('unservable: architecture qwen9 is not supported') && !pickerButton('stale.gguf', 'Serve') && pickerRow('stale.gguf').querySelector('details').open`)
 
 	// A switch shows its progress on the row and as an operation chip.
@@ -96,5 +104,5 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 	// Unconfirmed, it says so and offers the retry.
 	settle(`document.querySelector('dialog[open]').textContent.includes('The server did not confirm the requested model') && !![...document.querySelectorAll('dialog[open] button')].find(button => button.textContent === 'Retry loading model')`)
 	settle(`[...document.querySelectorAll('.operation-chip')].some(chip => chip.textContent.startsWith('model switch other.gguf') && chip.textContent.includes('failed'))`)
-	webuilane.Leg(t, "model picker leg", "the header and rows stated measured evidence and capability tags, the served row said so, a stale row gave its reason without Serve, the remembered model was named, and a switch showed its progress and chip before reporting it unconfirmed with a retry")
+	webuilane.Leg(t, "model picker leg", "the header and rows stated measured evidence and capability tags, the served row said so, a stale row gave its reason without Serve, an unverified text model was offered with its state and an image model was not, the remembered model was named, and a switch showed its progress and chip before reporting it unconfirmed with a retry")
 }

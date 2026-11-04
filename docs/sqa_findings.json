@@ -1,112 +1,24 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "Credit partial SQA-288 repairs, now including committed modeled crash/failure evidence, and measured stage-memory reductions. No additional safe net production/test reduction established; no quota.",
-      "priority": "Acknowledged-commit recovery remains first; memo shutdown, evidence identity and unattended continuation remain above compaction. Source rechecks do not support a priority change.",
+      "assessment": "Two established obligations close with source, AST and retained results. Credit the landed net seam/test reductions; no new safe consolidation or unsupported numeric/geometry finding established.",
+      "priority": "The former P1 store closure is complete. Pending memo shutdown, evidence attribution and unattended continuation remain ahead of optional compaction; their severities do not change.",
       "declined_candidates": [
-        "Do not delete the new stage-lifetime test as a self-comparison: two requests test regrowth after freeing scratch, while frozen numerical fixtures own correctness. No equivalent retained lifetime owner was established.",
-        "Do not remove unwritten-tail or cutover coverage because both use committedJournal: they share setup but exercise distinct tail-corruption and absent-root recovery contracts. The actual shared helper already has two test callers.",
-        "The 460-node durable-rename scan is structural and costs a source discovery when executed. It does not prove crash durability or cover indirect function aliases. Retain its current requirement until an established behavioral owner subsumes it; do not expand it into another policy suite.",
-        "freeBuffers now serves releaseWorkspace and Close with the same workspace deletion/error aggregation. Preserve stage synchronization, WithoutCancel final close, Windows build admission and weight ownership; no extra cleanup wrapper recommended.",
-        "Do not generalize square5-frame64x64 stage fixtures, sin/cos values or retained timing pairs to arbitrary geometry/distributions. The fixture derives buffers from admitted model geometry; no concrete new rectangular/overflow bug established.",
-        "Crash/failure tests share runCrashHarness and crashCheck but exercise interruption versus returned errors. A combined child invocation could change isolation and tag/selection behavior; no fully priced safe consolidation established here. Keep the existing fault-seam migration owner and its distinct admission/catalog/uncertain-flush/orphan-blob cases."
+        "Do not delete the migrated fault assertions because generic failure injection exists: the retained latch undo proves different failure sensitivity. Keep snapshot-stream failure under its original native owner.",
+        "Do not merge generated store lifecycles with one fixed crash workload or swap lifecycles with store tests. Multi-handle publication and child-stop/grace contracts differ; fixed seed samples are not exhaustive coverage.",
+        "catalogLayers already serves nativeExpertBankTensors and f32RequiredModelTensors. Different tensor inventories/adapted fallbacks and lifetime owners do not justify another iterator/wrapper on this evidence.",
+        "sseEmitter.write/named duplication is already SQA-224. synchronizedSSE also owns serialization, error latching and heartbeat joins; similar writes do not justify removing those contracts.",
+        "Retain heartbeat-frame/flush and cancellation/idempotent-stop tests as different contracts. Retain package-progress order and observer forwarding; it does not establish unattended delivery. No new selector, scheduler, framework, ratchet or telemetry."
       ]
     },
   "committed_plan": {
-    "git_blob": "a1ac3966daf04c790d6627410d8e2cab5c9fca1a",
+    "git_blob": "f51026a85cd95880c8ebefd67d05bec84a918b08",
     "path": "docs/plan.json",
-    "revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-    "sha256": "ca58d024cac2f2ee57a4cdfac3dd0f33a89b7917362e2986126fb22d8b5a2d71",
+    "revision": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+    "sha256": "ff3ed131d123eaa601f3dac0bb1536cb63ecbb64aab6b710d9cdebcc32b457d8",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
   "findings": [
-    {
-      "id": "SQA-288",
-      "status": "open",
-      "severity": "P1",
-      "category": "durability",
-      "classification": "partially-addressed-repairs-and-modeled-crash-proof-with-lifecycle-work-pending",
-      "title": "Finish store lifecycle coverage and migrate the displaced append fault seam",
-      "evidence_commit": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-      "sources": [
-        {
-          "path": "internal/overgodb/store.go",
-          "symbol": "sealLocked -> fsatomic.Replace before journal truncate; open -> supersededSibling under writer exclusion; ReplaceStore"
-        },
-        {
-          "path": "internal/overgodb/log.go",
-          "symbol": "ensureHeader; pendingRotation; replayFrames; zeroFrom; tornBytes"
-        },
-        {
-          "path": "internal/fsatomic/replace_windows.go",
-          "symbol": "Replace; replace; posixRename"
-        },
-        {
-          "path": "internal/fsatomic/sync_windows.go",
-          "symbol": "SyncDirectory; SyncFile"
-        },
-        {
-          "path": "internal/trainingprogram/checkpoint.go",
-          "symbol": "PublishCheckpoint; writeMomentum"
-        },
-        {
-          "path": "internal/overgodb/unwritten_tail_test.go",
-          "symbol": "TestAnUnwrittenTailEndsTheJournal; committedJournal; appendTo"
-        },
-        {
-          "path": "internal/overgodb/cutover_kill_test.go",
-          "symbol": "TestAKillBetweenCutoverRenamesStartsNoEmptyStore"
-        },
-        {
-          "path": "internal/repoanalysis/durable_rename_test.go",
-          "symbol": "TestEveryDurableRenameGoesThroughItsOwner"
-        },
-        {
-          "path": "docs/plan.json",
-          "symbol": "store-durability/store-lifecycles; fault-seam; fault-finding"
-        },
-        {
-          "path": "internal/overgodb/durable_operations_test.go",
-          "symbol": "runCrashHarness; crashOverlay; rewriteDurableCalls"
-        },
-        {
-          "path": "internal/overgodb/crash_record_test.go",
-          "symbol": "crashRecorder; crashRun; crashSync; crashWrite"
-        },
-        {
-          "path": "internal/overgodb/crash_points_test.go",
-          "symbol": "crashKillStates; crashNTFSStates; crashWinRuleStates; crashCheck; TestCrashStatesKeepTheStoresPromises; TestRefusedOperationsKeepTheStoresPromises"
-        }
-      ],
-      "evidence": "b41b8ca6d imports store-durability/fault-finding and replaces seal's bare rename/no-op directory sync with fsatomic.Replace before truncation; checkpoint publication uses that owner and flushes momentum.879c69153 recovers zero active tails at the last whole prefix, with writable truncation/TornTail reporting; nonzero corruption and torn sealed segments still refuse. ae4c940e9 makes Create refuse a missing root beside .superseded-* under writer exclusion, retaining the original store. Publication waited for the active gate;70bd1ab76 then landed the modeled crash/failure harness and expands ensureHeader to an entirely zero journal without sealed segments, regardless of length, with seek-to-start before rewrite; invalid nonzero full headers still reach replay refusal. The committed harness records322operations; retained526kill/616journaled-power/137Windows-rule states and351fail-once/fail-persistently operations keep its promises. Retained undo failures expose anchor/seal/zero-tail regressions. These are modeled materialized trees with simulated flushes, not killed processes or physical power cuts. The old append seam and its narrower assertions remain; committed store-lifecycles/fault-seam own the next work. Earlier external reproductions keep their provenance and are not new SQA measurements.",
-      "recommended_change": "Credit all four landed steps and imported rows; retire obsolete import/repair requests. Complete existing store-lifecycles, then fault-seam: migrate per-surface fault refusal, unchanged catalog/head after failed append, complete replay after uncertain flush, and orphaned durable-blob noncommit into the existing harness before deleting recordLog.writer/durableWriter/faultWriter/partWriter and displaced rotation bodies. Preserve recovery/identity/cancellation and keep the new failure model explicitly bounded. No additional SQA run, new scanner/framework or blanket deletion.",
-      "displaced_surface": "Landed durable names removes seal's plain rename/no-op SyncDirectory and checkpoint's encoded-document staging map; complete gate -16 production/+460 test AST. Unwritten-tail adds+371/+775, cutover refusal+117/+216: durability subtotal+472 production/+1451 test=+1923. New shared committedJournal serves both tail and cutover tests, with eleven four-commit fixture invocations; appendTo belongs to tail setup. No new static fixture/schema/CUDA entries reported. Structural scan adds repository discovery/planted source and maintenance of seven exempt files, not behavioral crash proof. Remaining lifecycle/seam migration cost must still be counted; do not recommend deleting an old fault owner without migrating distinct cases. Concurrent70bd1ab76 adds44production/8693testAST: current durability subtotal516production/10144test=10660. Harness files1178+1688+5827AST; two child native-test commands/overlays, modeled state reconstruction and eight workers add setup cost, despite zero static fixtures. No old seam/test deletion has landed. Remaining migration net saving is unpriced; do not claim a reduction before all four distinct old assertions and their setup are accounted for.",
-      "impact": "Protects acknowledged store history, training checkpoint publication and restart after cutover; avoids starting the server with an empty store beside original commits. Wrongly broad tail recovery would hide corruption, and dropping read-only/sealed distinctions risks data loss. Preserve original content/identity, no confidentiality relaxation. No source-based guarantee against every hardware/filesystem failure.",
-      "expected_benefit": {
-        "outcome": "Concrete namespace/tail/cutover repairs and a shared modeled crash/failure oracle now exist. Remaining closure is generated store lifecycle behavior and complete old-seam migration.",
-        "uncertainty": "No physical power-loss result. Fixed512-byte synthetic sectors,1/half/last torn-write cuts and metadata/flush ordering bound the model; syntax-based rewrite/final-tree equality do not alone establish exhaustive flush coverage. Retained undo failures provide real fault signals within this workload. A zeroed acknowledged trailer is not distinguishable from an unwritten one by zeros alone."
-      },
-      "likely_effort": "Four steps landed; existing store-lifecycles and fault-seam remain. Full migration/setup savings unpriced until narrower contracts move.",
-      "plan_references": [
-        "store-durability/store-lifecycles",
-        "store-durability/fault-seam",
-        "fault-finding/swap-lifecycles",
-        "fault-finding/queued-load",
-        "fault-finding/agent-lifecycles",
-        "fault-finding/decline-sequences",
-        "fault-finding/checkpoint-cuts",
-        "fault-finding/landing-stages",
-        "fault-finding/long-sequences"
-      ],
-      "plan_coverage": "The missing rows are committed. durable-names, unwritten-tail, cutover-kill and crash-points landed and were pruned; store-lifecycles and newly explicit fault-seam remain before fault-finding. No plan edited by SQA.",
-      "closure_criteria": [
-        "Keep four committed steps and retained undo failures; do not repeat their checks solely for confidence.",
-        "Complete the committed store lifecycle requirement and migrate all four narrower append-seam contracts into the retained harness before deleting old injection/setup paths; report net production/test/fixture/setup/maintenance cost.",
-        "Preserve read-only nonmutation, nonzero corruption/sealed-segment refusals, acknowledged identities, cutover recovery and cancellation. Bound modeled-state conclusions by sector/write-cut/namespace/rewriter assumptions; physical power-loss proof is not asserted or required as a new SQA workload."
-      ],
-      "comparison": "Use the already planned native lifecycle fixture and existing crashCheck/refusal workloads. Smallest deciding migration comparison: each old per-surface refusal/catalog/uncertain-flush/orphan-blob assertion still fails with its fault disabled after moving; only then delete its old owner and count complete before/after AST/setup. Retained anchor/seal/zero-tail undo results already decide their repairs. No extra model run, confidence suite or scheduler.",
-      "raised_by": "Review session e8549e3e, 2026-11-02, on finding the rows of plan review session 35d6688b absent from the plan and the register"
-    },
     {
       "id": "SQA-286",
       "status": "open",
@@ -1020,51 +932,6 @@
         "Delete the displaced Flash body/imports/file and stale comment reference; whole replacement including setup/table stays below471 AST with no wrapper/new fixture."
       ],
       "comparison": "Existing native modeltest selection supplies the same six metadata cases during normal affected verification. Check required versus optional missing input and owned close without creating another test suite or acquisition. No SQA execution."
-    },
-    {
-      "id": "SQA-223",
-      "status": "open",
-      "severity": "P3",
-      "category": "test-fixture-consolidation",
-      "classification": "source-opportunity",
-      "title": "Move blob-verification cancellation cases into the existing packed/loose/backup fixture",
-      "evidence_commit": "bf7811c838b7a43fa3d9ebe9fb1d7d4f3360e655",
-      "sources": [
-        {
-          "path": "internal/overgodb/blob_pack_test.go",
-          "symbol": "TestSmallBlobsArePacked; TestBlobVerificationStopsWhenCancelled; TestPackIndexRejectsImpossibleCounts; TestPackStreamsItsMembers"
-        },
-        {
-          "path": "internal/overgodb/blob_pack.go",
-          "symbol": "Store.VerifyBlobs; blobStore.verifyPack; packBlobsUnder"
-        },
-        {
-          "path": "internal/overgodb/blobs.go",
-          "symbol": "blobStore.verify; copyVerified; blobReader"
-        },
-        {
-          "path": "cmd/overgodb/precheck.go",
-          "symbol": "precheck candidate packing and prove verification"
-        }
-      ],
-      "evidence": "Fresh rotation re-read both native tests and current pack/reader owners. TestSmallBlobsArePacked still creates all three states needed by cancellation: empty before Commit, a corrupted packed payload in its backup and a loose large blob. TestBlobVerificationStopsWhenCancelled separately repeats stores, publication, packing, reopen and corruption. Current blob_pack_test.go is 1807 AST and blob_pack.go 1581. The retained complete candidate remains 1807->1507: remove the 410-node cancellation function after 110 nodes move to the existing 757->867-node owner. This turn rechecked current source/counts, not the candidate's execution. Preserve cancellation-before-corruption/loose-read, ordinary mismatch, mixed kinds, exact readback, backup/repack and index corruption.",
-      "recommended_change": "Immediately after the existing TestSmallBlobsArePacked Open succeeds, create an already-cancelled context and require VerifyBlobs to return context.Canceled on the empty store. In its existing corrupted-backup branch, strengthen ordinary VerifyBlobs failure to exclude context.Canceled, then require cancellation from VerifyBlobs and from reopened.blobs.verify on contents[2], the existing large loose blob. Delete TestBlobVerificationStopsWhenCancelled and move its cancellation contract into the retained test's brief comment. Keep count-overflow and serial streaming-allocation tests unchanged. No helper or new fixture is needed.",
-      "displaced_surface": "Delete the410-node TestBlobVerificationStopsWhenCancelled body/comment, its separate empty/root stores, two published contents, pack operation, reopen, duplicate payload mutation and ordinary-mismatch assertion. Retain TestSmallBlobsArePacked as the fixture and assertion owner; migrate empty-store, corrupted-pack and loose-blob cancellation precedence, strengthening the already-retained ordinary mismatch. Preserve mixed artifact kinds, exact12 content readbacks, republish-without-loose-file, repack, read-only reopen/backup and independent index corruption. The replacement changes no production API, exports, configuration, build tags, numerical contract or cancellation semantics. Both tests are untagged; no external selector for the deleted name was found. Existing close/reader lifetime ownership stays in the retained test and blob readers. The copied backup has the same packed/loose states as the deleted root fixture. No data-loss or confidentiality behavior is removed.",
-      "impact": "Removes repeated native store setup and redundant corruption preparation while preserving cancellation before verification work. A future consolidation that drops the three cancellation cases would weaken recovery coverage and is not this recommendation.",
-      "expected_benefit": {
-        "outcome": "Retained complete hypothetical test1807->1507(-300AST);current production blob_pack.go1581->1581. Existing packed/loose/backup fixture owns all moved cancellation cases.",
-        "uncertainty": "Migration+110included after deleting410-node declaration;helpers/wrappers/fixtures/config0delta. Opens7->4,TempDirs4->2,packing3->2,contents5->3,corruption writes3->2;unchanged Backup internals excluded. VerifyBlobs5->4 removes duplicate mismatch;direct loose verification and12readbacks remain. No measured elapsed/allocation/RSS saving or extra gate. Current production baseline reflects the already-landed identity-sort simplification."
-      },
-      "likely_effort": "Small same-file move and deletion, with no production change.",
-      "plan_references": [
-        "store-durability/store-lifecycles"
-      ],
-      "plan_coverage": "Advisory only. The reductions row completed its explicitly named findings and left the active plan; it did not implement this remaining obligation. No new row or adoption is inferred.",
-      "closure_criteria": [
-        "Delete the duplicate cancellation fixture only after its empty-store, corrupted-pack and loose-blob cancellation checks move to TestSmallBlobsArePacked; ordinary corruption must still return a non-cancellation error.",
-        "Retain all mixed-kind/repack/reopen/backup/readback/index-count/index-corruption and bounded-allocation requirements, with a net full-file AST reduction and no new helper/fixture/selector."
-      ],
-      "comparison": "Smallest deciding implementation comparison: inspect the migrated three cancellation assertions and ordinary mismatch against the current tests, then use the existing native overgodb package lane when implementation is validated. No new SQA run, benchmark, test framework, fixture or selector. Exact hypothetical AST counts already include migration; timing is not needed to establish the code/setup reduction."
     },
     {
       "id": "SQA-237",
@@ -3116,6 +2983,130 @@
         "Retain shared native fixture, tensor/header/padding and directory-open coverage with no new setup or suite."
       ],
       "comparison": "The in-memory full-file replacement already counts all imports, caller messages and deleted helper:433->367. Exact-declaration go/types confirms the original helper uses only standard byte equality and length/index operations. Ordinary implementation validation suffices; no new SQA test or benchmark."
+    },
+    {
+      "id": "SQA-288",
+      "status": "resolved",
+      "severity": "P1",
+      "category": "durability",
+      "classification": "resolved-modeled-recovery-lifecycles-and-seam-migration",
+      "title": "Store lifecycle recovery and append fault-seam migration are complete",
+      "evidence_commit": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+      "sources": [
+        {
+          "path": "internal/overgodb/blob_pack.go",
+          "symbol": "blobPack.open; readPackIndex; packEntry; blobStore.verifyPack; Store.VerifyBlobs"
+        },
+        {
+          "path": "internal/overgodb/blobs.go",
+          "symbol": "blobStore.reader uses the index of its opened pack; prepare/has use packed"
+        },
+        {
+          "path": "internal/overgodb/backup.go",
+          "symbol": "Store.Backup packed lookup"
+        },
+        {
+          "path": "internal/overgodb/log.go",
+          "symbol": "recordLog.append writes and Syncs file directly; durableWriter/writer removed"
+        },
+        {
+          "path": "internal/overgodb/crash_faults_test.go",
+          "symbol": "crashRefuseJournal; TestLogAppendStreamsFrame; TestAppendFaultClosesEveryStoreSurfaceUntilReopen; TestSyncFaultReplaysCompleteUncertainCommit; assertFaultedStoreSurfaces"
+        },
+        {
+          "path": "internal/overgodb/crash_lifecycles_test.go",
+          "symbol": "crashSequence; crashRunSequence; TestLifecyclesKeepTheStoresPromises"
+        },
+        {
+          "path": "internal/overgodb/durable_operations_test.go",
+          "symbol": "runCrashHarness; TestEveryDurableOperationIsACrashPoint/CanFail; TestGeneratedStoreLifecycles"
+        },
+        {
+          "path": "internal/overgodb/crash_record_test.go",
+          "symbol": "crashRecorder.refuse target kind/path"
+        },
+        {
+          "path": "internal/overgodb/crash_points_test.go",
+          "symbol": "crashCheck keeps read-only handle through recovery then Refresh"
+        },
+        {
+          "path": "internal/overgodb/blob_commit_test.go",
+          "symbol": "TestExternalBlobCommitAtomicity displaced orphan fault body"
+        },
+        {
+          "path": "internal/overgodb/commit_coordinator_test.go",
+          "symbol": "TestCommitCoordinatorAtomicity displaced faulted append body"
+        },
+        {
+          "path": "internal/overgodb/transaction_writer_test.go",
+          "symbol": "TestTransactionWriter displaced rotation-recovery subtest"
+        },
+        {
+          "path": "internal/overgodb/fault_test.go",
+          "symbol": "retained TestStreamingSnapshotFaultPreservesStore"
+        }
+      ],
+      "evidence": "Earlier durable-names/zero-tail/cutover/crash-points repairs remain. de3563d175 adds40seeded60-step multi-handle store lifecycles; retained31/40failures exposed stale pack indices. blobPack.open now reloads on changed os.SameFile identity and blobStore.reader uses that exact file/index pair; pack publication is by rename. Retained0/40and0/200after.335a69cec completes seam migration: all three inner tests run through existing crashpoints overlay; the shared append fault case also checks unchanged catalog/head and durable-uncommitted blob, while crashCheck holds its reader through recovery. Required named PASS admission prevents missing inner tests from passing vacuously. Retained latch undo fails the migrated case even though generic refusal finds nothing. Current source removes every named old seam; no remaining store-durability row.",
+      "recommended_change": "Close this finding and retain the migrated cases in their existing owners. Do not keep the separate remaining fault-finding campaign open under this completed store obligation or add another recovery suite. Preserve bounded-model caveats.",
+      "displaced_surface": "Removed recordLog.writer/durableWriter and append fallback; faultWriter/partWriter/errInjectedStoreFault; moved three test bodies/assertFaultedStoreSurfaces into crash_faults_test.go; folded orphan-blob and coordinator-facet/head cases into the moved append test; removed manual rotation setup after moving reader-follow to crashCheck. Same injected-error and ErrStoreFaulted semantics, exact content/commit identities and open-log lifetime preserved. Tests move under crashpoints, but existing untagged outer tests invoke and require them; snapshot-stream fault remains untagged. No public API/config/schema/numerical contract relaxed. New target-kind/path helper and recorder mode are included in net cost.",
+      "impact": "Repairs admitted cross-handle repack stale-index corruption/refusal and preserves acknowledged history, uncertain-flush recovery, reader following and uncommitted blob isolation. No data-loss/confidentiality protection is removed. No universal physical durability guarantee.",
+      "expected_benefit": {
+        "outcome": "Complete fault-seam landing-30production/-544testAST after migration. Two new store landings together+29production/+1647test=+1676; necessary lifecycle growth is not a reduction. Combined with prior retained durability subtotal, campaign+545production/+11791test=+12336.",
+        "uncertainty": "Current store production subset6780->6809; changed store tests17357->19004. Seam child invocations3->3; lifecycle adds third outer overlay/workload2->3. New1020-node migration file/54-node recorder expansion and longer reader lifetime+Refresh per eligible state are included. No static fixtures; generated trees and overlay builds cost setup. Retained store test elapsed about55s before/after is descriptive, not controlled speed evidence."
+      },
+      "likely_effort": "Completed in de3563d175 and335a69cec. No remaining implementation requested for this finding.",
+      "plan_references": [],
+      "plan_coverage": "All store-durability steps completed and pruned from committed plan. fault-finding's other lifecycle/queued-load/checkpoint/landing rows remain separate scopes; no plan modification by SQA.",
+      "closure_criteria": [
+        "Met: prior committed durable-name/tail/cutover repairs and modeled crash/refusal evidence retained.",
+        "Met: generated store lifecycles repair stale pack pairing; migrated narrow append assertions and reader-follow survive before old injection/setup paths are deleted.",
+        "Met within declared model: read-only nonmutation, corruption/sealed refusals, acknowledged identities, cancellation and next-commit recovery retained; full AST/setup/migration cost disclosed. Physical power-loss proof is not asserted."
+      ],
+      "comparison": "Deciding retained comparison is committed native lifecycle before/after and existing fault-latch undo: the shared generic workload alone misses the lapse, the migrated case detects it. Source/AST corroborate deletion with retained distinct requirements. No new SQA check, physical power cut or confidence run needed.",
+      "raised_by": "Review session e8549e3e, 2026-11-02, on finding the rows of plan review session 35d6688b absent from the plan and the register"
+    },
+    {
+      "id": "SQA-223",
+      "status": "resolved",
+      "severity": "P3",
+      "category": "test-fixture-consolidation",
+      "classification": "resolved-existing-fixture-consolidation",
+      "title": "Blob verification cancellation cases share the existing pack fixture",
+      "evidence_commit": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+      "sources": [
+        {
+          "path": "internal/overgodb/blob_pack_test.go",
+          "symbol": "TestSmallBlobsArePacked retained; TestBlobVerificationStopsWhenCancelled removed; TestPackIndexRejectsImpossibleCounts simplified; TestPackStreamsItsMembers retained"
+        },
+        {
+          "path": "internal/overgodb/blob_pack.go",
+          "symbol": "Store.VerifyBlobs; blobStore.verifyPack; packBlobsUnder"
+        },
+        {
+          "path": "internal/overgodb/blobs.go",
+          "symbol": "blobStore.verify; copyVerified; blobReader"
+        },
+        {
+          "path": "cmd/overgodb/precheck.go",
+          "symbol": "existing candidate packing/prove verification caller"
+        }
+      ],
+      "evidence": "de3563d175 deletes TestBlobVerificationStopsWhenCancelled and moves all three cancellation states into TestSmallBlobsArePacked: empty before commit, corrupted backup pack, existing loose contents[2]. Ordinary corrupt verification explicitly excludes context.Canceled. Fresh AST: removed410nodes; retained function757->870(+113); count-index test172->157. Full blob_pack_test1807->1495(-312). Retained cancellation-guard undo fails at empty-store verification.",
+      "recommended_change": "Close. Keep the three cancellation checks and ordinary mismatch under TestSmallBlobsArePacked, preserving the existing readback/repack/backup/index/streaming requirements. No new helper, fixture or test run.",
+      "displaced_surface": "410-node standalone test and duplicate empty/root stores, two contents, pack/reopen and payload corruption disappear after113nodes migrate. Existing packed/loose/backup owner retains mixed artifact kinds,12exact content reads, republish/repack and index corruption. No production API/export/config/build-tag/numerical or cancellation contract changes from this consolidation; readers/store closes remain with existing owners. Independent count test now uses in-memory SectionReaders; serial streaming allocation test unchanged.",
+      "impact": "Removes repeated native store setup and redundant corruption preparation while preserving cancellation before verification work. A future consolidation that drops the three cancellation cases would weaken recovery coverage and is not this recommendation.",
+      "expected_benefit": {
+        "outcome": "Implemented cancellation consolidation-297testAST, rather than prior hypothetical-300; the actual moved comment/assertions cost113. Separate index-fixture simplification-15makes full file-312. Production change attributable to this consolidation0.",
+        "uncertainty": "Fixture opens7->4,TempDirs4->2,packing3->2,contents5->3,corruption writes3->2; Backup internals unchanged. Four count-header temporary files additionally become four in-memory SectionReaders. Helper/wrapper/config/static fixture0delta; no measured elapsed/allocation/RSS saving. Separate pack correctness repair is counted in SQA-288."
+      },
+      "likely_effort": "Completed in store-lifecycles landing; no remaining change.",
+      "plan_references": [],
+      "plan_coverage": "Implemented within store-durability/store-lifecycles, now completed and pruned. No new row or inferred work.",
+      "closure_criteria": [
+        "Met: duplicate cancellation test deleted only after empty-store/corrupt-pack/loose cancellation checks move; ordinary corrupt verification excludes cancellation.",
+        "Met: mixed-kind/repack/reopen/backup/readback/index and serial streaming requirements retain owners, full-file AST shrinks, no new fixture/helper/selector."
+      ],
+      "comparison": "Current source and actual AST establish the net reduction; retained verifyPack cancellation-guard undo fails the migrated empty-store case. Existing native overgodb gate completed with implementation. No SQA rerun or benchmark."
     },
     {
       "id": "SQA-294",
@@ -6340,127 +6331,115 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA application tests, gates, model/device workloads, services, benchmarks, profiles or new fixture runs. Scratch Go parser/type analysis only.",
+      "execution": "No SQA application tests, gates, model/device workloads, services, benchmarks, profiles or new fixture runs. Only scratch Go AST/type analysis and report JSON/integrity checks.",
       "sample_cost": {
-        "revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-        "comparison_revision": "8780ef3e08280421caff4b2a01898f26c01c4fd3",
+        "revision": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+        "comparison_revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
         "files": [
-          "cmd/overgodb/repair.go",
-          "cmd/server/main.go",
-          "internal/latentvideo/codec_stages_windows_test.go",
-          "internal/latentvideo/reconstruction_cuda_windows.go",
-          "internal/latentvideo/reference_edit_runtime_cuda_windows.go",
-          "internal/latentvideo/runtime.go",
-          "internal/latentvideo/vae_session.go",
-          "internal/overgodb/cutover_kill_test.go",
-          "internal/overgodb/log.go",
-          "internal/overgodb/store.go",
-          "internal/overgodb/unwritten_tail_test.go",
-          "internal/repoanalysis/durable_rename_test.go",
-          "internal/trainingprogram/checkpoint.go",
-          "internal/server/event_hub.go",
-          "internal/server/event_hub_test.go",
-          "internal/landing/spent.go",
-          "internal/landing/spent_test.go",
-          "internal/overgodb/query.go",
-          "internal/overgodb/query_plan_test.go",
+          "cmd/swap/main.go",
+          "internal/inference/runner_weights_test.go",
+          "internal/inference/runner_weights.go",
+          "internal/modelswap/supervisor.go",
+          "internal/modelswap/swap_lifecycles_test.go",
+          "internal/overgodb/blob_commit_test.go",
+          "internal/overgodb/blob_pack_test.go",
           "internal/overgodb/blob_pack.go",
-          "internal/overgodb/retention.go",
-          "internal/fsatomic/replace_windows.go",
-          "internal/fsatomic/sync_windows.go",
+          "internal/overgodb/blobs.go",
+          "internal/overgodb/commit_coordinator_test.go",
+          "internal/overgodb/crash_faults_test.go",
+          "internal/overgodb/crash_lifecycles_test.go",
           "internal/overgodb/crash_points_test.go",
           "internal/overgodb/crash_record_test.go",
-          "internal/overgodb/durable_operations_test.go"
+          "internal/overgodb/durable_operations_test.go",
+          "internal/overgodb/fault_test.go",
+          "internal/overgodb/log.go",
+          "internal/overgodb/transaction_writer_test.go",
+          "internal/server/protocol_io.go",
+          "internal/server/server_completion_chat_embedding_test.go",
+          "internal/testevidence/command.go",
+          "internal/testevidence/progress_test.go"
         ],
-        "file_count": 26,
-        "functions": 297,
-        "parser_local_bindings": 10828,
-        "production_ast_before": 37326,
-        "production_ast_after": 38048,
-        "production_ast_delta": 722,
-        "test_ast_before": 2044,
-        "test_ast_after": 12592,
-        "test_ast_delta": 10548,
-        "total_ast_after": 50640,
-        "scope": "All16 changed Go files across five landings plus10 rotated files, compared with8780ef3e. Seven new test files count from zero. Whole-file counts include comments; named snippets outside this list are not in totals."
+        "file_count": 22,
+        "functions": 277,
+        "parser_local_bindings": 9143,
+        "production_ast_before": 11154,
+        "production_ast_after": 11401,
+        "production_ast_delta": 247,
+        "test_ast_before": 30632,
+        "test_ast_after": 34328,
+        "test_ast_delta": 3696,
+        "total_ast_after": 45729,
+        "scope": "Whole-file counts include comments;3new test files count from zero. Named source snippets outside these22files are excluded from totals. Counts are maintenance proxies, not elapsed or memory measurements."
       },
-      "complete_change_cost": "Total+11270AST:722production/10548test. Crash-points alone+44/+8693; its record predicts about45s additional store tests and retains23/22s modeled workloads. No new CUDA/schema/static fixture files reported; overlays/temp trees are generated setup with real execution/maintenance cost. media-stage-peaks.json599029bytes(-6) remains maintained data. Native cache credit does not erase test growth.",
-      "completed_reductions": "Removes overlapping stage scratch lifetimes and seal's bare rename/no-op directory sync; checkpoint marshaling no longer holds a map of encoded document bytes before writing. freeBuffers consolidates actual stage-release and Close callers; whole feature still grows. No new elapsed/heap saving inferred from AST.",
+      "complete_change_cost": "Store-lifecycles+2250totalAST;fault-seam-574;swap-lifecycles+2267 =>+3943. No schema/CUDA/static fixture additions reported. Generated trees/overlays and virtual fake-child lifecycles still have setup/maintenance cost. Whole store portion across these two landings grows29production/1647test; fault-seam savings are not the whole recovery cost.",
+      "completed_reductions": "log.go3980->3950 removes durableWriter, recordLog.writer and dispatch fallback. blob_pack_test1807->1495 removes duplicate cancellation setup(-297including migration) and simplifies index input(-15). Full fault-seam test delta-544 includes new1020-node tagged file, recorder target mode, reader-follow checks and required-inner-test admission; no saving is claimed from mere relocation.",
       "sampled_tests": [
         {
-          "classification": "retain",
-          "tests": "TestAVideoStageLeavesNoScratchForTheNext",
-          "retained_owner": "Existing Wan model fixture; Generator.Generate; vaeDecoderCUDASession.releaseWorkspace/freeBuffers",
-          "unique_cases": "One generator, two5-frame64x64 requests; zero arena/idle pool/VAE workspace between requests and exact nonempty float bits after regrowth. Frozen output tests retain independent numerical acceptance.",
-          "cost": "404 test AST, one model setup/two Generate calls with collected frame slices, no new static fixture/helper framework. Actual allocation size not measured by SQA; no net test reduction or universal peak bound claimed."
+          "classification": "merge/remove",
+          "tests": "TestBlobVerificationStopsWhenCancelled -> TestSmallBlobsArePacked",
+          "retained_owner": "Existing packed/loose/backup fixture and Store.VerifyBlobs/blobStore.verify",
+          "unique_cases": "Empty store, damaged packed member and loose blob must return cancellation first; ordinary damaged member must return a non-cancellation error. Keep mixed kinds,12exact reads, republish/repack/backup, index corruption.",
+          "cost": "410-node separate test removed; retained function757->870(+113including moved comment); net-297test. No production/helper/wrapper/config/export change. Same-file fixture opens7->4,TempDirs4->2,pack operations3->2,contents5->3,corruption writes3->2; Backup internals unchanged. No elapsed/RSS claim."
+        },
+        {
+          "classification": "simplify",
+          "tests": "TestPackIndexRejectsImpossibleCounts",
+          "retained_owner": "readPackIndex on io.SectionReader; existing test table",
+          "unique_cases": "MaxUint64,MaxUint64/packEntryBytes and3 entries refuse in a two-entry file;2 entries preserve exact index.",
+          "cost": "172->157nodes. Four temp-file setups replaced by in-memory byte readers/SectionReaders; no new fixture/helper owner. File-size quotient guards remain before allocation."
+        },
+        {
+          "classification": "merge/remove",
+          "tests": "TestLogAppendStreamsFrame; TestAppendFaultClosesEveryStoreSurfaceUntilReopen; TestSyncFaultReplaysCompleteUncertainCommit; displaced blob/coordinator fault bodies and transaction rotation subtest",
+          "retained_owner": "crash_faults_test.go, crashRecorder and crashCheck; outer TestEveryDurableOperationIsACrashPoint/CanFail",
+          "unique_cases": "Keep three exact append writes+flush; joined injected/ErrStoreFaulted errors; Artifact/Query/Snapshot/Commit refusal; open log; unchanged head/catalog; durable but uncommitted blob; uncertain complete-frame replay; read-only handle following recovery. TestStreamingSnapshotFaultPreservesStore remains untagged.",
+          "cost": "Full seam-30production/-544test, including1020-node tagged owner and54-node recorder expansion. Removes faultWriter/partWriter/error sentinel and one manual rotation fixture; narrower fault setup folds into shared case. Three existing outer child invocations remain3->3; named inner PASS checks prevent vacuity. Reader already opened by crashCheck now lives through recovery and gains one Refresh/check per eligible state, increasing work despite source reduction. No static fixture/config/production API additions."
         },
         {
           "classification": "retain",
-          "tests": "TestAnUnwrittenTailEndsTheJournal; TestAKillBetweenCutoverRenamesStartsNoEmptyStore",
-          "retained_owner": "committedJournal and appendTo in unwritten_tail_test.go; existing native store",
-          "unique_cases": "Both zero-tail forms across reader/writer/Create, after-seal zeros, nonzero corruption refusal, sealed-segment refusal, no-header bootstrap; cutover absent-root refusal and restored original head. Preserve read-only versus truncating-writer semantics and original corruption tests.",
-          "cost": "775+216=991 test AST. Six tail/open combinations plus four additional tail/header states and one cutover state use eleven committedJournal invocations, each four commits; count source setup, not timings. Shared helper already reused; no new static fixture. Manual rename models a boundary, not an actual killed process."
+          "tests": "TestGeneratedStoreLifecycles; TestLifecyclesKeepTheStoresPromises; crashCheck/refused operation owners",
+          "retained_owner": "Existing crashOverlay/runCrashHarness/crashRecorder/crashCheck",
+          "unique_cases": "Two writers plus reader, head/content reference, release/repack, stale-head refusal, idempotence, differing close tails and sampled crash reconstruction. Preserve read-only nonmutation and exact acknowledged identities.",
+          "cost": "New lifecycle file2450nodes. Whole landing+59production/+2191test includes cancellation/index reductions. Adds one outer child/overlay invocation2->3,40seeds*60steps plus up to6crash states each; generated data only. Current overlay1268/recorder1742/crash oracle5906nodes include later seam migration. No representative-coverage inference."
         },
         {
           "classification": "retain",
-          "tests": "TestEveryDurableRenameGoesThroughItsOwner",
-          "retained_owner": "Existing gosyntax discovery plus seven declared file exemptions, including exactly three store cutover sites",
-          "unique_cases": "Direct os.Rename spellings including renamed import, declared exception count and planted violation. No type-resolved indirect-call or power-loss guarantee.",
-          "cost": "460 test AST; full internal/cmd source discovery and one planted tiny source fixture when executed. Keep only until its requirement has an established retained owner; no additional scanner, selector or coverage run."
-        },
-        {
-          "classification": "merge",
-          "tests": "TestProjectionQueryPlanEfficiency",
-          "retained_owner": "Same native eight-descriptor fixture and QueryPlanReport; SQA-253",
-          "unique_cases": "Retain five successful media/kind/skewed-pair/zero-match/seed cases, catalog fallback, required-index refusal and repeated-head determinism. Merge bodies into a local table, not cases away.",
-          "cost": "Current719 test AST and3720 query production recounted. Retained complete hypothetical719->533 and3720->3696; query_test3044 remains from prior analysis, not freshly recounted. All eight queries/one store/one commit unchanged; zero helper, fixture, selector growth."
+          "tests": "TestGeneratedSwapLifecycles",
+          "retained_owner": "Supervisor and native synctest swapWorld/swapRun",
+          "unique_cases": "Stop/readiness/launch refusal, self-exit, cancellation, held/released leases, mid-load Close, exclusive child lifetime and each child's drain grace. cmd/swap propagates Close failure.",
+          "cost": "2049new testnodes for+218production.2000seeds*40virtual steps,3model names, no actual model/service/device. Zero static fixtures. No smaller established owner covers these new nontrivial lifetime contracts; growth is explicit."
         },
         {
           "classification": "retain",
-          "tests": "TestEventHubFansOutOnce",
-          "retained_owner": "eventHub with existing operation.Manager",
-          "unique_cases": "Three subscribers see ordered transitions, settled-record notification and bounded coalesced snapshots; slow subscriber receives resync. Delivery is GUI-local, not an automation wakeup.",
-          "cost": "628 test AST, one manager/hub/pump and four subscriptions, unchanged. Source payloads and configured MaxStoredResponses determine queues; no timing threshold or distribution assumption."
+          "tests": "TestNativeExpertBankTensors",
+          "retained_owner": "runner_weights.go/nativeExpertBankTensors and expert_residency.go/splitExpertResidency",
+          "unique_cases": "Fused/split/mixed BF16/F32/quantized banks, adapted/F16/flat rejection; native/converted footprint boundary and overflow; descriptors unchanged.",
+          "cost": "531testnodes and474selection production nodes unchanged. Literal48/47bytes derives from32-byte expert+8-byte dense+8-byte converted F32, not a model-specific capacity assumption. Existing zero-device fixture."
         },
         {
           "classification": "retain",
-          "tests": "TestLandingRecordsItsWaitsByCause",
-          "retained_owner": "newRowFixture and landing.recordSpent",
-          "unique_cases": "Preflight pass/refusal, moved-tree conflict, landed result and held-measurement wait. Keep failures/partial stages distinct from a successful timestamp.",
-          "cost": "697 test AST, one native repository fixture/four Run invocations plus quiet-owner exercise, unchanged. Timing assertions concern accounting order/positive elapsed, not numerical or performance acceptance."
-        },
-        {
-          "classification": "retain",
-          "tests": "TestEveryDurableOperationIsACrashPoint; TestEveryDurableOperationCanFail; tagged TestCrashStatesKeepTheStoresPromises and TestRefusedOperationsKeepTheStoresPromises",
-          "retained_owner": "runCrashHarness/crashOverlay and crashCheck share source/fixture/recovery assertions across two distinct workloads",
-          "unique_cases": "Keep acknowledged head/content/alias survival, read-only nonmutation, journal-only replay versus checkpoint state, release/verify/replay/next-sequence recovery, and fail-once versus fail-from-here behavior. Old append-seam tests have additional per-surface refusal/catalog immutability contracts that must move before deletion.",
-          "cost": "New8693testAST=1178overlay/launch+1688recorder+5827harness; production+44. Two child commands each -count=1, two overlays/package discovery/build attempts, separate baseline workloads, 526+616+137 modeled crash states and351operations in each refusal mode in retained evidence; eight checking workers. Generated trees/data/overlay JSON, no static fixture files. No test/framework removal or measured setup reduction yet."
+          "tests": "TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame; TestContextAfterFuncDoesNotLeak; TestPackageProgressFromStream",
+          "retained_owner": "synchronizedSSE.startHeartbeat; testevidence packageProgressObserver/readGoTestJSON",
+          "unique_cases": "SSE comment/flush versus cancellation/idempotent stop are distinct; progress preserves package terminal order and forwards every event to deadline observer. These are local contracts, not worker wakeup proof.",
+          "cost": "110+95+200nodes unchanged. Two lightweight recorder/heartbeat setups and one in-memory JSON stream. The1ms/1h choices trigger heartbeat or cancellation; they are not throughput acceptance bounds. No new tests or merged timing oracle."
         }
       ],
       "retained_results": [
         {
-          "commit": "e62f57544b021c5b4852fbf950746d81a95121c7",
-          "result": "test3m45.029s/18packages; lanes2m49.278s, web2m48.446s, CUDA40.125s1executed18cached, device skipped; verify4.587s; scorecard not reached. Undo workspace release leaves67workspaces in retained failure. Optional81-frame Wan acceptance absent."
+          "commit": "de3563d175dc8fbad6cf508e9270fada34c12262",
+          "result": "Implementation retained31/40store lifecycle failures before,0/40about11s and0/200about25s after; cancellation-guard undo fails empty-store check. Gate test3m16.829s/92packages;lanes16m3.767s(device10m32.548s,web2m56.134s,CUDA5m30.367s:11executed/8cached);verify14.275s;scorecard19.813s,Bonsai exact/5389.8MiB unchanged."
         },
         {
-          "commit": "b41b8ca6d8abefb62218cf4ca93ce0e5c4cd5fed",
-          "result": "test3m1.362s/131packages; lanes16m48.774s, device10m14.816s, web2m55.388s, CUDA6m33.17s19executed0cached; verify15.533s; Bonsai output unchanged, peak5389.8MiB. Reverting seal rename makes structural test find4 sites instead of3; not crash proof."
+          "commit": "335a69cec234f350fdfad0b3240ebc84ed0b2315",
+          "result": "526kill/616journaled-power/137Windows-rule states and351refusals in each mode retain promises including reader-follow; store tests about55s before/after. Latch undo finds nothing in generic refusal workload but fails migrated per-surface case. Gate test3m11.156s/92packages;lanes15m42.735s(device10m16.43s,web2m52.898s,CUDA5m25.512s:11executed/8cached);verify45.89s;scorecard19.531s,Bonsai exact/5389.8MiB unchanged."
         },
         {
-          "commit": "879c69153cfdd07950cc7b970d49fdcb3743cbb0",
-          "result": "test2m49.508s/92packages; lanes15m47.532s, device10m20.918s, web2m53.881s, CUDA5m25.754s11executed8cached; verify2.843s; Bonsai output unchanged, peak5389.8MiB. Retained zero-check undo failures; no real power cut."
-        },
-        {
-          "commit": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
-          "result": "test3m1.637s/131packages; lanes16m49.856s, device10m14.655s, web2m55.251s, CUDA6m34.419s19executed0cached; verify2.484s; Bonsai output unchanged, peak5389.8MiB. Undo missing-root guard admits empty Create; deterministic source-state fixture."
-        },
-        {
-          "commit": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-          "result": "Concurrent crash-points landing:322recorded operations;526kill/616journaled-power/137Windows-rule states;351operations refused once and persistently, all modeled promises hold in retained23/22s. Undo anchor yields1548/1724findings, seal rename1209,zero-tail162. Gate test2m14.53s/6packages(overgodb69s);lanes15m44.654s,device10m21.849s,web2m53.366s,CUDA5m21.994s11executed8cached;verify1m15.779s;scorecard19.46s,Bonsai exact output/5389.8MiB unchanged. No SQA execution."
+          "commit": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+          "result": "Swap0/2000about0.2s; undo705failures(454twochildren/125unreportedafterClose/126shortlease),grace-onlyundo143. Gate test3m40.568s/10packages;lanes2m49.921s(web2m49.123s,device/CUDAskipped);verify1.792s;scorecardnotreached. Synthetic lifecycles, no runtime saving quantified."
         }
       ],
-      "assumptions": "64KiB zeroFrom is an exhaustive bounded I/O chunk, not sampling; all remaining bytes must be zero. Active writable journals may truncate, read-only journals must not, sealed segments still refuse. fsatomic flags/rename offsets are Windows ABI values, not tunable thresholds; typecheck does not prove kernel power-failure semantics. Blob pack widths are on-disk format/SHA256, with count bounded by file size before allocation. Query index choice uses exact current cardinalities, no normality/independence assumption. Repeated clip equality is an interference check; retained latency pairs are descriptive, no statistical significance or general shape claim. Crash model512-byte sector is an explicit synthetic boundary grid, not queried device geometry; kill writes sample1/half/last-byte prefixes, not every byte cut. Journaled metadata-prefix and flush rules are assumptions. Eight workers bound test concurrency, not production geometry. Rewrite dispatch uses syntactic package/receiver names rather than go/types; final-tree equality catches missed byte mutations but cannot alone prove every flush was intercepted. Retained undo failures establish concrete fault sensitivity, not universal coverage.",
-      "automation_sequence": "Landing.Run rejects malformed rows/messages before stage work, defers recordSpent for reached runs, and records stage failure/completion locally. recordSpent writes JSON, it does not dispatch a worker. Existing candidate identity/host checks/turn release during device contention and lane/resume owners remain; no new scheduler or recurring workload justified. Run initial ErrWorkWaiting still returns, post-worker ErrWorkWaiting loops; retained source does not prove eventual unattended continuation. SQA-271/258 remain open, with no newly observed delay. Smallest remaining comparison is existing driver fixture ownership release -> one authorized dispatch, preserving stops/budgets/partial evidence; actual delivery needs an ordinary retained run, not SQA execution."
+      "assumptions": "Pack widths/counts follow the format/SHA256 and actual file-size quotient before allocation; inode identity pairs index and bytes under rename-only production publication. Expert rank3means[inner,rows,experts]; dtypes/adapters are explicit, converted memory uses typed shape/F32 and checked.Add64, not square/equal-shape assumptions. Query chooses exact current index cardinalities, not independence/uniformity. Release keeps expected-head refusal and writer-owned committed cleanup. Grace15s is an explicit subscription/product policy and now per-child; sample loads/waits straddle it without changing it. Seed counts/action weights/6sampledcrashes/512-byte synthetic sectors and selected torn-write cuts are bounded workload/model choices, not population confidence or physical-device geometry. Numerical acceptance stays independent of gate timing. No new material unsupported constant/geometry assumption established.",
+      "automation_sequence": "RunGoTestCommand admits valid diagnostic/budget options before launch, consumes JSON, cancels on parser failure, drains the pipe and awaits actual process completion; it retains partial report and joined failures. New runCrashHarness checks each expected named inner pass, addressing vacuous execution without a new selector. Driver initial ownership contention still returns; post-worker contention loops. Existing plan dispatch visits prerequisites and supports independent eligible work; no newly observed setup delay. End records/printed completion do not demonstrate external delivery. Keep SQA-271/258 and existing first-start/ownership-wait owners; smallest remaining comparison is existing native driver fixture ownership release -> exactly one authorized dispatch, with stops/budgets/identity/partial results intact. No SQA run or new scheduler."
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7341,11 +7320,11 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Bounded source/AST/type review plus retained implementation records, not independent third-party validation. No new tests/gates/workloads or statistical performance claim.",
-      "No process kill or power cut executed by SQA. New committed harness materializes modeled trees and simulates flushes under an overlay; its512-byte grid, sampled torn-write positions and journaled namespace ordering bound its conclusions. Zero-filled NTFS-tail prevalence remains unmeasured.",
-      "Changed files parsed whole; callers inspected at named boundaries. No full dependency, cross-platform or CUDA type resolution; no complete checkpoint callback durability proof. Crash harness AST rewriting is syntax-based, not a complete type-resolved durable-call census.",
-      "Frozen numerical cases remain distinct from regrowth/interference tests. Retained memory/latency results apply only to their stated fixtures. Strata is a comparison, not presumed optimal. The QSA prototype narrative's first-token direction is internally unclear; no direction inferred or new comparison requested.",
-      "Unrotated findings retain earlier evidence and are not newly certified. New safe net reduction not established; existing SQA-253 counts after migration are retained hypothetical results, not a new experiment."
+      "Report-only source/AST/type review plus retained implementation results; prior implementation overlap is disclosed. No independent third-party claim, new application validation or measured memory/elapsed effect.",
+      "Actual type resolution covers supervisor.go only. Whole-file AST counts include source not read line-by-line; named affected callers/cases were traced. No full dependency/CUDA/alternate-platform check or recurring census.",
+      "Crash tests materialize modeled trees with simulated durability, not actual process kills/power loss. Synthetic sectors, write cuts, action/seed weights and syntax-based overlay interception limit coverage; successful fixed seeds do not establish representative failure probabilities.",
+      "Source repair requires immutable packs published by rename; arbitrary external in-place mutation is not claimed supported. Native test caching is credited, but changed workload/gate timings are not controlled speed comparisons. Strata remains a comparison, not presumed optimal.",
+      "Only the selected findings/boundaries were reconciled. Unrotated ledger retains its earlier scope. No new safe net code reduction was established; no additional confidence workload is recommended."
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
@@ -8014,13 +7993,12 @@
   },
   "next_finding_number": 298,
   "publication_context": {
-      "checked_head": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-      "assessment": "Publication first deferred to active landing_turn.lock. After70bd1ab76 landed, source delta/three new tests/retained gate/current plan and report were reconciled; current report and HEAD re-read immediately before writing.",
-      "newer_commit_note": "Review advanced from ae4c940e9 to70bd1ab76 for crash-points, preserving all concurrent implementation comments. Newer uncommitted work, if any, remains excluded.",
-      "publication": "Report-only path-limited commit using existing locks/hooks; unrelated index/worktree preserved. No production gate."
+      "checked_head": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+      "assessment": "Immediately before writing, re-read current report, branch/HEAD and plan; merge reviewer fields while preserving all implementation-owned fields and concurrent comments raw-exact.",
+      "newer_commit_note": "Three committed landings since the prior report reviewed; dirty internal/modelswap/supervisor.go and supervisor_test.go excluded and preserved. If HEAD advances before publication, reconcile before committing.",
+      "publication": "Report-only path-limited commit under existing repository locks/hooks; unrelated index/worktree preserved. No plan edit or production gate."
     },
   "ranked_active_finding_ids": [
-    "SQA-288",
     "SQA-286",
     "SQA-277",
     "SQA-283",
@@ -8036,7 +8014,6 @@
     "SQA-287",
     "SQA-215",
     "SQA-276",
-    "SQA-223",
     "SQA-237",
     "SQA-236",
     "SQA-235",
@@ -8081,43 +8058,43 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "SQA-288 is partially addressed: rows imported; durable names, active zero tails and cutover refusal repaired; the concurrent70bd1ab76 landing now provides modeled crash/failure coverage. Keep P1 open for store-lifecycles and the remaining fault-seam migration. No new finding, full closure or priority change;57open,4deferred,63resolved.",
-      "Five complete changes add722production and10548testAST,11270total. Codec stages+206/+404;durable names-16/+460;unwritten tail+371/+775;cutover refusal+117/+216;crash points+44/+8693. The test growth is large and explicit; memory/recovery benefit is not source reduction.",
-      "No new safe code deletion established. Existing SQA-253 still has the same queryIndexPlan callers and 3720/719 production/test baselines; its retained complete proposal is -24 production/-186 test with no setup reduction. Similar shapes alone do not justify merging recovery cases.",
-      "Retained codec-stage measurements: Wan peak13.52->9.43GiB with348.8vs349.0s; LiveEdit81-frame peak27.14->21.07GiB with33.1vs32.9s; VAE roundtrip4.44->2.79GiB with1.1s unchanged. These are implementation observations for named fixtures, not SQA runs or population estimates.",
-      "Two short Wan and two LiveEdit frozen outputs remain exact in retained evidence; optional81-frame Wan acceptance was not run. The new second-request test checks deterministic regrowth/interference and no retained scratch; it is not an independent numerical oracle.",
-      "Do not infer delivery from recordSpent.Ended or a printed measurement end. Driver initial ownership contention still returns, while the post-worker branch continues. Existing native caching, candidate identity, gate/resume and independent host/device admission remain the right owners.",
-      "Implementation overlap remains disclosed. Preserve both implementation-owned top-level objects and every unknown finding field exactly. The formerly uncommitted crash-points comment is now matched to70bd1ab76; counts describe modeled states, not physical power cuts.",
-      "The crash harness adds a1178-node overlay/launch owner,1688-node recorder and5827-node modeled-state oracle. Two outer native tests independently generate overlays and run child go test -count=1 commands; modeled failure workloads are distinct, so no safe whole-body deletion is established. Existing fault-seam retirement must migrate all four narrower contracts before deletion."
+      "SQA-288 resolved: committed generated store lifecycles repair stale pack/index pairing; fault-seam migration preserves the narrower refusal/catalog/orphan/uncertain-flush/reader-follow contracts and removes the displaced production seam. SQA-223 resolved: cancellation cases share the existing packed/loose/backup test.55open,4deferred,65resolved; no new ID or severity change.",
+      "Three complete landings add247production/3696testAST,3943total. Store-lifecycles+59/+2191;fault-seam-30/-544;swap-lifecycles+218/+2049. Actual22-file before/after counts corroborate the combined delta. Necessary recovery/lifetime coverage dominates the growth; do not call the whole change a reduction.",
+      "Completed small reductions are concrete: cancellation fixture410nodes removed after113nodes migrate into TestSmallBlobsArePacked; count-header fixture additionally shrinks15nodes. Fault-seam removes30production and544testnodes after all recorder/helper/case migration. No further safe net reduction established in this rotation.",
+      "Retained implementation evidence supplies fault sensitivity: stale pack31/40 before vs0/40 after; latch undo misses the generic refused workload but fails the migrated per-surface test; swap undo705/2000 and grace-only undo143/2000. These are fixed synthetic workloads, not estimated failure rates or SQA runs.",
+      "Pack publication is by rename; blobPack.open pairs the opened file identity with its cached index using os.SameFile. There is no source mtime check despite broader wording in the landing message. No admitted production in-place pack writer found; do not add speculative branches or promise detection of arbitrary external edits.",
+      "Native Go caching, exact gate identity, retained lane/resume and existing dependency dispatch receive credit. RunGoTestCommand joins actual child completion; printed/recorded completion alone still does not deliver an external continuation. SQA-271/258 remain open without a new observed delay.",
+      "Implementation overlap is disclosed; this is not independent third-party review. Preserve implementation_review, master_lead_triage and all implementation-owned/unknown finding fields raw-exact. Dirty worker supervisor files are excluded from source conclusions and untouched."
     ],
-  "reviewed_at": "2026-11-03T10:24:32Z",
-  "reviewed_master": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+  "reviewed_at": "2026-11-04T00:13:53Z",
+  "reviewed_master": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 70bd1ab76338010c36b22cf2bfd50ae20e49c386 after reconciling the concurrent crash-points landing; committed plan blob a1ac3966daf04c790d6627410d8e2cab5c9fca1a and unchanged skill.md blob b4e6496176dae5abce498e1aba83e32b10640960. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane.",
-      "Initial fresh provisional source conclusions at ae4c940e9 preceded prior-report reconciliation. Publication waited for the active implementation gate; then the new committed crash-points source/plan/result was inspected and included. Covered five landings plus query/blob/retention, GUI fan-out and gate/driver completion.",
-      "Actual bounded go/parser and go/ast analysis: 26 committed files, 297 function bodies, 10828 parser-local bindings, 50640 whole-file nodes including comments. Large files parsed whole, source read at named owners/callers; no recurring census.",
-      "Actual stdlib-backed go/types on current committed Windows fsatomic replace_windows.go and sync_windows.go together:85definitions,410uses,8selections, no stubs. Other packages use parser-local and source caller resolution; no full application/CUDA/alternate-platform type check.",
-      "Rechecked SQA-288's committed repairs and modeled crash/failure harness, SQA-253 query owners, SQA-286/283/284 and SQA-271/258 boundaries; SQA-277 evidence file unchanged. Unrotated ledger entries retain earlier scope; not all124 findings recertified."
+      "Pinned committed master 6593a9fb7d6a49564754cae6ad0595ed946120d8; committed plan blob f51026a85cd95880c8ebefd67d05bec84a918b08 and unchanged skill.md blob b4e6496176dae5abce498e1aba83e32b10640960. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane. Repository instructions and plan read first.",
+      "Fresh provisional conclusions preceded reading the prior report. Reviewed three complete landings: store-lifecycles, fault-seam and swap-lifecycles; rotated into inference tensor selection/residency, SSE writers, native test process/progress owners, and query/retention callers beyond those changes.",
+      "Actual bounded go/parser/go/ast analysis of22 committed files:277function bodies,9143parser-local identifier bindings,45729whole-file nodes including comments. All16 changed Go files plus6 rotated files; whole-file parsing, source inspection at named boundaries, no recurring census.",
+      "Actual go/types on committed internal/modelswap/supervisor.go:115definitions,586uses,180selections, standard-library imports, no stubs or application execution. Other files have parser-local/source caller resolution only; no full application/CUDA/cross-platform typecheck.",
+      "Reconciled SQA-288 and223 with current implementation comments; rechecked286/283/284/271/258 source boundaries and unchanged277 evidence identity. Existing224 SSE opportunity still applies; no duplicate finding. Unrotated ledger entries retain earlier evidence, not a fresh certification of all124."
     ],
   "sqa_response": {
-      "reviewed_master": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
-      "assessment": "SQA-288 partially addressed by imported plan owners, three source repairs and now committed modeled crash/failure evidence. Store-lifecycles and fault-seam remain. Stage-memory reductions credited with full+11270production/testAST growth across five landings. No new finding, full closure or priority change.",
+      "reviewed_master": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+      "assessment": "Resolve SQA-288 and SQA-223: generated store lifecycle recovery and complete fault-seam migration are committed, and blob cancellation coverage now shares its existing fixture. No new finding or severity change.",
       "new_findings": [],
-      "resolved_findings": [],
-      "partially_addressed_findings": [
-        "SQA-288"
+      "resolved_findings": [
+        "SQA-288",
+        "SQA-223"
       ],
+      "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "26committed files,297functions,50640AST; actual Windows fsatomic subset85defs/410uses/8selections. Five retained gates and source/caller review; no SQA runtime execution.",
+      "evidence": "22committedfiles,277functions,45729AST; actual supervisor go/types115defs/586uses/180selections. Three retained implementation gates; no SQA application execution. Complete change+247production/+3696test, despite concrete local reductions.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "ae4c940e985f7969ef1caeaa8e57065b9f32d978",
-        "status": "Four SQA-288 implementation comments now match committed source, including70bd1ab76 crash-points. Credit modeled promises and retained undo failures with explicit failure-model/rewriter limits. Preserve both owner objects and every implementation-owned field exactly."
+        "current_triage_head": "de3563d175dc8fbad6cf508e9270fada34c12262",
+        "status": "Latest SQA-288 store-lifecycles/fault-seam and SQA-223 comments match committed source and retained evidence. Preserve both implementation-owned objects and every unknown finding field exactly."
       },
-      "recommendation": "Finish existing store-lifecycles and fault-seam obligations before full recovery closure. Reuse current native fixture/durable owners; migrate narrower old fault assertions before deleting the seam. Do not add another scanner or confidence run. SQA-253 remains a priced compaction.",
-      "uncertainty": "Modeled crash trees are not real power-failure proof; sampled sector/write boundaries and syntax-based rewriting limit breadth. Memory savings are retained scoped observations. No new safe net code reduction established."
+      "recommendation": "Close the two completed obligations. Keep remaining recovery, memo shutdown, attribution and unattended-continuation owners; existing SQA-224 is the SSE duplication opportunity. No further safe deletion established in this rotation and no extra run requested.",
+      "uncertainty": "Modeled crashes and fixed virtual lifecycles are bounded evidence, not hardware power-loss or population reliability proof. Full recovery/test growth is explicit; AST/setup savings do not measure RSS or elapsed effects."
     }
 }

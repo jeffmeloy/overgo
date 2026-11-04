@@ -19,8 +19,13 @@ import (
 const turnLock = "landing_turn.lock"
 
 // Worktree is one registered worktree as git lists it: its directory, the
-// commit it has checked out, and its branch, none when it is on no branch.
-type Worktree struct{ Root, Head, Branch string }
+// commit it has checked out, its branch, none when it is on no branch, and
+// whether git holds it locked against removal, with the reason given.
+type Worktree struct {
+	Root, Head, Branch string
+	Locked             bool
+	Lock               string
+}
 
 // Worktrees reads a repository's registered worktrees from git's list, the
 // main worktree first. The list is the same from whichever worktree of the
@@ -41,6 +46,8 @@ func Worktrees(ctx context.Context, repo string) ([]Worktree, error) {
 			trees[len(trees)-1].Head = value
 		case key == "branch":
 			trees[len(trees)-1].Branch = value
+		case key == "locked":
+			trees[len(trees)-1].Locked, trees[len(trees)-1].Lock = true, value
 		}
 	}
 	if len(trees) == 0 {

@@ -138,6 +138,10 @@ type facts struct {
 	untracked, located, named []string
 	unlocated                 error
 	asked                     bool
+	// offTrunk holds the worktrees' commits the trunk lacks, read once for all of them (offTheTrunk), and offTrunkErr
+	// why that read failed; offTrunk is nil until read.
+	offTrunk    map[string]bool
+	offTrunkErr error
 }
 
 // leftoverPlaces is the table. A line that only data tells from another
@@ -347,6 +351,32 @@ func worktrees(f *facts, line place) []leftover {
 	})...)
 }
 
+// offTheTrunk says whether a worktree's commit is one the trunk lacks. One rev-list answers it for every worktree:
+// it lists what their commits reach and the trunk's does not, so a commit is off the trunk exactly when it is listed.
+// When that list cannot be read, as when a commit is one git no longer holds, each commit is asked alone.
+func (f *facts) offTheTrunk(head, trunk string) (bool, error) {
+	if f.offTrunk == nil {
+		var heads []string
+		for _, tree := range f.trees[1:] {
+			if tree.Head != "" && !slices.Contains(heads, tree.Head) {
+				heads = append(heads, tree.Head)
+			}
+		}
+		listed, err := gitRead(f.checkout, append(append([]string{"rev-list"}, heads...), "^"+trunk)...)
+		f.offTrunk, f.offTrunkErr = map[string]bool{}, err
+		for commit := range strings.FieldsSeq(listed) {
+			f.offTrunk[commit] = true
+		}
+	}
+	if f.offTrunkErr == nil {
+		return f.offTrunk[head], nil
+	}
+	if _, err := gitRead(f.checkout, "merge-base", "--is-ancestor", head, trunk); !errors.Is(err, noAnswer) {
+		return false, err
+	}
+	return true, nil
+}
+
 // copyState decides one registered worktree. It is held by a commit the trunk
 // lacks, by the session its process state names, and by any path git's status
 // reports, ignored ones among them; an unstaged deletion is a change unless
@@ -368,10 +398,10 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 	if trunk.Branch == "" {
 		return stateUnknown, noTrunk
 	}
-	if _, err := gitRead(f.checkout, "merge-base", "--is-ancestor", tree.Head, trunk.Head); errors.Is(err, noAnswer) {
-		return stateHeld, fmt.Sprintf("its commit %.*s is not on the trunk", commitAbbreviation, tree.Head)
-	} else if err != nil {
+	if off, err := f.offTheTrunk(tree.Head, trunk.Head); err != nil {
 		return stateUnknown, err.Error()
+	} else if off {
+		return stateHeld, fmt.Sprintf("its commit %.*s is not on the trunk", commitAbbreviation, tree.Head)
 	}
 	if holder, err := os.ReadFile(filepath.Join(written, guard.WorktreeHolder)); err == nil {
 		return stateHeld, "the session " + strings.TrimSpace(string(holder)) + " holds it"
@@ -391,8 +421,7 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 	}
 	status, err := gitRead(tree.Root, "status", "--porcelain=v1", "-z", "--ignored")
 	paths, parseErr := repoanalysis.ParseDirtyStatus([]byte(status))
-	tracked, trackedErr := gitRead(tree.Root, "ls-files", "-z")
-	if err = errors.Join(err, parseErr, trackedErr); err != nil {
+	if err = errors.Join(err, parseErr); err != nil {
 		return stateUnknown, err.Error()
 	}
 	paths = slices.DeleteFunc(paths, func(path repoanalysis.DirtyPath) bool {
@@ -404,22 +433,24 @@ func (f *facts) copyState(tree landing.Worktree, helper bool) (state, rule strin
 			deleted++
 		}
 	}
-	files := strings.Count(tracked, "\x00")
-	if len(paths) != 0 && (deleted != len(paths) || deleted != files) {
-		return stateHeld, fmt.Sprintf("it holds %d uncommitted or ignored paths, the first %s, %d of them deletions among its %d tracked files", len(paths), paths[0].Path, deleted, files)
+	if len(paths) != 0 && deleted == 0 {
+		return stateHeld, fmt.Sprintf("it holds %d uncommitted or ignored paths, the first %s", len(paths), paths[0].Path)
+	}
+	// Only a copy whose changes are deletions is asked how many files it tracks: one with every one deleted is emptied.
+	if len(paths) != 0 {
+		tracked, err := gitRead(tree.Root, "ls-files", "-z")
+		if err != nil {
+			return stateUnknown, err.Error()
+		}
+		if files := strings.Count(tracked, "\x00"); deleted != len(paths) || deleted != files {
+			return stateHeld, fmt.Sprintf("it holds %d uncommitted or ignored paths, the first %s, %d of them deletions among its %d tracked files", len(paths), paths[0].Path, deleted, files)
+		}
 	}
 	if !ran {
 		return stateUnknown, "it has no process state that holds the record of a commit's run, " + commitRecord + ", so nothing says a commit ran in it"
 	}
-	if helper {
-		kept, err := gitRead(tree.Root, "rev-parse", "--path-format=absolute", "--git-path", "locked")
-		if err != nil {
-			return stateUnknown, err.Error()
-		}
-		// The file's text is the reason given; one that is there and cannot be read locks as well.
-		if reason, err := os.ReadFile(strings.TrimSpace(kept)); !errors.Is(err, fs.ErrNotExist) {
-			return stateHeld, "git holds it locked against removal: " + strings.TrimSpace(string(reason))
-		}
+	if helper && tree.Locked {
+		return stateHeld, "git holds it locked against removal: " + tree.Lock
 	}
 	if locked {
 		lock, err := authoritylock.Acquire(tree.Root)

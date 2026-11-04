@@ -150,16 +150,9 @@
       "status": "open",
       "budget": {
         "nodes": 120,
-        "reason": "Estimate. loop-fixture is test code; refusal-rule adds a field and its writer; browser-reach is a measurement and a split of tests."
+        "reason": "leftovers-git adds 183, the batched trunk question with its fallback, the lock read from git's list and the tracked-file count only where it decides; the 120 estimated for refusal-rule's field and writer and browser-reach's split stay"
       },
       "steps": [
-        {
-          "id": "loop-fixture",
-          "title": "Build the measurement-launch test's checkout from a module of its own",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestTheCarryFixtureReadsNoFileOfTheTree$'",
-          "rationale": "TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit copies every non-test file under go.mod, go.sum, internal, kernels and cmd/evaluate into its fixture (cmd/loop/identity_carry_test.go:137,172-189), so any edit under internal/ clears cmd/loop's test cache. cmd/loop was the slowest package in every test stage since 2026-11-02 that ran it (147 to 196 s), and the one commit that skipped it took 1m32s against 2m40s to 3m53s.\nThe test asserts that an unrelated commit re-asks no case and a change to one model's package re-asks only that model's. A small module with two model packages and the launch's stand-in holds the same assertion without reading the tree. If the real tree's identities must be exercised, move this test to the cycle's checks (cmd/loop/improve.go:517-558), as fault-finding/long-sequences does for long tests.\nPredicted: the test stage of most code commits falls to its next slowest package (40 to 131 s in the same gate lines).\nServes: development velocity.\nDisappears: a copy of the tree per run.\nEvidence: test-stage walls across the next ten code commits.\nBatch: host lane."
-        },
         {
           "id": "refusal-rule",
           "title": "Record which rule refused a commit",

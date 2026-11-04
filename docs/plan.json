@@ -73,17 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 383,
+        "nodes": 237,
         "reason": "Estimate: a SiLU form of the window step (about 40 nodes and its kernel lines), window gates from quantized alpha and beta (about 150), and the cell runner windows, a patch of about 200 production nodes kept in tmp/memory-bounds/cell-windows.patch."
       },
       "steps": [
-        {
-          "id": "quantized-window-gates",
-          "title": "A gated-delta verify window takes its gates from quantized alpha and beta",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35GatedDeltaLayersHoldTheWindow$'",
-          "rationale": "memory-bounds/window-verify read Qwen3.5-9B-Q8_0 and Qwen3.8-27B-UD-Q6_K: both hold ssm_alpha and ssm_beta in Q8_0, a 128-wide state and a 4-tap convolution, while the window's fused gates (tensor.GatedDeltaFused, GatedDeltaGates) take F32 alpha and beta only. Compute a window's packed gates from quantized alpha and beta as the plain layer computes them, so the family's layers hold the window (HoldsGatedDeltaWindow), held by a test that the hermetic qwen35 hybrid's layers hold it and its window's output matches its plain step's. Serves: peak-device-memory, as a step toward cell-windows."
-        },
         {
           "id": "cell-windows",
           "title": "Verify the qwen35 family's drafts in Strata's window verifier over its attention cells",

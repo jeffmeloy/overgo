@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
 // WindowBinding is a verify window in Strata's verifier (src/core/verify.cpp record_window, Strata at 296b59d2, MIT):
@@ -25,7 +26,7 @@ func (s Spec) HoldsGatedDeltaWindow(plan LayerPlan, weights LayerWeights) bool {
 	f32 := func(info *gguf.TensorInfo) bool { return info != nil && info.Type == gguf.DTypeF32 }
 	return plan.Recurrent && windowGatesBy(plan.AttentionGraph.deltaProjection) &&
 		s.SSMStateSize == tensor.GatedDeltaWindowWidth && s.SSMConvKernel == tensor.GatedDeltaWindowKernel &&
-		f32(weights.SSMConv1D) && f32(weights.SSMAlpha) && f32(weights.SSMBeta)
+		f32(weights.SSMConv1D) && weights.SSMAlpha != nil && weights.SSMBeta != nil
 }
 
 // LayerWindow is the rows a layer's verify window keeps for its commit (verify.cpp's qkv_L_, h_L_, gate_L_ and beta_L_,
@@ -121,14 +122,14 @@ func buildGatedDeltaWindow(
 	stateWidth, keyHeads, valueHeads := uint64(spec.SSMStateSize), spec.SSMGroupCount, spec.SSMTimeStepRank
 	if !windowGatesBy(deltaPolicy) || stateWidth != tensor.GatedDeltaWindowWidth ||
 		spec.SSMConvKernel != tensor.GatedDeltaWindowKernel || tokens == 0 || tokens > tensor.GatedDeltaWindowTokens ||
-		!tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type) ||
+		!tensor.GatedDeltaConvFits(stateWidth, uint64(spec.SSMConvKernel), weights.SSMConv1D.Type) ||
 		window.One == nil {
 		return DenseBlockResult{}, errors.New("gated-delta window takes the geometry and gates Strata's verify kernels hold")
 	}
 	commit := tokens == tensor.SingletonExtent
 	qkv := builder.MulMat(weights.AttentionQKV, normalized)
 	rows := builder.GatedDeltaWindowConv(convState, qkv, weights.SSMConv1D, keyHeads, valueHeads, spec.RMSNormEpsilon, commit)
-	gates := builder.GatedDeltaGates(normalized, weights.SSMAlpha, weights.SSMBeta, weights.SSMTimeStep, weights.SSMA)
+	gates := windowGateRows(builder, normalized, spec, weights, tokens)
 	gate, beta := windowGates(builder, gates, uint64(valueHeads), tokens)
 	z := builder.MulMat(weights.AttentionGate, normalized)
 	var kept *tensor.Tensor
@@ -143,6 +144,24 @@ func buildGatedDeltaWindow(
 	}
 	return DenseBlockResult{Output: attention, Window: LayerWindow{QKV: qkv, Rows: rows, Gates: gates}}, nil
 }
+
+// windowGateRows are a window's packed gates (tensor.Builder.GatedDeltaGates' layout, the gate then the beta, [heads,
+// tokens] each): the fused projection where alpha and beta are F32, Flash-Next's, else the plain layer's,
+// softplus(alpha · input + time step) times the decay and sigmoid(beta · input), for the qwen35 family's quantized
+// alpha and beta (Q8_0 in Qwen3.5-9B-Q8_0 and Qwen3.8-27B-UD-Q6_K), which the fused projection does not read.
+func windowGateRows(builder *tensor.Builder, normalized *tensor.Tensor, spec Spec, weights LayerGraphWeights, tokens uint64) *tensor.Tensor {
+	if weights.SSMAlpha.Type == dtype.F32 && weights.SSMBeta.Type == dtype.F32 {
+		return builder.GatedDeltaGates(normalized, weights.SSMAlpha, weights.SSMBeta, weights.SSMTimeStep, weights.SSMA)
+	}
+	alpha := spec.Arithmetic.project(builder, weights.SSMAlpha, normalized)
+	gate := builder.Multiply(builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)), weights.SSMA)
+	beta := spec.Arithmetic.round(builder, builder.Sigmoid(spec.Arithmetic.project(builder, weights.SSMBeta, normalized)))
+	return builder.Reshape(builder.Concat(gate, beta, gatedDeltaGateTokenAxis), tensor.PairedExtent*uint64(spec.SSMTimeStepRank)*tokens)
+}
+
+// gatedDeltaGateTokenAxis is the token axis of a layer's gate and beta rows ([heads, tokens]), along which a window
+// packs them, the gate first.
+const gatedDeltaGateTokenAxis uint32 = 1
 
 // windowGates are a window's gate and beta in its packed gates (tensor.Builder.GatedDeltaGates): [1, heads, tokens]
 // each, the gate first.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"slices"
@@ -35,14 +36,22 @@ func TestARunRecordsItsEnd(t *testing.T) {
 	records := filepath.Join(t.TempDir(), "scorecards")
 	published, accuracy := time.Date(2026, time.October, 30, 12, 0, 0, 0, time.UTC), 0.5
 	run := &runRecorder{root: repository}
+	runs := 0
 	improver := improvement{root: repository, plan: emptyPlan(t), records: records, run: run, fill: func(string) error { return nil }}
 	improver.measure = func(_ string, filed func() error) error {
 		return measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, filed, run, func(environment []string, arguments ...string) error {
 			switch strings.Join(arguments, " ") {
 			case "-run -cells":
+				runs++
 				for _, variable := range environment {
 					if record, found := strings.CutPrefix(variable, clioptions.MeasurementRunEnvironment+"="); found {
 						if err := plan.RecordFailure(record, "overgo/cmd/benchmark TestACellMeasures"); err != nil {
+							t.Error(err)
+						}
+						if err := plan.RecordPackage(record, plan.PackageRun{Package: "overgo/cmd/benchmark", Wall: time.Minute, PeakBytes: 1 << 30}); err != nil {
+							t.Error(err)
+						}
+						if err := plan.RecordDigests(record, map[string]string{fmt.Sprintf("run-%d.gguf", runs): "digest"}); err != nil {
 							t.Error(err)
 						}
 					}
@@ -87,6 +96,10 @@ func TestARunRecordsItsEnd(t *testing.T) {
 	if cells := first.Phases[2]; !slices.Equal(cells.Failed, []string{"overgo/cmd/benchmark TestACellMeasures"}) || len(first.Phases[1].Failed) != 0 {
 		t.Fatalf("the cells phase records failures %v and the lanes %v, want the one test its process recorded, in the cells alone", cells.Failed, first.Phases[1].Failed)
 	}
+	// What a phase process wrote beside its failures outlives the phase's end and the phases after it.
+	if cells := first.Phases[2]; len(cells.Packages) != 1 || cells.Packages[0].Package != "overgo/cmd/benchmark" || first.Digests["run-1.gguf"] != "digest" {
+		t.Fatalf("the run keeps the cells phase's packages %+v and digests %v, want what its process recorded", cells.Packages, first.Digests)
+	}
 	if report := first.Report(); !strings.Contains(report, "cells did not pass") || !strings.Contains(report, "filing 0 rows") ||
 		!strings.Contains(report, "failed: overgo/cmd/benchmark TestACellMeasures") {
 		t.Fatalf("the first run reads %q", report)
@@ -97,6 +110,9 @@ func TestARunRecordsItsEnd(t *testing.T) {
 		t.Fatal("a cycle whose cells failed reported none")
 	}
 	second, _ := plan.ReadMeasurementRun(repository)
+	if _, carried := second.Digests["run-1.gguf"]; carried || second.Digests["run-2.gguf"] != "digest" {
+		t.Fatalf("the run begun again kept the first run's digests %v, want its own", second.Digests)
+	}
 	if second.Filed != 1 || second.Ended.IsZero() || !second.Started.After(first.Started) {
 		t.Fatalf("the second run's record = %+v, want the decline it filed and its end", second)
 	}

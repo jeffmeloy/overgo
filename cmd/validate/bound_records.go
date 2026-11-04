@@ -3,13 +3,18 @@ package main
 import (
 	"cmp"
 	"context"
+	"maps"
+	"os"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -139,10 +144,38 @@ func bindCells(ctx context.Context, root string, store *overgodb.Store, cells []
 	if err := groundProjection(ctx, root, store, cells); err != nil {
 		return err
 	}
-	// Last, since the grounding decides which paths a cell's command is given.
-	listed := map[string]string{}
+	// Last, since the grounding decides which paths a cell's command is given. A run's later phases read the digests
+	// its earlier ones took, so a model's bytes are read once a run, not once a phase.
+	listed := runDigests()
 	for index, cell := range cells {
 		cells[index].Consumed = consumedFiles(ctx, store, cell, listed, execution)
 	}
+	keepDigests(listed)
 	return nil
+}
+
+// runDigests are the file digests the measurement run this phase belongs to has taken (clioptions.MeasurementRunEnvironment),
+// none outside a run.
+func runDigests() map[string]string {
+	var run plan.MeasurementRun
+	if path := os.Getenv(clioptions.MeasurementRunEnvironment); path == "" || jsonfile.Decode(path, &run) != nil || run.Digests == nil {
+		return map[string]string{}
+	}
+	return run.Digests
+}
+
+// keepDigests adds the digests this phase took to its run's record, for the phases after it. A file that could not be
+// hashed stands for no digest (consumedFiles), and is hashed again by the next phase that binds it.
+func keepDigests(listed map[string]string) {
+	path := os.Getenv(clioptions.MeasurementRunEnvironment)
+	if path == "" {
+		return
+	}
+	_ = plan.RecordDigests(path, maps.Collect(func(yield func(string, string) bool) {
+		for file, digest := range listed {
+			if artifact.ValidHexDigest(digest) && !yield(file, digest) {
+				return
+			}
+		}
+	}))
 }

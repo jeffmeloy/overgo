@@ -144,42 +144,89 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "fault-finding",
+      "title": "Find abnormal-path defects by generated sequences",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 14,
+        "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
+      },
+      "steps": [
+        {
+          "id": "queued-order",
+          "title": "Keep a queued load's refusal when a newer load begins",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -count=1 -run '^TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt$'",
+          "rationale": "SQA-299: fault-finding/queued-load (82985d333) checks a queued load's refusal after the branch that waits on a load in progress. A request that queued on A's load, when A is refused and B's load begins before it wakes, takes B as the load it waited on, loses A's refusal, and launches A again once B ends.\nMove the queued.refusal check above the s.loading branch, after the context and closed checks, reusing the pendingLoad it already holds. Extend the refused-load fixture with A refused, B begun, and A's waiter woken, in a synctest bubble.\nServes: failure-rate and load-time.\nDisappears: a launch of a load already refused.\nEvidence: the waiter answers A's refusal with one launch of A.\nBatch: serving lane."
+        },
+        {
+          "id": "agent-lifecycles",
+          "title": "Drive an agent session through generated failures",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1 -run '^TestGeneratedAgentSessions$'",
+          "rationale": "agent-attempts holds: the prototype passes 40 of 40 seeds, so this step guards it and finds nothing new. Drive read, approve and propose, each plain, broken by the tool, or cancelled in flight, with restore at any point, including between approve and propose. After every operation steps, inspected and preview.Binds equal a small reference. A granted write runs the tool once. A write with no live grant is refused and runs nothing. After a broken propose the step's receipt reads StageFailed, never admitted or running.\nThe harness is in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving/agent.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: 150 of 150 seeds green in a prototype, 40 seeds in 1.4 s; removing grantSpent breaks 19 of 40, and closing the receipt on the request's context breaks 7 of 40.\nBatch: serving lane."
+        },
+        {
+          "id": "decline-sequences",
+          "title": "Hold the decline rule through generated readings",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestGeneratedSlowQualityDecline$'",
+          "rationale": "A generated test finds scorecard-truth/quality-level unprompted: a share falling 1.00 to 0.45 over 11 readings, 5 cases at a time, stands against the first reading from reading 2 (tail 0.00098, limit 0.0228), and today files 0 and drops 1 at every reading. It runs in 0.2 s. Its body is in the prototypes folder named by store-durability/crash-points.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the test fails today and passes once that step lands.\nBatch: host lane, after quality-level.",
+          "depends_on": [
+            "scorecard-truth/quality-level"
+          ]
+        },
+        {
+          "id": "checkpoint-cuts",
+          "title": "Refuse a resume whose average is lost or changed",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAResumeRefusesAnAverageItsCheckpointDoesNotName$'",
+          "rationale": "LoadCheckpoint already refuses every byte cut and every missing file of checkpoint.json, model.safetensors, momentum.bin and resume.json (measured), so the first check would pass today. The hole is average/, which sits outside the digest chain: a flipped byte in average/weights.safetensors resumes, and a missing average/state.json resumes with no average and no error (measured, internal/trainingworkflow/checkpoint_steps.go:319-321). The PEFT directory is the same (read). Name their digests in the resume document.\nServes: training hours kept.\nDisappears: a resume that silently drops its average.\nEvidence: a flipped byte and a missing file each refused by name.\nBatch: training lane."
+        },
+        {
+          "id": "landing-stages",
+          "title": "Leave the trunk alone at every stage's failure",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestEveryStageFailureLeavesTheTrunkAlone$'",
+          "rationale": "The drills classify text (internal/landing/recovery_drills_test.go:15), and only the space stage checks HEAD and the plan after a refusal (space_test.go:98). Fail each of checks() (landing.go:265-271) in turn, and kill inside landing.commit (:771,778). Not prototyped, so its worth is a hypothesis; drop it if the first run finds nothing.\nServes: landing reliability.\nDisappears: nothing.\nEvidence: every stage named.\nBatch: gate."
+        },
+        {
+          "id": "long-sequences",
+          "title": "Run the long generated sequences in the cycle's checks",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestChecksRunTheLongSequences$'",
+          "rationale": "A commit holds what fits it. The recovery model and 1,500 store seeds, about 4 minutes, belong where hours are already spent. No workflow has a schedule, so nightly has no home; use the checks at cmd/loop/improve.go:517-558. Faults below the host stay on the device lane: *driver.Library has 58 methods, and an interface over it costs several hundred nodes to test a fake, so NaN, Inf and a lost device are injected at trainingBackend, denoiseBackend and evaluation.Runtime.\nServes: lifecycle defects found before a run.\nDisappears: nothing.\nEvidence: the cycle's report.\nBatch: loop.",
+          "depends_on": [
+            "store-durability/crash-points",
+            "store-durability/store-lifecycles"
+          ]
+        }
+      ]
+    },
+    {
       "id": "run-once",
       "title": "Do each piece of a full measurement run's setup once",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 8,
-        "reason": "Estimate, unmeasured. model-process changes how cmd/validate launches cells; hash-once passes digests between phases; answer-score splits one identity."
+        "nodes": 120,
+        "reason": "hash-once adds 261: the run's digests in its record, a phase binding from and adding to them, and the recorder keeping what phases write; answer-score keeps an estimated 120; model-process, estimated at most of the 400, is retired on its measurement"
       },
       "steps": [
-        {
-          "id": "past-adoptions",
-          "title": "Move what only guards a past adoption out of the lanes, read from their package walls",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestNoTestRunsInTwoCycleLanes$'",
-          "rationale": "run-wall puts each lane package's wall and peak in the run record, which the next full run fills. From it, move what only guards a past adoption behind pairtest, as earlier moves cost four tests 237 minutes (SQA-266). Remove the overlaps the review found:\n- The models lane builds with -tags modeltest,integration, so the untagged tests a commit's test stage already ran get no cache hit (internal/landing/lanes.go:134-136,208-214, unverified).\n- internal/inference, routedlm, latentimage, mosstrain and cmd/train run in both the cuda and the models lane (lanes.go:199-214, unverified).\n- The audio lane runs -count=1 and is never cached (lanes.go:126).\n- Lanes run one after another (cmd/validate/run.go:236-239, unverified).\nThe package that raised a lane's peak is the one whose recorded peak exceeds the one before; the 49 GiB package the review saw is read from it.\nPredicted: under 2 hours for the lanes phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work in the lanes phase.\nEvidence: the lanes phase's wall across two runs, and its packages' walls.\nBatch: validate lane, after the next full run."
-        },
-        {
-          "id": "model-process",
-          "title": "Measure every cell of one model in one process",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAModelsCellsShareOneLoad$'",
-          "rationale": "Measure first: sum one model's load walls across the 2026-10-31 run's records. Each cell is its own go run (cmd/validate/run.go:328-345), every activated cell runs every run (cmd/validate/selection.go:179), and a text model loads at least five times a run, once per benchmark, guard and serving cell (cmd/validate/run.go:56-120, unverified). Preflight repeats each cell's setup (run.go:352-387, unverified).\nOne process per model loads it once and runs its benchmarks and guard in turn. The serving cell keeps a fresh load of its own, since first-output and throughput are read on the first request after a load. One build, so every cell keeps the same execution identity.\nPredicted: about four loads fewer per text model, before the walls are summed.\nServes: development velocity; more runs a week.\nDisappears: repeated loads and builds.\nEvidence: cell-phase wall across two runs.\nBatch: validate lane."
-        },
-        {
-          "id": "hash-once",
-          "title": "Identify each model's files once per run",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestARunHashesEachModelFileOnce$'",
-          "rationale": "bindCells hashes every consumed model file through artifact.IdentifyFile (cmd/validate/cell_credit.go:159), and its memo lives in one process. Plan, preflight, cells and fill are separate validate processes (cmd/validate/main.go:282-294, unverified), so a run hashes every model's bytes about four times.\nHash once at the run's start and hand the digests to each phase through the run's own record. Model bytes stay identified by their hash; no size and date memo.\nMeasure first: total model bytes and the hash rate.\nServes: development velocity.\nDisappears: three full reads of every model a run.\nEvidence: preflight and fill walls across two runs.\nBatch: validate lane."
-        },
         {
           "id": "answer-score",
           "title": "Re-score stored answers when only the scoring code changed",
           "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestAScoringChangeRescoresWithoutAsking$'",
           "rationale": "Measure first: count the commits in 30 days that move the evaluation identity only through internal/evaluation, cmd/evaluate or internal/modelcli. Answers are keyed on an identity that adds every file of those to the code that runs the model (internal/inferencesurface/identity.go:57, internal/evaluation/campaign.go:37-48, observation.go:69-78, unverified). An agent counted 437 of 1,578 commits moving it, 230 through those packages alone (unverified).\nSplit it in two: the answer identity is the code that builds the request and produces the output, and the scoring identity is the code that grades it. A scoring change re-scores stored answers, which a committed verdict already does (TestCommittedVerdictRescoresItsReports). An answer is still reused only under the code that produced it, bit for bit.\nRead decision carry-cost first.\nServes: development velocity; held-out cells that finish sooner.\nDisappears: re-asking cases whose answers cannot have moved.\nEvidence: cases re-asked against reused across two runs.\nBatch: validate lane."
+        },
+        {
+          "id": "past-adoptions",
+          "title": "Move what only guards a past adoption out of the lanes, read from their package walls",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestNoTestRunsInTwoCycleLanes$'",
+          "rationale": "run-wall puts each lane package's wall and peak in the run record, which the next full run fills. From it, move what only guards a past adoption behind pairtest, as earlier moves cost four tests 237 minutes (SQA-266). Remove the overlaps the review found:\n- The models lane builds with -tags modeltest,integration, so the untagged tests a commit's test stage already ran get no cache hit (internal/landing/lanes.go:134-136,208-214, unverified).\n- internal/inference, routedlm, latentimage, mosstrain and cmd/train run in both the cuda and the models lane (lanes.go:199-214, unverified).\n- The audio lane runs -count=1 and is never cached (lanes.go:126).\n- Lanes run one after another (cmd/validate/run.go:236-239, unverified).\nThe package that raised a lane's peak is the one whose recorded peak exceeds the one before; the 49 GiB package the review saw is read from it.\nPredicted: under 2 hours for the lanes phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work in the lanes phase.\nEvidence: the lanes phase's wall across two runs, and its packages' walls.\nBatch: validate lane, after the next full run."
         }
       ]
     },
@@ -239,60 +286,6 @@
           "status": "open",
           "verify": "go test ./internal/plan -count=1 -run '^TestARowParagraphLeavesWithItsLastRow$'",
           "rationale": "outlivedDoctrine runs only at campaign close-out (plan.go:284, :512), so a paragraph governing rows that have left stays and is sent to every session. plan.Advance removes it when its last row leaves.\nThe five moss paragraphs, now paragraphs 11 to 15, govern 13 moss rows, none of them in the plan, and go with this step: the plan tool edits standing paragraphs only, so doctrine-cut/dead-text could not remove them by hand.\nServes: the loop.\nDisappears: five paragraphs of about 7,000 characters naming no live row.\nEvidence: the paragraphs gone once the step lands, and a paragraph whose last row leaves gone with it.\nBatch: plan."
-        }
-      ]
-    },
-    {
-      "id": "fault-finding",
-      "title": "Find abnormal-path defects by generated sequences",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 14,
-        "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
-      },
-      "steps": [
-        {
-          "id": "agent-lifecycles",
-          "title": "Drive an agent session through generated failures",
-          "status": "open",
-          "verify": "go test ./internal/agentloop -count=1 -run '^TestGeneratedAgentSessions$'",
-          "rationale": "agent-attempts holds: the prototype passes 40 of 40 seeds, so this step guards it and finds nothing new. Drive read, approve and propose, each plain, broken by the tool, or cancelled in flight, with restore at any point, including between approve and propose. After every operation steps, inspected and preview.Binds equal a small reference. A granted write runs the tool once. A write with no live grant is refused and runs nothing. After a broken propose the step's receipt reads StageFailed, never admitted or running.\nThe harness is in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving/agent.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: 150 of 150 seeds green in a prototype, 40 seeds in 1.4 s; removing grantSpent breaks 19 of 40, and closing the receipt on the request's context breaks 7 of 40.\nBatch: serving lane."
-        },
-        {
-          "id": "decline-sequences",
-          "title": "Hold the decline rule through generated readings",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestGeneratedSlowQualityDecline$'",
-          "rationale": "A generated test finds scorecard-truth/quality-level unprompted: a share falling 1.00 to 0.45 over 11 readings, 5 cases at a time, stands against the first reading from reading 2 (tail 0.00098, limit 0.0228), and today files 0 and drops 1 at every reading. It runs in 0.2 s. Its body is in the prototypes folder named by store-durability/crash-points.\nServes: held-out-quality.\nDisappears: nothing.\nEvidence: the test fails today and passes once that step lands.\nBatch: host lane, after quality-level.",
-          "depends_on": [
-            "scorecard-truth/quality-level"
-          ]
-        },
-        {
-          "id": "checkpoint-cuts",
-          "title": "Refuse a resume whose average is lost or changed",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestAResumeRefusesAnAverageItsCheckpointDoesNotName$'",
-          "rationale": "LoadCheckpoint already refuses every byte cut and every missing file of checkpoint.json, model.safetensors, momentum.bin and resume.json (measured), so the first check would pass today. The hole is average/, which sits outside the digest chain: a flipped byte in average/weights.safetensors resumes, and a missing average/state.json resumes with no average and no error (measured, internal/trainingworkflow/checkpoint_steps.go:319-321). The PEFT directory is the same (read). Name their digests in the resume document.\nServes: training hours kept.\nDisappears: a resume that silently drops its average.\nEvidence: a flipped byte and a missing file each refused by name.\nBatch: training lane."
-        },
-        {
-          "id": "landing-stages",
-          "title": "Leave the trunk alone at every stage's failure",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryStageFailureLeavesTheTrunkAlone$'",
-          "rationale": "The drills classify text (internal/landing/recovery_drills_test.go:15), and only the space stage checks HEAD and the plan after a refusal (space_test.go:98). Fail each of checks() (landing.go:265-271) in turn, and kill inside landing.commit (:771,778). Not prototyped, so its worth is a hypothesis; drop it if the first run finds nothing.\nServes: landing reliability.\nDisappears: nothing.\nEvidence: every stage named.\nBatch: gate."
-        },
-        {
-          "id": "long-sequences",
-          "title": "Run the long generated sequences in the cycle's checks",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestChecksRunTheLongSequences$'",
-          "rationale": "A commit holds what fits it. The recovery model and 1,500 store seeds, about 4 minutes, belong where hours are already spent. No workflow has a schedule, so nightly has no home; use the checks at cmd/loop/improve.go:517-558. Faults below the host stay on the device lane: *driver.Library has 58 methods, and an interface over it costs several hundred nodes to test a fake, so NaN, Inf and a lost device are injected at trainingBackend, denoiseBackend and evaluation.Runtime.\nServes: lifecycle defects found before a run.\nDisappears: nothing.\nEvidence: the cycle's report.\nBatch: loop.",
-          "depends_on": [
-            "store-durability/crash-points",
-            "store-durability/store-lifecycles"
-          ]
         }
       ]
     },

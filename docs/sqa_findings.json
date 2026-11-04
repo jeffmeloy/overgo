@@ -7467,6 +7467,18 @@
         "plan_steps": [
           "run-once/run-wall"
         ]
+      },
+      {
+        "comment": "Landed with run-once/hash-once, which cuts repeated cycle work the finding names: a full run's phases are processes of their own, and each hashed every model file it bound again, about 6 minutes a pass at the 1.36 GiB/s measured on this machine over some 500 GiB of measured weights, three or four passes a run. The run's record now keeps the digests its phases take (plan.RecordDigests), and a later phase binds from them; a run begun again is a record of its own and hashes again, so TestResumedRunStartsAgainACellWhoseWeightsChanged holds. run-once/model-process is retired on its measurement: one load per text model would save about 9 minutes a run.",
+        "disposition": "implemented",
+        "evidence": [
+          "cmd/validate TestARunHashesEachModelFileOnce",
+          "cmd/loop TestARunRecordsItsEnd"
+        ],
+        "finding_id": "SQA-266",
+        "plan_steps": [
+          "run-once/hash-once"
+        ]
       }
     ],
     "experiments": {
@@ -7507,7 +7519,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "56eb72895ec83e59b0a2d2fdb81ffa4fc0f06e3f",
+    "head": "b97ef73622b4b888c5390f7d8912ab77eaecf046",
     "findings": {
       "SQA-004": {
         "action": "none",

@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,6 +31,9 @@ type MeasurementRun struct {
 	Phases  []MeasurementPhase `json:"phases"`
 	Ended   time.Time          `json:"ended,omitzero"`
 	Filed   int                `json:"filed,omitzero"`
+	// Digests is each model file's digest as the run hashed it, by path, which its later phases read instead of
+	// hashing the file again (RecordDigests).
+	Digests map[string]string `json:"digests,omitempty"`
 }
 
 // MeasurementPhase is one phase of a run: when it began, when it is expected to
@@ -59,6 +63,20 @@ type PackageRun struct {
 	Package   string        `json:"package"`
 	Wall      time.Duration `json:"wall_ns"`
 	PeakBytes uint64        `json:"peak_bytes,omitzero"`
+}
+
+// RecordDigests keeps the file digests a phase of the run recorded at path took, beside the phases' before: each phase
+// is a process of its own, and each hashed every model file it bound again, three or four full reads a run.
+func RecordDigests(path string, digests map[string]string) error {
+	var run MeasurementRun
+	if err := jsonfile.Decode(path, &run); err != nil {
+		return err
+	}
+	if run.Digests == nil {
+		run.Digests = map[string]string{}
+	}
+	maps.Copy(run.Digests, digests)
+	return jsonfile.Write(path, run, runRecordMode)
 }
 
 // RecordPackage adds a package a lane ran to the phase of the run recorded at path that is running.

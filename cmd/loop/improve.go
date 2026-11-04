@@ -84,10 +84,6 @@ func (r *runRecorder) phase(name string) func(passed bool) {
 	at := len(r.run.Phases) - 1
 	r.write()
 	return func(passed bool) {
-		// The tests that failed in the phase were recorded by its process as they failed (plan.RecordFailure).
-		if kept, read := plan.ReadMeasurementRun(r.root); read && kept.Started.Equal(r.run.Started) && at < len(kept.Phases) {
-			r.run.Phases[at].Failed = kept.Phases[at].Failed
-		}
 		r.run.Phases[at].Ended, r.run.Phases[at].Passed = time.Now(), passed
 		r.write()
 	}
@@ -128,6 +124,15 @@ func (r *runRecorder) end() {
 
 // write keeps the record; a record that cannot be kept leaves the run as it is.
 func (r *runRecorder) write() {
+	// What the run's phases wrote into the record as they ran is kept: each phase's failed tests and packages
+	// (plan.RecordFailure, plan.RecordPackage) and the run's file digests (plan.RecordDigests). A run begun again is a
+	// record of its own, so it hashes every file again.
+	if kept, read := plan.ReadMeasurementRun(r.root); read && kept.Started.Equal(r.run.Started) {
+		r.run.Digests = kept.Digests
+		for at := range min(len(kept.Phases), len(r.run.Phases)) {
+			r.run.Phases[at].Failed, r.run.Phases[at].Packages = kept.Phases[at].Failed, kept.Phases[at].Packages
+		}
+	}
 	if processlock.EnsureStateDirectory(r.root) == nil {
 		_ = jsonfile.Write(plan.MeasurementRunPath(r.root), r.run, cycleStateMode)
 	}

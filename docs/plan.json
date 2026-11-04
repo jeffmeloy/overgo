@@ -73,16 +73,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 268,
-        "reason": "lineage-body measured at about 1,120 nodes: the compact body and its restore by position, the loader's reading of the version-1 body, and the census's attribution of both bodies; the row's other steps keep the 250 they had."
+        "nodes": 404,
+        "reason": "moss-denoiser adds 396 nodes, the rounding fold's rewrite, launch and kernel entries; moss-situ, filed with it, is estimated at 150 for its fused kernel's launch and rewrite; trained-precision and krea-prompt-cache keep the 250 they had."
       },
       "steps": [
         {
-          "id": "moss-denoiser",
-          "title": "Find and close the native MOSS denoiser's wall against upstream's",
+          "id": "moss-situ",
+          "title": "MOSS's rounded SITU activation runs as one kernel",
           "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSDenoiserWallIsAccountedFor$'",
-          "rationale": "The resource comparison measured native MOSS at 94.2 s of denoising a 1024 square picture against upstream's 51.8 s on one card and one protocol, at 0.47 times its peak device memory (docs/verification/moss-image-resources.json).\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes. The first check named a throughput subtest that its parent passes without (internal/evaluation/moss_retained_model_test.go:110).\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestARoundedSITUFoldsIntoOneKernel$'",
+          "rationale": "Measured after moss-denoiser (docs/verification/moss-denoiser-wall.json): a MOSS step takes 1.449 s against upstream's 1.036 s, and its kernels hold 99.7% of it. The rotary SITU activation (internal/latentimage/rotary_refinement.go, rotaryGraph.situ) is nine elementwise launches a call, each result rounded to BF16: two bounded tanh gates (a scale, a tanh, a scale each), a sigmoid and two products. Its kernels took 238 ms a step: scale 94.7, products 71.9, tanh 47.3, sigmoid 23.6.\nChange: one kernel computes the same per-operation F32 arithmetic with the same roundings, reading the gate and the hidden values once and writing the result once, folded in by a rewrite that recognizes the chain, as the GELU tanh fusion does; the training kernel moss_situ_f32 divides by the bounds and rounds nothing, so it is not the one. Measure the chain's share of a step first, and keep the parity picture bit for bit.\nServes: throughput for image generation.\nDisappears: eight of the nine launches of each SITU call and their reads and writes.\nEvidence: TestMOSSDenoiserWallIsAccountedFor's record re-read after the change; the parity picture unchanged.\nBatch: device."
         },
         {
           "id": "trained-precision",

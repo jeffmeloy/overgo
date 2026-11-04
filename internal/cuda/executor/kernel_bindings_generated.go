@@ -9,6 +9,7 @@ type kernelFunctionID uint16
 const (
 	kernelActivatedGateF32 kernelFunctionID = iota
 	kernelActivatedGateQ80F32
+	kernelAddBf16RoundF32
 	kernelAddF32
 	kernelArgmaxF32
 	kernelArgmaxQ80InputPartialsF32
@@ -34,8 +35,10 @@ const (
 	kernelAttentionTiledF32
 	kernelBf16RoundF32
 	kernelBf16ToF32
+	kernelBroadcastAddBf16RoundF32
 	kernelBroadcastAddF32
 	kernelBroadcastDivideF32
+	kernelBroadcastMultiplyBf16RoundF32
 	kernelBroadcastMultiplyF32
 	kernelCausalSoftmaxBatchedF32
 	kernelCausalSoftmaxF32
@@ -196,6 +199,7 @@ const (
 	kernelMulMatQ8KF32
 	kernelMulMatTq10F32
 	kernelMulMatTq20F32
+	kernelMultiplyBf16RoundF32
 	kernelMultiplyF32
 	kernelPixelShuffle2dF32
 	kernelQuantizeFp8ColumnsF32
@@ -207,6 +211,7 @@ const (
 	kernelRepeatHeadsF32
 	kernelRmsNormBackwardF32
 	kernelRmsNormF32
+	kernelRmsNormMeanBf16RoundF32
 	kernelRmsNormMeanF32
 	kernelRopeAppendNeoxF32
 	kernelRopeAppendNormalF32
@@ -219,11 +224,13 @@ const (
 	kernelRwkv7F32
 	kernelSamAttentionF32
 	kernelSamAttentionGroupedF32
+	kernelScaleBf16RoundF32
 	kernelScaleF32
 	kernelScaleFp8ProductF32
 	kernelScaledActivationF32
 	kernelScaledActivationQ80F32
 	kernelShortConvBackwardF32
+	kernelSigmoidBf16RoundF32
 	kernelSigmoidF32
 	kernelSignedSqrtF32
 	kernelSiluBackwardF32
@@ -250,6 +257,7 @@ const (
 	kernelStreamSumQ80F32
 	kernelStridedRowCopyF32
 	kernelSumRowsF32
+	kernelTanhBf16RoundF32
 	kernelTanhF32
 	kernelTopKBlockF32
 	kernelTopKF32
@@ -485,6 +493,7 @@ const (
 var kernelFunctionNames = [...]string{
 	"activated_gate_f32",
 	"activated_gate_q8_0_f32",
+	"add_bf16_round_f32",
 	"add_f32",
 	"argmax_f32",
 	"argmax_q8_0_input_partials_f32",
@@ -510,8 +519,10 @@ var kernelFunctionNames = [...]string{
 	"attention_tiled_f32",
 	"bf16_round_f32",
 	"bf16_to_f32",
+	"broadcast_add_bf16_round_f32",
 	"broadcast_add_f32",
 	"broadcast_divide_f32",
+	"broadcast_multiply_bf16_round_f32",
 	"broadcast_multiply_f32",
 	"causal_softmax_batched_f32",
 	"causal_softmax_f32",
@@ -672,6 +683,7 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_q8_K_f32",
 	"mul_mat_tq1_0_f32",
 	"mul_mat_tq2_0_f32",
+	"multiply_bf16_round_f32",
 	"multiply_f32",
 	"pixel_shuffle_2d_f32",
 	"quantize_fp8_columns_f32",
@@ -683,6 +695,7 @@ var kernelFunctionNames = [...]string{
 	"repeat_heads_f32",
 	"rms_norm_backward_f32",
 	"rms_norm_f32",
+	"rms_norm_mean_bf16_round_f32",
 	"rms_norm_mean_f32",
 	"rope_append_neox_f32",
 	"rope_append_normal_f32",
@@ -695,11 +708,13 @@ var kernelFunctionNames = [...]string{
 	"rwkv7_f32",
 	"sam_attention_f32",
 	"sam_attention_grouped_f32",
+	"scale_bf16_round_f32",
 	"scale_f32",
 	"scale_fp8_product_f32",
 	"scaled_activation_f32",
 	"scaled_activation_q8_0_f32",
 	"short_conv_backward_f32",
+	"sigmoid_bf16_round_f32",
 	"sigmoid_f32",
 	"signed_sqrt_f32",
 	"silu_backward_f32",
@@ -726,6 +741,7 @@ var kernelFunctionNames = [...]string{
 	"stream_sum_q8_0_f32",
 	"strided_row_copy_f32",
 	"sum_rows_f32",
+	"tanh_bf16_round_f32",
 	"tanh_f32",
 	"top_k_block_f32",
 	"top_k_f32",
@@ -962,6 +978,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	4,
 	4,
+	4,
 	3,
 	3,
 	18,
@@ -988,6 +1005,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	15,
 	15,
 	15,
+	15,
+	15,
 	4,
 	3,
 	5,
@@ -1148,6 +1167,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	6,
 	4,
+	4,
 	7,
 	5,
 	3,
@@ -1157,6 +1177,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	6,
 	8,
+	5,
 	5,
 	5,
 	18,
@@ -1171,10 +1192,12 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	18,
 	17,
 	4,
+	4,
 	5,
 	5,
 	6,
 	12,
+	3,
 	3,
 	4,
 	4,
@@ -1201,6 +1224,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	9,
 	8,
 	4,
+	3,
 	3,
 	9,
 	8,
@@ -1437,6 +1461,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4},
 	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 4},
+	{8, 8, 8, 4},
 	{8, 8, 4, 4},
 	{8, 8, 4},
 	{8, 8, 4},
@@ -1461,6 +1486,8 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4},
 	{8, 8, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
+	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
@@ -1624,6 +1651,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4},
+	{8, 8, 8, 4},
 	{8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4},
@@ -1633,6 +1661,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4},
+	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
@@ -1647,10 +1676,12 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4},
+	{8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
 	{8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 8, 8, 8, 8, 4, 4, 4, 4},
+	{8, 8, 4},
 	{8, 8, 4},
 	{8, 8, 4, 4},
 	{8, 8, 8, 4},
@@ -1677,6 +1708,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4, 4, 4, 4, 4},
 	{8, 8, 4, 4},
+	{8, 8, 4},
 	{8, 8, 4},
 	{8, 8, 4, 4, 4, 4, 8, 4, 4},
 	{8, 8, 4, 4, 4, 4, 8, 4},
@@ -1913,6 +1945,14 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,

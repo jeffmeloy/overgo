@@ -941,23 +941,26 @@ const (
 	compiledFusionQ8Pair
 	compiledFusionQ8PairPeer
 	compiledFusionQ8GatedAdd
+	compiledFusionRoundedElementwise
 )
 
 type compiledFusion struct {
-	kind             compiledFusionKind
-	operandOffset    int
-	operandCount     int
-	operands         []*tensor.Tensor
-	emitQ8           bool
-	peer             *tensor.Tensor
-	weightedRMS      weightedRMSFusion
-	activatedGate    activatedGateFusion
-	geluTanh         geluTanhFusion
-	layerNorm        layerNormModulateFusion
-	weightedGate     weightedRMSGateFusion
-	bf16Append       bf16AppendFusion
-	ropeAppend       ropeAppendFusion
-	bf16Gate         bf16GateFusion
+	kind          compiledFusionKind
+	operandOffset int
+	operandCount  int
+	operands      []*tensor.Tensor
+	emitQ8        bool
+	peer          *tensor.Tensor
+	weightedRMS   weightedRMSFusion
+	activatedGate activatedGateFusion
+	geluTanh      geluTanhFusion
+	layerNorm     layerNormModulateFusion
+	weightedGate  weightedRMSGateFusion
+	bf16Append    bf16AppendFusion
+	ropeAppend    ropeAppendFusion
+	bf16Gate      bf16GateFusion
+	// rounded is the elementwise product a BF16 rounding folds into (applyRoundedElementwiseRewrite).
+	rounded          *tensor.Tensor
 	bf16ProjAdd      bf16ProjAddFusion
 	bf16Attention    bf16AttentionFusion
 	streamSum        streamSumFusion
@@ -2255,6 +2258,8 @@ func launchCompiledFusion(
 		return "q8_pair", nil
 	case compiledFusionQ8GatedAdd:
 		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
+	case compiledFusionRoundedElementwise:
+		return "rounded_elementwise", launchRoundedElementwise(state, functions, blas, q8Input, fusion.rounded, pointers)
 	default:
 		return "", errors.New("compiled CUDA fusion is invalid")
 	}

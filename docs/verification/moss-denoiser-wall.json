@@ -1,0 +1,39 @@
+{
+ "base_commit": "0b1d23b60e7437ac14822ecda94ad59711505032",
+ "device": "NVIDIA GeForce RTX 4090 D",
+ "change": "time-and-memory/moss-denoiser: a BF16 rounding folds into the elementwise product it rounds (internal/cuda/executor/rounded_elementwise.go), over base_commit",
+ "request": {
+  "label": "first",
+  "prompt": "A small red sailboat on a quiet lake at sunrise.",
+  "height": 1024,
+  "width": 1024,
+  "seed": 42,
+  "steps": 50
+ },
+ "method": "One process a reading, the request's prepare, integrate and decode timed in process at 4, 8 and 50 steps. A step's wall is the integrate difference of 8 and 4 steps over 4, which leaves out the denoiser's compile and placement; its kernels are the difference of two Nsight Systems traces at 4 and 8 steps, CUDA graphs traced by node, over 4, grouped by kernel name.",
+ "upstream_transformer_seconds": 51.81717990105972,
+ "before": {
+  "integrate_seconds": 94.187679,
+  "integrate_seconds_at_steps": {
+   "4": 10.889,
+   "8": 17.985
+  }
+ },
+ "after": {
+  "integrate_seconds": 76.439,
+  "integrate_seconds_at_steps": {
+   "4": 9.463,
+   "8": 15.26
+  },
+  "picture": "output:sha256:cfab6e10e0551187ce87aec12beab4f438ad063b2b202def0d6e8bf5856903d8",
+  "kernel_seconds_per_step": {
+   "bf16 products": 0.5172,
+   "rounded elementwise": 0.456,
+   "attention": 0.2764,
+   "product conversions": 0.1171,
+   "copies and slices": 0.0746,
+   "other": 0.0039
+  }
+ },
+ "scope": "Before the change, a step rounded each elementwise product's F32 values to BF16 in a launch of its own, 1,672 a forward: bf16_round_f32 took 1.47 s of the 4-step trace. After it, the step's kernels hold its wall: the BF16 products (cuBLAS), the elementwise products that store BF16-rounded F32 values, the native BF16 attention, the conversions of each product's operands to BF16 and of its output back, and the slices and copies of fused projections. Upstream holds its activations at BF16's two bytes where native keeps them as rounded F32 values at four, which is where the elementwise and conversion time beyond upstream's goes. The picture is the parity record's, bit for bit."
+}

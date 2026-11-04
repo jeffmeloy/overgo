@@ -370,14 +370,60 @@ extern "C" __global__ void quantize_q8_0_input_f32(
     store_q8_input_warp(output, block, value, lane);
 }
 
-extern "C" __global__ void add_f32(
+// bf16_rounded is value's nearest BF16, ties to even, as bf16_round_f32 stores it; infinities and NaNs pass unchanged.
+__device__ __forceinline__ float bf16_rounded(float value) {
+    unsigned int raw = __float_as_uint(value);
+    if ((raw & 0x7f800000u) != 0x7f800000u) {
+        raw += 0x7fffu + ((raw >> 16) & 1u);
+        raw &= 0xffff0000u;
+    }
+    return __uint_as_float(raw);
+}
+
+// elementwise_store is what an elementwise kernel stores of value: value, or, for the <name>_bf16_round entry a BF16
+// rounding of its output folds into, its nearest BF16.
+template <bool ROUND>
+__device__ __forceinline__ float elementwise_store(float value) {
+    return ROUND ? bf16_rounded(value) : value;
+}
+
+template <bool ROUND>
+__device__ __forceinline__ void add_elementwise(
         const float * input_a,
         const float * input_b,
         float * output,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
-        output[index] = input_a[index] + input_b[index];
+        output[index] = elementwise_store<ROUND>(input_a[index] + input_b[index]);
+    }
+}
+
+extern "C" __global__ void add_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count) {
+    add_elementwise<false>(input_a, input_b, output, count);
+}
+
+extern "C" __global__ void add_bf16_round_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count) {
+    add_elementwise<true>(input_a, input_b, output, count);
+}
+
+template <bool ROUND>
+__device__ __forceinline__ void multiply_elementwise(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        output[index] = elementwise_store<ROUND>(input_a[index] * input_b[index]);
     }
 }
 
@@ -386,10 +432,15 @@ extern "C" __global__ void multiply_f32(
         const float * input_b,
         float * output,
         unsigned int count) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count) {
-        output[index] = input_a[index] * input_b[index];
-    }
+    multiply_elementwise<false>(input_a, input_b, output, count);
+}
+
+extern "C" __global__ void multiply_bf16_round_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count) {
+    multiply_elementwise<true>(input_a, input_b, output, count);
 }
 
 extern "C" __global__ void divide_f32(
@@ -463,7 +514,8 @@ __device__ unsigned int broadcast_index(
                 input_2 * (input_3 == 1 ? 0 : coordinate_3)));
 }
 
-extern "C" __global__ void broadcast_add_f32(
+template <bool ROUND>
+__device__ __forceinline__ void broadcast_add_elementwise(
         const float * input_a,
         const float * input_b,
         float * output,
@@ -485,7 +537,72 @@ extern "C" __global__ void broadcast_add_f32(
             index, a_0, a_1, a_2, a_3, output_0, output_1, output_2);
         const unsigned int index_b = broadcast_index(
             index, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
-        output[index] = input_a[index_a] + input_b[index_b];
+        output[index] = elementwise_store<ROUND>(input_a[index_a] + input_b[index_b]);
+    }
+}
+
+extern "C" __global__ void broadcast_add_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count,
+        unsigned int a_0,
+        unsigned int a_1,
+        unsigned int a_2,
+        unsigned int a_3,
+        unsigned int b_0,
+        unsigned int b_1,
+        unsigned int b_2,
+        unsigned int b_3,
+        unsigned int output_0,
+        unsigned int output_1,
+        unsigned int output_2) {
+    broadcast_add_elementwise<false>(input_a, input_b, output, count, a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
+}
+
+extern "C" __global__ void broadcast_add_bf16_round_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count,
+        unsigned int a_0,
+        unsigned int a_1,
+        unsigned int a_2,
+        unsigned int a_3,
+        unsigned int b_0,
+        unsigned int b_1,
+        unsigned int b_2,
+        unsigned int b_3,
+        unsigned int output_0,
+        unsigned int output_1,
+        unsigned int output_2) {
+    broadcast_add_elementwise<true>(input_a, input_b, output, count, a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
+}
+
+template <bool ROUND>
+__device__ __forceinline__ void broadcast_multiply_elementwise(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count,
+        unsigned int a_0,
+        unsigned int a_1,
+        unsigned int a_2,
+        unsigned int a_3,
+        unsigned int b_0,
+        unsigned int b_1,
+        unsigned int b_2,
+        unsigned int b_3,
+        unsigned int output_0,
+        unsigned int output_1,
+        unsigned int output_2) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < count) {
+        const unsigned int index_a = broadcast_index(
+            index, a_0, a_1, a_2, a_3, output_0, output_1, output_2);
+        const unsigned int index_b = broadcast_index(
+            index, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
+        output[index] = elementwise_store<ROUND>(input_a[index_a] * input_b[index_b]);
     }
 }
 
@@ -505,14 +622,26 @@ extern "C" __global__ void broadcast_multiply_f32(
         unsigned int output_0,
         unsigned int output_1,
         unsigned int output_2) {
-    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < count) {
-        const unsigned int index_a = broadcast_index(
-            index, a_0, a_1, a_2, a_3, output_0, output_1, output_2);
-        const unsigned int index_b = broadcast_index(
-            index, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
-        output[index] = input_a[index_a] * input_b[index_b];
-    }
+    broadcast_multiply_elementwise<false>(input_a, input_b, output, count, a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
+}
+
+extern "C" __global__ void broadcast_multiply_bf16_round_f32(
+        const float * input_a,
+        const float * input_b,
+        float * output,
+        unsigned int count,
+        unsigned int a_0,
+        unsigned int a_1,
+        unsigned int a_2,
+        unsigned int a_3,
+        unsigned int b_0,
+        unsigned int b_1,
+        unsigned int b_2,
+        unsigned int b_3,
+        unsigned int output_0,
+        unsigned int output_1,
+        unsigned int output_2) {
+    broadcast_multiply_elementwise<true>(input_a, input_b, output, count, a_0, a_1, a_2, a_3, b_0, b_1, b_2, b_3, output_0, output_1, output_2);
 }
 
 extern "C" __global__ void broadcast_divide_f32(
@@ -541,15 +670,32 @@ extern "C" __global__ void broadcast_divide_f32(
     }
 }
 
-extern "C" __global__ void scale_f32(
+template <bool ROUND>
+__device__ __forceinline__ void scale_elementwise(
         const float * input,
         float * output,
         float scale,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
-        output[index] = input[index] * scale;
+        output[index] = elementwise_store<ROUND>(input[index] * scale);
     }
+}
+
+extern "C" __global__ void scale_f32(
+        const float * input,
+        float * output,
+        float scale,
+        unsigned int count) {
+    scale_elementwise<false>(input, output, scale, count);
+}
+
+extern "C" __global__ void scale_bf16_round_f32(
+        const float * input,
+        float * output,
+        float scale,
+        unsigned int count) {
+    scale_elementwise<true>(input, output, scale, count);
 }
 
 extern "C" __global__ void copy_f32(
@@ -2100,14 +2246,29 @@ extern "C" __global__ void group_norm_parameter_backward_f32(
 	bias_gradient[channel] = (float) bias_sum;
 }
 
-extern "C" __global__ void sigmoid_f32(
+template <bool ROUND>
+__device__ __forceinline__ void sigmoid_elementwise(
         const float * input,
         float * output,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < count) {
-        output[index] = 1.0f / (1.0f + expf(-input[index]));
+        output[index] = elementwise_store<ROUND>(1.0f / (1.0f + expf(-input[index])));
     }
+}
+
+extern "C" __global__ void sigmoid_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    sigmoid_elementwise<false>(input, output, count);
+}
+
+extern "C" __global__ void sigmoid_bf16_round_f32(
+        const float * input,
+        float * output,
+        unsigned int count) {
+    sigmoid_elementwise<true>(input, output, count);
 }
 
 extern "C" __global__ void softplus_f32(
@@ -2121,14 +2282,29 @@ extern "C" __global__ void softplus_f32(
     }
 }
 
-extern "C" __global__ void tanh_f32(
+template <bool ROUND>
+__device__ __forceinline__ void tanh_elementwise(
 		const float * input,
 		float * output,
 		unsigned int count) {
 	const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
 	if (index < count) {
-		output[index] = tanhf(input[index]);
+		output[index] = elementwise_store<ROUND>(tanhf(input[index]));
 	}
+}
+
+extern "C" __global__ void tanh_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+    tanh_elementwise<false>(input, output, count);
+}
+
+extern "C" __global__ void tanh_bf16_round_f32(
+		const float * input,
+		float * output,
+		unsigned int count) {
+    tanh_elementwise<true>(input, output, count);
 }
 
 extern "C" __global__ void atan_f32(
@@ -12788,7 +12964,8 @@ extern "C" __global__ void silu_native_f32(
     }
 }
 
-extern "C" __global__ void rms_norm_mean_f32(
+template <bool ROUND>
+__device__ __forceinline__ void rms_norm_mean_elementwise(
         const float * input,
         float * output,
         unsigned int width,
@@ -12824,6 +13001,24 @@ extern "C" __global__ void rms_norm_mean_f32(
     const float factor = __fdiv_rn((float) rows, (float) ((unsigned long long) rows * width));
     const float inverse = rsqrtf(__fadd_rn(__fmul_rn(sum_squares, factor), epsilon));
     for (unsigned int column = threadIdx.x; column < width; column += blockDim.x) {
-        output[offset + column] = input[offset + column] * inverse;
+        output[offset + column] = elementwise_store<ROUND>(input[offset + column] * inverse);
     }
+}
+
+extern "C" __global__ void rms_norm_mean_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    rms_norm_mean_elementwise<false>(input, output, width, rows, epsilon);
+}
+
+extern "C" __global__ void rms_norm_mean_bf16_round_f32(
+        const float * input,
+        float * output,
+        unsigned int width,
+        unsigned int rows,
+        float epsilon) {
+    rms_norm_mean_elementwise<true>(input, output, width, rows, epsilon);
 }

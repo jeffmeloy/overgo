@@ -73,12 +73,12 @@ The preamble's row is the plan's step shape-reading/launch-checks, and TestNoLau
 
 == switches ==
 family: internal/tensor.Op
-switches: 10
-lines: 1899
-functions: 10
+switches: 11
+lines: 1909
+functions: 11
 packages: 4
 constants: 76
-operations-by-switches: 1=3 2=35 3=28 4=10
+operations-by-switches: 1=3 2=33 3=26 4=14
 
 switch: internal/cuda/executor/executor.go#validateRuntimeAttributes
 lines: 110
@@ -143,6 +143,15 @@ decides: the device launch of rope_neox and rope_normal through one launch whose
 row: the entry of each operation and its kernel as a column
 table: yes
 
+switch: internal/cuda/executor/rounded_elementwise.go#launchesRoundedKernel
+lines: 10
+constants: 6
+clauses: 3
+dispatch-lines: 5
+decides: which operations' launch is one elementwise kernel with a BF16-rounding entry, so a BF16 rounding of their result folds into it: a sum or product, a scale, a sigmoid or tanh of the ordinary arithmetic, an RMS norm by the native mean
+row: a column of the device table naming each elementwise operation's rounding kernel beside its F32 kernel, which replaces the switch and the map of rounding kernels
+table: yes
+
 switch: internal/inference/device_decode_session.go#compileDecodeSessionPlan
 lines: 58
 constants: 10
@@ -171,14 +180,14 @@ row: one entry per operation holding its function or a function literal, with ea
 table: yes
 
 == estimate ==
-table-dispatch-lines: 181
+table-dispatch-lines: 186
 estimated-scaffolding-deleted: 192
-table-deleted: 373
+table-deleted: 378
 estimated-rows-added: 129
 estimated-frames-added: 67
 estimated-machinery-added: 44
 table-added: 240
-table-net: 133
+table-net: 138
 table-net-range: -54 144
 makes-possible: a device operation declared in one place where the tree holds two that must agree (its family in the descriptors and its case in that family's switch), and a test that refuses an operation a descriptor claims for a backend whose table lacks it, with no device and no graph run
 not-made-possible: adding an operation in one place, because the host and the device executors import package tensor, so each keeps its own table and an operation stays a constant, a descriptor, a builder method, a host entry, a device entry and a kernel

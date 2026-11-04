@@ -87,7 +87,11 @@ func (e *Executor) CheckRetainedMemory(ctx context.Context, compiled *CompiledGr
 				return err
 			}
 		}
-		// A prompt's read, the graph admitted here, runs one-shot in its own arena.
+		// A prompt's read, the graph admitted here, runs one-shot in its own arena, with its prefetch halves where experts
+		// lie in host memory.
+		if resources.experts != nil && resources.blas != nil {
+			arena = compiled.prefetchArena(arena, &resources.blas.moePrefetch)
+		}
 		if arena > resources.promptArenaSize {
 			if growth, err = addMemoryBytes(growth, arena-resources.promptArenaSize); err != nil {
 				return err

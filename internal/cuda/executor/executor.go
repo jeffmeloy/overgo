@@ -85,6 +85,8 @@ type ExecutionMetrics struct {
 	ArenaGrowths           uint64 `json:"arenaGrowths"`
 	// PromptArenaBytes is the one-shot runs' arena, a prompt's read's, which a long read gives back.
 	PromptArenaBytes uint64 `json:"promptArenaBytes"`
+	// PrefetchedExperts counts the host experts routed prompt nodes copied ahead of the node that reads them.
+	PrefetchedExperts uint64 `json:"prefetchedExperts"`
 	// Non-arena device-memory owners, so retained device bytes are fully
 	// attributed: cuBLAS matmul staging and attention-score staging, the
 	// Q8 activation staging, and the buffer pool's total driver residency
@@ -876,6 +878,10 @@ type CompiledGraph struct {
 	// the CPU (moeDoorbell); doorbellRings are the routed nodes a captured run rings for, in launch order.
 	doorbellSlots, doorbellWidth uint64
 	doorbellRings                []*tensor.Tensor
+	// prefetches are the routed prompt nodes, in launch order, whose host experts the one before each copies ahead
+	// (moePrefetch), and prefetchBytes the halves a run of them takes past its arena's plan where experts lie in host memory.
+	prefetches    []*tensor.Tensor
+	prefetchBytes uint64
 	// readBack marks the outputs a retained run copies to host memory before it ends (ReadBack).
 	readBack []bool
 }
@@ -1446,6 +1452,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			if geometry, ok := nativeMoEMatrix(node); ok {
 				compiled.readsRoutes = true
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, geometry.stagingBytes(group, node.Attrs.(tensor.MoEAttributes).TopK))
+				if tokens := node.Shape.Dims[1]; tokens >= uint64(moePrefetchTokens) && uint64(group) == tokens {
+					compiled.prefetches = append(compiled.prefetches, node)
+					compiled.prefetchBytes = moePrefetchBytes
+				}
 			}
 		}
 		// Every column count stages: prefill chunks its columns through
@@ -1843,6 +1853,7 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 		if blas := e.resources.blas; blas != nil {
 			metrics.BLASStagingBytes = blas.stagingBytes
 			metrics.BLASScoreBytes = blas.scoreBytes
+			metrics.PrefetchedExperts = blas.moePrefetch.experts
 		}
 		if metrics.ArenaCommittedBytes >= metrics.ArenaRequiredBytes {
 			metrics.ArenaUnusedBytes = metrics.ArenaCommittedBytes - metrics.ArenaRequiredBytes
@@ -2065,12 +2076,22 @@ func (e *Executor) runCompiled(
 		// experts can take it back after the read, and shares the captured runs' otherwise, so a model without experts
 		// holds one arena, the larger, not both (every dense model's peak rose by a prompt arena, 2026-10-24).
 		ensure := resources.ensureArena
+		prefetched := arenaSize
 		if !cacheGraph && resources.experts != nil {
 			ensure = resources.ensurePromptArena
+			if resources.blas != nil {
+				prefetched = compiled.prefetchArena(arenaSize, &resources.blas.moePrefetch)
+			}
 		}
-		arena, arenaErr := ensure(state, arenaSize)
+		arena, arenaErr := ensure(state, prefetched)
 		if arenaErr != nil {
 			return arenaErr
+		}
+		if resources.blas != nil {
+			resources.blas.moePrefetch.base = 0
+			if prefetched > arenaSize {
+				resources.blas.moePrefetch.base = arena + driver.DevicePtr(moeAlign(arenaSize))
+			}
 		}
 		if cacheGraph {
 			resources.arenaUse.capturedBytes = max(resources.arenaUse.capturedBytes, arenaSize)
@@ -2630,6 +2651,10 @@ func execute(
 		}
 	}
 	resetStaged()
+	if blas != nil {
+		blas.moePrefetch.begin(compiled.prefetches)
+		defer func() { err = errors.Join(err, blas.moePrefetch.end(state, blas.moeCopyStream)) }()
+	}
 	runLaunches := func() error {
 		for _, nodeIndex := range compiled.launches {
 			frame := compiled.nodes[nodeIndex]
@@ -2888,6 +2913,8 @@ type blasState struct {
 	// back beside both.
 	moeCopyStream driver.Stream
 	moeReadStream driver.Stream
+	// moePrefetch copies the next routed prompt node's host experts on moeCopyStream while the node before computes.
+	moePrefetch moePrefetch
 	// costs are the machine's measured costs (MachineCosts), which choose the experts the CPU computes.
 	costs        MachineCosts
 	library      *cublas.Library

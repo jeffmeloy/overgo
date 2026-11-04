@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "prefill-16k",
-      "title": "Find where a 16K prompt's first output trails Strata's",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 155,
-        "reason": "Estimate: asynchronous moves in the reclaim (about 40), the prompt read's copy order after Strata's ring (about 200), and the recurrence kernel's Go binding (about 60); kernel source counts apart."
-      },
-      "steps": [
-        {
-          "id": "copy-waits",
-          "title": "A prompt read issues each expert group's copies before the group before it computes, as Strata's ring does",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestAPromptReadCopiesTheNextGroupsExpertsAhead$'",
-          "rationale": "prefill-16k/phase-table: inside Flash-Next's 16K read (16,351 tokens) the card waits 382 ms on expert copies, in 89 gaps of about 3.6 ms between one expert group's down product and the next group's hidden product and 144 short ones before moe_host_slots, each with a copy running through it; the server's host waits 0.34 s in LandExperts for copies to land. Strata's phase timer charges 96 ms to wait copy on the same token ids. The link is far from full: 10.2 GB cross it during the 4.95 s read, about 2 GB/s against the 13.4 GB/s measured, so the copies start late rather than run slow (launchMoEMatrices learns a layer's host experts only from its routes, read back at the layer's host sync, and queues each copy batch one ahead of the batch it feeds). Beside them the CPU computes the few-token experts held on host (planHostExperts, 6 s of CPU across the read), where Strata gives the CPU a share only of chunks under 1,024 tokens. A copy-ahead area tried before (256 MB) cut a 16K stall 0.44 to 0.26 s but evicted 2.6 GB more experts that crossed again, netting nothing (lessons), so read Strata's prompt expert stream first (src/prefill: its 384-slot ring within the 2,044 slots its prompt borrows, which experts it streams and how far ahead it issues them) and port its order. Hold it with a test that a prompt read issues a group's expert copies before the group before it computes. Serves first-output at long prompts."
-        }
-      ]
-    },
-    {
       "id": "delta-cursor",
       "title": "A store delta's envelope names the delta it carries",
       "owner": "master-lead",

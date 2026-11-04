@@ -44,6 +44,10 @@ const (
 	// copy's overlap with the products against the staging the buffers hold.
 	moeCopyBuffers = 4
 	moeBatchBytes  = moeCopyBytes / moeCopyBuffers
+	// moeLaunchActivationBytes bounds the activations one launch of the grouped hidden products writes and its down
+	// products read: one launch of a Flash-Next layer's card experts of an 8,192-token chunk, about 170 MB of them, took
+	// its down products 3.2 ms a thousand tiles, launches of about 17 MB 1.9 ms, L2 (72 MB on the 4090 D) keeping them.
+	moeLaunchActivationBytes = uint64(16 << 20)
 	// moeMatrixStagingBytes bounds a prompt group's grouped-product staging:
 	// its plan, each routed slot's output row and the copies. A group copies
 	// every host expert its tokens route once, so the tokens one group holds
@@ -257,6 +261,12 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 			}
 		}
 	}
+	blas.moePrefetch.observe(node, blas.moeOffsets)
+	// The experts the node before copied ahead read where it put them, as card experts do.
+	took, err := blas.moePrefetch.take(state, node, blas.moeSources, blas.moeHosted)
+	if err != nil {
+		return false, err
+	}
 	// Experts wholly in host memory that few slots route to are computed on the CPU where they lie, beside the
 	// card's products (hybrid-experts); the others are copied or read as before.
 	host, onHost := blas.planHostExperts(a, banks, g, count, gateBias != 0 || upBias != 0 || downBias != 0, residency)
@@ -413,18 +423,22 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 		return nil
 	}
 	// launch multiplies tiles first to end over the banks' tables, then the tensor-core experts beside them.
+	// A launch takes at most launchTiles tiles, whose activations the down products read from L2 after the hidden
+	// products write them.
+	launchTiles := uint32(max(1, moeLaunchActivationBytes/(uint64(moeTileTokens)*uint64(intermediate)*f32ScalarBytes)))
 	launch := func(first, end uint32, tables []driver.DevicePtr, tensorExperts []uint32) error {
-		if first < end {
+		for ; first < end; first += launchTiles {
+			last := min(end, first+launchTiles)
 			tileTable := table + driver.DevicePtr(uint64(first)*uint64(moeTileWords)*f32ScalarBytes)
 			gate, up, down := tables[0], tables[upAt-moeFirstBankInput], tables[upAt-moeFirstBankInput+1]
 			if err := launchGridSharedABI(state, functions[kernelMoeGroupedHiddenF32],
-				driver.Dim3{X: end - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, driver.Dim3{X: moeHiddenThreads, Y: 1, Z: 1}, 0,
+				driver.Dim3{X: last - first, Y: (intermediate-1)/moeTileRows + 1, Z: 1}, driver.Dim3{X: moeHiddenThreads, Y: 1, Z: 1}, 0,
 				&input, &tileTable, &positionTable, &gate, &up, &gateBias, &upBias, &activations, &hidden, &intermediate, &topK,
 				&gateType, &upType, &fused, &activation, &routing, &clamp, &indexed); err != nil {
 				return err
 			}
 			if err := launchGridSharedABI(state, functions[kernelMoeGroupedDownF32],
-				driver.Dim3{X: end - first, Y: (hidden-1)/moeTileRows + 1, Z: 1}, block, 0,
+				driver.Dim3{X: last - first, Y: (hidden-1)/moeTileRows + 1, Z: 1}, block, 0,
 				&activations, &tileTable, &positionTable, &down, &downBias, &slots, &hidden, &intermediate, &downType, &indexed); err != nil {
 				return err
 			}
@@ -518,7 +532,12 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 	if err := state.Driver.StreamWait(blas.moeCopyStream, state.Stream); err != nil {
 		return false, err
 	}
-	if err := launch(cardShare(0), cardShare(1), tables, cardTensor(0)); err != nil {
+	// The card's share reads the copy table where it names experts copied ahead, which the bank tables do not.
+	cardTables := tables
+	if took {
+		cardTables = copiedTables
+	}
+	if err := launch(cardShare(0), cardShare(1), cardTables, cardTensor(0)); err != nil {
 		return false, err
 	}
 	if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
@@ -553,12 +572,16 @@ func launchMoEMatrices(state *device.State, functions functionSet, blas *blasSta
 				return false, err
 			}
 		}
-		if err := launch(cardShare(next), cardShare(next+1), tables, cardTensor(next)); err != nil {
+		if err := launch(cardShare(next), cardShare(next+1), cardTables, cardTensor(next)); err != nil {
 			return false, err
 		}
 		if _, err := state.Driver.StreamQuery(state.Stream); err != nil {
 			return false, err
 		}
+	}
+	// The next routed node's host experts copy while this node's products and the layer after them compute.
+	if err := blas.moePrefetch.ahead(state, blas.moeCopyStream, node, count, took, residency); err != nil {
+		return false, err
 	}
 	if onHost {
 		if err := blas.computeHostExperts(state, functions, host, g, a, slots, count, positions); err != nil {

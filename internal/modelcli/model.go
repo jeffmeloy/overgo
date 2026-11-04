@@ -235,6 +235,7 @@ func openRunner(
 		}
 	}
 	derivation, derived := loaded.Derived()
+	inventory, hashed := loaded.Hashed()
 	runner, err := inference.OpenWithProgram(ctx, &loaded, options)
 	if err == nil {
 		noteModelState(path, runner.ModelState())
@@ -242,6 +243,10 @@ func openRunner(
 	if err == nil && derived {
 		// What the store cannot take now, another writer holding it among the causes, it takes at the next open.
 		_ = registerDerived(ctx, repository, derivation)
+	} else if err == nil && hashed {
+		// A file this open hashed is claimed at the next: a registered model's copy, which derives nothing, had been
+		// hashed at every start, 7 to 8.5 s of Qwen3.5-9B's 9.5 GB. A refusal waits for the next open, as above.
+		_ = rememberHashed(ctx, repository, inventory)
 	}
 	if err != nil || !judge {
 		return runner, err
@@ -250,6 +255,16 @@ func openRunner(
 		return nil, errors.Join(err, runner.Close())
 	}
 	return runner, nil
+}
+
+// rememberHashed keeps the identities an open proved by hashing its model's files, so the next open claims them.
+func rememberHashed(ctx context.Context, repository string, inventory modelartifact.Inventory) error {
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	return discovery.RememberInventory(ctx, store, inventory)
 }
 
 // registerDerived publishes what the records of a derived run name, the model's facts and its recipe, as a candidate and

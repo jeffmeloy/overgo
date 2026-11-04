@@ -33,6 +33,9 @@ type loadedProgramState struct {
 	// have not been hashed, and the program may not serve before they are
 	// proved. Empty when every shard was hashed.
 	Claims []artifact.ID
+	// Hashed is the inventory the resolution proved by hashing every shard, which the open remembers; empty where it
+	// claimed any.
+	Hashed modelartifact.Inventory
 }
 
 // ResolveActiveGGUF compiles the model at path before execution: its active recipe where one stands, else what its own
@@ -236,6 +239,9 @@ func loadGGUFFacts(ctx context.Context, path string, claimer modelartifact.Claim
 		return LoadedProgram{}, errors.Join(cause, file.Close())
 	}
 	loaded.state.Inventory, loaded.state.Claims, err = modelartifact.FromGGUFClaimedContext(ctx, file, artifact.KindModel, claimer)
+	if err == nil && len(loaded.state.Claims) == 0 {
+		loaded.state.Hashed = loaded.state.Inventory
+	}
 	if err != nil {
 		return fail(err)
 	}

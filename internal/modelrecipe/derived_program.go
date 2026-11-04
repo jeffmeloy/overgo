@@ -199,6 +199,15 @@ func recordsPath(ctx context.Context, store artifact.Reader, modelID artifact.ID
 	return false, nil
 }
 
+// Hashed returns the inventory the program's resolution proved by hashing every shard, and whether it did: a program
+// resolved on a claimer's claims proves them as it loads instead.
+func (l *LoadedProgram) Hashed() (modelartifact.Inventory, bool) {
+	if l == nil || l.state == nil || len(l.state.Hashed.Locations) == 0 {
+		return modelartifact.Inventory{}, false
+	}
+	return l.state.Hashed, true
+}
+
 // Derived returns what the program was derived from before transfer, and whether it was: a program bound from a stored
 // recipe has none.
 func (l *LoadedProgram) Derived() (Derivation, bool) {

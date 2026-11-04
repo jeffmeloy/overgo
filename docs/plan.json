@@ -73,24 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 356,
+        "nodes": 194,
         "reason": "Estimate, unmeasured. kv-bf16 and graph-reuse change the inference surface and go before one measurement run."
       },
       "steps": [
-        {
-          "id": "graph-reuse",
-          "title": "Keep captured decode graphs by use rather than clearing them",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestDecodeSessionsEvictTheLeastRecentlyUsed$'",
-          "rationale": "Measure first: count captures per served request over a bench run, and retire this step if misses are rare. The decode sessions are cleared all at once when they reach 64 (internal/inference/device_cache.go:962,1111), and an executor keeps 4 captured graphs (internal/cuda/executor/executor.go:134). A miss plans memory and captures again, 13 to 60 ms (device_cache.go:961, unverified), and continuous batching never replays sequences of different lengths (device_cache.go:772, unverified). dense-read-release (8780ef3e0) now also drops a dense model's graphs after a long read, at +0.7 to 2.2 percent first output there.\nEvict the least recently used session, and pad batch lengths to a few sizes so they replay.\nServes: inference; first-output and throughput.\nDisappears: recaptures of graphs already built.\nEvidence: captures per request before and after.\nBatch: one commit with the other surface moves, before one measurement run."
-        },
-        {
-          "id": "hash-upload",
-          "title": "Identify a model's bytes while uploading them",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestALoadReadsEachFileOnce$'",
-          "rationale": "Measure first: a load with no memo entry. The identity hash (internal/modelartifact/inventory.go:136, shards in sequence at :179) is a pass separate from the upload (internal/modeldevice/device_load.go:367-372), and the upload copies 16 MiB blocks synchronously through one worker (internal/model/host_weights.go:155) (all unverified).\nHash each block as it is read for upload. The model's bytes stay identified by their hash.\nServes: load-time on a first load.\nDisappears: one full read of the model.\nEvidence: load wall with no memo entry, before and after.\nBatch: serving lane."
-        },
         {
           "id": "first-request",
           "title": "Find the fixed cost in a small model's first output",

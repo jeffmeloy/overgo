@@ -194,3 +194,58 @@ func TestOpenRunnerProvesTheRememberedIdentity(t *testing.T) {
 		t.Fatalf("an activated path holding other bytes: %v, want a refusal naming both identities", err)
 	}
 }
+
+// TestAnOpenRemembersTheFileItHashed opens a copy of a registered model at another path: the open hashes it, serves it
+// under the registered model's identity and leaves the memo claiming the copy, so the next open claims it instead of
+// hashing again. A copy derives nothing, and a derived open alone had remembered what it hashed.
+func TestAnOpenRemembersTheFileItHashed(t *testing.T) {
+	root := t.TempDir()
+	storeRoot := filepath.Join(root, "store")
+	path, copied := filepath.Join(root, "model.gguf"), filepath.Join(root, "copy.gguf")
+	writeServingFixture(t, path, 0)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(copied, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	store, err := overgodb.Create(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := servingtest.PublishActiveGGUFWithPolicy(
+		ctx, store, path, recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := modelartifact.FromGGUFPath(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := OpenRunner(ctx, storeRoot, copied, inference.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.ModelID() != inventory.Manifest.ID {
+		t.Fatalf("the copy served as %s, want the registered model %s", runner.ModelID(), inventory.Manifest.ID)
+	}
+	if err := runner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if store, err = overgodb.OpenReadOnly(storeRoot); err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	canonical, err := pathidentity.Canonical(copied)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, size, claimed := discovery.LoadMemo(ctx, store).Claim(canonical); !claimed || size != uint64(len(data)) || id != inventory.Components[0].ID {
+		t.Fatalf("after its open the memo claims the copy %t as %s of %d bytes, want %s of %d", claimed, id, size, inventory.Components[0].ID, len(data))
+	}
+}

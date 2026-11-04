@@ -54,7 +54,7 @@ func TestTwoWorktreesLandThroughOneQueue(t *testing.T) {
 	for _, linked := range []*sliceFixture{one, two} {
 		fixture.git("worktree", "add", "-q", "--detach", linked.repo, base)
 	}
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	land := func(ctx context.Context, checkout *sliceFixture, reference string, log io.Writer) (string, string, error) {
 		var said strings.Builder
 		landed, err := Run(ctx, Options{Repo: checkout.repo, Ref: reference, Message: message, Log: io.MultiWriter(&said, log)})

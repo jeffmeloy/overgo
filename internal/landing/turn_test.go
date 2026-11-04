@@ -86,7 +86,7 @@ func TestCommitsOfTwoWorktreesTakeTurns(t *testing.T) {
 	}
 
 	linked.write("a.txt", "changed in the linked worktree\n")
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	// When the commit's first stage reports, the turn is taken: no one else has it.
 	during := false
 	reported := firstWrite{sync.OnceFunc(func() {

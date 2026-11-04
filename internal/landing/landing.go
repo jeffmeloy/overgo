@@ -48,6 +48,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/quietmachine"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/scorecard/metric"
 	"overgo/internal/testevidence"
 )
 
@@ -289,12 +290,40 @@ const stagePrefix = "land: "
 // change should do.
 const predictedSection = "Predicted effect:"
 
+// measuredUnits are the units a measured figure is typed in, which a prediction leaves to the gate's own measurement.
+var measuredUnits = []string{"%", "GB", "GiB", "KiB", "MB", "MiB", "ms", "s", "TiB"}
+
 // requireSections holds the message to the two sections every landing
-// states: why the change was needed and what it should do.
+// states, each saying something on its own line: why the change was needed
+// and what it should do. The prediction names a scorecard metric, so it can be
+// read against the scorecard, and types no measured figure, which the gate
+// writes itself. No line credits a co-author.
 func requireSections(message []byte) error {
 	for _, label := range []string{"Cause:", predictedSection} {
-		if _, found := section(message, label); !found {
+		said, found := section(message, label)
+		if !found {
 			return fmt.Errorf("land: the message lacks a %q section", label)
+		}
+		if first, _, _ := strings.Cut(strings.TrimSpace(said), "\n"); strings.TrimSpace(strings.TrimPrefix(first, label)) == "" {
+			return fmt.Errorf("land: the message's %q section says nothing on its line", label)
+		}
+	}
+	predicted, _ := section(message, predictedSection)
+	if !slices.ContainsFunc(metric.Columns, func(name metric.Name) bool { return strings.Contains(predicted, string(name)) }) {
+		return fmt.Errorf("land: the %q section names no scorecard metric, one of %v", predictedSection, metric.Columns)
+	}
+	words := strings.Fields(predicted)
+	for index, word := range words {
+		word = strings.Trim(word, ",.;:()")
+		number := strings.TrimLeft(word, "0123456789.")
+		unit := slices.Contains(measuredUnits, number) || number == "" && index+1 < len(words) && slices.Contains(measuredUnits, strings.Trim(words[index+1], ",.;:()"))
+		if _, err := time.ParseDuration(word); number != word && (unit || err == nil) {
+			return fmt.Errorf("land: the %q section types the figure %q: the gate writes what it measured", predictedSection, word)
+		}
+	}
+	for line := range strings.Lines(string(message)) {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "co-authored-by:") {
+			return errors.New("land: the message credits a co-author; a landing's message carries none")
 		}
 	}
 	return nil

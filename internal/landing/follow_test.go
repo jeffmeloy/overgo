@@ -54,7 +54,7 @@ func TestTrunkCheckoutFollowsWithItsOwnChangesKept(t *testing.T) {
 	fixture.commitPlan(plan.Plan{Campaign: "fixture", Items: []plan.Item{row("first", "do", "later"), row("second", "do"), row("third", "do")}})
 	linked := &sliceFixture{t: t, repo: filepath.Join(t.TempDir(), "linked")}
 	fixture.git("worktree", "add", "-q", "--detach", linked.repo, "HEAD")
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	land := func(checkout *sliceFixture, reference string) (string, error) {
 		return Run(ctx, Options{Repo: checkout.repo, Ref: reference, Message: message, Log: io.Discard})
 	}

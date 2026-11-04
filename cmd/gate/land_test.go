@@ -63,7 +63,7 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	git("config", "user.email", "fixture@example.invalid")
 	git("add", "-A")
 	git("commit", "-q", "-m", "base")
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	land := func(reference string, message []byte) (string, error) {
 		return landing.Run(t.Context(), landing.Options{Repo: repo, Ref: reference, Message: message, Log: io.Discard})
 	}

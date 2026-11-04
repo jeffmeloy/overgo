@@ -34,7 +34,7 @@ func TestLandingRecordsItsWaitsByCause(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "internal/p/p.go": "// Package p is the fixture.\npackage p\n"})
 	fixture.commitPlan(rowPlan(0, [2]string{"do", "true"}, [2]string{"refused", "false"}, [2]string{"moved", "echo moved > a.txt"}))
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	recorded := func() []spent {
 		t.Helper()
 		var runs []spent

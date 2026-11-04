@@ -7775,6 +7775,17 @@
         "plan_steps": [
           "session-rules/row-changes-named"
         ]
+      },
+      {
+        "comment": "session-rules/message-form changes requireSections in internal/landing/landing.go and leaves landedAgain as landing-identity/whole-trailer made it.",
+        "disposition": "context",
+        "evidence": [
+          "internal/landing TestAPredictionNamesAMetric"
+        ],
+        "finding_id": "SQA-300",
+        "plan_steps": [
+          "session-rules/message-form"
+        ]
       }
     ],
     "experiments": {
@@ -7816,7 +7827,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "6cd310d2e8893196ea1034a2dad8439097527aa1",
+    "head": "2ac72eb814a116a4e39b02e90199c898d1aa6450",
     "findings": {
       "SQA-004": {
         "action": "none",

@@ -56,7 +56,7 @@ func TestWorktreeCandidateIsIntegratedOntoTheTrunk(t *testing.T) {
 	for _, linked := range []*sliceFixture{one, two} {
 		fixture.git("worktree", "add", "-q", "--detach", linked.repo, base)
 	}
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	// land commits a checkout's change for a row and returns the commit, what the commit said, and its refusal.
 	land := func(checkout *sliceFixture, reference string) (string, string, error) {
 		var said strings.Builder

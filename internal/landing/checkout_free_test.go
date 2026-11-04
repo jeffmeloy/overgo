@@ -58,7 +58,7 @@ func TestALandingWaitingOnARunLeavesTheCheckoutFree(t *testing.T) {
 	landed := make(chan error, 1)
 	group.Go(func() {
 		_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Log: log,
-			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")})
+			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")})
 		landed <- err
 	})
 	select {
@@ -120,7 +120,7 @@ func TestALandingWaitingOnTheDeviceGivesUpItsCommitTurn(t *testing.T) {
 	landed := make(chan error, 1)
 	group.Go(func() {
 		_, err := Run(t.Context(), Options{Repo: fixture.repo, Ref: "row/do", Log: log,
-			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")})
+			Message: []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")})
 		landed <- err
 	})
 	select {

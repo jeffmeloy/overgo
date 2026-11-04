@@ -35,7 +35,7 @@ func TestCommitChecksRefuseBelowTheFreeSpaceFloor(t *testing.T) {
 	ctx := t.Context()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n", "internal/p/p.go": "// Package p is the fixture.\npackage p\n"})
 	fixture.write("a.txt", "changed\n")
-	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: none.\n")
+	message := []byte("Change the fixture\n\nCause: the fixture needs a change.\nPredicted effect: first-output holds.\n")
 	const floor uint64 = freeSpaceFloor
 	gibibytes := func(count uint64) string { return fmt.Sprintf("%.1f GiB", float64(count)/gibibyte) }
 

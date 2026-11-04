@@ -18,7 +18,16 @@ const modelTestDeviceOrdinal = 0
 func TestDeviceWeightsIntegration(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	data := weightFixture(t)
+	var payload, encoded bytes.Buffer
+	for value := uint32(1); value <= 4; value++ {
+		if err := binary.Write(&payload, binary.LittleEndian, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := gguf.Write(&encoded, nil, []gguf.TensorData{{Name: "weight", Shape: []uint64{4}, Type: dtype.F32, Data: &payload}}, gguf.WriteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	data := encoded.Bytes()
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -56,35 +65,4 @@ func TestDeviceWeightsIntegration(t *testing.T) {
 	if err := weights.Close(); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func weightFixture(t *testing.T) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	write := func(value any) {
-		if err := binary.Write(&buffer, binary.LittleEndian, value); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeString := func(value string) {
-		write(uint64(len(value)))
-		_, _ = buffer.WriteString(value)
-	}
-	_, _ = buffer.WriteString(gguf.Magic)
-	write(uint32(gguf.CurrentVersion))
-	write(uint64(1))
-	write(uint64(0))
-	writeString("weight")
-	write(uint32(1))
-	write(uint64(4))
-	write(uint32(dtype.F32))
-	write(uint64(0))
-	for buffer.Len()%gguf.DefaultAlignment != 0 {
-		_ = buffer.WriteByte(0)
-	}
-	for value := uint32(1); value <= 4; value++ {
-		write(value)
-	}
-	_, _ = buffer.Write(make([]byte, 16))
-	return buffer.Bytes()
 }

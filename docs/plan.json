@@ -54,16 +54,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
-        "reason": "Estimate: measure only; a phase table."
+        "nodes": 155,
+        "reason": "Estimate: asynchronous moves in the reclaim (about 40), the prompt read's copy order after Strata's ring (about 200), and the recurrence kernel's Go binding (about 60); kernel source counts apart."
       },
       "steps": [
         {
-          "id": "phase-table",
-          "title": "Time Flash-Next's 16K prefill by phase beside Strata's",
+          "id": "copy-waits",
+          "title": "A prompt read issues each expert group's copies before the group before it computes, as Strata's ring does",
           "status": "open",
-          "verify": "go test ./cmd/benchmark -count=1 -run '^TestPrefillPhasesAreReportedBesideStratas$'",
-          "rationale": "Strata's frozen suite on 2026-11-04 reads Flash-Next's 16K first output at 5.26 s against Strata's 4.97 to 4.99 s (about 6 percent behind, as on 2026-10-24), while a 4K prompt is 1.61 s against 2.20 to 2.23 and decode is level (chat 134.4 against 133 to 136, agent 145.3 against 145.2 to 146.1). Measure first: Strata prints its prompt time by phase (STRATA_PREFILL_TIMING=1, reference.md), and ours by kernel (nsys, tmp/strata-port/bench/oursprefill.sh). Table both by phase for the 16K prompt, and file the phase that differs as its own step, or retire this row if the gap is inside run-to-run spread.\nServes: first-output at long prompts.\nDisappears: nothing until measured.\nEvidence: a phase table of both engines on one 16K prompt.\nBatch: serving lane."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestAPromptReadCopiesTheNextGroupsExpertsAhead$'",
+          "rationale": "prefill-16k/phase-table: inside Flash-Next's 16K read (16,351 tokens) the card waits 382 ms on expert copies, in 89 gaps of about 3.6 ms between one expert group's down product and the next group's hidden product and 144 short ones before moe_host_slots, each with a copy running through it; the server's host waits 0.34 s in LandExperts for copies to land. Strata's phase timer charges 96 ms to wait copy on the same token ids. The link is far from full: 10.2 GB cross it during the 4.95 s read, about 2 GB/s against the 13.4 GB/s measured, so the copies start late rather than run slow (launchMoEMatrices learns a layer's host experts only from its routes, read back at the layer's host sync, and queues each copy batch one ahead of the batch it feeds). Beside them the CPU computes the few-token experts held on host (planHostExperts, 6 s of CPU across the read), where Strata gives the CPU a share only of chunks under 1,024 tokens. A copy-ahead area tried before (256 MB) cut a 16K stall 0.44 to 0.26 s but evicted 2.6 GB more experts that crossed again, netting nothing (lessons), so read Strata's prompt expert stream first (src/prefill: its 384-slot ring within the 2,044 slots its prompt borrows, which experts it streams and how far ahead it issues them) and port its order. Hold it with a test that a prompt read issues a group's expert copies before the group before it computes. Serves first-output at long prompts."
+        },
+        {
+          "id": "delta-recurrence",
+          "title": "The prompt's gated delta recurrence runs in Strata's time",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestThePromptDeltaRecurrenceMatchesStratas$'",
+          "rationale": "prefill-16k/phase-table (tmp/prefill-16k/phases.md): the prompt's gated delta recurrence (gated_delta_net_keyhead3_f32, 72 launches for 36 layers in two chunks) takes 408 ms of Flash-Next's 16K read, where Strata's phase timer charges 269 ms to gdn recurrence on the same token ids, the largest gap a single kernel holds. Read Strata's prompt recurrence (src/prefill, gdn_rec_parity.cu and the kernel it checks) and port its chunked form where ours differs, checked against our kernel's outputs on the same inputs. Serves first-output at long prompts."
         }
       ]
     },

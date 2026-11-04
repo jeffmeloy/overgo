@@ -73,6 +73,16 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 	}
 	check(every, value.Data)
 
+	// A load of more rows than a part dequantizes in parts, each row where its position puts it.
+	long := make([]uint32, 3*hostRowsPerPart+5)
+	for position := range long {
+		long[position] = uint32(position*7) % tableRows
+	}
+	if value, err = LoadHostRows(t.Context(), file, file.Tensors[0], long); err != nil {
+		t.Fatal(err)
+	}
+	check(long, value.Data)
+
 	// One set of eight ways: of nine rows read, eight stay.
 	rows, err := NewHostRows(file, file.Tensors[0], hostRowWays)
 	if err != nil {
@@ -238,37 +248,18 @@ func (r *countedRowReader) ReadAt(p []byte, off int64) (int, error) {
 
 func hostTensorFixture(t *testing.T, name string, dimensions ...uint64) []byte {
 	t.Helper()
-	var buffer bytes.Buffer
-	write := func(value any) {
-		if err := binary.Write(&buffer, binary.LittleEndian, value); err != nil {
+	elements := uint64(1)
+	for _, dimension := range dimensions {
+		elements *= dimension
+	}
+	var payload, buffer bytes.Buffer
+	for index := range elements {
+		if err := binary.Write(&payload, binary.LittleEndian, float32(index+1)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	writeString := func(value string) {
-		write(uint64(len(value)))
-		_, _ = buffer.WriteString(value)
-	}
-	_, _ = buffer.WriteString(gguf.Magic)
-	write(uint32(gguf.CurrentVersion))
-	write(uint64(1))
-	write(uint64(0))
-	writeString(name)
-	write(uint32(len(dimensions)))
-	elements := uint64(1)
-	for _, dimension := range dimensions {
-		write(dimension)
-		elements *= dimension
-	}
-	write(uint32(dtype.F32))
-	write(uint64(0))
-	for buffer.Len()%gguf.DefaultAlignment != 0 {
-		_ = buffer.WriteByte(0)
-	}
-	for index := range elements {
-		write(float32(index + 1))
-	}
-	for buffer.Len()%gguf.DefaultAlignment != 0 {
-		_ = buffer.WriteByte(0)
+	if err := gguf.Write(&buffer, nil, []gguf.TensorData{{Name: name, Shape: dimensions, Type: dtype.F32, Data: &payload}}, gguf.WriteOptions{}); err != nil {
+		t.Fatal(err)
 	}
 	return buffer.Bytes()
 }

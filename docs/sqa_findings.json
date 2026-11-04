@@ -2117,7 +2117,7 @@
       },
       "likely_effort": "Small changes in two existing test files, with no test retirement or caller migration.",
       "plan_references": [
-        "compact-tests/exact-folds"
+        "prefill-16k/read-start"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: consolidate/test-reductions. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -7227,6 +7227,19 @@
         "plan_steps": [
           "resident-bytes/measured-granule"
         ]
+      },
+      {
+        "comment": "prefill-16k/read-start replaces the three hand-written single-tensor GGUF fixtures (internal/model hostTensorFixture, internal/modeldevice weightFixture and hostTensorFixture) with gguf.Write; TestLoadHostRowsAndDotRows gains a load of more rows than one dequantizing part.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/model TestLoadHostRowsAndDotRows",
+          "internal/modeldevice TestDeviceWeightsIntegration",
+          "internal/modeldevice TestDeviceConvertedWeightsFeedExecutor"
+        ],
+        "finding_id": "SQA-226",
+        "plan_steps": [
+          "prefill-16k/read-start"
+        ]
       }
     ],
     "experiments": {
@@ -7266,7 +7279,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "bc528a329377d8b805f3cb2396e033c7d5b23a63",
+    "head": "8281b1a62b08b4dfb710aede3665d6e36889994e",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7718,11 +7731,11 @@
         "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-226": {
-        "action": "filed",
+        "action": "implemented",
         "rows": [
-          "compact-tests/exact-folds"
+          "prefill-16k/read-start"
         ],
-        "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
+        "note": "Landed with prefill-16k/read-start, the row that next touched internal/model/host_weights_test.go: hostTensorFixture keeps its signature, dimension product and checked binary.Write of float32(index+1) into a payload, and serializes its one F32 TensorData with gguf.Write, nil metadata and default options. TestDeviceWeightsIntegration writes its four uint32 patterns into a payload and one F32 shape [4] tensor the same way; weightFixture is gone. modeldevice's own hostTensorFixture (integration_test.go), a third hand-written copy, goes through gguf.Write too. Assertions unchanged. Awaits the reviewer's closure."
       },
       "SQA-252": {
         "action": "filed",

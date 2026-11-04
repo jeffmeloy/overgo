@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/bits"
 	"slices"
 	"strings"
 	"unsafe"
@@ -1320,7 +1321,8 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 			}
 		}
 		slices.SortStableFunc(held, func(a, b *list.Element) int { return colder(b, a) })
-		slices.SortStableFunc(others, colder)
+		// Free slots take the hottest first, so only the rest of them can displace an expert.
+		others = coldestFirst(others, len(held)-min(len(held), len(class.free)), colder)
 		victims := 0
 		for _, entry := range held {
 			key := entry.Value.(*residentExpert).key
@@ -1365,6 +1367,28 @@ func (c *expertResidency) drop(ctx context.Context, leaves func(expertChunk) boo
 		return nil
 	}
 	return c.mem.free(ctx, freed)
+}
+
+// coldestFirst is the first k of entries a stable sort by colder gives, in that order. A reclaim that moves fewer
+// experts than the bits of the stride's count finds them in as many scans: sorting every card expert of the stride
+// cost about 2 ms a reclaim, and a 16K prompt's read reclaimed 37 times before its first kernel, one expert each. A
+// reclaim that moves more sorts.
+func coldestFirst(entries []*list.Element, k int, colder func(a, b *list.Element) int) []*list.Element {
+	if k >= bits.Len(uint(len(entries))) {
+		slices.SortStableFunc(entries, colder)
+		return entries[:min(k, len(entries))]
+	}
+	first := make([]*list.Element, 0, k)
+	for range k {
+		var coldest *list.Element
+		for _, entry := range entries {
+			if !slices.Contains(first, entry) && (coldest == nil || colder(entry, coldest) < 0) {
+				coldest = entry
+			}
+		}
+		first = append(first, coldest)
+	}
+	return first
 }
 
 // LendExpertMemory lends the residency the bytes at pointer another owner holds between its own uses, as a prompt's

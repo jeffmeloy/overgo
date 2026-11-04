@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,10 @@ import (
 // took 9.5 ms and 0.51 ms. Strata's ple_reader keeps up to 256 reads in
 // flight.
 const hostRowReads = 32
+
+// hostRowsPerPart is the fewest rows a Load gives a CPU to dequantize: a 16K prompt's 260,000 n-gram rows took about
+// 30 ms on one before its read's first kernel, and a decode token's sixteen stay on the caller.
+const hostRowsPerPart = 4096
 
 // hostRowWays is the rows a cache set holds, each replaced in turn, as in
 // Strata's row cache.
@@ -222,11 +227,24 @@ func (h *HostRows) Load(ctx context.Context, indices []uint32) (reference.Value,
 	}
 	width := int(layout.ElementsPerRow)
 	output := make([]float32, width*len(indices))
-	for position, index := range indices {
-		slot := slots[index]
-		if err := quant.DequantizeInto(h.info.Type, storage[slot*rowBytes:(slot+1)*rowBytes], output[position*width:(position+1)*width]); err != nil {
-			return reference.Value{}, fmt.Errorf("dequantize host row %d from %q: %w", index, h.info.Name, err)
-		}
+	parts := max(1, min(runtime.GOMAXPROCS(0), len(indices)/hostRowsPerPart))
+	errs := make([]error, parts)
+	var dequantized sync.WaitGroup
+	for part := range parts {
+		dequantized.Go(func() {
+			for position := part * len(indices) / parts; position < (part+1)*len(indices)/parts; position++ {
+				index := indices[position]
+				slot := slots[index]
+				if err := quant.DequantizeInto(h.info.Type, storage[slot*rowBytes:(slot+1)*rowBytes], output[position*width:(position+1)*width]); err != nil {
+					errs[part] = fmt.Errorf("dequantize host row %d from %q: %w", index, h.info.Name, err)
+					return
+				}
+			}
+		})
+	}
+	dequantized.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return reference.Value{}, err
 	}
 	shape, err := tensor.NewShape(layout.ElementsPerRow, uint64(len(indices)))
 	if err != nil {

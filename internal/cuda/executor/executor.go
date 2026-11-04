@@ -33,6 +33,8 @@ type Executor struct {
 	ownsWorker bool
 	closed     bool
 	resources  executorResources
+	// preloaded closes once the newest background preload has ended (preload).
+	preloaded chan struct{}
 }
 
 type executorResources struct {
@@ -1670,15 +1672,28 @@ func NewWithWorker(worker *device.Worker) (*Executor, error) {
 // executor is made, so the load's weight upload covers them: a first request loaded all three, about 25 ms on this
 // card before the lookups, and Bonsai-27B-Q1_0's first output rose by Strata's native module's share when that module
 // joined the two (8cc359407). A failure leaves the modules for the first request to load and report.
-func (e *Executor) preloadModules() {
+func (e *Executor) preloadModules() { e.preload(false) }
+
+// PreloadBLAS sets cuBLAS up on the worker in the background as the modules are, for a load whose model's own decode
+// products take it: Qwen2.5-0.5B's first request had set it up, the runtime's start and cuBLAS's handles. An executor
+// whose model takes none opens no cuBLAS (TestCellAttentionMatchesReference), whose open took 70 ms of a cell model's
+// first prompt.
+func (e *Executor) PreloadBLAS() { e.preload(true) }
+
+// preload sets the executor's resources up on the worker in the background, cuBLAS among them where blas is set;
+// preloaded closes once it has ended.
+func (e *Executor) preload(blas bool) {
+	done := make(chan struct{})
+	e.preloaded = done
 	go func() {
+		defer close(done)
 		e.mu.RLock()
 		defer e.mu.RUnlock()
 		if e.closed || e.worker == nil {
 			return
 		}
 		_ = e.worker.Do(context.Background(), func(state *device.State) error {
-			_, err := e.ensureResources(state, false, 0, 0, 0)
+			_, err := e.ensureResources(state, blas, 0, 0, 0)
 			return err
 		})
 	}()

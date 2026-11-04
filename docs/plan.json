@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "serving-path",
-      "title": "Remove repeated work from a served request and a server start",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 194,
-        "reason": "Estimate, unmeasured. kv-bf16 and graph-reuse change the inference surface and go before one measurement run."
-      },
-      "steps": [
-        {
-          "id": "first-request",
-          "title": "Find the fixed cost in a small model's first output",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestFirstOutputStagesAreRecordedForTheSmallestModels$'",
-          "rationale": "Measure first. The README's first output: Qwen2.5-0.5B 117 ms, MiniCPM5-1B 113, Unlimited-OCR 128, Carbon-500M 117, Bonsai-27B 109, Qwen3.5-4B 143, against Qwen3.5-9B 39 ms. Model size does not explain it.\nHypothesis: one-time setup (graph capture, module load, library setup) runs on the first request for some recipes and at load for others; loading Bonsai's PTX modules at open once cut its first request from 111 to 85 ms. Compare recipe measure -journey's stages on the 0.5B and the 9B, and retire this step if they share no fixed part.\nServes: first-output.\nDisappears: nothing until measured.\nEvidence: journey stages of both models.\nBatch: serving lane."
-        }
-      ]
-    },
-    {
       "id": "memory-bounds",
       "title": "Reduce what models hold on the card and the host",
       "owner": "master-lead",

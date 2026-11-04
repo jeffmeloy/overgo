@@ -173,6 +173,11 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
 			outputProjection = *weights.Output
 		}
+		// A model of dense float weights takes its products on cuBLAS and sets it up beside the upload, where its first
+		// request had: Qwen2.5-0.5B's (f16) first output came 51 ms after the process's first load, 5 to 7 once loaded.
+		if slices.Contains([]dtype.Type{dtype.F16, dtype.BF16, dtype.F32}, outputProjection.Type) {
+			cuda.PreloadBLAS()
+		}
 		uploaded := processmeasure.Stage(ctx, "weights")
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(

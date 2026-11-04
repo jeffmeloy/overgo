@@ -240,6 +240,8 @@ type runnerState struct {
 	speculating bool
 	// spanSlots are the buffers a speculating runner's verify spans write their non-token outputs into, and its prompt reads their layers' states.
 	spanSlots [spanSlotCount]*spanSlot
+	// spanned is what the newest verify span wrote into its slot (spannedState).
+	spanned spannedState
 	// qsaRope is the QSA layers' rotation table, built at the first QSA step.
 	qsaRope *qsaRope
 	// qsaStage is the QSA layers' staging pool for a streamed prompt read, built at the first one.

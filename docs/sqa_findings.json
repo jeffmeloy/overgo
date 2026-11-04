@@ -7882,6 +7882,17 @@
         "plan_steps": [
           "memory-bounds/resident-programs"
         ]
+      },
+      {
+        "comment": "memory-bounds/drafted-state adds one field to the Runner in internal/inference/runner.go (spanned, the newest verify span's slot contents) and leaves the drafting decisions (ownDrafted, ownKept, ownDraftsRefused, JudgeOwnDrafts) this finding cites unchanged.",
+        "disposition": "context",
+        "evidence": [
+          "internal/inference TestDraftedWindowStateBytesAreReported"
+        ],
+        "finding_id": "SQA-257",
+        "plan_steps": [
+          "memory-bounds/drafted-state"
+        ]
       }
     ],
     "experiments": {
@@ -7923,7 +7934,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "ddd7b07ccc7a93ac50a019e310930cff32c6d4b1",
+    "head": "a0670cafc8e2d02180d990db86b853ef3554a7fd",
     "findings": {
       "SQA-004": {
         "action": "none",

@@ -73,16 +73,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 115,
+        "nodes": 26,
         "reason": "resident-programs adds 295, measured: a program's chunks of whole pages, placing and letting go of an input in one, and the session freeing each chunk once, doc comments counted. expert-census and drafted-state keep about 80 each"
       },
       "steps": [
         {
-          "id": "drafted-state",
-          "title": "Measure a drafted window's per-position state against replaying its kept tokens",
+          "id": "window-verify",
+          "title": "Verify the qwen35 family's drafts in Strata's window verifier",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestDraftedWindowStateBytesAreReported$'",
-          "rationale": "Measure only. Drafting costs the 27B 1.30 GiB, every byte in span slots (d184ff653), which grow until close (internal/inference/span_slots.go:133-143, runner_lifecycle.go:525). Strata replays a window's kept tokens instead. Report the bytes by layer and position so a row can price the port.\nServes: peak-device-memory for the qwen35 family.\nDisappears: nothing.\nEvidence: a byte table on the 27B and Bonsai-27B.\nBatch: serving lane."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35DraftsVerifyInAWindow$'",
+          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its widest verify span over three drafted chat answers held two positions, whose 48 recurrent layers' states took 156,893,184 bytes (about 78 MB a position, 3.27 MB a layer), and whose hidden rows and selections another 156,934,152. Each of its two span slots is 627,654,912 bytes, about 1.17 GiB together, the bulk of the 1.30 GiB drafting was measured to cost (d184ff653). Strata's verifier, which internal/inference/qsa_window.go already runs for QSA runners, reads a sequence's fixed state where it sits, keeps each window's rows at the runner's own addresses, and commits the kept tokens. It keeps no state for each position, and it already handles gated-delta layers, which the qwen35 family's recurrent layers are. Verify the qwen35 family's drafts in that window, and retire their span slots.\nServes: peak-device-memory for the drafting qwen35 models (Qwen3.8-27B, Qwen3.5-4B, Bonsai-27B).\nDisappears: the span slots' per-position states on the qwen35 family.\nEvidence: the 27B's drafted peak against its plain peak, and the drafted text equal to the plain greedy text.\nBatch: serving lane."
         }
       ]
     },

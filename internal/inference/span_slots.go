@@ -55,6 +55,15 @@ func (r *Runner) startSpeculatingLocked() error {
 	return nil
 }
 
+// spannedState is what the newest verify span wrote into its span slot: each layer's state bytes at the span's
+// positions and the checkpoints a rejected draft rolls back to, and the hidden rows and selections beside them. It
+// prices a drafted window's per-position state against replaying the window's kept tokens, as Strata's verifier does.
+type spannedState struct {
+	positions int
+	layers    map[int]uint64
+	rows      uint64
+}
+
 // spanSlotOutput is one output a span writes into its slot.
 type spanSlotOutput struct {
 	slot   executor.OutputSlot
@@ -85,6 +94,7 @@ func (r *Runner) bindSpanSlot(
 	}
 	tokenTargets := make(map[*tensor.Tensor]bool)
 	layerStates := make(map[*tensor.Tensor]bool)
+	stateLayers := make(map[*tensor.Tensor]int)
 	for layer, target := range plans[0].layers {
 		tokenTargets[graphs[0].keys[layer]] = tokenTargets[graphs[0].keys[layer]] || target.key.enabled
 		tokenTargets[graphs[0].values[layer]] = tokenTargets[graphs[0].values[layer]] || target.value.enabled
@@ -94,11 +104,12 @@ func (r *Runner) bindSpanSlot(
 			}
 		}
 		for _, node := range graphs[0].states[layer].AppendValues([]*tensor.Tensor{graphs[0].keys[layer], graphs[0].values[layer]}) {
-			layerStates[node] = true
+			layerStates[node], stateLayers[node] = true, layer
 		}
 	}
 	var outputs []spanSlotOutput
 	var bytes uint64
+	spanned := spannedState{positions: len(appends[0].Tokens), layers: make(map[int]uint64)}
 	for _, node := range decodeGraphOutputs(graphs[0], output) {
 		if tokenTargets[node] || !span && !layerStates[node] {
 			continue
@@ -112,6 +123,11 @@ func (r *Runner) bindSpanSlot(
 			return nil, err
 		}
 		outputs = append(outputs, spanSlotOutput{slot: slot, shape: node.Shape, offset: bytes})
+		if layer, state := stateLayers[node]; state {
+			spanned.layers[layer] += size
+		} else {
+			spanned.rows += size
+		}
 		if bytes, ok = checked.Align(bytes+size, spanSlotAlignment); !ok {
 			return nil, errors.New("inference: span slot size overflows")
 		}
@@ -146,6 +162,9 @@ func (r *Runner) bindSpanSlot(
 	whole, err := chosen.buffer.Value(tensor.MustShape(chosen.bytes / cacheScalarBytes))
 	if err != nil {
 		return nil, err
+	}
+	if span {
+		r.spanned = spanned
 	}
 	for _, item := range outputs {
 		value, err := deviceCacheStorageView(whole, item.offset/cacheScalarBytes, item.shape)

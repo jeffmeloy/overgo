@@ -7,13 +7,13 @@ description: The rules for Overgo development, written as one logical statement 
 
 - overgo = one Go-native system that serves, trains, evaluates and composes models on consumer hardware (check: internal/repoanalysis TestRSIRuntimeIsGoOnly, internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace)
 - purpose = recursive self-improvement through its own inference and training, unattended up to a judged candidate: a person chooses what runs and what training starts from
-- a trained model = a model of its own beside its base, never in its place: its base recorded, its scorecard row read against the base's, and no model is a default
+- a trained model = a model of its own beside its base, never in its place: its base recorded, its scorecard row read against the base's, and no model is a default (check: internal/scorecard TestATrainedModelsRowReadsAgainstItsBase)
 - goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`)
 - scorecard columns = `first-output`, `throughput`, `held-out-quality`, `failure-rate`, `load-time`, `peak-device-memory`, `setup-steps` (check: cmd/validate TestScorecardRowsEveryServableModel, cmd/validate TestScorecardHasNoUnexplainedCell)
 - loop = measure -> find the gap -> train or change -> judge on held-out data
 - row filed <=> it closes the loop or speeds the loop or serves inference or serves training
 - progress = each scorecard cell compared with its previous measurement (check: internal/scorecard TestEarlierIsEachCellsNewestEarlierMeasurement, cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/validate TestScheduledScorecardPublishesDeltas)
-- never a "passed" state and never a promotion (check: internal/repoanalysis TestRootDocumentsNameOnlyWhatTheTreeHolds, internal/plan TestLivePlanRejectsRetainedCompletionState)
+- never a "passed" state (check: internal/repoanalysis TestRootDocumentsNameOnlyWhatTheTreeHolds, internal/plan TestLivePlanRejectsRetainedCompletionState)
 - `go run ./cmd/loop -improve` = measure -> publish the scorecard -> file each regression as a row (check: cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes, internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestScorecardGapsBecomeProposals)
 - `master` takes landings (check: internal/landing TestWorktreeCandidateIsIntegratedOntoTheTrunk, internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept)
 - local `main` = GitHub staging, which nothing reads (check: cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)

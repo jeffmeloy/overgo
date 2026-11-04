@@ -134,3 +134,46 @@ func TestTheDoctrineHoldsItsOwnForm(t *testing.T) {
 		stated[strings.ToLower(rule)] = number + 1
 	}
 }
+
+// retiredClaims are claims the doctrine no longer makes, each with the text it left: what the owner declined, what the
+// code no longer does, and what the code already says. "docs/plan.json" is the plan's paragraphs, which every session
+// reads; a row may quote a retired claim to say why it went.
+var retiredClaims = []struct{ source, claim string }{
+	{"skill.md", "never a promotion"},
+	{"docs/plan.json", "no passed state and no promotion"},
+}
+
+// TestDoctrineHoldsNoRetiredClaim refuses a retired claim written back into the text it left.
+func TestDoctrineHoldsNoRetiredClaim(t *testing.T) {
+	t.Parallel()
+	texts := map[string]string{}
+	for _, retired := range retiredClaims {
+		text, read := texts[retired.source]
+		if !read {
+			data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(retired.source)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			text = string(data)
+			if retired.source == "docs/plan.json" {
+				var document struct {
+					Paragraphs []struct {
+						Text string `json:"text"`
+					} `json:"paragraphs"`
+				}
+				if err := json.Unmarshal(data, &document); err != nil {
+					t.Fatal(err)
+				}
+				var paragraphs strings.Builder
+				for _, paragraph := range document.Paragraphs {
+					paragraphs.WriteString(paragraph.Text + "\n")
+				}
+				text = paragraphs.String()
+			}
+			texts[retired.source] = text
+		}
+		if strings.Contains(text, retired.claim) {
+			t.Errorf("%s says %q, which the doctrine retired", retired.source, retired.claim)
+		}
+	}
+}

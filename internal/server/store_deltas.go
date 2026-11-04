@@ -70,16 +70,17 @@ func (h *Handler) storeDeltas(response http.ResponseWriter, request *http.Reques
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
-	head, sequence := store.Head()
-	result := storeDeltasResponse{
-		Head: head.String(), Sequence: sequence,
-		ProjectionVersion: overgodb.ProjectionContractVersion(),
-	}
 	if resync {
-		result.Resync = true
-		writeJSON(response, http.StatusOK, result)
+		head, sequence := store.Head()
+		writeJSON(response, http.StatusOK, storeDeltasResponse{
+			Resync: true, Head: head.String(), Sequence: sequence,
+			ProjectionVersion: overgodb.ProjectionContractVersion(),
+		})
 		return
 	}
-	result.Delta = &delta
-	writeJSON(response, http.StatusOK, result)
+	// The envelope names the delta it carries: the store's head, read apart, ran past a bounded window, and a consumer
+	// resuming from it skipped the commits the window left out.
+	writeJSON(response, http.StatusOK, storeDeltasResponse{
+		Head: delta.Head.String(), Sequence: delta.Sequence, ProjectionVersion: delta.ProjectionVersion, Delta: &delta,
+	})
 }

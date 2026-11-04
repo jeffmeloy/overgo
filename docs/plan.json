@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "delta-cursor",
-      "title": "A store delta's envelope names the delta it carries",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 40,
-        "reason": "Estimate: the success envelope built from the returned delta."
-      },
-      "steps": [
-        {
-          "id": "envelope-head",
-          "title": "Return the delivered delta's cursor in the HTTP success envelope",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestADeltaEnvelopeNamesTheDeltaItCarries$'",
-          "rationale": "SQA-302 (P2): the store-delta handler (internal/server/store_deltas.go) reads DeltasSince and then the store's live head for the envelope's Head and Sequence. A bounded window (limit 1 after two commits) returns a delta ending at the second commit, truncated, under an envelope naming the third, so a consumer resuming at the envelope skips a commit, and a commit between the two reads does the same. Build a success envelope's Head, Sequence and ProjectionVersion from the returned delta, keep the live head for the resync response, and extend the HTTP fixture with limit 1 and a continuation from the envelope.\nServes: failure-rate: a workbench that follows the store misses no commit.\nDisappears: a second read of the live head on success.\nEvidence: a bounded continuation from the envelope reaches every commit.\nBatch: server."
-        }
-      ]
-    },
-    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",

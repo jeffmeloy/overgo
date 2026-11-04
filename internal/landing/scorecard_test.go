@@ -3,9 +3,7 @@ package landing
 import (
 	"encoding/json"
 	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,13 +35,7 @@ func newSliceFixture(t *testing.T, stub map[string]string) *sliceFixture {
 
 func (f *sliceFixture) write(name, content string) {
 	f.t.Helper()
-	path := filepath.Join(f.repo, filepath.FromSlash(name))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		f.t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		f.t.Fatal(err)
-	}
+	writeModule(f.t, f.repo, map[string]string{name: content})
 }
 
 func (f *sliceFixture) git(arguments ...string) string {

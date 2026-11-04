@@ -55,6 +55,42 @@ func writeModule(t *testing.T, repo string, files map[string]string) {
 	}
 }
 
+// TestLaneReachNamesTheChangedPackageThatPulledEachLane holds a lane's reach to
+// naming what pulled the lane in: a path under one of its prefixes or in one
+// of its own packages is named alone, a path in a dependency is named with the
+// lane's package whose closure it entered, a change reaching nothing names
+// nothing, and of several paths the first that reaches it is named.
+func TestLaneReachNamesTheChangedPackageThatPulledEachLane(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	writeModule(t, repo, map[string]string{
+		"go.mod": "module fixture\n\ngo 1.26\n",
+		"a/a.go": "package a\n\nimport \"fixture/b\"\n\nvar A = b.B\n",
+		"b/b.go": "package b\n\nimport \"fixture/c\"\n\nvar B = c.C\n",
+		"c/c.go": "package c\n\nvar C = 1\n",
+		"d/d.go": "package d\n",
+	})
+	candidate := lane{packages: []string{"./a"}, prefixes: []string{"web/"}}
+	reaches, err := discover(repo, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []struct {
+		paths []string
+		want  string
+	}{
+		{[]string{"a/a.go"}, "a/a.go"},
+		{[]string{"c/c.go"}, "c/c.go through a"},
+		{[]string{"web/page.js"}, "web/page.js"},
+		{[]string{"d/d.go"}, ""},
+		{[]string{"d/d.go", "b/b.go", "c/c.go"}, "b/b.go through a"},
+	} {
+		if got := reaches(candidate, change.paths); got != change.want {
+			t.Errorf("a change to %v reached the lane for %q, want %q", change.paths, got, change.want)
+		}
+	}
+}
+
 // TestLaneReachSkipsOtherPackagesTests reaches a lane from production code
 // in its closure and from its own packages' tests, never from another
 // package's tests: a test file compiles only into its own test binary.
@@ -87,7 +123,7 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		// A module file can move any lane's dependencies.
 		"go.mod": true,
 	} {
-		if reached := reaches(candidate, []string{changed}); reached != want {
+		if reached := reaches(candidate, []string{changed}) != ""; reached != want {
 			t.Errorf("a change to %s reached the lane = %t, want %t", changed, reached, want)
 		}
 	}
@@ -152,7 +188,7 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 				{neighbour, "b/b.go", false},
 				{neighbour, "c/c.go", true},
 			} {
-				if reached := reaches(selection.selected, []string{selection.changed}); reached != selection.want {
+				if reached := reaches(selection.selected, []string{selection.changed}) != ""; reached != selection.want {
 					t.Errorf("a change to %s selected lane %s = %t, want %t", selection.changed, selection.selected.name, reached, selection.want)
 				}
 			}
@@ -320,9 +356,9 @@ func TestReachInvariants(t *testing.T) {
 	}
 	reaches := func(candidate lane, paths []string) bool {
 		if slices.ContainsFunc(lanes, func(gate lane) bool { return gate.name == candidate.name }) {
-			return gateReaches(candidate, paths)
+			return gateReaches(candidate, paths) != ""
 		}
-		return cycleReaches(candidate, paths)
+		return cycleReaches(candidate, paths) != ""
 	}
 	productions := map[string]gosource.BuildSelection{}
 	for _, row := range rows {
@@ -330,7 +366,7 @@ func TestReachInvariants(t *testing.T) {
 			t.Errorf("row %s holds nothing; point it at a path that still carries the boundary: %v", row.path, err)
 			continue
 		}
-		if moved := slices.IndexFunc(cycleLanes, func(candidate lane) bool { return candidate.name == row.cycle }); row.cycle != "" && (moved < 0 || !cycleReaches(cycleLanes[moved], []string{row.path})) {
+		if moved := slices.IndexFunc(cycleLanes, func(candidate lane) bool { return candidate.name == row.cycle }); row.cycle != "" && (moved < 0 || cycleReaches(cycleLanes[moved], []string{row.path}) == "") {
 			t.Errorf("an edit to %s reaches no cycle lane %s, so the cycle never runs what the gate gave up: %s", row.path, row.cycle, row.reason)
 		}
 		for _, candidate := range everyLane {

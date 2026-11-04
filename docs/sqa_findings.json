@@ -2940,7 +2940,9 @@
         "uncertainty": "The delegate constructs one single-entry map per write and enters the existing map loop. Its allocation/elapsed effect is unmeasured; do not label this a speed or memory saving. Parser counts and source-only type checks establish a small code reduction, not workload equivalence. No full landing package or test ran."
       },
       "likely_effort": "One existing method and two imports; no caller or test migration.",
-      "plan_references": [],
+      "plan_references": [
+        "check-speed/browser-reach"
+      ],
       "plan_coverage": "Advisory only; no adoption or new plan row inferred. SQA-172 remains resolved for its original scope.",
       "closure_criteria": [
         "sliceFixture.write reuses writeModule with the same signature/helper behavior; the complete affected test AST decreases after including all adapter/import costs.",
@@ -7349,6 +7351,17 @@
         "plan_steps": [
           "check-speed/refusal-rule"
         ]
+      },
+      {
+        "comment": "Landed with check-speed/browser-reach. sliceFixture.write delegates to writeModule(f.t, f.repo, map[string]string{name: content}); TestLandingMeasuresTheScorecardSlice passes unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/landing TestLandingMeasuresTheScorecardSlice"
+        ],
+        "finding_id": "SQA-248",
+        "plan_steps": [
+          "check-speed/browser-reach"
+        ]
       }
     ],
     "experiments": {
@@ -7388,7 +7401,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "3166236f7d7b634d4a888db1ca89faa58a4c519e",
+    "head": "758b38cb9d77ca835ed695f66c50c7103cd6a5b2",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7936,8 +7949,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/quiet_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-248": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/scorecard_test.go. Title-level triage, not re-verified at this head."
+        "action": "implemented",
+        "rows": [
+          "check-speed/browser-reach"
+        ],
+        "note": "Landed with check-speed/browser-reach, which touched lanes_test.go: sliceFixture.write keeps its signature and t.Helper and delegates its one file to writeModule; scorecard_test.go's os and path/filepath imports are gone. Awaits the reviewer's closure."
       },
       "SQA-250": {
         "action": "implemented",

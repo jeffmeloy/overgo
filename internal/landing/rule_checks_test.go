@@ -141,6 +141,14 @@ func TestTheDoctrineHoldsItsOwnForm(t *testing.T) {
 var retiredClaims = []struct{ source, claim string }{
 	{"skill.md", "never a promotion"},
 	{"docs/plan.json", "no passed state and no promotion"},
+	{"skill.md", "supervises unattended work"},
+	{"skill.md", "and `build/` live in `OVERGO_DATA_ROOT`"},
+	{"docs/plan.json", "puts every evaluation bound to it again"},
+	{"cmd/loophook/doctrine.go", "holds its worktree from its first message"},
+	{"cmd/loophook/doctrine.go", "For unattended continuity run"},
+	{"cmd/loophook/doctrine.go", "continuity is owned by cmd/loop"},
+	{"cmd/loophook/doctrine.go", "The guard refuses\n    a landing whose output is sent to a file"},
+	{"cmd/loophook/doctrine.go", "Do not run a separate"},
 }
 
 // TestDoctrineHoldsNoRetiredClaim refuses a retired claim written back into the text it left.

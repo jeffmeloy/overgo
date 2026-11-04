@@ -36,8 +36,7 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     (the ship set) through the stages internal/landing's package doc lists;
     it commits with the step removed from the plan and the landing is
     confirmed from git, ending in one typed outcome. A stale derived file fails its test with the
-    command that regenerates it: run that, then land again. The guard refuses
-    a landing whose output is sent to a file.
+    command that regenerates it: run that, then land again.
     The message states "Cause:" and "Predicted effect:"; the gate refuses one
     without them and writes what it measured itself, so type no numbers. The
     predicted effect names, by its exact name, each scorecard metric
@@ -47,15 +46,13 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     internal metrics says why it exists.
     Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
     above; the commit records both parents. Read the exit code UNPIPED.
- 4. The successful gate removes the completed step. Do not run a separate
-    plan advance. Set a step's verify with -setverify; inject a task with -add
-    (flags BEFORE the positional id for both). A landing may also delete rows
-    it retires; its message says why.
+ 4. Set a step's verify with -setverify; inject a task with -add (flags
+    BEFORE the positional id for both). A landing may also delete rows it
+    retires; its message says why.
  5. Refactor the plan from the RESULT of the last task AND any REQUEST:
     re-scope / re-rank / add / set-verify. A request becomes the new #1
     AFTER the current work is committed -- it does NOT interrupt in-flight work.
- 6. Repeat. Prefer continuing to the next #1; continuity is owned by cmd/loop
-    (the harness-agnostic driver), never argued turn-by-turn.
+ 6. Repeat: continue to the next #1, never argued turn-by-turn.
 
 STOPS. The Stop gate protects WORK and the LOOP: it blocks a turn-end that
 would orphan turn-created uncommitted work (commit through the gate or
@@ -64,7 +61,6 @@ landed commit is necessary progress, never a sanctioned end; the loop runs
 until the plan is EMPTY. A prompt NEVER pauses the loop (system
 doctrine): answer it, then continue the dispatched row in the same turn. The one sanctioned pause is an explicit stop request, recorded with
 go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>.
-For unattended continuity run go run ./cmd/loop.
 
 SCOPE. A bounded request -- a status readout, an explanation, or a review --
 bounds the ANSWER, not the turn: keep the answer to what was asked (no
@@ -76,7 +72,7 @@ against the snapshot this session took when the turn began. A session that
 only reviews says so in its first message, which opens with the words
 "review session": it is then dispatched no row, lands nothing, edits no file
 the repository tracks (the guard refuses both), and is held to no row. An
-implementing session holds its worktree from its first message until a turn
+implementing session holds its worktree from its first landing here until a turn
 of its ends with the plan stopped or complete and nothing left uncommitted. A
 second implementing session in that worktree is told so and treated as a
 review session is, until it works in a worktree of its own (git worktree

@@ -132,7 +132,6 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - one committing session per checkout (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, cmd/loophook TestOnlyAnImplementingSessionTakesTheHold)
 - another session => its own worktree and the commit queue, or review only (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, internal/landing TestTwoWorktreesLandThroughOneQueue, internal/guard TestReviewSessionEditsNothingTracked)
 - never touch another session's work (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, internal/guard TestReviewSessionRemovesNothing, cmd/loophook TestOverlappingSessionsKeepTheirOwnTurnSnapshots)
-- `go run ./cmd/loop` supervises unattended work (`.overgo-runtime/loop.json`) (check: internal/loop TestLoopDriverCycle, cmd/loop TestLoopConfigResolvesStrategyAuthority)
 - one lock per worktree (check: internal/processcontrol TestCampaignRunningFollowsOwnerLock, internal/authoritylock TestAcquireSerializesPlanAndGateMutation)
 - off-scope finding => `go run ./cmd/finding` (check: cmd/finding TestRecordFindingRequiresVerifierAndUsesTypedStore, cmd/plan TestPromptContractProjection)
 
@@ -264,7 +263,8 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - executables -> `bin/` (check: cmd/release TestReleaseVersionAndArchiveLayout, cmd/release TestBinHygiene)
 - Python lives only in `scripts/python_golden_references/` (git-ignored) (check: internal/repoanalysis TestPythonLivesOnlyInItsIgnoredPlace)
 - the gate and the Go code never run those scripts (check: internal/repoanalysis TestEntryAuthoritiesHoldOverTheTree, internal/repoanalysis TestRSIRuntimeIsGoOnly)
-- models, datasets, store and `build/` live in `OVERGO_DATA_ROOT`, outside the module (check: internal/dataroot TestEnvBaseWinsAndNamesAllRoots)
+- models, store and checkpoints live in `OVERGO_DATA_ROOT`, outside the module (check: internal/dataroot TestEnvBaseWinsAndNamesAllRoots)
+- `build/` lives in the checkout, ignored by git (check: cmd/loop TestLeftoversListsEveryDeclaredPlaceWithItsRule)
 - llama.cpp for pinned behavior (check: internal/quant TestQuantizeMatchesPinnedGGMLReference, internal/hostexpert TestQuantizersRoundAsGGML, internal/tokenizer TestUpstreamTokenizerCorpus)
 - `adaptive_new` = read-only (check: internal/repoanalysis TestNoTestReadsAdaptiveNew)
 - keep commits, licenses and artifact identities (check: internal/runrecord TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted, internal/latentimage TestMOSSGoldenProvenance)
@@ -300,7 +300,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 | Surface | Holds |
 | --- | --- |
 | [skill.md](skill.md) | The system's doctrine. Sole root agent-instruction document |
-| [docs/plan.json](docs/plan.json) | Rows, dependencies, acceptance, open work, and rules that bind one campaign only |
+| [docs/plan.json](docs/plan.json) | Rows, dependencies, acceptance and open work, and its paragraphs: standing rules every session reads, and rules that bind one campaign |
 | OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts (`go run ./cmd/overgodb query`) |
 | [compatibility.json](compatibility.json) | Model and capability verification contracts |
 | [kernels/manifest.json](kernels/manifest.json) | Kernel ABI, source and binary identities |

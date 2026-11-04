@@ -1053,6 +1053,30 @@ extern "C" __global__ void moss_situ_bf16_round_f32(
     }
 }
 
+// moss_rotate_bf16_round_f32 is MOSS's rotary embedding as the denoiser composes it (rotaryGraph.rotate), each product
+// and the sum rounded to BF16 as bf16_round_f32 rounds it: the heads times the cosine, plus the half-turned heads (each
+// head's second half negated, then its first half) times the sine. The heads are [width, heads, tokens] and the tables
+// [width, 1, tokens], read for every head.
+extern "C" __global__ void moss_rotate_bf16_round_f32(
+        const float * input,
+        const float * cosine,
+        const float * sine,
+        float * output,
+        unsigned int width,
+        unsigned int heads,
+        unsigned int tokens) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= width * heads * tokens) {
+        return;
+    }
+    const unsigned int channel = index % width;
+    const unsigned int token = index / (width * heads);
+    const unsigned int half = width / 2u;
+    const float turned = channel < half ? -input[index + half] : input[index - half];
+    const unsigned int table = token * width + channel;
+    output[index] = bf16_rounded(bf16_rounded(input[index] * cosine[table]) + bf16_rounded(turned * sine[table]));
+}
+
 // moss_situ_backward_f32: VJP of moss_situ_f32 into its fused input.
 extern "C" __global__ void moss_situ_backward_f32(
         const float * fused,

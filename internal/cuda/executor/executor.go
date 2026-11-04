@@ -943,6 +943,7 @@ const (
 	compiledFusionQ8GatedAdd
 	compiledFusionRoundedElementwise
 	compiledFusionMOSSSitu
+	compiledFusionMOSSRotary
 )
 
 type compiledFusion struct {
@@ -2261,6 +2262,8 @@ func launchCompiledFusion(
 		return "q8_pair", nil
 	case compiledFusionQ8GatedAdd:
 		return "q8_gated_add", launchQ8GatedAdd(state, functions, q8Input, node, pointers)
+	case compiledFusionMOSSRotary:
+		return "moss_rotate", launchMOSSRotary(state, functions, node, pointers)
 	case compiledFusionMOSSSitu:
 		return "moss_situ", launchMOSSSitu(state, functions, node, fusion.situ, pointers)
 	case compiledFusionRoundedElementwise:

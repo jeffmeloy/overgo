@@ -153,6 +153,7 @@ const (
 	kernelMoeRouterDotF32
 	kernelMoeRouterLogitsF32
 	kernelMoeScatterRowsF32
+	kernelMossRotateBf16RoundF32
 	kernelMossRotateF32
 	kernelMossRowAffineF32
 	kernelMossSituBackwardF32
@@ -638,6 +639,7 @@ var kernelFunctionNames = [...]string{
 	"moe_router_dot_f32",
 	"moe_router_logits_f32",
 	"moe_scatter_rows_f32",
+	"moss_rotate_bf16_round_f32",
 	"moss_rotate_f32",
 	"moss_row_affine_f32",
 	"moss_situ_backward_f32",
@@ -1123,6 +1125,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	7,
 	5,
 	7,
+	7,
 	6,
 	5,
 	8,
@@ -1607,6 +1610,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4},
+	{8, 8, 8, 8, 4, 4, 4},
 	{8, 8, 8, 4, 4, 4, 4},
 	{8, 8, 8, 8, 4, 4},
 	{8, 8, 8, 4, 4},
@@ -1949,6 +1953,7 @@ var kernelFunctionArgumentWidths = [...][]uint16{
 const kernelModuleCount = 4
 
 var kernelFunctionModules = [...]uint8{
+	0,
 	0,
 	0,
 	0,

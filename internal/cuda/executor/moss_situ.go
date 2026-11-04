@@ -11,16 +11,16 @@ type mossSituFusion struct {
 	gateInverse, gateBound, hiddenInverse, hiddenBound float32
 }
 
-// situChain walks a rounded SITU activation backward from its last rounding: each step answers the operation a native
+// roundedChain walks a chain of rounded operations backward from its last rounding: each step answers the operation a
 // BF16 rounding rounds, and every node it passes is read by the next alone, is no output and belongs to no fusion.
-type situChain struct {
+type roundedChain struct {
 	context *rewriteContext
 	parts   []*tensor.Tensor
 	ok      bool
 }
 
 // claim adds node to the chain's parts where the next node is its only reader and nothing else holds it.
-func (c *situChain) claim(node *tensor.Tensor) {
+func (c *roundedChain) claim(node *tensor.Tensor) {
 	_, retained := c.context.outputSet[node]
 	_, skipped := c.context.compiled.skipped[node]
 	if node == nil || retained || skipped || c.context.uses[node] != 1 || c.context.compiled.fusions[node] != nil {
@@ -31,7 +31,7 @@ func (c *situChain) claim(node *tensor.Tensor) {
 }
 
 // rounded answers the operation of op a rounding rounds, claiming the operation.
-func (c *situChain) rounded(round *tensor.Tensor, op tensor.Op) *tensor.Tensor {
+func (c *roundedChain) rounded(round *tensor.Tensor, op tensor.Op) *tensor.Tensor {
 	if !c.ok || round == nil || round.Op != tensor.OpBF16Round || len(round.Inputs) != 1 || round.Inputs[0].Op != op {
 		c.ok = false
 		return nil
@@ -46,7 +46,7 @@ func (c *situChain) rounded(round *tensor.Tensor, op tensor.Op) *tensor.Tensor {
 }
 
 // operand is input index of operation, claimed as a rounding the chain passes through.
-func (c *situChain) operand(operation *tensor.Tensor, index int) *tensor.Tensor {
+func (c *roundedChain) operand(operation *tensor.Tensor, index int) *tensor.Tensor {
 	if !c.ok || operation == nil || index >= len(operation.Inputs) {
 		c.ok = false
 		return nil
@@ -57,7 +57,7 @@ func (c *situChain) operand(operation *tensor.Tensor, index int) *tensor.Tensor 
 
 // bounded walks bounded(x), a rounded scale of a rounded tanh of a rounded scale of x, from its last rounding, and
 // answers x and the two scales.
-func (c *situChain) bounded(round *tensor.Tensor) (*tensor.Tensor, float32, float32) {
+func (c *roundedChain) bounded(round *tensor.Tensor) (*tensor.Tensor, float32, float32) {
 	outer := c.rounded(round, tensor.OpScale)
 	tanh := c.rounded(c.operand(outer, 0), tensor.OpTanh)
 	inner := c.rounded(c.operand(tanh, 0), tensor.OpScale)
@@ -73,10 +73,10 @@ func (c *situChain) bounded(round *tensor.Tensor) (*tensor.Tensor, float32, floa
 func applyMOSSSituRewrite(context *rewriteContext) {
 	compiled := context.compiled
 	for _, node := range context.order {
-		if node.Op != tensor.OpBF16Round || len(node.Inputs) != 1 || compiled.fusions[node] != nil {
+		if _, skipped := compiled.skipped[node]; skipped || node.Op != tensor.OpBF16Round || len(node.Inputs) != 1 || compiled.fusions[node] != nil {
 			continue
 		}
-		chain := &situChain{context: context, ok: true}
+		chain := &roundedChain{context: context, ok: true}
 		outer := chain.rounded(node, tensor.OpMultiply)
 		gated := chain.rounded(chain.operand(outer, 0), tensor.OpMultiply)
 		gate, gateInverse, gateBound := chain.bounded(chain.operand(gated, 0))

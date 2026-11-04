@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "adc756b7f15a18ea57379a8b670c3ce1f06429bd772163c3f520cd092872bc67",
+      "sourceSha256": "e32d1f0b037f06486fc76a75c4ebe7e1fcd09cbd0466ee404dd0ef621da2eab8",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/attention_row.cuh",
@@ -84,7 +84,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "e71efbdc0c6feed4ef439c5cf522aa2dfd28ed97f79105d5b845a87a547d352c",
+      "assetSha256": "d2f8b785bdf330e65b8d74652582d052617066e754cbc13ee55ce8d0ca60b1de",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -232,6 +232,7 @@
         "moe_router_dot_f32",
         "moe_router_logits_f32",
         "moe_scatter_rows_f32",
+        "moss_rotate_bf16_round_f32",
         "moss_rotate_f32",
         "moss_row_affine_f32",
         "moss_situ_backward_f32",
@@ -1501,6 +1502,7 @@
           "functions": [
             "moe_router_dot_f32",
             "moe_router_logits_f32",
+            "moss_rotate_bf16_round_f32",
             "mul_mat_bf16_append_f32",
             "mul_mat_bf16_gate_f32",
             "mul_mat_fp8_f32"

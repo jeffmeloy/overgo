@@ -20,8 +20,9 @@ const mossDenoiserWallRecordPath = "docs/verification/moss-denoiser-wall.json"
 // wall a step.
 var mossDenoiserStepCounts = [2]int{4, 8}
 
-// mossAccountedShare is how much of a step's wall its kernels must hold for the wall to be accounted for: a captured
-// step launches its kernels back to back, so what they leave is the device's own gaps.
+// mossAccountedShare is how close a step's kernels and its wall must come for the wall to be accounted for: a captured
+// step launches its kernels back to back, so what they leave is the device's own gaps, and the two are read in
+// separate runs, either above the other by their spread.
 const mossAccountedShare = 0.98
 
 // mossDenoiserReading is one side of the change: its 50-step integrate and its integrate at the two step counts.
@@ -110,7 +111,7 @@ func TestMOSSDenoiserWallIsAccountedFor(t *testing.T) {
 	for _, seconds := range record.After.Kernels {
 		held += seconds
 	}
-	if held > after || held < mossAccountedShare*after {
+	if held > after/mossAccountedShare || held < mossAccountedShare*after {
 		t.Fatalf("a step's kernels hold %.4f s of its %.4f s wall", held, after)
 	}
 	t.Logf("a step: %.3f s before, %.3f s after, upstream %.3f s; its kernels hold %.3f of it",

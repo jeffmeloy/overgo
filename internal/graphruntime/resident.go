@@ -26,6 +26,32 @@ type residentAllocation struct {
 	pointer driver.DevicePtr
 	bytes   uint64
 	refs    int
+	// chunk is the allocation the input is packed in.
+	chunk *residentChunk
+}
+
+// residentChunk is one card allocation a program's bound inputs are packed in. The card gives memory in pages, so a
+// chunk is made of whole pages for the input it was made for, costing what that input alone would, and the inputs the
+// program binds after it fill the rest. It is freed once no input in it is held.
+type residentChunk struct {
+	pointer     driver.DevicePtr
+	bytes, used uint64
+	live        int
+}
+
+// residentPage is the granule the card gives memory in, as measured (memory-bounds/one-allocation): an allocation of
+// five megabytes takes six mebibytes.
+const residentPage = 2 << 20
+
+// residentAlignment is where each packed input begins, the alignment a card allocation itself gives.
+const residentAlignment = 256
+
+// drop lets go of one input in the chunk and frees the chunk once none is held; freed says it did.
+func (c *residentChunk) drop(state *device.State) (freed bool, err error) {
+	if c.live--; c.live > 0 {
+		return false, nil
+	}
+	return true, state.Driver.MemFree(c.pointer)
 }
 
 // ResidentSession owns one device context and shared immutable inputs.
@@ -42,6 +68,29 @@ type ResidentProgram struct {
 	*executor.IndexedGraph
 	dynamic []executor.InputSlot
 	weights []int
+	// chunk is the allocation the program packs its next new input in.
+	chunk *residentChunk
+}
+
+// place finds room for a new input of bytes: in the program's chunk when its rest holds them, else in a new chunk of
+// whole pages.
+func (p *ResidentProgram) place(state *device.State, bytes uint64) (driver.DevicePtr, *residentChunk, error) {
+	aligned, fits := checked.Align(bytes, residentAlignment)
+	pages, paged := checked.Align(aligned, residentPage)
+	if !fits || !paged {
+		return 0, nil, errors.New("resident input size overflows")
+	}
+	if p.chunk == nil || p.chunk.used+aligned > p.chunk.bytes {
+		pointer, err := state.Driver.MemAlloc(pages)
+		if err != nil {
+			return 0, nil, err
+		}
+		p.chunk = &residentChunk{pointer: pointer, bytes: pages}
+	}
+	chunk := p.chunk
+	placed := chunk.pointer + driver.DevicePtr(chunk.used)
+	chunk.used, chunk.live = chunk.used+aligned, chunk.live+1
+	return placed, chunk, nil
 }
 
 // ResidentStats reports session-owned device storage and execution.
@@ -142,22 +191,27 @@ func (s *ResidentSession) Bind(
 		if uint64(len(data)) != bytes {
 			return fmt.Errorf("resident payload = %d bytes, want %d", len(data), bytes)
 		}
+		var chunk *residentChunk
 		if err := s.worker.Do(ctx, func(state *device.State) error {
-			allocated, allocErr := state.Driver.MemAlloc(bytes)
-			if allocErr != nil {
-				return allocErr
+			placed, held, placeErr := program.place(state, bytes)
+			if placeErr != nil {
+				return placeErr
 			}
-			if copyErr := state.Driver.MemcpyHtoD(allocated, data); copyErr != nil {
-				return errors.Join(copyErr, state.Driver.MemFree(allocated))
+			if copyErr := state.Driver.MemcpyHtoD(placed, data); copyErr != nil {
+				freed, freeErr := held.drop(state)
+				if freed {
+					program.chunk = nil
+				}
+				return errors.Join(copyErr, freeErr)
 			}
-			pointer = allocated
+			pointer, chunk = placed, held
 			return nil
 		}); err != nil {
 			return err
 		}
 		allocationIndex = len(s.allocations)
 		s.byBinding[key] = allocationIndex
-		s.allocations = append(s.allocations, residentAllocation{key: key, pointer: pointer, bytes: bytes})
+		s.allocations = append(s.allocations, residentAllocation{key: key, pointer: pointer, bytes: bytes, chunk: chunk})
 		s.staticBytes += bytes
 	}
 	program.Inputs.Pointers[slot] = pointer
@@ -248,7 +302,8 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 					if s.executor != nil {
 						errs = append(errs, s.executor.DropGraphExecs(state))
 					}
-					errs = append(errs, state.Driver.MemFree(allocation.pointer))
+					_, err := allocation.chunk.drop(state)
+					errs = append(errs, err)
 				}
 				if allocation.bytes <= s.staticBytes {
 					s.staticBytes -= allocation.bytes
@@ -355,9 +410,11 @@ func (s *ResidentSession) Close(ctx context.Context) error {
 	if s.worker != nil && len(s.allocations) != 0 {
 		errs = append(errs, s.worker.Do(ctx, func(state *device.State) error {
 			var freeErrors []error
+			freed := map[*residentChunk]bool{}
 			for index := range s.allocations {
-				if pointer := s.allocations[index].pointer; checked.Nonzero(pointer) {
-					freeErrors = append(freeErrors, state.Driver.MemFree(pointer))
+				if chunk := s.allocations[index].chunk; chunk != nil && !freed[chunk] {
+					freed[chunk] = true
+					freeErrors = append(freeErrors, state.Driver.MemFree(chunk.pointer))
 				}
 				s.allocations[index] = residentAllocation{}
 			}

@@ -2,8 +2,10 @@ package landing
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -23,6 +25,42 @@ type Refusal struct {
 	// Recurrences counts the earlier refusals of the class: of the row, or
 	// of any row for an external cause.
 	Recurrences int `json:"recurrences,omitzero"`
+	// Rules names the rules a refusal of the rules stage broke, so a rule
+	// whose refusals are not defects can be counted, and found.
+	Rules []string `json:"rules,omitzero"`
+}
+
+// stageRules are the rules the rules stage holds a change to, each by its
+// name and a phrase its refusal carries, which no other rule's does.
+var stageRules = []struct{ name, phrase string }{
+	{"pins", "changes bytes a record pins"},
+	{"style", "new Go style findings"},
+	{"inline-numbers", "new inline number"},
+	{"legacy-forms", "new sort.Slice"},
+	{"legacy-forms", "new sync.Once"},
+	{"exports", "has no consumer outside its package"},
+	{"cuda-lanes", "has CUDA-gated tests that no lane runs"},
+	{"count", "production syntax nodes, and the row"},
+}
+
+// pinsRefusal, uncoveredRefusal, exportRefusal and countRefusal are what the
+// rules stage refuses a change with for moving bytes a record pins, a
+// CUDA-gated test no lane runs, an export no other package uses, and growth
+// past a row's count.
+func pinsRefusal(stale []string) string {
+	return "changes bytes a record pins: " + strings.Join(stale, "; ") + "; repin the record for a behaviour-neutral edit, or restore the file"
+}
+
+func uncoveredRefusal(directory string) string {
+	return directory + " has CUDA-gated tests that no lane runs; add it to a lane that sets " + cudaTestEnvironment
+}
+
+func exportRefusal(name, directory string) string {
+	return "new export " + name + " in " + directory + " has no consumer outside its package; unexport it or land its consumer"
+}
+
+func countRefusal(growth int, row string, left int) string {
+	return fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count with a reason in this change's own plan edit, or in the row of a merge", growth, row, left)
 }
 
 const (
@@ -54,6 +92,13 @@ func Classify(reference, refusal string) Refusal {
 	for _, check := range (&landing{}).checks() {
 		if strings.HasPrefix(stage, check.name+":") {
 			classified.Class = check.name
+		}
+	}
+	if classified.Class == "rules" {
+		for _, rule := range stageRules {
+			if strings.Contains(stage, rule.phrase) && !slices.Contains(classified.Rules, rule.name) {
+				classified.Rules = append(classified.Rules, rule.name)
+			}
 		}
 	}
 	return classified

@@ -34,7 +34,7 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	if len(stale) != 0 {
-		return fmt.Errorf("changes bytes a record pins: %s; repin the record for a behaviour-neutral edit, or restore the file", strings.Join(stale, "; "))
+		return errors.New(pinsRefusal(stale))
 	}
 	candidate, base, err := l.changedSource(ctx)
 	if err != nil {
@@ -54,12 +54,12 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	for _, directory := range uncovered {
-		findings = append(findings, directory+" has CUDA-gated tests that no lane runs; add it to a lane that sets "+cudaTestEnvironment)
+		findings = append(findings, uncoveredRefusal(directory))
 	}
 	growth := writtenNodes(candidate, false) - writtenNodes(base, false)
 	left := l.charge(growth)
 	if growth > left {
-		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes, and the row(s) %s may add %d; pay for the rest with deletions, or raise the count with a reason in this change's own plan edit, or in the row of a merge", growth, l.Ref, left))
+		findings = append(findings, countRefusal(growth, l.Ref, left))
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
@@ -369,7 +369,7 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 			}
 		}
 		if !production && !(tested && testSupport(sources, directory)) {
-			findings = append(findings, "new export "+pkg+"."+name+" in "+directory+" has no consumer outside its package; unexport it or land its consumer")
+			findings = append(findings, exportRefusal(pkg+"."+name, directory))
 		}
 	}
 	return findings, nil

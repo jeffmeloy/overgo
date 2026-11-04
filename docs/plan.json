@@ -149,17 +149,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 120,
-        "reason": "leftovers-git adds 183, the batched trunk question with its fallback, the lock read from git's list and the tracked-file count only where it decides; the 120 estimated for refusal-rule's field and writer and browser-reach's split stay"
+        "nodes": 40,
+        "reason": "refusal-rule adds 159: the rule table, the Rules field and four builders, so the check classifies the very text the rules stage writes; browser-reach keeps 40 for its measurement"
       },
       "steps": [
-        {
-          "id": "refusal-rule",
-          "title": "Record which rule refused a commit",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestARefusalRecordsTheRuleThatRefused$'",
-          "rationale": ".overgo-runtime/landing_refusals.json holds only class, reference and recurrences (262 records). rules is the largest refusal class: 306 of 471 refusals since 2026-10-18, and 20 of 33 since 2026-11-02. Which rule refuses cannot be counted, so a rule whose refusals are not defects cannot be found and removed.\nRecord the rule's name (pins, style delta, inline numbers, legacy forms, exports without consumers, CUDA tests with no lane, growth count; internal/landing/rules.go:31-70, unverified) beside the class.\nServes: development velocity.\nDisappears: nothing now; it names what can go.\nEvidence: refusal counts by rule after a week.\nBatch: host lane."
-        },
         {
           "id": "browser-reach",
           "title": "Measure why the browser test run reaches video and image changes",

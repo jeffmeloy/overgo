@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"overgo/internal/artifact"
 )
 
 // bytePin is one record's hold on a file's current bytes.
@@ -69,7 +71,7 @@ func bytePins(repo string) (map[string][]bytePin, error) {
 					continue
 				}
 				value, _ := strconv.Unquote(literal.Value)
-				if _, err := hex.DecodeString(value); err == nil && len(value) == hex.EncodedLen(sha256.Size) {
+				if artifact.ValidHexDigest(value) {
 					digest = value
 				} else if strings.HasPrefix(value, "docs/") {
 					document = value

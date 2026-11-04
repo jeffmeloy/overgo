@@ -3000,7 +3000,9 @@
         "uncertainty": "Static AST/type and source-equivalence evidence, not application execution. Already-transitive dependency means no new package in the dependency closure; compile/runtime effects were not measured. Keep this cleanup below served correctness and larger test reductions."
       },
       "likely_effort": "Trivial one-condition reuse. Existing coverage is sufficient; no new test.",
-      "plan_references": [],
+      "plan_references": [
+        "check-speed/refusal-rule"
+      ],
       "plan_coverage": "Advisory, not adopted. Committed campaign-closeout/file-close retains its existing measured closeout scope; no plan edit or new gate work is requested.",
       "closure_criteria": [
         "bytePins uses the retained predicate, preserving raw digest text and discovery/hash/error behavior.",
@@ -7335,6 +7337,18 @@
         "plan_steps": [
           "doctrine-cut/auto-cycle"
         ]
+      },
+      {
+        "comment": "Landed with check-speed/refusal-rule. bytePins' decode-and-length condition is artifact.ValidHexDigest(value); the pin tests pass unchanged.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/landing/pins.go bytePins",
+          "internal/landing TestPreflightNamesPinnedBytes"
+        ],
+        "finding_id": "SQA-250",
+        "plan_steps": [
+          "check-speed/refusal-rule"
+        ]
       }
     ],
     "experiments": {
@@ -7374,7 +7388,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "9be8221e31ae6aa9ef1f44b3f3a48ae491fc3da8",
+    "head": "3166236f7d7b634d4a888db1ca89faa58a4c519e",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7926,8 +7940,11 @@
         "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/scorecard_test.go. Title-level triage, not re-verified at this head."
       },
       "SQA-250": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/landing/pins.go. Title-level triage, not re-verified at this head."
+        "action": "implemented",
+        "rows": [
+          "check-speed/refusal-rule"
+        ],
+        "note": "Landed with check-speed/refusal-rule, which touched rules.go: bytePins classifies a digest literal by artifact.ValidHexDigest, already in landing's dependency closure, its document association, hashing and errors unchanged. Awaits the reviewer's closure."
       },
       "SQA-262": {
         "action": "none",

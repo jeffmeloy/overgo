@@ -144,21 +144,35 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "doctrine-cut",
-      "title": "Cut the doctrine that misleads sessions",
+      "id": "check-speed",
+      "title": "Cut the repeated work in each commit's checks",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Text and deletions: the AutoCycleLandings option goes, and the check is test code."
+        "nodes": 120,
+        "reason": "Estimate. loop-fixture is test code; refusal-rule adds a field and its writer; browser-reach is a measurement and a split of tests."
       },
       "steps": [
         {
-          "id": "auto-cycle",
-          "title": "Delete the cycle start between steps that nothing configures",
+          "id": "loop-fixture",
+          "title": "Build the measurement-launch test's checkout from a module of its own",
           "status": "open",
-          "verify": "go test ./internal/loop -count=1 -run '^TestDriverStartsACycleOnlyWhenThePlanEmpties$'",
-          "rationale": "cmd/loop's AutoCycleLandings (cmd/loop/main.go:93) starts a cycle of every model between steps once that many landings moved what a cycle measures, through improvement.CycleDue and the driver's check before each step (internal/loop/driver.go:192). No loop.json sets it, so the option is dead, and skill.md's line on a run of every model is complete without it: one runs only when the plan is empty, a run left one unfinished or none has completed. Delete the option, CycleDue and the limit decideCycle weighs, and keep what the tests of it hold beyond the limit: which landings move what a cycle measures, and that an empty plan with nothing moved starts no cycle.\nServes: the loop: no session reads of a start the system never makes.\nDisappears: AutoCycleLandings, improvement.limit and attempted, CycleDue and the driver's between-steps start.\nEvidence: the driver starts a cycle only when the plan empties.\nBatch: loop."
+          "verify": "go test ./cmd/loop -count=1 -run '^TestTheCarryFixtureReadsNoFileOfTheTree$'",
+          "rationale": "TestMeasurementRunsNoCaseAgainAfterAnUnrelatedCommit copies every non-test file under go.mod, go.sum, internal, kernels and cmd/evaluate into its fixture (cmd/loop/identity_carry_test.go:137,172-189), so any edit under internal/ clears cmd/loop's test cache. cmd/loop was the slowest package in every test stage since 2026-11-02 that ran it (147 to 196 s), and the one commit that skipped it took 1m32s against 2m40s to 3m53s.\nThe test asserts that an unrelated commit re-asks no case and a change to one model's package re-asks only that model's. A small module with two model packages and the launch's stand-in holds the same assertion without reading the tree. If the real tree's identities must be exercised, move this test to the cycle's checks (cmd/loop/improve.go:517-558), as fault-finding/long-sequences does for long tests.\nPredicted: the test stage of most code commits falls to its next slowest package (40 to 131 s in the same gate lines).\nServes: development velocity.\nDisappears: a copy of the tree per run.\nEvidence: test-stage walls across the next ten code commits.\nBatch: host lane."
+        },
+        {
+          "id": "refusal-rule",
+          "title": "Record which rule refused a commit",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestARefusalRecordsTheRuleThatRefused$'",
+          "rationale": ".overgo-runtime/landing_refusals.json holds only class, reference and recurrences (262 records). rules is the largest refusal class: 306 of 471 refusals since 2026-10-18, and 20 of 33 since 2026-11-02. Which rule refuses cannot be counted, so a rule whose refusals are not defects cannot be found and removed.\nRecord the rule's name (pins, style delta, inline numbers, legacy forms, exports without consumers, CUDA tests with no lane, growth count; internal/landing/rules.go:31-70, unverified) beside the class.\nServes: development velocity.\nDisappears: nothing now; it names what can go.\nEvidence: refusal counts by rule after a week.\nBatch: host lane."
+        },
+        {
+          "id": "browser-reach",
+          "title": "Measure why the browser test run reaches video and image changes",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestLaneReachNamesTheChangedPackageThatPulledEachLane$'",
+          "rationale": "Measure first. The browser run took 2m48s to 2m56s in commits that changed only video and image code (e62f57544, 0acd5d9b8, 4f1a4f2e8). A lane is selected by every package whose test binary compiles a changed package (internal/landing/lanes.go:494-556, unverified).\nHypothesis: internal/server's test binary compiles nearly every model package. Record, for each lane a commit runs, which changed package pulled it in. If the server's tests are the cause, split the tests that need real runtimes from the ones that drive the browser.\nServes: development velocity.\nDisappears: browser runs for changes no browser path reaches, if the hypothesis holds.\nEvidence: lane reach by package across twenty code commits.\nBatch: host lane."
         }
       ]
     },
@@ -178,6 +192,46 @@
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestAFullRunMeasuresTheModelsItWasGiven$'",
           "rationale": "SelectValidation runs every other activated cell every cycle: 'nothing here asks whether its evidence still holds' (cmd/validate/selection.go:138, 'run: re-acquired every cycle' at :179), and plan paragraph 2 makes that doctrine: 'Every contract a comparison reads and every retained protocol is a cell the cycle runs'. The owner, 2026-11-02: 'I could have 1000 models, I don't need to test all of them every time something changes'.\nSkipping the cells whose identity did not move would have acted in 1 of 4 run pairs, since every execution identity holds the executor's closure, so the saving is in choosing the models. A full run measures a named set: the models the owner selects, the models trained since their last reading (measured once already), and one model per runtime path the run's changes reach. Whoever wants the rest names it. Rewrite paragraph 2 and skill.md's line on a run of every model to match. time-and-memory/run-wall shortens the test phase and is unchanged.\nServes: development velocity and the owner's choice: a run's measuring phase falls with the models it leaves out.\nDisappears: measuring every catalogued model in every run.\nEvidence: the next run's measured set and its measuring wall, against the 2026-10-31 run's 3h08m.\nBatch: validate."
+        }
+      ]
+    },
+    {
+      "id": "run-once",
+      "title": "Do each piece of a full measurement run's setup once",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 400,
+        "reason": "Estimate, unmeasured. model-process changes how cmd/validate launches cells; hash-once passes digests between phases; answer-score splits one identity."
+      },
+      "steps": [
+        {
+          "id": "run-wall",
+          "title": "Reduce the longer test runs inside a full measurement run",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestTheRunRecordHoldsEachPackagesWallAndPeak$'",
+          "rationale": "Measure first. The 2026-10-31 run spent 5h30m of 9h05m in the longer test runs and 3h08m measuring. cmd/validate/lane_walls.go:21-44 keeps walls of a minute or more in process state, and they never reach the run record. Record each package's wall there, with its peak working set: internal/processcontrol/supervisor_windows.go:108-109 declares PeakProcessMemoryUsed, unread, and that finds the package recorded at 49 GiB. internal/testprocess/measure.go sees only the direct child, and go test's binary is a grandchild, so the job counter is the right owner.\nMove what only guards a past adoption behind pairtest, as earlier cost four tests 237 minutes. SQA-266 asks the same.\nBesides the pairtest move: the models lane builds with -tags modeltest,integration, so the untagged tests a commit's test stage already ran get no cache hit (internal/landing/lanes.go:134-136,208-214, unverified); internal/inference, routedlm, latentimage, mosstrain and cmd/train run in both the cuda and the models lane (lanes.go:199-214, unverified); the audio lane runs -count=1 and is never cached (internal/landing/lanes.go:126); lanes run one after another (cmd/validate/run.go:236-239, unverified). After it lands, one full measurement run reads the pairtest move's effect.\nPredicted: under 2 hours for that phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work.\nEvidence: phase walls across two runs.\nBatch: validate lane."
+        },
+        {
+          "id": "model-process",
+          "title": "Measure every cell of one model in one process",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAModelsCellsShareOneLoad$'",
+          "rationale": "Measure first: sum one model's load walls across the 2026-10-31 run's records. Each cell is its own go run (cmd/validate/run.go:328-345), every activated cell runs every run (cmd/validate/selection.go:179), and a text model loads at least five times a run, once per benchmark, guard and serving cell (cmd/validate/run.go:56-120, unverified). Preflight repeats each cell's setup (run.go:352-387, unverified).\nOne process per model loads it once and runs its benchmarks and guard in turn. The serving cell keeps a fresh load of its own, since first-output and throughput are read on the first request after a load. One build, so every cell keeps the same execution identity.\nPredicted: about four loads fewer per text model, before the walls are summed.\nServes: development velocity; more runs a week.\nDisappears: repeated loads and builds.\nEvidence: cell-phase wall across two runs.\nBatch: validate lane."
+        },
+        {
+          "id": "hash-once",
+          "title": "Identify each model's files once per run",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestARunHashesEachModelFileOnce$'",
+          "rationale": "bindCells hashes every consumed model file through artifact.IdentifyFile (cmd/validate/cell_credit.go:159), and its memo lives in one process. Plan, preflight, cells and fill are separate validate processes (cmd/validate/main.go:282-294, unverified), so a run hashes every model's bytes about four times.\nHash once at the run's start and hand the digests to each phase through the run's own record. Model bytes stay identified by their hash; no size and date memo.\nMeasure first: total model bytes and the hash rate.\nServes: development velocity.\nDisappears: three full reads of every model a run.\nEvidence: preflight and fill walls across two runs.\nBatch: validate lane."
+        },
+        {
+          "id": "answer-score",
+          "title": "Re-score stored answers when only the scoring code changed",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestAScoringChangeRescoresWithoutAsking$'",
+          "rationale": "Measure first: count the commits in 30 days that move the evaluation identity only through internal/evaluation, cmd/evaluate or internal/modelcli. Answers are keyed on an identity that adds every file of those to the code that runs the model (internal/inferencesurface/identity.go:57, internal/evaluation/campaign.go:37-48, observation.go:69-78, unverified). An agent counted 437 of 1,578 commits moving it, 230 through those packages alone (unverified).\nSplit it in two: the answer identity is the code that builds the request and produces the output, and the scoring identity is the code that grades it. A scoring change re-scores stored answers, which a committed verdict already does (TestCommittedVerdictRescoresItsReports). An answer is still reused only under the code that produced it, bit for bit.\nRead decision carry-cost first.\nServes: development velocity; held-out cells that finish sooner.\nDisappears: re-asking cases whose answers cannot have moved.\nEvidence: cases re-asked against reused across two runs.\nBatch: validate lane."
         }
       ]
     },
@@ -342,7 +396,7 @@
           "title": "Measure what per-tensor allocations cost, then hold a store in one",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestAStoreHoldsItsTensorsInOneAllocation$'",
-          "rationale": "Measure first: allocate 1,024 buffers each at 16 KiB, 704 KB and 5 MB and read MemInfo's fall. Experts learned this: about 540 allocations decoded at a third of the rate and lost 500 MB (internal/modeldevice/expert_residency.go:407-409). Weights still take one a tensor (device_load.go:292, internal/graphruntime/resident.go:146), a bound of 0.86 GiB on the 4B the ledger cannot see. ResidentSession.Release frees tensor by tensor and MOSS's stages depend on it (resident.go:239-257), so a store is one allocation per program or source, not per model.\nServes: card memory for every model, experts on Flash-Next, and possibly throughput.\nDisappears: per-tensor allocations.\nEvidence: MemInfo before and after, three bench rounds.\nBatch: device lane; opens with the first measurement's result."
+          "rationale": "Measure first: allocate 1,024 buffers each at 16 KiB, 704 KB and 5 MB and read MemInfo's fall. Experts learned this: about 540 allocations decoded at a third of the rate and lost 500 MB (internal/modeldevice/expert_residency.go:407-409). Weights still take one a tensor (device_load.go:292, internal/graphruntime/resident.go:146), a bound of 0.86 GiB on the 4B the ledger cannot see. ResidentSession.Release frees tensor by tensor and MOSS's stages depend on it (resident.go:239-257), so a store is one allocation per program or source, not per model.\nServes: card memory for every model, experts on Flash-Next, and possibly throughput.\nDisappears: per-tensor allocations.\nEvidence: MemInfo before and after, three bench rounds.\nBatch: device lane; opens with the first measurement's result.\n\nEach MemAlloc also takes a cross-process transaction and reads free memory (internal/cuda/driver/driver_windows.go:659), so the measurement should time allocation as well as count bytes."
         },
         {
           "id": "expert-census",
@@ -357,6 +411,100 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestDraftedWindowStateBytesAreReported$'",
           "rationale": "Measure only. Drafting costs the 27B 1.30 GiB, every byte in span slots (d184ff653), which grow until close (internal/inference/span_slots.go:133-143, runner_lifecycle.go:525). Strata replays a window's kept tokens instead. Report the bytes by layer and position so a row can price the port.\nServes: peak-device-memory for the qwen35 family.\nDisappears: nothing.\nEvidence: a byte table on the 27B and Bonsai-27B.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "serving-path",
+      "title": "Remove repeated work from a served request and a server start",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 500,
+        "reason": "Estimate, unmeasured. kv-bf16 and graph-reuse change the inference surface and go before one measurement run."
+      },
+      "steps": [
+        {
+          "id": "serving-record",
+          "title": "Return a response before its serving record is written",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestAResponseDoesNotWaitForItsServingRecord$'",
+          "rationale": "After a generation returns, the handler recompiles the recipe to read its identity (servingIdentity, internal/server/serving_observation.go:50-65, which reaches Describe's ValidateServing and CompileProgram, internal/modelrecipe/description.go:23-34) and commits a serving record under a handler-wide mutex (serving_observation.go:71; called at internal/server/server_admin.go:1093-1118) before it returns.\nThe identity cannot change while a model is loaded, so read it at load. Hand the record to one background writer that Close drains, so every record is still written and concurrent requests stop queuing on the mutex.\nMeasure first: time publishServing on the smallest served model.\nServes: inference.\nDisappears: a recipe compile and a store commit on each request's path.\nEvidence: request wall with and without the writer, records equal.\nBatch: serving lane."
+        },
+        {
+          "id": "kv-bf16",
+          "title": "Store the key-value cache in BF16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestTheKeyValueCacheIsStoredInBF16$'",
+          "rationale": "Cache storage is allocated as F32 (internal/inference/device_cache.go:1421,1494,2180), twice the bytes of BF16; llama.cpp's default cache type is f16. peak-by-length (5c7774a11) now reads peak device memory at 4K and 16K, so the next full run gives the earlier numbers this is judged against.\nJudge it on held-out quality, as a fast native path is, and on peak device memory at 16K.\nServes: inference; peak-device-memory at long prompts.\nDisappears: half the cache's bytes.\nEvidence: peak at 4K and 16K, held-out cells.\nBatch: one commit with the other surface moves, before one measurement run."
+        },
+        {
+          "id": "store-once",
+          "title": "Open the store once when the server starts",
+          "status": "open",
+          "verify": "go test ./cmd/server -count=1 -run '^TestTheServerOpensItsStoreOnce$'",
+          "rationale": "A server start opens the store read-only three times (cmd/server/transcription.go:22, cmd/server/main.go:251, internal/modelcli/model.go:164, the last timed as the load's store open stage) and loads the discovery memo four times (transcription.go:27, main.go:262, model.go:172, internal/server/server.go:715). time-and-memory/store-open measured an open at 2.72 s on 2026-10-13, decoding seven projections.\nPass one read-only handle and one memo through the start. The writer open (main.go:332) stays apart, since a writer open starved concurrent serves (model.go:158-160).\nServes: load-time.\nDisappears: two opens and three memo loads per start.\nEvidence: the load's store open stage before and after.\nBatch: serving lane, with time-and-memory/store-open."
+        },
+        {
+          "id": "graph-reuse",
+          "title": "Keep captured decode graphs by use rather than clearing them",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestDecodeSessionsEvictTheLeastRecentlyUsed$'",
+          "rationale": "Measure first: count captures per served request over a bench run, and retire this step if misses are rare. The decode sessions are cleared all at once when they reach 64 (internal/inference/device_cache.go:962,1111), and an executor keeps 4 captured graphs (internal/cuda/executor/executor.go:134). A miss plans memory and captures again, 13 to 60 ms (device_cache.go:961, unverified), and continuous batching never replays sequences of different lengths (device_cache.go:772, unverified). dense-read-release (8780ef3e0) now also drops a dense model's graphs after a long read, at +0.7 to 2.2 percent first output there.\nEvict the least recently used session, and pad batch lengths to a few sizes so they replay.\nServes: inference; first-output and throughput.\nDisappears: recaptures of graphs already built.\nEvidence: captures per request before and after.\nBatch: one commit with the other surface moves, before one measurement run."
+        },
+        {
+          "id": "hash-upload",
+          "title": "Identify a model's bytes while uploading them",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/modeldevice -count=1 -run '^TestALoadReadsEachFileOnce$'",
+          "rationale": "Measure first: a load with no memo entry. The identity hash (internal/modelartifact/inventory.go:136, shards in sequence at :179) is a pass separate from the upload (internal/modeldevice/device_load.go:367-372), and the upload copies 16 MiB blocks synchronously through one worker (internal/model/host_weights.go:155) (all unverified).\nHash each block as it is read for upload. The model's bytes stay identified by their hash.\nServes: load-time on a first load.\nDisappears: one full read of the model.\nEvidence: load wall with no memo entry, before and after.\nBatch: serving lane."
+        },
+        {
+          "id": "first-request",
+          "title": "Find the fixed cost in a small model's first output",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestFirstOutputStagesAreRecordedForTheSmallestModels$'",
+          "rationale": "Measure first. The README's first output: Qwen2.5-0.5B 117 ms, MiniCPM5-1B 113, Unlimited-OCR 128, Carbon-500M 117, Bonsai-27B 109, Qwen3.5-4B 143, against Qwen3.5-9B 39 ms. Model size does not explain it.\nHypothesis: one-time setup (graph capture, module load, library setup) runs on the first request for some recipes and at load for others; loading Bonsai's PTX modules at open once cut its first request from 111 to 85 ms. Compare recipe measure -journey's stages on the 0.5B and the 9B, and retire this step if they share no fixed part.\nServes: first-output.\nDisappears: nothing until measured.\nEvidence: journey stages of both models.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "time-and-memory",
+      "title": "Cut host memory, run time and media peak memory",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 250,
+        "reason": "store-open and run-wall and moss-denoiser, after media-stages left for memory-bounds."
+      },
+      "steps": [
+        {
+          "id": "store-open",
+          "title": "Decode only the store projections a reader uses",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenDecodesOnlyWhatItsReaderUses$'",
+          "rationale": "Measure first with overgodb checkpoint-families. Every open decodes seven projections and waits for the slowest (internal/overgodb/checkpoints.go:175-186): 127,690,553 bytes on disk at sequence 28,489 (docs/verification/installed-store.txt:36-44, 2026-10-13), lineage slowest at 1.25 s of 2.72 s. The figure grows, and the row's first 190 MB has no record. internal/scorecard/record.go:284-286 records that most load-time declines are the growth of the store's open, and that cost repeats in each server start and short command.\nHypothesis: lineage and commit projections can load on first use, cutting open time and resident host memory for commands and the server. Writers keep eager checks.\nServes: load-time, first-output, host memory.\nDisappears: memory held by projections a reader never touches.\nEvidence: open wall and heap by command on a store copy.\nBatch: store lane; rehearse on a copy.\n\nLand with serving-path/store-once: one makes each open cheaper, the other makes a server start open once."
+        },
+        {
+          "id": "moss-denoiser",
+          "title": "Find and close the native MOSS denoiser's wall against upstream's",
+          "status": "open",
+          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSDenoiserWallIsAccountedFor$'",
+          "rationale": "The resource comparison measured native MOSS at 94.2 s of denoising a 1024 square picture against upstream's 51.8 s on one card and one protocol, at 0.47 times its peak device memory (docs/verification/moss-image-resources.json).\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes. The first check named a throughput subtest that its parent passes without (internal/evaluation/moss_retained_model_test.go:110).\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
+        },
+        {
+          "id": "trained-precision",
+          "title": "A trained model serves at its base's precision",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestATrainedCheckpointServesAtItsBasesPrecision$'",
+          "rationale": "A safetensors checkpoint saves 32-bit weights where its base holds 16-bit: 1.98 GB against 0.99 GB. The two trained models read 321 and 318 tok/s against the base's 505.7, a first token at 4096 tokens of 142 ms against 79 ms, and a load of 3.15 s against 1.6 s, with nothing in the training to explain any of it.\nSave what serves at the base's precision, and keep what resumes as it is. Measure first: a 16-bit float may round away small updates, so the check is the verdict re-read on the rounded weights, and if the gain goes the row is retired with the reading.\nServes: throughput, load-time and peak-device-memory of every trained model.\nDisappears: a trained model twice the size of its base.\nEvidence: a test of the saved precision, then the rows of one trained model.\nBatch: one device run."
+        },
+        {
+          "id": "krea-prompt-cache",
+          "title": "Keep a Krea prompt's text conditioning for a prompt met again",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestAKreaPromptMetAgainPlacesNoTextEncoder$'",
+          "rationale": "memory-bounds/text-one-block ran both image encoders a layer at a time and left Krea without the conditioning cache MOSS's rotary path has (internal/latentimage/conditioning_cache.go): a Krea session keeps the one prompt it last fused, so a request that returns to an earlier prompt, or alternates two, runs the text encoder again. Krea's new prompt took about 3 s in the lease that encodes it (docs/verification/media-stage-peaks.json, krea new prompt, model session leased), against 0.01 s for the same prompt on a new seed.\nKeep a Krea prompt's selected-layer rows on the host as MOSS keeps its hidden states, bounded the same way, and fuse a prompt met again from them, placing no encoder layer. Hold the picture to the one its prompt makes when encoded fresh, byte for byte.\nServes: first-output for image generation on a prompt met again.\nDisappears: nothing.\nEvidence: the test, and a repeated prompt's prepare time in the next stage record.\nBatch: media lane."
         }
       ]
     },
@@ -540,6 +688,40 @@
       ]
     },
     {
+      "id": "one-home",
+      "title": "Give each repeated mechanism one home",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": -300,
+        "reason": "Estimate, unmeasured. The folds delete more than they add; package-digests and one-layer-walk move the inference surface and its pins."
+      },
+      "steps": [
+        {
+          "id": "package-digests",
+          "title": "Compute every code identity from one package digest graph",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -count=1 -run '^TestEveryCodeIdentityReadsOneDigestGraph$'",
+          "rationale": "Measure first: list each computation's package set at HEAD; where they disagree is a finding. Five computations decide what a change reaches, each with its own roots, pruning and file rules: the surface digest (internal/inferencesurface/surface.go:28-50, recorded only by internal/longform), execution identities (internal/inferencesurface/identity.go:85-305), the run key's code scope (internal/capabilityruntime/run_key.go:26-65), the loop's cycle trigger (cmd/loop/trigger.go:25-61) and lane reach (internal/landing/lanes.go:494-556) (all unverified).\nOne go list -deps -test -json per commit gives each package a digest over its files and its dependencies' digests; each identity becomes a query over it. Identities move, so the census and pinned digests move with it in one commit.\nServes: development velocity.\nDisappears: four closure walks.\nEvidence: package sets before and after, equal except where a finding says why.\nBatch: one commit with the other surface moves, before one measurement run."
+        },
+        {
+          "id": "one-layer-walk",
+          "title": "Walk a model's layers in one loop",
+          "status": "open",
+          "verify": "go test ./internal/inference -count=1 -run '^TestOneLayerWalkServesEveryForward$'",
+          "rationale": "The walk over layers is written at least eight times (internal/inference/runner_layers.go:14,176,220,350,405, sequence_forward.go:249,278, device_cache.go:1740) and the decode loop at least five (runner_generation.go:484, host_generation.go:16, nextn_device_speculation.go:286, strata_round_generate.go:171, continuous_generation.go:173) (all unverified). Sharing weights across a batch works only for gated-delta models (internal/model/forward_program.go:83, unverified), which shows a gain in one copy not reaching the others.\nFold the layer walks first, outputs bit-identical, one model family at a time, each with its bench; the decode loops follow as their own step once this one shows what it cost.\nServes: inference; every later speed change reaches every model.\nDisappears: seven copies of the layer walk.\nEvidence: decoded texts and benches equal per family.\nBatch: one commit with the other surface moves, before one measurement run."
+        },
+        {
+          "id": "one-lock-each",
+          "title": "Hold each resource by one lock",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestEachResourceHasOneLock$'",
+          "rationale": "Measure first: list each lock with the resource it guards. About ten exist: gate.lock (internal/authoritylock), landing_turn.lock (internal/landing/turn.go:81), the cycle lock (cmd/loop/improve.go:381), two leftovers locks (cmd/loop/leftovers.go:273,1182), the campaign lock (internal/processcontrol/campaign.go:67), stop.lock (internal/plan/control.go:233), the lane turn (internal/landing/lanes.go:240-247), the device-lane lease (cmd/device-lane/admission.go:77) and the guard's holder file (all unverified). One landing waited 7h59m for a turn (e63fd568a).\nMerge the locks that guard the same resource (checkout, card, store, plan).\nServes: development velocity.\nDisappears: locks with no resource of their own.\nEvidence: the list, and turn waits across a week.\nBatch: host lane."
+        }
+      ]
+    },
+    {
       "id": "test-reach",
       "title": "Run the checks that exist but reach little",
       "owner": "master-lead",
@@ -645,53 +827,6 @@
             "heldout-verdict/verdict-noise",
             "heldout-verdict/charge-objective"
           ]
-        }
-      ]
-    },
-    {
-      "id": "time-and-memory",
-      "title": "Cut host memory, run time and media peak memory",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 250,
-        "reason": "store-open and run-wall and moss-denoiser, after media-stages left for memory-bounds."
-      },
-      "steps": [
-        {
-          "id": "store-open",
-          "title": "Decode only the store projections a reader uses",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -count=1 -run '^TestAnOpenDecodesOnlyWhatItsReaderUses$'",
-          "rationale": "Measure first with overgodb checkpoint-families. Every open decodes seven projections and waits for the slowest (internal/overgodb/checkpoints.go:175-186): 127,690,553 bytes on disk at sequence 28,489 (docs/verification/installed-store.txt:36-44, 2026-10-13), lineage slowest at 1.25 s of 2.72 s. The figure grows, and the row's first 190 MB has no record. internal/scorecard/record.go:284-286 records that most load-time declines are the growth of the store's open, and that cost repeats in each server start and short command.\nHypothesis: lineage and commit projections can load on first use, cutting open time and resident host memory for commands and the server. Writers keep eager checks.\nServes: load-time, first-output, host memory.\nDisappears: memory held by projections a reader never touches.\nEvidence: open wall and heap by command on a store copy.\nBatch: store lane; rehearse on a copy."
-        },
-        {
-          "id": "run-wall",
-          "title": "Reduce the longer test runs inside a full measurement run",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestTheRunRecordHoldsEachPackagesWallAndPeak$'",
-          "rationale": "Measure first. The 2026-10-31 run spent 5h30m of 9h05m in the longer test runs and 3h08m measuring. cmd/validate/lane_walls.go:21-44 keeps walls of a minute or more in process state, and they never reach the run record. Record each package's wall there, with its peak working set: internal/processcontrol/supervisor_windows.go:108-109 declares PeakProcessMemoryUsed, unread, and that finds the package recorded at 49 GiB. internal/testprocess/measure.go sees only the direct child, and go test's binary is a grandchild, so the job counter is the right owner.\nMove what only guards a past adoption behind pairtest, as earlier cost four tests 237 minutes. SQA-266 asks the same.\nPredicted: under 2 hours for that phase, with no cell dropped.\nServes: development velocity; more runs a week.\nDisappears: repeated work.\nEvidence: phase walls across two runs.\nBatch: validate lane."
-        },
-        {
-          "id": "moss-denoiser",
-          "title": "Find and close the native MOSS denoiser's wall against upstream's",
-          "status": "open",
-          "verify": "go test -tags models ./internal/evaluation -count=1 -run '^TestMOSSDenoiserWallIsAccountedFor$'",
-          "rationale": "The resource comparison measured native MOSS at 94.2 s of denoising a 1024 square picture against upstream's 51.8 s on one card and one protocol, at 0.47 times its peak device memory (docs/verification/moss-image-resources.json).\nFind where the difference goes before changing anything, and keep pictures byte-identical to the parity record while it closes. The first check named a throughput subtest that its parent passes without (internal/evaluation/moss_retained_model_test.go:110).\nA cause that is arithmetic the oracle requires is recorded as that and ends the step.\nServes: throughput for image generation.\nDisappears: nothing.\nEvidence: a retained before-and-after on the protocol in docs/verification/moss-image-resources.json.\nBatch: device and cycle-only model evaluation."
-        },
-        {
-          "id": "trained-precision",
-          "title": "A trained model serves at its base's precision",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestATrainedCheckpointServesAtItsBasesPrecision$'",
-          "rationale": "A safetensors checkpoint saves 32-bit weights where its base holds 16-bit: 1.98 GB against 0.99 GB. The two trained models read 321 and 318 tok/s against the base's 505.7, a first token at 4096 tokens of 142 ms against 79 ms, and a load of 3.15 s against 1.6 s, with nothing in the training to explain any of it.\nSave what serves at the base's precision, and keep what resumes as it is. Measure first: a 16-bit float may round away small updates, so the check is the verdict re-read on the rounded weights, and if the gain goes the row is retired with the reading.\nServes: throughput, load-time and peak-device-memory of every trained model.\nDisappears: a trained model twice the size of its base.\nEvidence: a test of the saved precision, then the rows of one trained model.\nBatch: one device run."
-        },
-        {
-          "id": "krea-prompt-cache",
-          "title": "Keep a Krea prompt's text conditioning for a prompt met again",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestAKreaPromptMetAgainPlacesNoTextEncoder$'",
-          "rationale": "memory-bounds/text-one-block ran both image encoders a layer at a time and left Krea without the conditioning cache MOSS's rotary path has (internal/latentimage/conditioning_cache.go): a Krea session keeps the one prompt it last fused, so a request that returns to an earlier prompt, or alternates two, runs the text encoder again. Krea's new prompt took about 3 s in the lease that encodes it (docs/verification/media-stage-peaks.json, krea new prompt, model session leased), against 0.01 s for the same prompt on a new seed.\nKeep a Krea prompt's selected-layer rows on the host as MOSS keeps its hidden states, bounded the same way, and fuse a prompt met again from them, placing no encoder layer. Hold the picture to the one its prompt makes when encoded fresh, byte for byte.\nServes: first-output for image generation on a prompt met again.\nDisappears: nothing.\nEvidence: the test, and a repeated prompt's prepare time in the next stage record.\nBatch: media lane."
         }
       ]
     }
@@ -1084,6 +1219,16 @@
         "kernel-notices"
       ],
       "asked": "2026-11-01"
+    },
+    {
+      "id": "one-findings-register",
+      "question": "Keep findings in one register? docs/sqa_findings.json (701 KB, a record no code reads, internal/landing/landing.go:376-379, unverified) and the OvergoDB findings store (internal/finding, cmd/finding) both hold findings; 3 of the 22 commits since 2026-11-02 changed only the JSON register.",
+      "options": [
+        "One register, read and written by cmd/finding, so a finding is not a commit of its own. Review sessions write through the command.",
+        "Keep both registers: docs/sqa_findings.json for review sessions, the store for the system"
+      ],
+      "recommendation": "One register, read and written by cmd/finding, so a finding is not a commit of its own. Review sessions write through the command.",
+      "asked": "2026-11-03"
     }
   ]
 }

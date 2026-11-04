@@ -120,13 +120,10 @@ const (
 	ReasonParked      = "step-parked"
 )
 
-// CycleTrigger is the optional world extension that decides when an improvement
-// cycle runs besides the plan emptying: CycleDue says whether one should start
-// before the next step is dispatched, because what a cycle measures has moved by
-// enough landings since the last that completed, and CycleWorthRunning gates the
-// cycle an empty plan would start, so an empty plan with nothing moved runs none.
+// CycleTrigger is the optional world extension that gates the improvement cycle an
+// empty plan would start: CycleWorthRunning says whether it has anything to measure,
+// so an empty plan with nothing moved runs none. A cycle starts only when the plan empties.
 type CycleTrigger interface {
-	CycleDue() (due bool, reason string, err error)
 	CycleWorthRunning() (worth bool, reason string, err error)
 }
 
@@ -186,19 +183,6 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, readErr
 			}
 			continue
-		}
-		if trigger, triggers := world.(CycleTrigger); triggers {
-			improver, measures := world.(ImprovementWorld)
-			due, _, err := trigger.CycleDue()
-			if err != nil {
-				return outcome, fmt.Errorf("loop: cycle trigger: %w", err)
-			}
-			if due && measures {
-				if _, err := Improve(improver); err != nil {
-					return outcome, err
-				}
-				continue
-			}
 		}
 		// A world that hands a parked row back holds no record of it, and the run ends loudly.
 		if slices.Contains(outcome.Parked, step.Key()) {

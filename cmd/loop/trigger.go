@@ -91,33 +91,16 @@ func touchesSurface(root, file string, closure map[string]bool) bool {
 // commitAbbreviation is how many hex digits of a commit a decision's reason shows.
 const commitAbbreviation = 12
 
-// cycleDecision is whether a cycle is due and why, in words an operator reads.
-type cycleDecision struct {
-	Due    bool
-	Reason string
-}
-
-// decideCycle says whether an improvement cycle is due from the landings since the last cycle
-// that completed, of any outcome: none is due when nothing a cycle measures moved, so a failing
-// cycle is not started again until the surface changes; one is due once landings that moved it
-// number at least limit, the count at which finding which of them broke a failed cycle would cost
-// more than the cycle. A moved surface below the limit waits for the plan to empty.
-func decideCycle(last string, moved, limit int) cycleDecision {
-	switch {
-	case last == "":
-		return cycleDecision{Reason: "no cycle has completed, so there is no run to compare with"}
-	case moved == 0:
-		return cycleDecision{Reason: "nothing a cycle measures has changed since the cycle at " + last[:min(len(last), commitAbbreviation)]}
-	case limit > 0 && moved >= limit:
-		return cycleDecision{Due: true, Reason: "landings that moved what a cycle measures reached the limit"}
-	}
-	return cycleDecision{Reason: "what a cycle measures moved, but the landings are below the limit, so it waits for the plan to empty"}
+// unmovedSince is why no cycle is due while nothing a cycle measures has changed since the cycle at last, which
+// completed, of any outcome: a failing cycle is not started again until what it measures changes.
+func unmovedSince(last string) string {
+	return "nothing a cycle measures has changed since the cycle at " + last[:min(len(last), commitAbbreviation)]
 }
 
 // HandStartDue says whether a cycle started by hand (-improve) is due, by the trigger's terms with the dispatched step
 // beside them: a cycle a run left unfinished continues at its own commit, and otherwise one is due only when no cycle
-// has completed, or what a cycle measures moved since the last that did and the landings that moved it reached the
-// limit or the plan is empty. While a step is dispatched none is: a fix is judged by its own check, and a decline by
+// has completed, or what a cycle measures moved since the last that did and the plan is empty. While a step is
+// dispatched none is: a fix is judged by its own check, and a decline by
 // its own model's cells, never by a cycle of every model started for it (owner, 2026-10-31: stop retesting the whole
 // scorecard without finishing). The second run of 2026-10-31 was started by hand after a fix to three records whose
 // checks had passed on the card, and spent 9 hours 5 minutes.
@@ -129,12 +112,11 @@ func (w *improvement) HandStartDue(dispatch plan.Dispatch) (bool, string, error)
 	if err != nil {
 		return false, "", err
 	}
-	decision := decideCycle(last, moved, w.limit)
 	switch {
-	case last == "" || decision.Due:
-		return true, decision.Reason, nil
+	case last == "":
+		return true, "no cycle has completed, so there is no run to compare with", nil
 	case moved == 0:
-		return false, decision.Reason, nil
+		return false, unmovedSince(last), nil
 	case dispatch.Complete:
 		return true, "the plan is empty and what a cycle measures moved", nil
 	}

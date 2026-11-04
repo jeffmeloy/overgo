@@ -460,7 +460,7 @@
       },
       "likely_effort": "Small launch/owner reuse first; broader credit redesign is unpriced.",
       "plan_references": [
-        "time-and-memory/run-wall"
+        "run-once/run-wall"
       ],
       "plan_coverage": "Adopted by the committed plan at a0a58c69159a8a7ec150d8d6a09bd78047824836: time-and-memory/run-wall. This names implementation ownership; it does not establish that the recommendation is implemented or its deciding comparison passed. The finding remains open at its stated evidence scope.",
       "closure_criteria": [
@@ -7323,6 +7323,18 @@
         "plan_steps": [
           "store-durability/fault-seam"
         ]
+      },
+      {
+        "comment": "Landed with doctrine-cut/auto-cycle: the start of a cycle between steps, set by a loop.json option nothing configured (AutoCycleLandings), is gone with improvement.CycleDue and the driver's check before each step. A cycle now starts only when the plan empties and CycleWorthRunning says something moved, or by hand under HandStartDue. The continuation this finding asks for has one path fewer to own; unattended-driver/first-start and ownership-wait are unchanged.",
+        "disposition": "context",
+        "evidence": [
+          "internal/loop TestDriverStartsACycleOnlyWhenThePlanEmpties",
+          "cmd/loop TestLoopStartsACycleWhenTheMeasuredSurfaceMoved"
+        ],
+        "finding_id": "SQA-271",
+        "plan_steps": [
+          "doctrine-cut/auto-cycle"
+        ]
       }
     ],
     "experiments": {
@@ -7361,8 +7373,8 @@
       "No source changes since the preceding review; prior retained gate timings remain historical and compare different selected package sets. Strata is a comparison, not presumed optimal. No new performance or sampling-distribution inference."
     ],
   "master_lead_triage": {
-    "at": "2026-11-03",
-    "head": "de3563d175dc8fbad6cf508e9270fada34c12262",
+    "at": "2026-11-04",
+    "head": "9be8221e31ae6aa9ef1f44b3f3a48ae491fc3da8",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7604,9 +7616,9 @@
       "SQA-266": {
         "action": "existing-row",
         "rows": [
-          "time-and-memory/run-wall"
+          "run-once/run-wall"
         ],
-        "note": "Was advisory with no row. The static review's run-wall step asks the same and measures first, so it owns this now, including the finding's caution that a removed paired test needs its requirement named. trained-models/do changes SelectValidation for one class only: a trained model whose one measurement finished leaves a run of every model. The lanes the finding measures are unchanged, so the finding stays with its row."
+        "note": "time-and-memory/run-wall moved, unchanged but for the review's added overlaps, to run-once/run-wall, the first step of the review's row (2026-11-03) that does each piece of a full run's setup once."
       },
       "SQA-232": {
         "action": "implemented",

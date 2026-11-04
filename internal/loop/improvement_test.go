@@ -42,43 +42,33 @@ func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int,
 	return 0, nil
 }
 
-// triggeredWorld is an improving world whose trigger answers from a script: due says, for each
-// look before a step, whether a cycle is due, and worth whether the cycle an empty plan would
-// start has anything to measure.
+// triggeredWorld is an improving world whose trigger answers from a script: worth says whether
+// the cycle an empty plan would start has anything to measure.
 type triggeredWorld struct {
 	improvingWorld
-	due   []bool
-	looks int
 	worth bool
-}
-
-func (w *triggeredWorld) CycleDue() (bool, string, error) {
-	w.looks++
-	return w.looks <= len(w.due) && w.due[w.looks-1], "scripted", nil
 }
 
 func (w *triggeredWorld) CycleWorthRunning() (bool, string, error) { return w.worth, "scripted", nil }
 
-// TestDriverStartsATriggeredCycleBeforeTheNextStep holds a cycle the trigger calls due to run
-// between steps, before the worker is dispatched, and once; to run no cycle while the loop is
-// stopped; and an empty plan's cycle to run only when it is worth running.
-func TestDriverStartsATriggeredCycleBeforeTheNextStep(t *testing.T) {
+// TestDriverStartsACycleOnlyWhenThePlanEmpties holds the driver to dispatching the plan's step
+// before any cycle, and to starting a cycle only once the plan is empty and the cycle is worth
+// running; a stopped loop runs neither.
+func TestDriverStartsACycleOnlyWhenThePlanEmpties(t *testing.T) {
 	t.Parallel()
 	advance := func(w *fakeWorld, _ Step, _ string) string { w.steps = nil; return "" }
 	published := &scorecard.Record{Commit: "b"}
 	for name, test := range map[string]struct {
-		due                    []bool
 		worth, paused          bool
 		wantFills, wantWorkers int
 	}{
-		"due before the step, nothing moved after":  {due: []bool{true}, wantFills: 1, wantWorkers: 1},
-		"not due, an empty plan with nothing moved": {due: nil, wantFills: 0, wantWorkers: 1},
-		"not due, an empty plan that is worth it":   {due: nil, worth: true, wantFills: 1, wantWorkers: 1},
-		"due while the loop is stopped":             {due: []bool{true}, paused: true, wantFills: 0, wantWorkers: 0},
+		"an empty plan with nothing moved": {wantFills: 0, wantWorkers: 1},
+		"an empty plan that is worth it":   {worth: true, wantFills: 1, wantWorkers: 1},
+		"the loop is stopped":              {worth: true, paused: true, wantFills: 0, wantWorkers: 0},
 	} {
 		world := &triggeredWorld{
 			improvingWorld: improvingWorld{fakeWorld: fakeWorld{steps: []Step{{Item: "row", ID: "do"}}, behavior: []func(*fakeWorld, Step, string) string{advance}, paused: test.paused}, published: published},
-			due:            test.due, worth: test.worth,
+			worth:          test.worth,
 		}
 		if _, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 3}); err != nil {
 			t.Fatalf("%s: %v", name, err)

@@ -17,10 +17,8 @@ import (
 // measurement: a change to a non-test Go file in the closure of a command a cycle runs, to a file
 // one of those packages embeds by name (changed, deleted or renamed), or to the kernels, counts as
 // a landing that moved it, and a test, a doc (beside an embedded file or not), a package outside
-// the closure does not; no cycle is due while nothing moved, so a failing cycle is not started
-// again for the code it already judged, nor before the landings that moved the surface reach the
-// limit; the limit starts one, once for a commit; and an empty plan runs a cycle only when
-// something moved.
+// the closure does not; and an empty plan runs a cycle only when something moved, so a failing
+// cycle is not started again for the code it already judged.
 func TestLoopStartsACycleWhenTheMeasuredSurfaceMoved(t *testing.T) {
 	t.Parallel()
 	repository, records := t.TempDir(), filepath.Join(t.TempDir(), "scorecards")
@@ -51,64 +49,54 @@ func TestLoopStartsACycleWhenTheMeasuredSurfaceMoved(t *testing.T) {
 			"internal/trainingprogram": true, "internal/trainingprogram/optimizer_policy.json": true,
 		}, nil
 	}
-	world := &improvement{watch: true, root: repository, records: records, surface: surface, limit: 2}
-	check := func(name string, wantDue, wantWorth bool) {
+	world := &improvement{watch: true, root: repository, records: records, surface: surface}
+	check := func(name string, wantMoved int) {
 		t.Helper()
-		due, reason, err := world.CycleDue()
-		if err != nil || due != wantDue {
-			t.Fatalf("%s: a cycle is due = %t (%s, %v), want %t", name, due, reason, err, wantDue)
+		if _, moved, err := world.movedSince(); err != nil || moved != wantMoved {
+			t.Fatalf("%s: %d landings moved what a cycle measures (%v), want %d", name, moved, err, wantMoved)
 		}
-		if worth, reason, err := world.CycleWorthRunning(); err != nil || worth != wantWorth {
-			t.Fatalf("%s: an empty plan's cycle is worth running = %t (%s, %v), want %t", name, worth, reason, err, wantWorth)
+		if worth, reason, err := world.CycleWorthRunning(); err != nil || worth != (wantMoved > 0) {
+			t.Fatalf("%s: an empty plan's cycle is worth running = %t (%s, %v), want %t", name, worth, reason, err, wantMoved > 0)
 		}
 	}
-	check("nothing landed since the cycle", false, false)
+	check("nothing landed since the cycle", 0)
 
 	land("docs/notes.md", "a doc")
 	land("internal/evaluation/a_test.go", "a test")
 	land("internal/server/x.go", "a package outside the closure")
-	check("landings that move nothing a cycle measures", false, false)
+	check("landings that move nothing a cycle measures", 0)
 
 	land("internal/evaluation/a.go", "moves the surface once")
-	check("one landing that moved it, below the limit", false, true)
+	check("one landing that moved it", 1)
 
 	land("kernels/k.cu", "moves it again through a kernel")
-	check("the second landing reaches the limit", true, true)
-	if due, _, err := world.CycleDue(); err != nil || due {
-		t.Fatalf("a cycle was due twice for one commit (%t, %v), want it begun once", due, err)
-	}
+	check("a kernel moves it too", 2)
 
 	// A cycle that completed at HEAD leaves nothing moved, whatever its outcome.
 	if _, err := scorecard.Publish(records, time.Date(2026, time.October, 5, 13, 0, 0, 0, time.UTC), scorecard.Record{Commit: git("rev-parse", "HEAD")}); err != nil {
 		t.Fatal(err)
 	}
-	world.attempted = ""
-	check("the cycle that completed at HEAD", false, false)
-
-	// No limit set: only an empty plan starts one, and only when something moved.
-	world.limit = 0
+	check("the cycle that completed at HEAD", 0)
 	land("cmd/train/main.go", "moves the surface")
-	check("no limit", false, true)
+	check("a command a cycle runs", 1)
 
 	// A file a closure package embeds by name moves the surface as its Go does, once a landing,
-	// and a doc beside it does not: with a limit of four, a cycle is due at the fourth and no
-	// sooner. The deletion and the rename hold the selector alone; in a tree that loads, the
-	// same landing also edits the directive that named the file.
+	// and a doc beside it does not. The deletion and the rename hold the selector alone; in a
+	// tree that loads, the same landing also edits the directive that named the file.
 	if _, err := scorecard.Publish(records, time.Date(2026, time.October, 5, 14, 0, 0, 0, time.UTC), scorecard.Record{Commit: git("rev-parse", "HEAD")}); err != nil {
 		t.Fatal(err)
 	}
-	world.limit = 4
 	land("internal/model/notes.md", "a doc beside an embedded input")
-	check("a doc beside an embedded input", false, false)
+	check("a doc beside an embedded input", 0)
 	land("internal/model/architecture_profiles.json", "the architecture catalog changes")
-	check("one embedded input changed", false, true)
+	check("one embedded input changed", 1)
 	land("internal/trainingprogram/optimizer_policy.json", "the optimizer policy changes")
 	git("rm", "-q", "internal/trainingprogram/optimizer_policy.json")
 	git("commit", "-q", "-m", "the optimizer policy is deleted")
-	check("a change and a deletion more, below the limit", false, true)
+	check("a change and a deletion more", 3)
 	git("mv", "internal/model/architecture_profiles.json", "internal/model/architectures.json")
 	git("commit", "-q", "-m", "the architecture catalog is renamed")
-	check("the rename is the fourth landing that moved it", true, true)
+	check("the rename", 4)
 	land("internal/model/space name.json", "an embedded path containing spaces")
 	closure, _ := surface(t.Context(), repository)
 	if _, moved, err := landingsThatMovedTheSurface(t.Context(), repository, records, closure); err != nil || moved != 5 {
@@ -178,32 +166,9 @@ func TestCycleSurfaceNamesTheFilesItsCommandsEmbed(t *testing.T) {
 
 }
 
-// TestDecideCycleNamesItsReason holds the decision's words: each outcome says why, for the
-// operator who reads the loop's output.
-func TestDecideCycleNamesItsReason(t *testing.T) {
-	t.Parallel()
-	for name, test := range map[string]struct {
-		last         string
-		moved, limit int
-		due          bool
-	}{
-		"no cycle yet":         {"", 5, 3, false},
-		"nothing moved":        {"abcdef0123456789", 0, 3, false},
-		"below the limit":      {"abcdef0123456789", 2, 3, false},
-		"at the limit":         {"abcdef0123456789", 3, 3, true},
-		"no limit set":         {"abcdef0123456789", 9, 0, false},
-		"above the limit":      {"abcdef0123456789", 7, 3, true},
-		"one landing, limit 1": {"abcdef0123456789", 1, 1, true},
-	} {
-		if got := decideCycle(test.last, test.moved, test.limit); got.Due != test.due || got.Reason == "" {
-			t.Errorf("%s: decideCycle = %+v, want due %t with a reason", name, got, test.due)
-		}
-	}
-}
-
 // TestAHandStartedRunWaitsForTheTrigger holds -improve, started by hand, to the trigger's terms with the dispatched step
 // beside them: a cycle is due when none has completed, never while nothing it measures moved, and once something moved
-// only when the plan is empty or the landings reached the limit; a dispatched step starts none, a fix its own check
+// only when the plan is empty; a dispatched step starts none, a fix its own check
 // judges nor a decline its own model's cells judge, and a cycle a run left unfinished continues whatever the plan holds.
 func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
 	t.Parallel()
@@ -241,9 +206,6 @@ func TestAHandStartedRunWaitsForTheTrigger(t *testing.T) {
 	check("a fix its own check judges", fix, false)
 	check("a decline its own model's cells judge", gap, false)
 	check("an empty plan", plan.Dispatch{Complete: true}, true)
-	world.limit = 1
-	check("the landings reached the limit", fix, true)
-	world.limit = 0
 
 	testutil.WriteTextFile(t, repository, filepath.Join(processlock.StateDirectory, cycleCreditFile), `{"Commit":"`+git("rev-parse", "HEAD")+`"}`)
 	check("a cycle a run left unfinished", fix, true)

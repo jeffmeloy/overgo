@@ -1,20 +1,20 @@
 {
   "branch": "master",
   "candidate_review": {
-      "assessment": "Two established obligations close with source, AST and retained results. Credit the landed net seam/test reductions; no new safe consolidation or unsupported numeric/geometry finding established.",
-      "priority": "The former P1 store closure is complete. Pending memo shutdown, evidence attribution and unattended continuation remain ahead of optional compaction; their severities do not change.",
+      "assessment": "One fully priced same-file simplification established; no additional safe test retirement or new recovery/geometry finding.",
+      "priority": "SQA-298 is P3 maintenance work. Existing memo shutdown, attribution, evidence and unattended continuation concerns retain priority.",
       "declined_candidates": [
-        "Do not delete the migrated fault assertions because generic failure injection exists: the retained latch undo proves different failure sensitivity. Keep snapshot-stream failure under its original native owner.",
-        "Do not merge generated store lifecycles with one fixed crash workload or swap lifecycles with store tests. Multi-handle publication and child-stop/grace contracts differ; fixed seed samples are not exhaustive coverage.",
-        "catalogLayers already serves nativeExpertBankTensors and f32RequiredModelTensors. Different tensor inventories/adapted fallbacks and lifetime owners do not justify another iterator/wrapper on this evidence.",
-        "sseEmitter.write/named duplication is already SQA-224. synchronizedSSE also owns serialization, error latching and heartbeat joins; similar writes do not justify removing those contracts.",
-        "Retain heartbeat-frame/flush and cancellation/idempotent-stop tests as different contracts. Retain package-progress order and observer forwarding; it does not establish unattended delivery. No new selector, scheduler, framework, ratchet or telemetry."
+        "Do not remove TokenizeSamplingText's method or change samplingVocabulary/servedModel interfaces: server textual logit bias and recipe lengthPrompt require it. Reuse the existing implementation without interface migration.",
+        "Keep historical content introduction distinct from descriptor introduction; keep byte-budget refusal before any visitor call and exact boundary/cursor accounting.",
+        "Do not equate the live-child output-drain fixture with in-memory credit transitions or queued callback errors: they catch different deadlock, revocation and acceptance failures.",
+        "Keep stage wall division, overlapping-part refusal and fake memory high-water checks separate. Their simple fixture values are exact accounting examples, not empirical performance/geometry assumptions.",
+        "Existing serving probe/browser tests retain durable identity, failed publication, slow-reader/resync, authentication and reconnect. No duplicate SSE helper, scheduler, new selector or telemetry."
       ]
     },
   "committed_plan": {
     "git_blob": "f51026a85cd95880c8ebefd67d05bec84a918b08",
     "path": "docs/plan.json",
-    "revision": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+    "revision": "71940736373dc5c76c7f435ee59a866e2332ebb0",
     "sha256": "ff3ed131d123eaa601f3dac0bb1536cb63ecbb64aab6b710d9cdebcc32b457d8",
     "working_tree_status": "Only the pinned committed plan is assessed; any concurrent worktree edits remain excluded."
   },
@@ -1860,6 +1860,65 @@
         "Existing ordinary/stop-prefix/multiple-choice/prompt-major/terminal streaming cases remain; no helper, fixture, selector or test growth."
       ],
       "comparison": "The deciding comparison is the existing writeSSE delegation and named body, with the full-file AST/type comparison already retained. Use existing native streaming coverage during implementation validation; no added SQA test run or benchmark."
+    },
+    {
+      "id": "SQA-298",
+      "status": "open",
+      "severity": "P3",
+      "category": "production-consolidation",
+      "classification": "source-proven-equivalent-delegation",
+      "title": "Reuse TokenizeText for sampling text tokenization",
+      "evidence_commit": "71940736373dc5c76c7f435ee59a866e2332ebb0",
+      "sources": [
+        {
+          "path": "internal/inference/sampling_vocab.go",
+          "symbol": "Runner.TokenizeSamplingText; Runner.TokenizeText"
+        },
+        {
+          "path": "internal/tokenizer/bpe.go",
+          "symbol": "EncodeOptions; Vocab.Encode"
+        },
+        {
+          "path": "internal/server/server.go",
+          "symbol": "samplingVocabulary; textual logit-bias parsing -> TokenizeSamplingText; tokenizationAPI -> TokenizeText"
+        },
+        {
+          "path": "cmd/recipe/inference_measure.go",
+          "symbol": "servedModel; lengthPrompt -> TokenizeSamplingText"
+        },
+        {
+          "path": "internal/inference/runner_admission_test.go",
+          "symbol": "TestRunnerLockOpenRejectsUnavailableRunner"
+        },
+        {
+          "path": "internal/inference/sampling_vocab_test.go",
+          "symbol": "TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces"
+        },
+        {
+          "path": "internal/server/server_test.go",
+          "symbol": "fakeGenerator.TokenizeSamplingText retained"
+        },
+        {
+          "path": "cmd/recipe/inference_measure_test.go",
+          "symbol": "servedFixture.TokenizeSamplingText retained"
+        }
+      ],
+      "evidence": "Both Runner methods repeat the identical nil-runner/nil-vocabulary guard then call r.vocab.Encode. TokenizeSamplingText uses EncodeOptions{}; TokenizeText(text,false,false) constructs the same zero values for AddSpecial,ParseSpecial and omitted LiteralText. Source callers: server text logit bias and recipe lengthPrompt use the sampling method; general tokenization serves server/projector/CLI callers. The method remains required by two consumer interfaces, so deleting it would expand migration. Complete source-only AST replacement yields function 50->32 and full file 1410->1392(-18). No prior finding covers these symbols.",
+      "recommended_change": "The repeated guard and direct Encode call are unnecessary. Replace only TokenizeSamplingText's body with return r.TokenizeText(text, false, false), reusing the existing same-receiver owner. Keep its signature/comment, both consumer interfaces and their fakes. No helper, new option or test is needed for this trivial delegation.",
+      "displaced_surface": "Delete TokenizeSamplingText's duplicated nil/vocab branch and EncodeOptions{} construction/direct Encode expression. Retain TokenizeText's guard/Encode as the shared implementation and the required sampling adapter. Both callers still receive the same token IDs/errors; nil receivers remain valid method calls that return errRunnerNil. AddSpecial/ParseSpecial/LiteralText stay false, preserving control/added-token and DNA behavior. No unique test moves or retires, no cancellation/resource lifetime/numerical/build-tag/export/config/schema changes. Only one production body changes; no data-loss, confidentiality or user-visible semantic change expected.",
+      "impact": "Small reduction in duplicated tokenizer admission/options maintenance. No claimed processing or memory benefit; forwarding may inline but that has not been measured or required.",
+      "expected_benefit": {
+        "outcome": "Production sampling_vocab.go: 1410->1392(-18 AST); required method 50->32. Local retained test files288+126=414 unchanged; combined affected/local-test surface: 1824->1806. All other consumer/test files have zero delta.",
+        "uncertainty": "Counted full hypothetical AST including original comments, not compiled/executed. Helpers/wrappers added0,existing adapter retained1,imports/fixtures/config0; setup executions and gate invocations unchanged. No new test or fixture maintenance. Native Go cache remains responsible for normal affected implementation validation."
+      },
+      "likely_effort": "One same-file body replacement; trivial, low risk after preserving the explicit false flags.",
+      "plan_references": [],
+      "plan_coverage": "Advisory within existing compact-production scope, not an adopted or new plan row. SQA changes neither plan nor skill.",
+      "closure_criteria": [
+        "TokenizeSamplingText delegates to TokenizeText(text,false,false); duplicate guard/direct Encode path gone with net 18-node full-file reduction.",
+        "Required interfaces/fakes and existing nil-admission, infill/render and consumer tests remain; no extra helper/fixture/test or behavior change."
+      ],
+      "comparison": "Source equivalence of the two guards and all three EncodeOptions fields decides the trivial change; retain existing native runner/server/recipe validation when implementation lands. No new SQA run, benchmark, fixture, selector or confidence suite."
     },
     {
       "id": "SQA-225",
@@ -6331,97 +6390,73 @@
     }
   ],
   "gate_test_assessment": {
-      "execution": "No SQA application tests, gates, model/device workloads, services, benchmarks, profiles or new fixture runs. Only scratch Go AST/type analysis and report JSON/integrity checks.",
+      "execution": "Scratch AST/type analysis and report parsing only. No application test, production gate, benchmark/profile, model/device workload or service run.",
       "sample_cost": {
-        "revision": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
-        "comparison_revision": "70bd1ab76338010c36b22cf2bfd50ae20e49c386",
+        "revision": "71940736373dc5c76c7f435ee59a866e2332ebb0",
+        "comparison_revision": "71940736373dc5c76c7f435ee59a866e2332ebb0",
         "files": [
-          "cmd/swap/main.go",
-          "internal/inference/runner_weights_test.go",
-          "internal/inference/runner_weights.go",
-          "internal/modelswap/supervisor.go",
-          "internal/modelswap/swap_lifecycles_test.go",
-          "internal/overgodb/blob_commit_test.go",
-          "internal/overgodb/blob_pack_test.go",
-          "internal/overgodb/blob_pack.go",
-          "internal/overgodb/blobs.go",
-          "internal/overgodb/commit_coordinator_test.go",
-          "internal/overgodb/crash_faults_test.go",
-          "internal/overgodb/crash_lifecycles_test.go",
-          "internal/overgodb/crash_points_test.go",
-          "internal/overgodb/crash_record_test.go",
-          "internal/overgodb/durable_operations_test.go",
-          "internal/overgodb/fault_test.go",
-          "internal/overgodb/log.go",
-          "internal/overgodb/transaction_writer_test.go",
-          "internal/server/protocol_io.go",
-          "internal/server/server_completion_chat_embedding_test.go",
-          "internal/testevidence/command.go",
-          "internal/testevidence/progress_test.go"
+          "internal/inference/sampling_vocab.go",
+          "internal/inference/sampling_vocab_test.go",
+          "internal/inference/runner_admission_test.go",
+          "internal/overgodb/documents.go",
+          "internal/overgodb/documents_cutoff_test.go",
+          "internal/server/runtime_serving.go",
+          "internal/server/runtime_serving_test.go",
+          "internal/testevidence/package_updates.go",
+          "internal/testevidence/package_updates_test.go",
+          "internal/processmeasure/counter.go",
+          "internal/processmeasure/stages.go",
+          "internal/processmeasure/stages_test.go"
         ],
-        "file_count": 22,
-        "functions": 277,
-        "parser_local_bindings": 9143,
-        "production_ast_before": 11154,
-        "production_ast_after": 11401,
-        "production_ast_delta": 247,
-        "test_ast_before": 30632,
-        "test_ast_after": 34328,
-        "test_ast_delta": 3696,
-        "total_ast_after": 45729,
-        "scope": "Whole-file counts include comments;3new test files count from zero. Named source snippets outside these22files are excluded from totals. Counts are maintenance proxies, not elapsed or memory measurements."
+        "file_count": 12,
+        "functions": 67,
+        "parser_local_bindings": 1984,
+        "production_ast_before": 5022,
+        "production_ast_after": 5022,
+        "production_ast_delta": 0,
+        "test_ast_before": 5166,
+        "test_ast_after": 5166,
+        "test_ast_delta": 0,
+        "total_ast_after": 10188,
+        "scope": "Committed source unchanged. Separately parsed SQA-298 hypothetical changes only sampling_vocab.go,1410->1392; all 12 sampled files would be 10188->10170. No repository implementation file modified."
       },
-      "complete_change_cost": "Store-lifecycles+2250totalAST;fault-seam-574;swap-lifecycles+2267 =>+3943. No schema/CUDA/static fixture additions reported. Generated trees/overlays and virtual fake-child lifecycles still have setup/maintenance cost. Whole store portion across these two landings grows29production/1647test; fault-seam savings are not the whole recovery cost.",
-      "completed_reductions": "log.go3980->3950 removes durableWriter, recordLog.writer and dispatch fallback. blob_pack_test1807->1495 removes duplicate cancellation setup(-297including migration) and simplifies index input(-15). Full fault-seam test delta-544 includes new1020-node tagged file, recorder target mode, reader-follow checks and required-inner-test admission; no saving is claimed from mere relocation.",
+      "complete_change_cost": "SQA-298 production -18 AST; test/helper/wrapper/fixture/import/export/config/schema/gate delta 0. Required public method remains as an existing adapter; no new abstraction. Local affected production plus unchanged two runner test files: 1824->1806. All consumer interfaces/fakes, setup executions and retained gate selection remain unchanged.",
+      "completed_reductions": "No newly landed reductions. Earlier store seam and cancellation consolidations remain credited in SQA-288/223 without repeating their checks.",
       "sampled_tests": [
         {
-          "classification": "merge/remove",
-          "tests": "TestBlobVerificationStopsWhenCancelled -> TestSmallBlobsArePacked",
-          "retained_owner": "Existing packed/loose/backup fixture and Store.VerifyBlobs/blobStore.verify",
-          "unique_cases": "Empty store, damaged packed member and loose blob must return cancellation first; ordinary damaged member must return a non-cancellation error. Keep mixed kinds,12exact reads, republish/repack/backup, index corruption.",
-          "cost": "410-node separate test removed; retained function757->870(+113including moved comment); net-297test. No production/helper/wrapper/config/export change. Same-file fixture opens7->4,TempDirs4->2,pack operations3->2,contents5->3,corruption writes3->2; Backup internals unchanged. No elapsed/RSS claim."
-        },
-        {
-          "classification": "simplify",
-          "tests": "TestPackIndexRejectsImpossibleCounts",
-          "retained_owner": "readPackIndex on io.SectionReader; existing test table",
-          "unique_cases": "MaxUint64,MaxUint64/packEntryBytes and3 entries refuse in a two-entry file;2 entries preserve exact index.",
-          "cost": "172->157nodes. Four temp-file setups replaced by in-memory byte readers/SectionReaders; no new fixture/helper owner. File-size quotient guards remain before allocation."
-        },
-        {
-          "classification": "merge/remove",
-          "tests": "TestLogAppendStreamsFrame; TestAppendFaultClosesEveryStoreSurfaceUntilReopen; TestSyncFaultReplaysCompleteUncertainCommit; displaced blob/coordinator fault bodies and transaction rotation subtest",
-          "retained_owner": "crash_faults_test.go, crashRecorder and crashCheck; outer TestEveryDurableOperationIsACrashPoint/CanFail",
-          "unique_cases": "Keep three exact append writes+flush; joined injected/ErrStoreFaulted errors; Artifact/Query/Snapshot/Commit refusal; open log; unchanged head/catalog; durable but uncommitted blob; uncertain complete-frame replay; read-only handle following recovery. TestStreamingSnapshotFaultPreservesStore remains untagged.",
-          "cost": "Full seam-30production/-544test, including1020-node tagged owner and54-node recorder expansion. Removes faultWriter/partWriter/error sentinel and one manual rotation fixture; narrower fault setup folds into shared case. Three existing outer child invocations remain3->3; named inner PASS checks prevent vacuity. Reader already opened by crashCheck now lives through recovery and gains one Refresh/check per eligible state, increasing work despite source reduction. No static fixture/config/production API additions."
+          "classification": "retain",
+          "tests": "TestRunnerLockOpenRejectsUnavailableRunner; TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces",
+          "retained_owner": "Runner admission and infill/render tests",
+          "unique_cases": "Nil runner returns errRunnerNil; closed admission releases lock; special pieces remain empty in infill, EOG/EOT/EOS identities exact, text/prompt render differ, invalid render mode refuses.",
+          "cost": "126+288=414 test AST unchanged. No moved case, fixture or setup; proposed forwarding is trivial and adds no test. Existing server logit-bias and recipe fixture consumers remain unchanged."
         },
         {
           "classification": "retain",
-          "tests": "TestGeneratedStoreLifecycles; TestLifecyclesKeepTheStoresPromises; crashCheck/refused operation owners",
-          "retained_owner": "Existing crashOverlay/runCrashHarness/crashRecorder/crashCheck",
-          "unique_cases": "Two writers plus reader, head/content reference, release/repack, stale-head refusal, idempotence, differing close tails and sampled crash reconstruction. Preserve read-only nonmutation and exact acknowledged identities.",
-          "cost": "New lifecycle file2450nodes. Whole landing+59production/+2191test includes cancellation/index reductions. Adds one outer child/overlay invocation2->3,40seeds*60steps plus up to6crash states each; generated data only. Current overlay1268/recorder1742/crash oracle5906nodes include later seam migration. No representative-coverage inference."
+          "tests": "TestDocumentHistoricalContentCutoff; TestDocumentContentByteBudget",
+          "retained_owner": "documentQueryFixture and Store.VisitDocuments/documentAt",
+          "unique_cases": "Late content under earlier descriptor excluded; cursor binds cutoff; future cutoff/current aliases refuse; snapshot/reopen retains population. Page bytes refuse before consumption, admit exact total and respect paged record limits.",
+          "cost": "928 test AST, two existing fixture setups, unchanged. documents.go: 2011 unchanged. CountDocuments and VisitDocuments share documentAt already; do not merge their distinct semantics into a new abstraction."
         },
         {
           "classification": "retain",
-          "tests": "TestGeneratedSwapLifecycles",
-          "retained_owner": "Supervisor and native synctest swapWorld/swapRun",
-          "unique_cases": "Stop/readiness/launch refusal, self-exit, cancellation, held/released leases, mid-load Close, exclusive child lifetime and each child's drain grace. cmd/swap propagates Close failure.",
-          "cost": "2049new testnodes for+218production.2000seeds*40virtual steps,3model names, no actual model/service/device. Zero static fixtures. No smaller established owner covers these new nontrivial lifetime contracts; growth is explicit."
+          "tests": "TestRuntimeStreamDeliversServingObservation",
+          "retained_owner": "runtimeServingProbe, servingStreamFixture, publishServing and runtimeActivitySnapshot",
+          "unique_cases": "Durable live identity, failed publication, reconnect, cutoff cursor, bounded slow-reader/resync. Real HTTP/auth/browser owner remains distinct.",
+          "cost": "runtime_serving_test.go: 1790 unchanged; runtime_serving.go: 44. SQA-252/255 already price reuse of this probe; no additional saving or double-counting of shared setup."
         },
         {
           "classification": "retain",
-          "tests": "TestNativeExpertBankTensors",
-          "retained_owner": "runner_weights.go/nativeExpertBankTensors and expert_residency.go/splitExpertResidency",
-          "unique_cases": "Fused/split/mixed BF16/F32/quantized banks, adapted/F16/flat rejection; native/converted footprint boundary and overflow; descriptors unchanged.",
-          "cost": "531testnodes and474selection production nodes unchanged. Literal48/47bytes derives from32-byte expert+8-byte dense+8-byte converted F32, not a model-specific capacity assumption. Existing zero-device fixture."
+          "tests": "TestTerminalPublicationDoesNotBlockOutput; TestQueuedPublicationPreservesRevocationsAndErrors; TestPackageCreditTransitions; TestTerminalPackageUpdates",
+          "retained_owner": "RunGoTestCommand, queuedPackageUpdates, packageUpdates and includePackageResult",
+          "unique_cases": "Blocked persistence must not block process output; acceptance joins publication; pass->revoke and callback errors remain; malformed/duplicate/late/unfinished/vacuous/skip outcomes and healthy sibling credit retain their distinct cases.",
+          "cost": "1386 test AST and 559 production unchanged. One self-executed child/listener plus existing in-memory transcript/pipe fixtures. includePackageResult already used by live updates and final report. No extra confidence child run or framework."
         },
         {
           "classification": "retain",
-          "tests": "TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame; TestContextAfterFuncDoesNotLeak; TestPackageProgressFromStream",
-          "retained_owner": "synchronizedSSE.startHeartbeat; testevidence packageProgressObserver/readGoTestJSON",
-          "unique_cases": "SSE comment/flush versus cancellation/idempotent stop are distinct; progress preserves package terminal order and forwards every event to deadline observer. These are local contracts, not worker wakeup proof.",
-          "cost": "110+95+200nodes unchanged. Two lightweight recorder/heartbeat setups and one in-memory JSON stream. The1ms/1h choices trigger heartbeat or cancellation; they are not throughput acceptance bounds. No new tests or merged timing oracle."
+          "tests": "TestStagesDivideARequest; TestStagesRefuseOverlappingParts; TestStagesReadEachPartsPeak",
+          "retained_owner": "Stages/Stage and existing processmeasure clock",
+          "unique_cases": "Nested exclusive wall arithmetic, repeated-name aggregation, out-of-order refusal, unstaged no-op, nested peak inheritance and later-stage reset.",
+          "cost": "648 test AST, 863 stage production and 135 counter arithmetic nodes unchanged. Counter-read loop makes elapsed nonzero, not a speed threshold; fake peak arithmetic uses no device. No measured saving."
         }
       ],
       "retained_results": [
@@ -6438,8 +6473,8 @@
           "result": "Swap0/2000about0.2s; undo705failures(454twochildren/125unreportedafterClose/126shortlease),grace-onlyundo143. Gate test3m40.568s/10packages;lanes2m49.921s(web2m49.123s,device/CUDAskipped);verify1.792s;scorecardnotreached. Synthetic lifecycles, no runtime saving quantified."
         }
       ],
-      "assumptions": "Pack widths/counts follow the format/SHA256 and actual file-size quotient before allocation; inode identity pairs index and bytes under rename-only production publication. Expert rank3means[inner,rows,experts]; dtypes/adapters are explicit, converted memory uses typed shape/F32 and checked.Add64, not square/equal-shape assumptions. Query chooses exact current index cardinalities, not independence/uniformity. Release keeps expected-head refusal and writer-owned committed cleanup. Grace15s is an explicit subscription/product policy and now per-child; sample loads/waits straddle it without changing it. Seed counts/action weights/6sampledcrashes/512-byte synthetic sectors and selected torn-write cuts are bounded workload/model choices, not population confidence or physical-device geometry. Numerical acceptance stays independent of gate timing. No new material unsupported constant/geometry assumption established.",
-      "automation_sequence": "RunGoTestCommand admits valid diagnostic/budget options before launch, consumes JSON, cancels on parser failure, drains the pipe and awaits actual process completion; it retains partial report and joined failures. New runCrashHarness checks each expected named inner pass, addressing vacuous execution without a new selector. Driver initial ownership contention still returns; post-worker contention loops. Existing plan dispatch visits prerequisites and supports independent eligible work; no newly observed setup delay. End records/printed completion do not demonstrate external delivery. Keep SQA-271/258 and existing first-start/ownership-wait owners; smallest remaining comparison is existing native driver fixture ownership release -> exactly one authorized dispatch, with stops/budgets/identity/partial results intact. No SQA run or new scheduler."
+      "assumptions": "TokenizeText(false,false) constructs AddSpecial=false,ParseSpecial=false with LiteralText still zero, exactly matching current EncodeOptions{} including DNA/added-token semantics. No distribution assumption or changed sampler ordering. Document budgets add actual descriptor bytes with checked.Add64; zero means declared unbounded, cutoff tracks content locator sequence, and fixed page tests are exact boundaries. Runtime cursors are handler-local uint64 encoded as JSON strings; artifact IDs carry restart identity. Stage 1<<30 and 100 are unit conversions, 20000 clock reads only establishes positive elapsed, fake peaks are exact arithmetic. Queue test 128*32768 bytes deliberately exceeds pipe buffering; no population timing inference. Driver frequency arithmetic checks overflow; actual typecheck does not establish device/OS performance. No new admitted geometry defect.",
+      "automation_sequence": "RunGoTestCommand keeps output consumption separate from queued terminal persistence and waits for actual child exit then flush. Queued updates contain verdict transitions, not raw output; callback failures remain terminal evidence errors. Existing dependency-first dispatch, stops/budgets, native Go caching and gate/resume are retained. Local publication/cursor/end records do not establish an external continuation or delivered wakeup. No new observed sequence delay and no new scheduler/selector/telemetry justified."
     },
   "hygiene_assessment": "Only docs/sqa_findings.json may change. Reconcile current report and raw owner responses immediately before publication; scratch analysis stays outside the repository.",
   "implementation_review": {
@@ -7320,11 +7355,10 @@
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
   "limitations": [
-      "Report-only source/AST/type review plus retained implementation results; prior implementation overlap is disclosed. No independent third-party claim, new application validation or measured memory/elapsed effect.",
-      "Actual type resolution covers supervisor.go only. Whole-file AST counts include source not read line-by-line; named affected callers/cases were traced. No full dependency/CUDA/alternate-platform check or recurring census.",
-      "Crash tests materialize modeled trees with simulated durability, not actual process kills/power loss. Synthetic sectors, write cuts, action/seed weights and syntax-based overlay interception limit coverage; successful fixed seeds do not establish representative failure probabilities.",
-      "Source repair requires immutable packs published by rename; arbitrary external in-place mutation is not claimed supported. Native test caching is credited, but changed workload/gate timings are not controlled speed comparisons. Strata remains a comparison, not presumed optimal.",
-      "Only the selected findings/boundaries were reconciled. Unrotated ledger retains its earlier scope. No new safe net code reduction was established; no additional confidence workload is recommended."
+      "Report-only SQA with prior implementation overlap, not independent third-party validation. AST savings are code-maintenance proxies, not measured elapsed/heap/device memory effects.",
+      "Actual go/types covers counter.go only; candidate runner file was parsed and source semantics traced, not full application/CUDA/platform typechecked. Existing tests/gates are retained evidence, not newly executed.",
+      "Only selected owners/callers were reviewed; whole-file AST includes portions not read line-by-line. Existing findings outside the rotation keep their earlier evidence and rankings unless explicitly changed.",
+      "No source changes since the preceding review; prior retained gate timings remain historical and compare different selected package sets. Strata is a comparison, not presumed optimal. No new performance or sampling-distribution inference."
     ],
   "master_lead_triage": {
     "at": "2026-11-03",
@@ -7991,12 +8025,12 @@
       }
     }
   },
-  "next_finding_number": 298,
+  "next_finding_number": 299,
   "publication_context": {
-      "checked_head": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
-      "assessment": "Immediately before writing, re-read current report, branch/HEAD and plan; merge reviewer fields while preserving all implementation-owned fields and concurrent comments raw-exact.",
-      "newer_commit_note": "Three committed landings since the prior report reviewed; dirty internal/modelswap/supervisor.go and supervisor_test.go excluded and preserved. If HEAD advances before publication, reconcile before committing.",
-      "publication": "Report-only path-limited commit under existing repository locks/hooks; unrelated index/worktree preserved. No plan edit or production gate."
+      "checked_head": "71940736373dc5c76c7f435ee59a866e2332ebb0",
+      "assessment": "Re-read current report, branch/HEAD and committed plan immediately before writing; preserve implementation-owned objects/unknown finding fields raw-exact.",
+      "newer_commit_note": "No intervening implementation landing at review pin. Uncommitted supervisor.go/supervisor_test.go worker changes excluded and untouched.",
+      "publication": "Report-only path-limited commit under existing locks/hooks; no production gate or plan change."
     },
   "ranked_active_finding_ids": [
     "SQA-286",
@@ -8032,6 +8066,7 @@
     "SQA-174",
     "SQA-222",
     "SQA-224",
+    "SQA-298",
     "SQA-225",
     "SQA-226",
     "SQA-252",
@@ -8058,43 +8093,40 @@
   "repository": "C:\\Users\\jeffm\\overgo",
   "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
   "review_notes": [
-      "SQA-288 resolved: committed generated store lifecycles repair stale pack/index pairing; fault-seam migration preserves the narrower refusal/catalog/orphan/uncertain-flush/reader-follow contracts and removes the displaced production seam. SQA-223 resolved: cancellation cases share the existing packed/loose/backup test.55open,4deferred,65resolved; no new ID or severity change.",
-      "Three complete landings add247production/3696testAST,3943total. Store-lifecycles+59/+2191;fault-seam-30/-544;swap-lifecycles+218/+2049. Actual22-file before/after counts corroborate the combined delta. Necessary recovery/lifetime coverage dominates the growth; do not call the whole change a reduction.",
-      "Completed small reductions are concrete: cancellation fixture410nodes removed after113nodes migrate into TestSmallBlobsArePacked; count-header fixture additionally shrinks15nodes. Fault-seam removes30production and544testnodes after all recorder/helper/case migration. No further safe net reduction established in this rotation.",
-      "Retained implementation evidence supplies fault sensitivity: stale pack31/40 before vs0/40 after; latch undo misses the generic refused workload but fails the migrated per-surface test; swap undo705/2000 and grace-only undo143/2000. These are fixed synthetic workloads, not estimated failure rates or SQA runs.",
-      "Pack publication is by rename; blobPack.open pairs the opened file identity with its cached index using os.SameFile. There is no source mtime check despite broader wording in the landing message. No admitted production in-place pack writer found; do not add speculative branches or promise detection of arbitrary external edits.",
-      "Native Go caching, exact gate identity, retained lane/resume and existing dependency dispatch receive credit. RunGoTestCommand joins actual child completion; printed/recorded completion alone still does not deliver an external continuation. SQA-271/258 remain open without a new observed delay.",
-      "Implementation overlap is disclosed; this is not independent third-party review. Preserve implementation_review, master_lead_triage and all implementation-owned/unknown finding fields raw-exact. Dirty worker supervisor files are excluded from source conclusions and untouched."
+      "SQA-298 is a small production-only consolidation: TokenizeSamplingText can delegate to existing TokenizeText(text, false, false), removing its repeated nil guard and Encode options construction while retaining the required interface method. Complete file 1410->1392 AST (-18), tests/setup unchanged. No processing-time or memory saving measured.",
+      "No implementation landed since the prior report. SQA-288 and SQA-223 stay resolved; there are now 56 open,4 deferred,65 resolved findings. Existing severities and relative priority are unchanged; SQA-298 is placed with low-priority production simplifications.",
+      "Retain distinct document historical cutoff/byte-budget, queued-publication drain/revocation and stage accounting/overlap/peak cases. Existing documentAt and includePackageResult already share behavior across at least two concrete callers; no new abstraction is justified.",
+      "Queued publication flush waits for local persistence and propagates errors before command evidence is accepted; actual process drain is supervised. This is not delivery of an external worker wakeup. Existing SQA-271/258 and prerequisite/dispatch owners remain; no new observed delay or continuation evidence.",
+      "Implementation overlap is disclosed; this is not independent third-party review. Dirty modelswap supervisor files are excluded. No tests, gates, model/service workloads, benchmarks, profiles, implementation or plan edits performed."
     ],
-  "reviewed_at": "2026-11-04T00:13:53Z",
-  "reviewed_master": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
+  "reviewed_at": "2026-11-04T04:15:26Z",
+  "reviewed_master": "71940736373dc5c76c7f435ee59a866e2332ebb0",
   "schema_version": 1,
   "scope": [
-      "Pinned committed master 6593a9fb7d6a49564754cae6ad0595ed946120d8; committed plan blob f51026a85cd95880c8ebefd67d05bec84a918b08 and unchanged skill.md blob b4e6496176dae5abce498e1aba83e32b10640960. Campaign: multimodal Qwen3.8-Flash-Next against native Strata, master-lead lane. Repository instructions and plan read first.",
-      "Fresh provisional conclusions preceded reading the prior report. Reviewed three complete landings: store-lifecycles, fault-seam and swap-lifecycles; rotated into inference tensor selection/residency, SSE writers, native test process/progress owners, and query/retention callers beyond those changes.",
-      "Actual bounded go/parser/go/ast analysis of22 committed files:277function bodies,9143parser-local identifier bindings,45729whole-file nodes including comments. All16 changed Go files plus6 rotated files; whole-file parsing, source inspection at named boundaries, no recurring census.",
-      "Actual go/types on committed internal/modelswap/supervisor.go:115definitions,586uses,180selections, standard-library imports, no stubs or application execution. Other files have parser-local/source caller resolution only; no full application/CUDA/cross-platform typecheck.",
-      "Reconciled SQA-288 and223 with current implementation comments; rechecked286/283/284/271/258 source boundaries and unchanged277 evidence identity. Existing224 SSE opportunity still applies; no duplicate finding. Unrotated ledger entries retain earlier evidence, not a fresh certification of all124."
+      "Pinned committed master 71940736373dc5c76c7f435ee59a866e2332ebb0; no implementation changes since 6593a9fb7. Committed plan blob f51026a85cd95880c8ebefd67d05bec84a918b08 and skill.md blob b4e6496176dae5abce498e1aba83e32b10640960 remain unchanged and their retained instructions apply. Campaign: multimodal Qwen3.8-Flash-Next against native Strata; master-lead lane.",
+      "Fresh source/caller conclusions and actual AST analysis preceded prior-report reconciliation. Rotated into runner tokenization/memory attribution and close/fallback, document cutoff/byte budgets, serving publication/snapshots, queued test-result publication and stage accounting. No recurring full census.",
+      "Parsed 12 committed Go files: 67 functions, 10,188 whole-file AST nodes including comments, 1,984 parser-local identifier bindings. Source snippets outside those files were read only at named callers and lifetime boundaries.",
+      "Actual go/types on the real committed internal/processmeasure/counter.go: 10 definitions, 49 uses, zero method selections; standard-library imports, no stubs. Other packages use parser-local and source caller resolution. Candidate runner change is parsed, not application-typechecked or executed.",
+      "Current report and 77 implementation comments unchanged. Checked the new candidate against existing finding text/symbols; SQA-252/255 stream-probe opportunities and resolved SQA-218 remain consistent. Recent SQA-288/223 closures retain their committed source/evidence. Unrotated ledger entries retain earlier scope; not all findings recertified."
     ],
   "sqa_response": {
-      "reviewed_master": "6593a9fb7d6a49564754cae6ad0595ed946120d8",
-      "assessment": "Resolve SQA-288 and SQA-223: generated store lifecycle recovery and complete fault-seam migration are committed, and blob cancellation coverage now shares its existing fixture. No new finding or severity change.",
-      "new_findings": [],
-      "resolved_findings": [
-        "SQA-288",
-        "SQA-223"
+      "reviewed_master": "71940736373dc5c76c7f435ee59a866e2332ebb0",
+      "assessment": "Add SQA-298: remove 18 production AST nodes by forwarding the existing sampling tokenizer method to the existing general tokenizer with both flags false. No status/severity changes to prior findings.",
+      "new_findings": [
+        "SQA-298"
       ],
+      "resolved_findings": [],
       "partially_addressed_findings": [],
       "reopened_findings": [],
       "deferred_findings": [],
       "priority_changes": [],
-      "evidence": "22committedfiles,277functions,45729AST; actual supervisor go/types115defs/586uses/180selections. Three retained implementation gates; no SQA application execution. Complete change+247production/+3696test, despite concrete local reductions.",
+      "evidence": "Fresh 12-file / 67-function / 10,188-node AST sample plus actual counter.go types: 10 definitions / 49 uses. Complete hypothetical sampling_vocab.go: 1410->1392; two local runner test files: 414 nodes unchanged. No SQA execution.",
       "implementation_response_context": {
         "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
         "current_triage_head": "de3563d175dc8fbad6cf508e9270fada34c12262",
-        "status": "Latest SQA-288 store-lifecycles/fault-seam and SQA-223 comments match committed source and retained evidence. Preserve both implementation-owned objects and every unknown finding field exactly."
+        "status": "77 implementation comments unchanged; latest store SQA-288/223 closure remains supported. Both owner objects and every unknown finding field preserved exactly."
       },
-      "recommendation": "Close the two completed obligations. Keep remaining recovery, memo shutdown, attribution and unattended-continuation owners; existing SQA-224 is the SSE duplication opportunity. No further safe deletion established in this rotation and no extra run requested.",
-      "uncertainty": "Modeled crashes and fixed virtual lifecycles are bounded evidence, not hardware power-loss or population reliability proof. Full recovery/test growth is explicit; AST/setup savings do not measure RSS or elapsed effects."
+      "recommendation": "When existing compaction work reaches this owner, replace only TokenizeSamplingText's body with return r.TokenizeText(text, false, false). Retain method/interfaces and existing tests; no new helper or confidence run.",
+      "uncertainty": "No runtime speed/memory claim. Candidate was parsed, not application-typechecked/executed. Broader queued-load/continuation work remains outside this small reduction."
     }
 }

@@ -89,10 +89,10 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - stay inside the scope and resource ceilings the inputs set (check: internal/loop TestLoopDriverCycle, internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/plan TestSchedulerRankedByRealizedDelta)
 - runs, regressions, failures and recurring costs -> durable obligations (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestScorecardGapsBecomeProposals, cmd/validate TestALaneTestThatFailsIsRecordedBeforeTheNextPackageEnds)
 - a measurement, or no action, = a valid outcome (check: internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/gate TestSmallGateLandsAChange)
-- rank by recorded outcomes and expected cost (check: internal/plan TestSchedulerRankedByRealizedDelta)
+- training candidates rank by recorded outcomes and expected cost (check: internal/plan TestSchedulerRankedByRealizedDelta)
 - exploration = bounded (check: internal/agentloop TestCoordinatorBoundsSessionSteps, internal/loop TestLoopDriverCycle)
 - rejection feeds the next decision (check: internal/loop TestLoopDriverCycle, internal/loop TestLoopAcceptedPrerequisiteProgress)
-- missing resource => explicit resume condition and continue independent work (check: internal/plan TestDispatchPassesRowsAwaitingADecision, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
+- a row awaiting a decision, or a landing awaiting a run => independent work continues (check: internal/plan TestDispatchPassesRowsAwaitingADecision, internal/landing TestALandingWaitingOnARunLeavesTheCheckoutFree)
 - persist position, dispositions, outstanding checks and budget => resume without duplicates (check: cmd/loop TestInterruptedCycleResumesAtItsFirstUnpassedPhase, cmd/validate TestCellCreditSurvivesAKilledRun, cmd/loop TestScorecardGapsBecomeProposals)
 - freeze acceptance before the work (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/scorecard TestADeclineKeepsItsKeyAndItsOriginalRestorationTarget)
 
@@ -102,7 +102,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
    - honor dependencies, lanes, acceptance and stops (check: internal/plan TestDependencyDispatchSkipsBlocked, internal/plan TestLaneOwnedDispatch, cmd/plan TestStopStatusProjection)
    - preserve others' work (check: internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept, internal/landing TestLandingLeavesAConcurrentPlanEditAlone, cmd/loophook TestStopIgnoresPreexistingDirt)
 2. state the change, its expected effect and the deciding comparison (check: internal/plan TestOpenStepRequiresVerifier, cmd/gate TestSmallGateLandsAChange)
-3. preflight first = `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight` (check: internal/landing TestPreflightRunsTheCheapStagesOnly, internal/landing TestLandingRecordsItsWaitsByCause)
+3. preflight = `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight` = the cheap stages alone, committing nothing (check: internal/landing TestPreflightRunsTheCheapStagesOnly, internal/landing TestLandingRecordsItsWaitsByCause)
    - after a hand edit => `go run ./cmd/validate -claims` (check: cmd/validate TestPublishedMatricesAreCurrent, cmd/validate TestGenerateRejectsStaleClaimEvidence)
 4. land = `go run ./cmd/loop -land <item>/<step> -message-file -` (check: cmd/loop TestRowSequenceStateMachine, cmd/loop TestLandReadsStructuredVerdict, cmd/plan TestPromptContractProjection)
    - message carries `Cause:` and `Predicted effect:` (check: cmd/gate TestSmallGateLandsAChange)
@@ -146,7 +146,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - landing grows its row past its count => raises the count with a reason in its own plan edit (gate rule) (check: internal/landing TestLandingRaisesItsOwnCount, internal/landing TestItemsGrowthIsChargedAcrossItsLandings, cmd/plan TestSetCountWritesTheCountAndItsReason)
 - filing a check => run it once (`plan -verify`): it fails as a test or names a test not yet written, never vacuous by its form (a pipe, a wrong package), because a landing is judged by the check its row held before it (check: cmd/plan TestRunVerifyRejectsSkippedGoTest, internal/testevidence TestVerifyGoTestEvidencePairsSelectorsPerInvocation, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 - land before an evaluation run (check: internal/runrecord TestVerifyingCommitRequiresCleanWorktree, cmd/loop TestCycleRunsInItsOwnCheckout)
-- native `go test` selects (check: cmd/gate TestSelectionAnalyzersGone)
+- native `go test` selects, over every package (check: internal/landing TestTheTestStageRunsEveryPackage)
 - lane's selection = every package whose test binary compiles a changed package, read from what the binary compiles (all its test files, every package under a recursive pattern), never from a proxy (production imports, a pattern's top directory) (check: internal/landing TestLaneReachSkipsOtherPackagesTests, internal/landing TestLaneSelectionUsesTheLaneBuildContext, internal/landing TestReachInvariants)
 - never time budgets, ratchets or a second selector (check: internal/repoanalysis TestNoFixedTimers, cmd/gate TestOldGateMachineryGone, cmd/gate TestSelectionAnalyzersGone)
 
@@ -166,7 +166,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - evaluate decides (check: internal/runrecord TestTrainingDecisionWithholdsPromotionUntilEvaluation, internal/evaluation TestHeldoutVerdictRequiresStrictGainOnDeclaredMetric)
 - compare identical tasks, artifacts, protocols and budgets (check: internal/scorecard TestTwoSuitesAreNeverOneMove, internal/scorecard TestComparisonIsTyped, internal/scorecard TestALongerPromptIsTimedAsItsLengthAlone)
 - difference inside the rounds' ranges = no difference (check: internal/scorecard TestADeclineMustPassWhatItsReferenceAllows, internal/scorecard TestACellsOwnSpreadNeitherHidesItsDeclineNorRestoresIt)
-- an A/B => its failed requests counted beside its rates, because a pool of the requests that succeeded hid a build that corrupted the card's experts (14 requests failed, its rates within the others' ranges) (check: internal/scorecard TestServingCountsWhatUsersHit, internal/scorecard TestADeclineMustPassWhatItsReferenceAllows)
+- a serving cell => its failed requests counted beside its rates, because a pool of the requests that succeeded hid a build that corrupted the card's experts (14 requests failed, its rates within the others' ranges) (check: internal/scorecard TestServingCountsWhatUsersHit, internal/scorecard TestADeclineMustPassWhatItsReferenceAllows)
 - aggregate gain never hides a required regression (check: internal/evaluation TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions, internal/scorecard TestComparisonIsTyped)
 
 ## Robustness
@@ -221,7 +221,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - installed capacity != budget (check: internal/server TestResidentFitAdmitsADeviceRunOnlyBesideTheServedModel, internal/modeldevice TestExpertResidencyFillsTheCardWhenItFrees)
 - placement, batch, chunk, workers and residency = derived from workload, measurement and availability (check: internal/cuda/executor TestHostSlotLimitTradesACopyForTheCPU, internal/modeldevice TestExpertResidencyFillsTheCardWhenItFrees, internal/hostmath TestDispatchSchedulingPreservesResults)
 - scale down by streaming, tiling and bounded concurrency (check: internal/composition TestOfflinePlanDerivesResourcePolicy)
-- scale up <=> measured benefit (check: internal/hostmath TestDispatchSchedulingPreservesResults)
+- parallel dispatch => the same results at every width and worker count (check: internal/hostmath TestDispatchSchedulingPreservesResults)
 - preserve numerical contracts and checkpoint identity (check: internal/model TestBlockSelectionDoesNotDependOnChunk, internal/artifact TestHasherMatchesIdentifyForAnyChunking, internal/trainingprogram TestResumeSidecarRoundTripsBitExact)
 - nothing fits => resumable wait or reported limit (check: internal/processcontrol TestResourceAdmissionWaitsForRelease, internal/server TestResidentFitAdmitsADeviceRunOnlyBesideTheServedModel)
 - number other than 0 or 1 => named constant with a reason (gate rule) (check: internal/landing TestNewPolicyLiteralsIgnoresRenames)
@@ -256,7 +256,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - models, store and checkpoints live in `OVERGO_DATA_ROOT`, outside the module (check: internal/dataroot TestEnvBaseWinsAndNamesAllRoots)
 - `build/` lives in the checkout, ignored by git (check: cmd/loop TestLeftoversListsEveryDeclaredPlaceWithItsRule)
 - llama.cpp for pinned behavior (check: internal/quant TestQuantizeMatchesPinnedGGMLReference, internal/hostexpert TestQuantizersRoundAsGGML, internal/tokenizer TestUpstreamTokenizerCorpus)
-- `adaptive_new` = read-only (check: internal/repoanalysis TestNoTestReadsAdaptiveNew)
+- no Go source names a path into `adaptive_new` (check: internal/repoanalysis TestNoTestReadsAdaptiveNew)
 - keep commits, licenses and artifact identities (check: internal/runrecord TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted, internal/latentimage TestMOSSGoldenProvenance)
 - model-family facts live in artifacts and recipes, never in model-specific code (check: internal/inferencesurface TestServingCodeNamesNoArchitecture, internal/model TestGemma4ProgramUsesNeutralStages)
 - clear errors and cancellation (check: internal/processcontrol TestDeterministicCancellationContracts, internal/workflowruntime TestCancellationCauseReachesTerminalReceipt)
@@ -317,6 +317,7 @@ A rule no code can hold stands here, each line saying why, so what the system le
 - distribution, geometry or metric assumption (Gaussian, independent, Euclidean, linear interpolation) => justified per model and task, because whether an assumption fits is read from the task, and the checks pin only the defaults
 - reusable hot-path buffers, because which path is hot is measured per change
 - report = outcome + material measurements + checks + remaining obligations, because a session's report to its reader is prose
+- scale up <=> measured benefit, because whether scaling pays is measured per change, and the check of parallel dispatch holds only that its results match
 - a port adopts the reference's structure as the general one where it is better > fitting the reference's mechanism into ours => port the unit literally -> prove it costs here what it costs in the reference, because which structure is better is read from both
 - hand step = system defect -> file the row, fix the system and use its path, because a step done by hand leaves nothing the system reads
 - parts proved apart != the path proved => one real model through the whole path before claiming it, because which path a claim rests on is read from the claim

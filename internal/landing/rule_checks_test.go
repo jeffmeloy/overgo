@@ -136,6 +136,46 @@ func TestAJudgementLineSaysWhyNoCodeHoldsIt(t *testing.T) {
 	}
 }
 
+// unsoundCitations are rules skill.md stated with a check that does not prove them, each as the rule read and the test
+// it cited: the review that sorted the doctrine found that the test held something else. Each rule was narrowed to what
+// its test holds, moved to the Judgement section or given the test it named.
+var unsoundCitations = []struct{ rule, test string }{
+	{"rank by recorded outcomes and expected cost", "TestSchedulerRankedByRealizedDelta"},
+	{"missing resource => explicit resume condition and continue independent work", "TestDispatchPassesRowsAwaitingADecision"},
+	{"missing resource => explicit resume condition and continue independent work", "TestALandingWaitingOnARunLeavesTheCheckoutFree"},
+	{"preflight first = `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight`", "TestPreflightRunsTheCheapStagesOnly"},
+	{"native `go test` selects", "TestSelectionAnalyzersGone"},
+	{"an A/B => its failed requests counted beside its rates", "TestServingCountsWhatUsersHit"},
+	{"scale up <=> measured benefit", "TestDispatchSchedulingPreservesResults"},
+	{"`adaptive_new` = read-only", "TestNoTestReadsAdaptiveNew"},
+}
+
+// TestNoRuleCitesACheckThatDoesNotProveIt refuses each unsound citation the doctrine's review found, written back: a
+// rule line of skill.md that states one of those rules and cites the test that did not prove it. No test can prove a
+// citation in general, so this holds the ones found.
+func TestNoRuleCitesACheckThatDoesNotProveIt(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for number, line := range strings.Split(string(data), "\n") {
+		rule, cited, citing := strings.Cut(strings.TrimPrefix(line, ruleLine.FindString(line)), "(check: ")
+		if !ruleLine.MatchString(line) || !citing {
+			continue
+		}
+		cited, _, _ = strings.Cut(cited, ")")
+		for entry := range strings.SplitSeq(cited, ",") {
+			_, test, _ := strings.Cut(strings.TrimSpace(entry), " ")
+			for _, unsound := range unsoundCitations {
+				if strings.HasPrefix(rule, unsound.rule) && test == unsound.test {
+					t.Errorf("skill.md:%d states %q citing %s, which does not prove it: %s", number+1, unsound.rule, test, line)
+				}
+			}
+		}
+	}
+}
+
 // quoted is a span of code in a rule line, which the rule's own form does not govern.
 var quoted = regexp.MustCompile("`[^`]*`")
 

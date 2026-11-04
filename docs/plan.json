@@ -154,13 +154,6 @@
       },
       "steps": [
         {
-          "id": "sound-citations",
-          "title": "No rule cites a check that does not prove it",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestNoRuleCitesACheckThatDoesNotProveIt$'",
-          "rationale": "TestEveryRuleCitesItsCheck confirms only that the named test exists (strings.Contains on its name), though its comment says the tests fail when the rule is broken. Of 307 lines and sentences read, 94 are held and 149 partly held, with 7 citations unsound and 6 stale. Narrow each partial line to what is held, and let the row that holds the rest name its remainder. Repair the unsound and stale ones. The test lists the unsound pairs found, so they cannot come back. No test can prove citations in general; check-proves covers new ones. The entries are in C:/Users/jeffm/Downloads/doctrine_sort.json.\nServes: the loop.\nDisappears: about 150 lines of overstatement.\nEvidence: for example skill.md line 98 cites a test of training candidates while rows run in file order, and line 157 cites a test that stats three deleted paths.\nBatch: doctrine."
-        },
-        {
           "id": "session-contract",
           "title": "The session-start text is held like the doctrine",
           "status": "open",
@@ -173,6 +166,25 @@
           "status": "open",
           "verify": "go test ./internal/plan -count=1 -run '^TestARowParagraphLeavesWithItsLastRow$'",
           "rationale": "outlivedDoctrine runs only at campaign close-out (plan.go:284, :512), so a paragraph governing rows that have left stays and is sent to every session. plan.Advance removes it when its last row leaves.\nThe five moss paragraphs, now paragraphs 11 to 15, govern 13 moss rows, none of them in the plan, and go with this step: the plan tool edits standing paragraphs only, so doctrine-cut/dead-text could not remove them by hand.\nServes: the loop.\nDisappears: five paragraphs of about 7,000 characters naming no live row.\nEvidence: the paragraphs gone once the step lands, and a paragraph whose last row leaves gone with it.\nBatch: plan."
+        }
+      ]
+    },
+    {
+      "id": "boundaries-in-code",
+      "title": "No session writes into the reference tree",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Estimate: one guard rule family, about 60 nodes, as the review sized each."
+      },
+      "steps": [
+        {
+          "id": "reference-tree",
+          "title": "No session writes into the reference tree",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^TestNoSessionWritesIntoTheReferenceTree$'",
+          "rationale": "adaptive_new is read-only by rule, and nothing refuses a write: the guard allows any path outside the checkout (internal/guard/guard.go reviewVerdict). skill.md stated it citing TestNoTestReadsAdaptiveNew, which proves only that no Go source names a path into the tree, so one-doctrine/sound-citations narrowed the line to that. Add the tree as a protected write target for Edit, Write and the shell's write sinks, and restore '`adaptive_new` = read-only' to skill.md citing this check.\nServes: the loop.\nDisappears: 'adaptive_new = read-only' as a rule only a session remembers.\nEvidence: the doctrine sort's unsound citation of skill.md's read-only line.\nBatch: guard."
         }
       ]
     },

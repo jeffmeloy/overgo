@@ -430,6 +430,9 @@ func (l *landing) row(ctx context.Context) error {
 			return err
 		}
 		l.changedTerms = termsChanged(before, document)
+		if err := l.landedAgain(ctx, before, document); err != nil {
+			return err
+		}
 	}
 	named, err := rows(l.Ref)
 	if err != nil {
@@ -462,6 +465,35 @@ func (l *landing) row(ctx context.Context) error {
 		}
 	}
 	l.planned = data
+	return nil
+}
+
+// landedAgain refuses a change whose plan holds a step the trunk's plan does not, which a landing on the trunk
+// already removed: its plan is from before that landing, as a landing killed between its ref's move and its plan's
+// save leaves the checkout's, and publishing it would file the landed step again. A step retired is no landing, so a
+// retired step filed again is held to nothing here.
+func (l *landing) landedAgain(ctx context.Context, before, document plan.Plan) error {
+	held := map[string]bool{}
+	for _, item := range before.Items {
+		for _, step := range item.Steps {
+			held[item.ID+"/"+step.ID] = true
+		}
+	}
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			if held[item.ID+"/"+step.ID] {
+				continue
+			}
+			trailer := plan.LandedRowTrailer + ": " + item.ID + "/" + step.ID
+			found, err := gitauthority.Query(ctx, l.Repo, "log", "-1", "--format=%H", "--fixed-strings", "--grep="+trailer, l.builtOn())
+			if err != nil {
+				return err
+			}
+			if landed := strings.TrimSpace(string(found)); landed != "" {
+				return fmt.Errorf("land: the change's plan holds %s/%s, which landed as %.12s: the plan is from before that landing, as a landing killed before it saved its plan leaves it; take the trunk's plan (git checkout HEAD -- %s), make this change's own plan edits again, and file new work under a new step", item.ID, step.ID, landed, plan.Path)
+			}
+		}
+	}
 	return nil
 }
 

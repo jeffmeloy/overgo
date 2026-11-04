@@ -149,17 +149,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 100,
-        "reason": "checkpoint-cuts adds 299: the companions a checkpoint names, identified at publication and held at load, in the resume document and the checkpoint's identity; landing-stages and long-sequences keep 100, mostly test code and a hook in the cycle's checks"
+        "nodes": 60,
+        "reason": "landing-stages adds 184: a change whose plan holds a step the trunk's landed is refused, its trunk history read once a step; long-sequences keeps 60 for its hook in the cycle's checks"
       },
       "steps": [
-        {
-          "id": "landing-stages",
-          "title": "Leave the trunk alone at every stage's failure",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestEveryStageFailureLeavesTheTrunkAlone$'",
-          "rationale": "The drills classify text (internal/landing/recovery_drills_test.go:15), and only the space stage checks HEAD and the plan after a refusal (space_test.go:98). Fail each of checks() (landing.go:265-271) in turn, and kill inside landing.commit (:771,778). Not prototyped, so its worth is a hypothesis; drop it if the first run finds nothing.\nServes: landing reliability.\nDisappears: nothing.\nEvidence: every stage named.\nBatch: gate."
-        },
         {
           "id": "long-sequences",
           "title": "Run the long generated sequences in the cycle's checks",

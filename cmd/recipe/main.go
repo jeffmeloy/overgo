@@ -498,9 +498,8 @@ var processDevicePeak = driver.ProcessPeakBytes
 // whether that is a measurement even when it is zero. The command runs one
 // attempt in one process, so what the process peaked at across every device
 // worker is the attempt's own peak, and it is preferred to the peak the
-// executor reports of its model: a video runtime's is the larger of its two
-// sessions' peaks, though they are resident together, and the process's
-// counts them together. A process that allocated nothing leaves the
+// executor reports of its model, which counts a video runtime's sessions
+// together as they are resident but sees only its own sessions' ledgers. A process that allocated nothing leaves the
 // executor's figure. That zero is a measurement only of an attempt that
 // succeeded having loaded its model here: the model was placed, and on no
 // device. A failed attempt, or one that served a recorded answer without

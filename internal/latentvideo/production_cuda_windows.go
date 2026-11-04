@@ -10,7 +10,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/inferencesurface"
 	"overgo/internal/media"
 	"overgo/internal/recipe"
@@ -263,7 +262,12 @@ func (r *LiveEditRuntime) PeakDeviceBytes() (uint64, error) {
 	if r == nil || r.runtime == nil {
 		return 0, errors.New("latent video: LiveEdit runtime is closed")
 	}
-	return peakAcrossSessions(r.runtime.denoiser, r.runtime.decoder)
+	// The source codec is resident beside the denoiser and the decoder, so it counts with them.
+	sessions := []memoryMeter{r.runtime.denoiser, r.runtime.decoder}
+	if r.runtime.encoder != nil {
+		sessions = append(sessions, r.runtime.encoder.codec)
+	}
+	return peakAcrossSessions(sessions...)
 }
 
 func (r *LiveEditRuntime) Close(context.Context) error {
@@ -280,28 +284,6 @@ func RegisterLiveEditRuntime(runtime *workflowruntime.Runtime, modelID artifact.
 		return errors.New("latent video: incomplete LiveEdit runtime binding")
 	}
 	return registerReferenceEditRuntime(runtime, modelID, model.Generate)
-}
-
-// peakAcrossSessions folds session allocation ledgers into the single
-// largest observed peak; sessions run on distinct workers, so the
-// maximum is the runtime's device high-water mark, not a sum.
-func peakAcrossSessions(sessions ...interface {
-	MemoryStats() (driver.MemoryStats, error)
-}) (uint64, error) {
-	var peak uint64
-	var errs []error
-	for _, session := range sessions {
-		stats, err := session.MemoryStats()
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		peak = max(peak, stats.PeakBytes)
-	}
-	if peak == 0 && len(errs) > 0 {
-		return 0, errors.Join(errs...)
-	}
-	return peak, nil
 }
 
 func readProgramProfile(ctx context.Context, store artifact.Reader, program recipe.Program) (Profile, error) {

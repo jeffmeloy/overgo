@@ -264,6 +264,60 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	return finishDispatch(Dispatch{Complete: true}), nil
 }
 
+// AdmitLanding refuses refs, landed together on document in the worktree at root, that dispatch would not give the
+// request's role: any step while a recorded stop holds its mode, a step that waits on a prerequisite or a decision,
+// another lane's row, and, for a worker, any step but the one dispatch names, the batch's earlier steps having left.
+func AdmitLanding(ctx context.Context, root string, document Plan, request DispatchRequest, refs []Ref) error {
+	role, err := AutomationRole(request.Role)
+	if err != nil {
+		return err
+	}
+	worker, err := dispatchWorker(request.Worker)
+	if err != nil {
+		return err
+	}
+	mode, err := ExecutionMode(request.Mode)
+	if err != nil {
+		return err
+	}
+	stop, err := ReadStop(ctx, root, "", mode)
+	if err != nil {
+		return err
+	}
+	grant := cmp.Or(request.Maintenance, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)))
+	for _, ref := range refs {
+		if err := stop.RequireExecution(role, worker, mode, ref.String(), grant); err != nil {
+			return fmt.Errorf("plan: a recorded stop holds %s: %w", ref, err)
+		}
+		if err := admits(document, role, worker != "", ref); err != nil {
+			return err
+		}
+		if document, err = advancePlan(document, ref.Item, ref.Step, ref.Step == "."); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// admits refuses ref unless dispatch gives it to role: for a worker, or a rung with no steps, the one step dispatch
+// names, and otherwise any step it would give.
+func admits(document Plan, role string, worker bool, ref Ref) error {
+	reference := ref.String()
+	if worker || ref.Step == "." {
+		reference = ""
+	}
+	dispatch, err := selectDispatch(document, role, reference)
+	switch {
+	case err != nil:
+		return err
+	case dispatch.Item == ref.Item && dispatch.Step == ref.Step:
+		return nil
+	case worker:
+		return fmt.Errorf("plan: a worker lands only the step dispatch gives it (%s), never %s", dispatch.Line, ref)
+	}
+	return fmt.Errorf("plan: dispatch would not give %s to %s: %s", ref, role, dispatch.Line)
+}
+
 // byRecommendation is the plan with each unanswered decision taken at its recommendation, and whether it took any: once
 // no row is ready but those a question blocks, they go on under the recommended option, and an answer given before then
 // is the one they go on under. The loop never waits on a question, except one that changes a standing rule.

@@ -7709,6 +7709,28 @@
         "plan_steps": [
           "boundaries-in-code/reference-tree"
         ]
+      },
+      {
+        "comment": "session-rules/landing-follows-dispatch adds the dispatch admission to landing.row in internal/landing/landing.go, beside landedAgain, which it leaves as landing-identity/whole-trailer made it.",
+        "disposition": "context",
+        "evidence": [
+          "internal/landing TestALandingRefusesWhatDispatchWouldPass"
+        ],
+        "finding_id": "SQA-300",
+        "plan_steps": [
+          "session-rules/landing-follows-dispatch"
+        ]
+      },
+      {
+        "comment": "session-rules/landing-follows-dispatch extends one Working loop line of skill.md and leaves the Gate and cycle citations this finding names untouched; it stays with compact-tests/exact-folds.",
+        "disposition": "context",
+        "evidence": [
+          "internal/landing TestALandingRefusesWhatDispatchWouldPass"
+        ],
+        "finding_id": "SQA-270",
+        "plan_steps": [
+          "session-rules/landing-follows-dispatch"
+        ]
       }
     ],
     "experiments": {
@@ -7750,7 +7772,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "e6061a367dfbbef56ed54c12c9f12a750267bc69",
+    "head": "a6d01d69f47c93424074c567e07ed96a292361ed",
     "findings": {
       "SQA-004": {
         "action": "none",

@@ -99,7 +99,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ## Working loop
 
 1. campaign => `go run ./cmd/plan -next` (check: cmd/plan TestDispatchJSONMatchesProse, internal/plan TestEnforceCurrentFirstOpenStep)
-   - honor dependencies, lanes, acceptance and stops (check: internal/plan TestDependencyDispatchSkipsBlocked, internal/plan TestLaneOwnedDispatch, cmd/plan TestStopStatusProjection)
+   - honor dependencies, lanes, acceptance and stops, and a landing takes only what dispatch would give, a worker only its dispatched step (check: internal/plan TestDependencyDispatchSkipsBlocked, internal/plan TestLaneOwnedDispatch, cmd/plan TestStopStatusProjection, internal/landing TestALandingRefusesWhatDispatchWouldPass, internal/plan TestAWorkerLandsOnlyItsDispatchedStep)
    - preserve others' work (check: internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept, internal/landing TestLandingLeavesAConcurrentPlanEditAlone, cmd/loophook TestStopIgnoresPreexistingDirt)
 2. state the change, its expected effect and the deciding comparison (check: internal/plan TestOpenStepRequiresVerifier, cmd/gate TestSmallGateLandsAChange)
 3. preflight = `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight` = the cheap stages alone, committing nothing (check: internal/landing TestPreflightRunsTheCheapStagesOnly, internal/landing TestLandingRecordsItsWaitsByCause)

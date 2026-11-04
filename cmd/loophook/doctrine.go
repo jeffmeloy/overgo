@@ -6,7 +6,7 @@ package main
 const doctrineText = `OVERGO TURN CONTRACT. skill.md is the doctrine, its Judgement section holds what no code can, and each rule here cites the checks that hold it.
 
 THE LOOP.
- 1. ` + "`go run ./cmd/plan -next`" + ` names the step to work, and ` + "`go run ./cmd/plan -prompt`" + ` its contract: its check, its commit and its stops (check: cmd/plan TestDispatchJSONMatchesProse, cmd/plan TestPromptContractProjection).
+ 1. ` + "`go run ./cmd/plan -next`" + ` names the step to work, and ` + "`go run ./cmd/plan -prompt`" + ` its contract: its check, its commit and its stops, and a landing takes only what dispatch would give, a worker only that step (check: cmd/plan TestDispatchJSONMatchesProse, cmd/plan TestPromptContractProjection, internal/landing TestALandingRefusesWhatDispatchWouldPass, internal/plan TestAWorkerLandsOnlyItsDispatchedStep).
  2. A step is done when its check passes: ` + "`go run ./cmd/plan -verify`" + ` runs it, and a check that skips a test fails (check: cmd/plan TestRunVerifyRejectsSkippedGoTest).
  3. A step lands only through ` + "`go run ./cmd/loop -land <item>/<step> -message-file -`" + `, the one way the trunk moves (check: internal/landing TestOnlyALandingMovesTheTrunkInGit, internal/landing TestALandingRefusesATrunkWithoutItsHook).
  4. The landing checks the dirty tree through the stages internal/landing's package doc lists, commits it with the step removed from the plan and ends in one verdict (check: internal/landing TestEveryStageFailureLeavesTheTrunkAlone, internal/landing TestLandingCompletesSeveralSteps, cmd/loop TestLandReadsStructuredVerdict).

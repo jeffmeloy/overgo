@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"overgo/internal/landing"
+	"overgo/internal/plan"
 )
 
 // land runs the small gate over the working tree for one plan row. A message
@@ -22,7 +23,7 @@ func land(reference, messageFile string, preflight bool) error {
 	if err != nil {
 		return err
 	}
-	commit, err := landing.Run(context.Background(), landing.Options{Repo: ".", Ref: reference, Message: message, Log: os.Stderr, Preflight: preflight, Quiet: true, Free: landing.VolumeFree})
+	commit, err := landing.Run(context.Background(), landing.Options{Repo: ".", Ref: reference, Message: message, Log: os.Stderr, Preflight: preflight, Quiet: true, Free: landing.VolumeFree, Dispatch: &plan.DispatchRequest{}})
 	if err != nil {
 		return err
 	}

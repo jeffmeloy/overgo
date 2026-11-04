@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 380,
-        "reason": "Estimate from the review: about 120 for the landing's reading of dispatch, 60 for each guard rule family, and the rest in the stop path and the message's form."
+        "nodes": 260,
+        "reason": "landing-follows-dispatch adds 371, measured, against the review's 120: the admission resolves role, worker, mode and stop before reading dispatch, and a comma landing advances its own plan. The other four steps keep the review's estimates: about 80 for the stop path, 60 for each guard rule family, 60 for the message's form"
       },
       "steps": [
-        {
-          "id": "landing-follows-dispatch",
-          "title": "A landing takes only what dispatch would give",
-          "status": "open",
-          "verify": "go test ./internal/landing ./internal/plan -count=1 -run '^(TestALandingRefusesWhatDispatchWouldPass|TestAWorkerLandsOnlyItsDispatchedStep)$'",
-          "rationale": "one-doctrine/session-contract dropped 'Do ONLY that step' from the session-start text, since no check held it; this step holds it in code.\nDispatch honours dependencies, lanes and stops, and the landing does not: landing.go:438-463 accepts any open step named on the command line, and plan.Advance (plan.go:504) checks only a holding decision. Refuse a step outside the ready frontier, another lane's row, or any step under a recorded stop. Under a worker's environment refuse any step but the one dispatched. The steps of one batch landing count as siblings.\nServes: the loop.\nDisappears: 'Do ONLY that step' and 'honor dependencies, lanes, acceptance and stops'.\nEvidence: skill.md lines 107 and 108 in the sort; read at landing.go:443.\nBatch: landing."
-        },
         {
           "id": "stop-needs-request",
           "title": "A requested stop needs a request, and a passed stop is reported",

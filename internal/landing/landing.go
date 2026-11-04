@@ -71,6 +71,11 @@ type Options struct {
 	// floor. The landing command gives VolumeFree; a fixture gives none, so a
 	// test of the gate is held to no floor of the machine it runs on.
 	Free func(directory string) (uint64, error)
+	// Dispatch holds the landing to what dispatch would give the role it names, under the plan the change carries: a
+	// recorded stop, a step that waits on a prerequisite or a decision, another lane's row, and, for a worker, any step
+	// but the dispatched one are refused (plan.AdmitLanding). The landing command sets it from its environment; a
+	// fixture that tests something else leaves it off.
+	Dispatch *plan.DispatchRequest
 }
 
 type landing struct {
@@ -437,6 +442,15 @@ func (l *landing) row(ctx context.Context) error {
 	named, err := rows(l.Ref)
 	if err != nil {
 		return err
+	}
+	if l.Dispatch != nil {
+		refs := make([]plan.Ref, len(named))
+		for index, row := range named {
+			refs[index] = plan.Ref{Item: row.item, Step: row.step}
+		}
+		if err := plan.AdmitLanding(ctx, l.Repo, document, *l.Dispatch, refs); err != nil {
+			return fmt.Errorf("land: %w", err)
+		}
 	}
 	l.advanced, l.verifiers, l.added = document, nil, nil
 	l.counts = make(map[string]plan.Budget, len(document.Items))

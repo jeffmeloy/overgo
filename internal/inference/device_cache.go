@@ -480,6 +480,11 @@ func (r *Runner) forwardDeviceWindowLocked(
 // steps a window by Strata's verify kernels (qsaWindowSet).
 func (r *Runner) windowsDecode() bool { return r.qsaWindows }
 
+// windowsPlainDecode reports whether the runner's plain decode steps are windows too: a QSA runner's, whose live state
+// its round reads. A cell runner's windows verify its drafts alone, since a window runner holds its sequence's live
+// state beside the prompt cache's copy: Bonsai-27B's plain request had peaked 181.6 MiB higher in windows.
+func (r *Runner) windowsPlainDecode() bool { return r.windowsDecode() && r.qsaLayers != nil }
+
 // qsaWindowSet reports whether a cell runner's every recurrent layer steps a verify window by Strata's verify kernels
 // (model.Spec.HoldsGatedDeltaWindow), so the runner decodes through Strata's verifier: a QSA runner's cells, or the
 // attention cells of the qwen35 family, whose drafts had verified in spans keeping every position's state (span slots).

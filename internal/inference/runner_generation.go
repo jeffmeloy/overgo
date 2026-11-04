@@ -466,7 +466,7 @@ func (r *Runner) Generate(
 
 	// A QSA runner decodes through Strata's verifier: its steps are one-token windows over its sequence's live state,
 	// into which the prompt read's state moves first.
-	if r.windowsDecode() && deviceCache != nil && start < options.MaxNewTokens-1 {
+	if r.windowsPlainDecode() && deviceCache != nil && start < options.MaxNewTokens-1 {
 		live, liveErr := r.liveDeviceCache(ctx, deviceCache)
 		if liveErr != nil {
 			return ids, "", liveErr
@@ -516,7 +516,7 @@ func (r *Runner) Generate(
 			switch {
 			case planErr != nil:
 				err = planErr
-			case r.windowsDecode():
+			case r.windowsPlainDecode():
 				nextDeviceCache, err = r.forwardDeviceWindowLocked(ctx, plan, step, deviceCache)
 			default:
 				var next []*deviceKVCache

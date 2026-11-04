@@ -223,6 +223,7 @@ var retiredClaims = []struct{ source, claim string }{
 	{"cmd/loophook/doctrine.go", "continuity is owned by cmd/loop"},
 	{"cmd/loophook/doctrine.go", "The guard refuses\n    a landing whose output is sent to a file"},
 	{"cmd/loophook/doctrine.go", "Do not run a separate"},
+	{"README.md", "99 to 104 tok/s against Strata's 133 to 136"},
 }
 
 // TestDoctrineHoldsNoRetiredClaim refuses a retired claim written back into the text it left.

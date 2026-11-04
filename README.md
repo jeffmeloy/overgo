@@ -163,15 +163,16 @@ and the dino-to-RAE bridge; see the
 [training report](docs/TRAINING_COMPATIBILITY.md).
 
 Warm, served, against Strata's frozen bench suite on the same PC and model
-(three alternating rounds each, 2026-10-24): Flash-Next decodes a short chat at
-99 to 104 tok/s against Strata's 133 to 136, reads a 4K prompt to its first
-token in 1.46 s against 2.2 s and a 16K prompt in 5.3 s against 5.0 s, and
-decodes agent turns at 91 to 93 tok/s against 145 to 146; a conversation of
-237,290 tokens is read in 2m16s with every later question answered in about
-0.8 s. Strata's decode round was then ported (2026-10-27) and landed as it stood:
-closing the remaining gap is no longer this campaign's target, by the owner's
-decision of 2026-10-27, and a question that branches off an earlier turn of such
-a conversation is answered from the context already read, in about 1.3 s.
+(three runs, 2026-11-04, beside Strata's own three rounds of 2026-10-24):
+Flash-Next decodes a short chat at 134 tok/s against Strata's 133 to 136, reads
+a 4K prompt to its first token in 1.61 s against 2.20 to 2.23 s and a 16K prompt
+in 5.26 s against 4.97 to 4.99 s, and decodes agent turns at 145 tok/s against
+145 to 146. These are requests to a model already loaded and warmed, where the
+table's row is the first request after a fresh load. The 16K prompt's first
+token is the one figure still behind Strata's. A conversation of 237,290 tokens
+is read in 2m16s with every later question answered in about 0.8 s (2026-10-24),
+and a question that branches off an earlier turn of such a conversation is
+answered from the context already read, in about 1.3 s.
 
 ### Sample outputs
 

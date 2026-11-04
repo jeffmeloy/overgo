@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "readme-strata",
-      "title": "The README states today's figures against Strata",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 10,
-        "reason": "Estimate: text, and one entry in the retired-claims table."
-      },
-      "steps": [
-        {
-          "id": "bench-figures",
-          "title": "Replace the Oct 24 Strata figures with today's bench",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestDoctrineHoldsNoRetiredClaim$'",
-          "rationale": "The README's Strata paragraph quotes the bench of 2026-10-24 (Flash-Next 99 to 104 tok/s chat and 91 to 93 agent turns against Strata's 133 to 136 and 145 to 146). Strata's frozen suite 1 (go run ./cmd/benchmark strata) rerun on 2026-11-04 at fa6b30787, warm, served, one card window: chat decode 134.4 tok/s median, a 4K prompt's first output 1.61 s, a 16K prompt's 5.26 s, agent turns 145.3 tok/s, the agent's first turn 0.95 s. The same suite at 0eee1a710, before that day's memory changes, read 135.7, 1.61, 5.26 and 145.1: the changes cost nothing measurable. Restate the paragraph from these figures, and add the stale sentence to TestDoctrineHoldsNoRetiredClaim's retired claims so it does not come back. The table's first-output and throughput cells are the first request after a fresh load, which the paragraph should say beside the warm figures.\nServes: an honest report of the gap.\nDisappears: figures two weeks stale.\nEvidence: the bench JSON of both runs (scratch sbench).\nBatch: docs."
-        }
-      ]
-    },
-    {
       "id": "prefill-16k",
       "title": "Find where a 16K prompt's first output trails Strata's",
       "owner": "master-lead",

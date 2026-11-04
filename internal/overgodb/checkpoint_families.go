@@ -9,12 +9,14 @@ import (
 	"maps"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
 	"overgo/internal/artifact"
 	"overgo/internal/processmeasure"
+	"overgo/internal/strictjson"
 )
 
 // A checkpoint census counts the checkpoint generation an open loads, the
@@ -50,6 +52,9 @@ const halves = 2
 // percent scales a share for printing.
 const percent = 100
 
+// decimal is the base JSON writes a number in.
+const decimal = 10
+
 // leadingPart is what a batch key or an alias name says of its writer: its
 // text before the second separator. A second part that is empty or holds a
 // digit names one record and not the code that wrote it, so the first part
@@ -82,6 +87,7 @@ type familyCount struct {
 // timed restores of its body, shortest first.
 type memberCensus struct {
 	name                            string
+	version                         uint16
 	bytes, header, framing, records int
 	restores                        []time.Duration
 	families                        []familyCount
@@ -146,9 +152,9 @@ func censusCheckpoint(root string, repeats int) (checkpointCensus, error) {
 		if err != nil {
 			return checkpointCensus{}, err
 		}
-		keys := familyKeys(&state)
+		keys, owner := familyKeys(&state), artifactFamily(&state)
 		for index := range census.members {
-			if err := census.members[index].count(read, keys); err != nil {
+			if err := census.members[index].count(read, keys, owner); err != nil {
 				return checkpointCensus{}, err
 			}
 		}
@@ -186,15 +192,21 @@ func timeMember(name string, index int, read func(string) ([]byte, error), repea
 		return memberCensus{}, err
 	}
 	line, body, _ := bytes.Cut(document, []byte{'\n'})
-	member := memberCensus{name: name, bytes: len(document), header: len(line) + 1}
-	member.restores, err = timed(repeats, func() error {
-		return projections(new(catalogState))[index].view.restore(body)
-	})
+	var header checkpointHeader
+	if err := strictjson.DecodeBytes(line, &header); err != nil {
+		return memberCensus{}, fmt.Errorf("overgodb: checkpoint %s header: %w", name, err)
+	}
+	restore, reads := projections(new(catalogState))[index].restorer(header.Version)
+	if !reads {
+		return memberCensus{}, fmt.Errorf("overgodb: checkpoint %s at version %d is not one this reader reads", name, header.Version)
+	}
+	member := memberCensus{name: name, version: header.Version, bytes: len(document), header: len(line) + 1}
+	member.restores, err = timed(repeats, func() error { return restore(body) })
 	return member, err
 }
 
-// count attributes the member's body to families by the member's key.
-func (m *memberCensus) count(read func(string) ([]byte, error), keys map[string]familyKey) error {
+// count attributes the member's body to families by the member's key; lineage's compact body by countLineage.
+func (m *memberCensus) count(read func(string) ([]byte, error), keys map[string]familyKey, owner func(artifact.ID) (string, uint64)) error {
 	key, keyed := keys[m.name]
 	if !keyed {
 		return fmt.Errorf("overgodb: the census has no family key for projection %s", m.name)
@@ -203,27 +215,22 @@ func (m *memberCensus) count(read func(string) ([]byte, error), keys map[string]
 	if err != nil {
 		return err
 	}
+	if m.name == "lineage" && m.version == lineageProjectionVersion {
+		return m.countLineage(document[m.header:], owner)
+	}
 	var records []json.RawMessage
 	if err := json.Unmarshal(document[m.header:], &records); err != nil {
 		return fmt.Errorf("overgodb: checkpoint %s: %w", m.name, err)
 	}
-	counts := map[string]*familyCount{}
+	counts := familyCounts{}
 	attributed := 0
 	for _, record := range records {
 		name, sequence, err := key(record)
 		if err != nil {
 			return fmt.Errorf("overgodb: checkpoint %s: %w", m.name, err)
 		}
-		name = cmp.Or(name, "unnamed")
-		count := counts[name]
-		if count == nil {
-			count = &familyCount{name: name}
-			counts[name] = count
-		}
 		// A record owns the separator after it: a comma, or the closing bracket.
-		count.records++
-		count.bytes += len(record) + 1
-		count.last = max(count.last, sequence)
+		counts.add(name, sequence, len(record)+1)
 		attributed += len(record) + 1
 	}
 	// What is left is the opening bracket, or both brackets of an empty array.
@@ -231,12 +238,77 @@ func (m *memberCensus) count(read func(string) ([]byte, error), keys map[string]
 	if m.framing != len("[]")-min(m.records, 1) {
 		return fmt.Errorf("overgodb: checkpoint %s is not the compact array its writer makes: %d bytes frame %d records", m.name, m.framing, m.records)
 	}
-	for _, count := range slices.SortedFunc(maps.Values(counts), func(left, right *familyCount) int {
+	m.families = counts.sorted()
+	return nil
+}
+
+// countLineage attributes lineage's compact body: an identity owns its text and the separator after it, by the
+// artifact it names, and an edge its three indexes and the separator after each, by its child's; what is left is the
+// body's frame and its relations.
+func (m *memberCensus) countLineage(body []byte, owner func(artifact.ID) (string, uint64)) error {
+	var lineage lineageCheckpointBody
+	if err := json.Unmarshal(body, &lineage); err != nil {
+		return fmt.Errorf("overgodb: checkpoint %s: %w", m.name, err)
+	}
+	counts := familyCounts{}
+	attributed := 0
+	for _, id := range lineage.IDs {
+		name, sequence := owner(id)
+		bytes := len(id.String()) + len(`"",`)
+		counts.add(name, sequence, bytes)
+		attributed += bytes
+	}
+	for at := 0; at+lineageEdgeIndexes <= len(lineage.Edges); at += lineageEdgeIndexes {
+		if int64(lineage.Edges[at]) >= int64(len(lineage.IDs)) {
+			return fmt.Errorf("overgodb: checkpoint %s: an edge names no identity the body holds", m.name)
+		}
+		bytes := 0
+		for _, index := range lineage.Edges[at : at+lineageEdgeIndexes] {
+			bytes += len(strconv.FormatUint(uint64(index), decimal)) + len(",")
+		}
+		name, sequence := owner(lineage.IDs[lineage.Edges[at]])
+		counts.add(name, sequence, bytes)
+		attributed += bytes
+	}
+	// The frame is the body with no identity and no edge, less the closing bracket of each array that holds one, which
+	// its last element owns.
+	frame, err := json.Marshal(lineageCheckpointBody{IDs: lineage.IDs[:0], Relations: lineage.Relations, Edges: lineage.Edges[:0]})
+	if err != nil {
+		return err
+	}
+	m.records, m.framing = len(lineage.IDs)+len(lineage.Edges)/lineageEdgeIndexes, len(body)-attributed
+	if m.framing != len(frame)-min(len(lineage.IDs), 1)-min(len(lineage.Edges), 1) {
+		return fmt.Errorf("overgodb: checkpoint %s is not the compact body its writer makes: %d bytes frame %d records", m.name, m.framing, m.records)
+	}
+	m.families = counts.sorted()
+	return nil
+}
+
+// familyCounts is a member's families by name as its records are counted.
+type familyCounts map[string]*familyCount
+
+// add counts one record of the family name, dated sequence, of bytes bytes.
+func (c familyCounts) add(name string, sequence uint64, bytes int) {
+	name = cmp.Or(name, "unnamed")
+	count := c[name]
+	if count == nil {
+		count = &familyCount{name: name}
+		c[name] = count
+	}
+	count.records++
+	count.bytes += bytes
+	count.last = max(count.last, sequence)
+}
+
+// sorted is the families, the most bytes first, then by name.
+func (c familyCounts) sorted() []familyCount {
+	families := make([]familyCount, 0, len(c))
+	for _, count := range slices.SortedFunc(maps.Values(c), func(left, right *familyCount) int {
 		return cmp.Or(cmp.Compare(right.bytes, left.bytes), cmp.Compare(left.name, right.name))
 	}) {
-		m.families = append(m.families, *count)
+		families = append(families, *count)
 	}
-	return nil
+	return families
 }
 
 // artifactFamily gives, read against state, the family of the artifact an

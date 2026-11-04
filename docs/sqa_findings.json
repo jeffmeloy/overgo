@@ -1,46 +1,46 @@
 {
-    "branch": "master",
-    "candidate_review": {
-      "assessment": "Close SQA-305 from its newly committed finalizer repair and retained counterfactual, counting necessary test/setup growth honestly. Add one safe small reduction, SQA-306, while retaining all independent cache requirements. Existing query/page/quiet opportunities remain canonical; no consolidation quota.",
-      "current_review_order": [
-        "SQA-286",
-        "SQA-277",
-        "SQA-283",
-        "SQA-271",
-        "SQA-303",
-        "SQA-253",
-        "SQA-244",
-        "SQA-306",
-        "SQA-247"
-      ],
-      "rank_basis": "Correctness/recovery obligations remain above test simplifications. New P3 SQA-306 is placed with other small test reductions; untouched historical rankings are not fresh certifications.",
-      "declined_candidates": [
-        "Do not merge window_peak and qwen35_window merely because their GGUF metadata match. The former owns plain-cold then draft-warm lifetime; the latter owns native cold-window parity plus F32 behavior. Preserving all three runner opens and distinct state sequences has no complete net reduction established.",
-        "Keep BF16 typed transfer and F32 default wrappers: admitted dtype/capacity, exact rounding and compatibility differ from caller-local conversions. No private abstraction proposed.",
-        "Keep response limit/natural/stop wire and durable records together, including replay/reopen/continuation. Stalled transport cancellation and lease release are a distinct requirement.",
-        "Two process snapshots can miss transient competition. This is a source limitation, not evidence of a new contaminated measurement or a reason to add polling/telemetry."
-      ]
-    },
-    "committed_plan": {
+  "branch": "master",
+  "candidate_review": {
+    "assessment": "Close SQA-305 from its newly committed finalizer repair and retained counterfactual, counting necessary test/setup growth honestly. Add one safe small reduction, SQA-306, while retaining all independent cache requirements. Existing query/page/quiet opportunities remain canonical; no consolidation quota.",
+    "current_review_order": [
+      "SQA-286",
+      "SQA-277",
+      "SQA-283",
+      "SQA-271",
+      "SQA-303",
+      "SQA-253",
+      "SQA-244",
+      "SQA-306",
+      "SQA-247"
+    ],
+    "rank_basis": "Correctness/recovery obligations remain above test simplifications. New P3 SQA-306 is placed with other small test reductions; untouched historical rankings are not fresh certifications.",
+    "declined_candidates": [
+      "Do not merge window_peak and qwen35_window merely because their GGUF metadata match. The former owns plain-cold then draft-warm lifetime; the latter owns native cold-window parity plus F32 behavior. Preserving all three runner opens and distinct state sequences has no complete net reduction established.",
+      "Keep BF16 typed transfer and F32 default wrappers: admitted dtype/capacity, exact rounding and compatibility differ from caller-local conversions. No private abstraction proposed.",
+      "Keep response limit/natural/stop wire and durable records together, including replay/reopen/continuation. Stalled transport cancellation and lease release are a distinct requirement.",
+      "Two process snapshots can miss transient competition. This is a source limitation, not evidence of a new contaminated measurement or a reason to add polling/telemetry."
+    ]
+  },
+  "committed_plan": {
     "git_blob": "bba2238bf3f9d25cba0d8574063acf40a35ce160",
     "path": "docs/plan.json",
     "revision": "92072025d35b757f05fba4bba407df0e870510e2",
     "sha256": "e17ac3240e43e04edd19a7abac9ed0fe2164affdf2522def049275f26333167e",
     "working_tree_status": "Only pinned committed plan assessed; concurrent worktree edits excluded."
   },
-    "findings": [
+  "findings": [
     {
-    "category": "transfer-resource-lifetime",
-    "classification": "committed-finalizer-repair-with-retained-counterfactual",
-    "evidence": "Closed at92072025d35b757f05fba4bba407df0e870510e2 (prefetch-drain/drain). moePrefetch.end now calls StreamSynchronize(copies) whenever p.base!=0, before clearing arena ownership; completion-event release is separate and errors remain joined. Thus an ahead failure after a submitted copy but before assigning p.copied still reaches the same stream drain. Per-half ordering, normal parity/loan cases and caller error cleanup are unchanged. The new native fixture constructs the admitted no-mark state using existing worker/driver owners, submits a128MiB pinned copy and checks StreamQuery after end. Retained implementation counterfactual: old guard failed3/3; repair passed3/3. No fault-injection framework or SQA execution. This establishes the source repair and local pending-copy distinction, not universal recovery from every driver/context failure. The128MiB size is a timing-sensitive fixture choice, not proof a copy must remain pending on every host or schedule; no bigger threshold or additional run is prescribed. The committed row has left the active plan.",
-    "evidence_commit": "92072025d35b757f05fba4bba407df0e870510e2",
-    "expected_benefit": {
+      "category": "transfer-resource-lifetime",
+      "classification": "committed-finalizer-repair-with-retained-counterfactual",
+      "evidence": "Closed at92072025d35b757f05fba4bba407df0e870510e2 (prefetch-drain/drain). moePrefetch.end now calls StreamSynchronize(copies) whenever p.base!=0, before clearing arena ownership; completion-event release is separate and errors remain joined. Thus an ahead failure after a submitted copy but before assigning p.copied still reaches the same stream drain. Per-half ordering, normal parity/loan cases and caller error cleanup are unchanged. The new native fixture constructs the admitted no-mark state using existing worker/driver owners, submits a128MiB pinned copy and checks StreamQuery after end. Retained implementation counterfactual: old guard failed3/3; repair passed3/3. No fault-injection framework or SQA execution. This establishes the source repair and local pending-copy distinction, not universal recovery from every driver/context failure. The128MiB size is a timing-sensitive fixture choice, not proof a copy must remain pending on every host or schedule; no bigger threshold or additional run is prescribed. The committed row has left the active plan.",
+      "evidence_commit": "92072025d35b757f05fba4bba407df0e870510e2",
+      "expected_benefit": {
         "outcome": "Necessary recovery growth, not a reduction. Fresh AST: moe_prefetch1199->1211(+12production); new prefetch_drain_windows_test263(+263test). With unchanged executor18131, staging_release2055 and prompt_prefetch1058, complete named surface22443->22718(+275). One new test source file, no static fixture data/files, helper/wrapper/config/schema/CUDA additions. Existing newFixtureWorker implementation reused, but execution adds one worker setup, one stream, one128MiB pinned host allocation plus one128MiB device allocation and one copy; all have cleanup. Existing prefetch/loan tests remain.",
         "uncertainty": "Retained gate: native host2m24.136s, lane wall16m12.877s (device10m59.225s, webui2m47.767s, CUDA5m12.808s;13executed/6cached). These are implementation run costs, not SQA reruns or a forecast. Retained Bonsai outputs identical and peak5389.8MiB unchanged; one finalizer fence's isolated latency is unmeasured. Local undo distinguishes the defect but pending-copy sensitivity can depend on scheduling; no universal statistical or timing guarantee."
       },
-    "id": "SQA-305",
-    "severity": "P2",
-    "sources": [
+      "id": "SQA-305",
+      "severity": "P2",
+      "sources": [
         {
           "path": "internal/cuda/executor/moe_prefetch.go",
           "symbol": "moePrefetch.ahead/take/end; base/copied; CompiledGraph.prefetchArena"
@@ -82,9 +82,9 @@
           "symbol": "TestAFailedPrefetchDrainsItsCopies; existing newFixtureWorker and driver owners"
         }
       ],
-    "status": "resolved",
-    "title": "Drain submitted prefetch copies even when their completion mark fails"
-  },
+      "status": "resolved",
+      "title": "Drain submitted prefetch copies even when their completion mark fails"
+    },
     {
       "category": "store-delta-continuity",
       "classification": "resolved-delivered-delta-coordinate",
@@ -232,7 +232,9 @@
         "uncertainty": "Source counterexample, not an observed production hang or measured memory saving. Windows drains cancelled OS lock requests; Unix cancellation retains the existing deferred lock cleanup behavior. Same-process mutex waits and already-admitted commits are outside this narrow writer-admission repair."
       },
       "likely_effort": "Small existing lifetime/order change with one extension of an existing native fixture; positive test growth acknowledged.",
-      "plan_references": [],
+      "plan_references": [
+        "memo-close/cancel"
+      ],
       "plan_coverage": "The serving-repairs/public-routes row has landed and left the plan. This residual lifecycle regression is not covered by an active row; no plan edit made.",
       "closure_criteria": [
         "Dirty memo publication waiting on writer admission receives handler shutdown cancellation before Wait.",
@@ -550,7 +552,9 @@
         "uncertainty": "Exact heap/layout benefit is unknown. Tiny-piece DOM-node overhead is a separate unmeasured question; no universal performance threshold or coalescing framework is proposed."
       },
       "likely_effort": "Small local renderer correction and a few assertions in the existing native Go browser fixture.",
-      "plan_references": [],
+      "plan_references": [
+        "tool-tail/single-event"
+      ],
       "plan_coverage": "web-ui-repairs/render-cost landed at972dd24df and is pruned. No current row or existing finding owns this admitted single-event exception; file this local follow-up without editing the plan.",
       "closure_criteria": [
         "One valid event larger than toolOutputTail cannot leave an oversized sole node, and discarded output is disclosed.",
@@ -2758,7 +2762,9 @@
         "uncertainty": "Complete source substitution parsed only; not package-compiled or executed. Shared behavior was traced to actual cases and loader contracts, not inferred solely from AST similarity. No runtime processing/memory savings measured."
       },
       "likely_effort": "One local two-case table in the existing native test.",
-      "plan_references": [],
+      "plan_references": [
+        "time-and-memory/lineage-body"
+      ],
       "plan_coverage": "Advisory only. No plan row, adoption or implementation implied.",
       "closure_criteria": [
         "One header-mutation body serves the existing version and anchor cases while retaining their exact member, mutation, reason and catalog/head assertions.",
@@ -5976,170 +5982,170 @@
       "title": "Release built view tensors by their read endpoint, not overlapping byte totals"
     }
   ],
-    "gate_test_assessment": {
-      "fresh_ast": [
-        {
-          "path": "internal/inference/bf16_cache.go",
-          "nodes": 247,
-          "functions": 1
-        },
-        {
-          "path": "internal/inference/bf16_cache_windows_test.go",
-          "nodes": 1332,
-          "functions": 2
-        },
-        {
-          "path": "internal/inference/window_peak_windows_test.go",
-          "nodes": 266,
-          "functions": 1
-        },
-        {
-          "path": "internal/inference/qwen35_window_windows_test.go",
-          "nodes": 478,
-          "functions": 1
-        },
-        {
-          "path": "internal/cuda/executor/device_value.go",
-          "nodes": 2482,
-          "functions": 22
-        },
-        {
-          "path": "internal/overgodb/query.go",
-          "nodes": 3720,
-          "functions": 22
-        },
-        {
-          "path": "internal/overgodb/documents.go",
-          "nodes": 2011,
-          "functions": 11
-        },
-        {
-          "path": "internal/overgodb/query_plan_test.go",
-          "nodes": 719,
-          "functions": 1
-        },
-        {
-          "path": "internal/overgodb/document_page_test.go",
-          "nodes": 557,
-          "functions": 1
-        },
-        {
-          "path": "internal/server/protocol_chat.go",
-          "nodes": 4275,
-          "functions": 14
-        },
-        {
-          "path": "internal/server/response_limit_test.go",
-          "nodes": 1063,
-          "functions": 1
-        },
-        {
-          "path": "internal/server/response_control_test.go",
-          "nodes": 2199,
-          "functions": 12
-        },
-        {
-          "path": "internal/landing/quiet.go",
-          "nodes": 468,
-          "functions": 4
-        },
-        {
-          "path": "internal/landing/quiet_test.go",
-          "nodes": 1229,
-          "functions": 4
-        },
-        {
-          "path": "internal/landing/processes.go",
-          "nodes": 256,
-          "functions": 1
-        },
-        {
-          "path": "internal/landing/preflight_test.go",
-          "nodes": 342,
-          "functions": 3
-        },
-        {
-          "path": "internal/cuda/executor/moe_prefetch.go",
-          "nodes": 1211,
-          "functions": 6
-        },
-        {
-          "path": "internal/cuda/executor/prefetch_drain_windows_test.go",
-          "nodes": 263,
-          "functions": 1
-        }
-      ],
-      "tests": [
-        {
-          "classification": "retain",
-          "ids": [
-            "SQA-305"
-          ],
-          "owner": "TestAFailedPrefetchDrainsItsCopies; existing prefetch parity and loan fixtures",
-          "cases": "No-mark submitted-copy drain is distinct from successful parity and loan-return cases. Keep existing worker/driver owners and joined cleanup errors. Retained undo failed3/3 before, passed3/3 after;128MiB pending-copy timing is not a universal guarantee.",
-          "cost": "Actual +12production/+263test; named full surface22443->22718(+275). One extra worker/stream setup,128MiB pinned host plus128MiB device, one copy; no static fixture bytes or framework. New test source file disclosed."
-        },
-        {
-          "classification": "simplify",
-          "ids": [
-            "SQA-306"
-          ],
-          "owner": "TestTheKeyValueCacheIsStoredInBF16; writeBF16CacheFixture",
-          "cases": "Remove only sorted/lead-implied winner guard. Retain type, capacity, exact rounding, round-trip, bounded logit difference, prompt chunks and common F32 forced tokens.",
-          "cost": "1332->1273(-59), production unchanged; two runner opens/one generated fixture remain. Seven sorts/sorted slices disappear; no measured runtime benefit."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestACellRunnerDecodesPlainlyOutsideWindows; TestQwen35DraftsVerifyInAWindow",
-          "cases": "Plain-cold then draft-warm ownership differs from cold-native window parity and F32 speculative state. Preserve all unique sequences and existing numerical cases.",
-          "cost": "window_peak266 + qwen35_window478 =744 test nodes; no fully costed merge, fixture or setup reduction."
-        },
-        {
-          "classification": "merge",
-          "ids": [
-            "SQA-253"
-          ],
-          "owner": "TestProjectionQueryPlanEfficiency; queryIndexPlan",
-          "cases": "Five successes may share one body; retain catalog/refusal and same-head repeat, separate cursor/bounds/projection owners.",
-          "cost": "Current query3720/test719 unchanged from retained candidate; existing -24production/-186test counted once. Same store/fixture/eight query executions."
-        },
-        {
-          "classification": "simplify",
-          "ids": [
-            "SQA-244"
-          ],
-          "owner": "TestQueryScansProportionalToItsPage; DocumentContract.OwnedContentBytes",
-          "cases": "Existing crowd/queried builders share owned-content contract. Retain all schema/order/page/census checks; no cases move.",
-          "cost": "557->522(-35) retained whole-file candidate; constructor ownership tests unchanged. Same147 documents/seven commits/one store."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestResponsesIncompleteAtOutputLimit; TestStoredResponseStopInterruptsStalledWrite",
-          "cases": "Three terminal causes across streaming/store modes; durable replay, history, reopen and continuation. Blocking transport observes cancellation, durable cancelled state and lease release.",
-          "cost": "response_limit1063 and complete response_control2199 unchanged; semantic review of control file limited to named case/support. No new fixture or repeated run."
-        },
-        {
-          "classification": "simplify",
-          "ids": [
-            "SQA-247"
-          ],
-          "owner": "TestTimedWorkExcludesCompetingWork",
-          "cases": "Existing errors.Is owner already handles nil equality. Retain five rows and native lock/exclusion/child-bypass cases.",
-          "cost": "quiet_test1229->1217(-12) retained candidate; quiet468/processes256 unchanged; setup/gate unchanged."
-        },
-        {
-          "classification": "retain",
-          "owner": "TestPreflightRunsTheCheapStagesOnly; TestInvariantPackagesExist; TestGeneratorsAreThoseTheRepositoryHas",
-          "cases": "Check named cheap stages and invariant package/generator admission before long work. Do not replace by a new policy suite.",
-          "cost": "342 test nodes unchanged; no added setup or gate execution."
-        }
-      ],
-      "automation_sequence": "Existing landing checks order format/fix/vet/rules/invariants before long test/lanes, with explicit refusal ownership; cheap preflight also includes verify. Quiet-machine locks and child-held bypass prevent nested waits, timed work samples competing processes at both endpoints and retains errors. Native Go caching and lane reuse are credited. The previously established post-cycle Current/ErrWorkWaiting gap in SQA-271 is unchanged at this pin; its canonical continuation migration is not duplicated. Retained commit completion records do not prove external wakeup delivery, and no unattended continuation was observed or inferred.",
-      "assumptions": "BF16 key/value widths and matching extents derive from typed descriptors;64/128/256 are compiled flash-kernel support, not arbitrary model thresholds. BF16 rounding narrows storage and widens on reads; default F32 and unsupported geometry retain fallback. The212-token fixture's100/100/12 chunks exercise real attention paths. Its1% reference-spread bound is fixture acceptance, not universal quality. Query planning chooses exact current index cardinalities, not uniformity/selectivity estimates; page budgets are checked before materialization. Window plain-versus-draft admission preserves separate lifetime and numerical contracts. Timing does not change numerical acceptance. Prefetch fixture128MiB is a local pending-copy stimulus, not hardware calibration or a deterministic guarantee under host preemption. Source ownership now provides the fence independently of that stimulus; retained before/after evidence is scoped accordingly.",
-      "retained_results": "136993c95: real27B span slot627654912->15884544 bytes, process24.12->22.75GB; +123production/+547test AST. Its first form admitted an unsupported cell path and native mechanism coverage caught it; Bonsai peak grew181.6MiB. a2527370e restricts plain window ownership: +28production/+266test; retained Bonsai peak5571.5->5389.8MiB with identical outputs. c857f459a BF16 landing adds1409production/1361test AST plus206 CUDA lines/eight entrypoints; not a source reduction. Retained two-arm long-context results: Qwen2.5-.5B2104->1764MiB with0.40s first output/315tok/s both; MiniCPM5-1B3711->3191MiB,0.74->0.73s/158.7->159.8tok/s. These are reported implementation runs, not SQA measurements or universal guarantees. Held-out F32-vs-rounded discordances6vs8,p=1 indicate no detected lean, not equivalence. Full gate host3m8.732/device10m58.399/webui2m49.658/CUDA6m31.635(19executed,0cached)/verify1.3s retained; no reruns. Concurrent92072025d: prefetch drain +12production/+263test, no data fixture/schema/CUDA growth; Bonsai outputs/5389.8MiB unchanged. Gate reused six CUDA results and executed13; no SQA rerun."
-    },
-    "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
-    "implementation_review": {
+  "gate_test_assessment": {
+    "fresh_ast": [
+      {
+        "path": "internal/inference/bf16_cache.go",
+        "nodes": 247,
+        "functions": 1
+      },
+      {
+        "path": "internal/inference/bf16_cache_windows_test.go",
+        "nodes": 1332,
+        "functions": 2
+      },
+      {
+        "path": "internal/inference/window_peak_windows_test.go",
+        "nodes": 266,
+        "functions": 1
+      },
+      {
+        "path": "internal/inference/qwen35_window_windows_test.go",
+        "nodes": 478,
+        "functions": 1
+      },
+      {
+        "path": "internal/cuda/executor/device_value.go",
+        "nodes": 2482,
+        "functions": 22
+      },
+      {
+        "path": "internal/overgodb/query.go",
+        "nodes": 3720,
+        "functions": 22
+      },
+      {
+        "path": "internal/overgodb/documents.go",
+        "nodes": 2011,
+        "functions": 11
+      },
+      {
+        "path": "internal/overgodb/query_plan_test.go",
+        "nodes": 719,
+        "functions": 1
+      },
+      {
+        "path": "internal/overgodb/document_page_test.go",
+        "nodes": 557,
+        "functions": 1
+      },
+      {
+        "path": "internal/server/protocol_chat.go",
+        "nodes": 4275,
+        "functions": 14
+      },
+      {
+        "path": "internal/server/response_limit_test.go",
+        "nodes": 1063,
+        "functions": 1
+      },
+      {
+        "path": "internal/server/response_control_test.go",
+        "nodes": 2199,
+        "functions": 12
+      },
+      {
+        "path": "internal/landing/quiet.go",
+        "nodes": 468,
+        "functions": 4
+      },
+      {
+        "path": "internal/landing/quiet_test.go",
+        "nodes": 1229,
+        "functions": 4
+      },
+      {
+        "path": "internal/landing/processes.go",
+        "nodes": 256,
+        "functions": 1
+      },
+      {
+        "path": "internal/landing/preflight_test.go",
+        "nodes": 342,
+        "functions": 3
+      },
+      {
+        "path": "internal/cuda/executor/moe_prefetch.go",
+        "nodes": 1211,
+        "functions": 6
+      },
+      {
+        "path": "internal/cuda/executor/prefetch_drain_windows_test.go",
+        "nodes": 263,
+        "functions": 1
+      }
+    ],
+    "tests": [
+      {
+        "classification": "retain",
+        "ids": [
+          "SQA-305"
+        ],
+        "owner": "TestAFailedPrefetchDrainsItsCopies; existing prefetch parity and loan fixtures",
+        "cases": "No-mark submitted-copy drain is distinct from successful parity and loan-return cases. Keep existing worker/driver owners and joined cleanup errors. Retained undo failed3/3 before, passed3/3 after;128MiB pending-copy timing is not a universal guarantee.",
+        "cost": "Actual +12production/+263test; named full surface22443->22718(+275). One extra worker/stream setup,128MiB pinned host plus128MiB device, one copy; no static fixture bytes or framework. New test source file disclosed."
+      },
+      {
+        "classification": "simplify",
+        "ids": [
+          "SQA-306"
+        ],
+        "owner": "TestTheKeyValueCacheIsStoredInBF16; writeBF16CacheFixture",
+        "cases": "Remove only sorted/lead-implied winner guard. Retain type, capacity, exact rounding, round-trip, bounded logit difference, prompt chunks and common F32 forced tokens.",
+        "cost": "1332->1273(-59), production unchanged; two runner opens/one generated fixture remain. Seven sorts/sorted slices disappear; no measured runtime benefit."
+      },
+      {
+        "classification": "retain",
+        "owner": "TestACellRunnerDecodesPlainlyOutsideWindows; TestQwen35DraftsVerifyInAWindow",
+        "cases": "Plain-cold then draft-warm ownership differs from cold-native window parity and F32 speculative state. Preserve all unique sequences and existing numerical cases.",
+        "cost": "window_peak266 + qwen35_window478 =744 test nodes; no fully costed merge, fixture or setup reduction."
+      },
+      {
+        "classification": "merge",
+        "ids": [
+          "SQA-253"
+        ],
+        "owner": "TestProjectionQueryPlanEfficiency; queryIndexPlan",
+        "cases": "Five successes may share one body; retain catalog/refusal and same-head repeat, separate cursor/bounds/projection owners.",
+        "cost": "Current query3720/test719 unchanged from retained candidate; existing -24production/-186test counted once. Same store/fixture/eight query executions."
+      },
+      {
+        "classification": "simplify",
+        "ids": [
+          "SQA-244"
+        ],
+        "owner": "TestQueryScansProportionalToItsPage; DocumentContract.OwnedContentBytes",
+        "cases": "Existing crowd/queried builders share owned-content contract. Retain all schema/order/page/census checks; no cases move.",
+        "cost": "557->522(-35) retained whole-file candidate; constructor ownership tests unchanged. Same147 documents/seven commits/one store."
+      },
+      {
+        "classification": "retain",
+        "owner": "TestResponsesIncompleteAtOutputLimit; TestStoredResponseStopInterruptsStalledWrite",
+        "cases": "Three terminal causes across streaming/store modes; durable replay, history, reopen and continuation. Blocking transport observes cancellation, durable cancelled state and lease release.",
+        "cost": "response_limit1063 and complete response_control2199 unchanged; semantic review of control file limited to named case/support. No new fixture or repeated run."
+      },
+      {
+        "classification": "simplify",
+        "ids": [
+          "SQA-247"
+        ],
+        "owner": "TestTimedWorkExcludesCompetingWork",
+        "cases": "Existing errors.Is owner already handles nil equality. Retain five rows and native lock/exclusion/child-bypass cases.",
+        "cost": "quiet_test1229->1217(-12) retained candidate; quiet468/processes256 unchanged; setup/gate unchanged."
+      },
+      {
+        "classification": "retain",
+        "owner": "TestPreflightRunsTheCheapStagesOnly; TestInvariantPackagesExist; TestGeneratorsAreThoseTheRepositoryHas",
+        "cases": "Check named cheap stages and invariant package/generator admission before long work. Do not replace by a new policy suite.",
+        "cost": "342 test nodes unchanged; no added setup or gate execution."
+      }
+    ],
+    "automation_sequence": "Existing landing checks order format/fix/vet/rules/invariants before long test/lanes, with explicit refusal ownership; cheap preflight also includes verify. Quiet-machine locks and child-held bypass prevent nested waits, timed work samples competing processes at both endpoints and retains errors. Native Go caching and lane reuse are credited. The previously established post-cycle Current/ErrWorkWaiting gap in SQA-271 is unchanged at this pin; its canonical continuation migration is not duplicated. Retained commit completion records do not prove external wakeup delivery, and no unattended continuation was observed or inferred.",
+    "assumptions": "BF16 key/value widths and matching extents derive from typed descriptors;64/128/256 are compiled flash-kernel support, not arbitrary model thresholds. BF16 rounding narrows storage and widens on reads; default F32 and unsupported geometry retain fallback. The212-token fixture's100/100/12 chunks exercise real attention paths. Its1% reference-spread bound is fixture acceptance, not universal quality. Query planning chooses exact current index cardinalities, not uniformity/selectivity estimates; page budgets are checked before materialization. Window plain-versus-draft admission preserves separate lifetime and numerical contracts. Timing does not change numerical acceptance. Prefetch fixture128MiB is a local pending-copy stimulus, not hardware calibration or a deterministic guarantee under host preemption. Source ownership now provides the fence independently of that stimulus; retained before/after evidence is scoped accordingly.",
+    "retained_results": "136993c95: real27B span slot627654912->15884544 bytes, process24.12->22.75GB; +123production/+547test AST. Its first form admitted an unsupported cell path and native mechanism coverage caught it; Bonsai peak grew181.6MiB. a2527370e restricts plain window ownership: +28production/+266test; retained Bonsai peak5571.5->5389.8MiB with identical outputs. c857f459a BF16 landing adds1409production/1361test AST plus206 CUDA lines/eight entrypoints; not a source reduction. Retained two-arm long-context results: Qwen2.5-.5B2104->1764MiB with0.40s first output/315tok/s both; MiniCPM5-1B3711->3191MiB,0.74->0.73s/158.7->159.8tok/s. These are reported implementation runs, not SQA measurements or universal guarantees. Held-out F32-vs-rounded discordances6vs8,p=1 indicate no detected lean, not equivalence. Full gate host3m8.732/device10m58.399/webui2m49.658/CUDA6m31.635(19executed,0cached)/verify1.3s retained; no reruns. Concurrent92072025d: prefetch drain +12production/+263test, no data fixture/schema/CUDA growth; Bonsai outputs/5389.8MiB unchanged. Gate reused six CUDA results and executed13; no SQA rerun."
+  },
+  "hygiene_assessment": "No hygiene finding. Scratch analysis is outside the repository; concrete correctness and production/test cost take priority.",
+  "implementation_review": {
     "agent": "Overgo lead developer in the former SQA chat",
     "comments": [
       {
@@ -7415,6 +7421,17 @@
         "plan_steps": [
           "prefetch-drain/drain"
         ]
+      },
+      {
+        "comment": "Landed with time-and-memory/lineage-body. TestProjectionCheckpointAnchorAndFallback drives its unknown-version and other-head cases from one table of member, reason and header edit through the existing corrupt, openAndDigest and restore helpers.",
+        "disposition": "implemented",
+        "evidence": [
+          "TestProjectionCheckpointAnchorAndFallback"
+        ],
+        "finding_id": "SQA-243",
+        "plan_steps": [
+          "time-and-memory/lineage-body"
+        ]
       }
     ],
     "experiments": {
@@ -7446,16 +7463,16 @@
     "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
     "validation": "All 30 originally adopted steps, the two optimizer experiment steps and the request-completeness follow-up are complete. The committed plan has no open rows and retains all 24 operator decisions. Twenty-one implementation/evidence landings total +3866 production and +5901 test AST nodes from the gate footers after e3247f5c4907900aa5b3e8d73e7222134b4e987d. Targeted consolidation removed duplicate code and tests, but necessary correctness coverage leaves net growth. The final reproduction adds zero production/test AST nodes, schemas, CUDA source or fixtures. Its focused protocol, scorecard and paired-statistics tests and the full landing gate passed. The final gate measured host tests at 5m9.878s (5 executed packages), lane discovery at 814ms with device/webui/CUDA not reached, and focused verification at 1.152s. The former SQA chat implemented these changes; this is the lead's response, not independent third-party verification. No full model cycle or unmeasured media-quality improvement is claimed."
   },
-    "limitations": [
-      "No application execution or fresh elapsed/heap/device measurement. Whole-file AST counts and operation counts are source proxies.",
-      "BF16 hypothetical deletion was parsed, not package-compiled. Its finite-fixture implication does not establish generic nonfinite behavior or model quality.",
-      "Only sampled obligations were freshly rechecked. Other canonical findings retain their stated evidence revision; aliases remain aliases rather than closures.",
-      "Retained post-cycle waiting gap and actual continuation delivery remain separate requirements within SQA-271. Completion records alone prove neither dispatch nor unattended reliability.",
-      "Publication was re-pinned after the concurrent drain landing; the original16 selected files are unchanged. The new drain fixture's128MiB copy does not guarantee pending work on every host/schedule; closure combines source ordering with scoped retained counterfactual evidence."
-    ],
-    "master_lead_triage": {
+  "limitations": [
+    "No application execution or fresh elapsed/heap/device measurement. Whole-file AST counts and operation counts are source proxies.",
+    "BF16 hypothetical deletion was parsed, not package-compiled. Its finite-fixture implication does not establish generic nonfinite behavior or model quality.",
+    "Only sampled obligations were freshly rechecked. Other canonical findings retain their stated evidence revision; aliases remain aliases rather than closures.",
+    "Retained post-cycle waiting gap and actual continuation delivery remain separate requirements within SQA-271. Completion records alone prove neither dispatch nor unattended reliability.",
+    "Publication was re-pinned after the concurrent drain landing; the original16 selected files are unchanged. The new drain fixture's128MiB copy does not guarantee pending work on every host/schedule; closure combines source ordering with scoped retained counterfactual evidence."
+  ],
+  "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "c857f459a89f446c25aa850a196443ad03bb3bc0",
+    "head": "4de3c8de76862f58dab47904ad35ffbc4357e99d",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7979,8 +7996,11 @@
         "note": "Lead's judgement: moved with consolidate/test-reductions when the owner's plan folded that step into compact-tests/exact-folds."
       },
       "SQA-243": {
-        "action": "none",
-        "note": "No row of its own: a P3 consolidation that rides with the next row that opens internal/overgodb/checkpoint_fallback_test.go. Title-level triage, not re-verified at this head."
+        "action": "implemented",
+        "rows": [
+          "time-and-memory/lineage-body"
+        ],
+        "note": "Landed with the row that next touched checkpoints.go. The fallback test's two header edits are one body over a two-row table of member, expected reason and header edit; the payload-digest and missing-directory cases stay separate. Awaits the reviewer's closure."
       },
       "SQA-239": {
         "action": "none",
@@ -8163,16 +8183,30 @@
           "prefetch-drain/drain"
         ],
         "note": "Landed. moePrefetch.end drains the copy stream whenever the run had a prefetch arena (p.base != 0), whatever the mark, then releases the mark; TestAFailedPrefetchDrainsItsCopies submits a pinned copy into an arena with no mark and finds the stream drained when end returns. Awaits the reviewer's closure."
+      },
+      "SQA-286": {
+        "action": "scheduled",
+        "rows": [
+          "memo-close/cancel"
+        ],
+        "note": "Scheduled as its own row: memo publication takes the handler's existing background lifetime, which Close ends before it waits for memo writes."
+      },
+      "SQA-284": {
+        "action": "scheduled",
+        "rows": [
+          "tool-tail/single-event"
+        ],
+        "note": "Scheduled as its own row: an incoming piece keeps at most the tail's suffix, as a sole node too, with the existing notice."
       }
     }
   },
-    "next_finding_number": 307,
-    "publication_context": {
-      "checked_head": "92072025d35b757f05fba4bba407df0e870510e2",
-      "assessment": "Re-read code pin, current report and owner fields immediately before writing; parse replacement JSON and validate stable IDs, aliases, canonical ranks and raw-exact owner preservation.",
-      "publication": "Only docs/sqa_findings.json through existing locks/hooks and a path-limited commit. Preserve unrelated index/worktree edits; no production gate, push or timer change."
-    },
-    "ranked_active_finding_ids": [
+  "next_finding_number": 307,
+  "publication_context": {
+    "checked_head": "92072025d35b757f05fba4bba407df0e870510e2",
+    "assessment": "Re-read code pin, current report and owner fields immediately before writing; parse replacement JSON and validate stable IDs, aliases, canonical ranks and raw-exact owner preservation.",
+    "publication": "Only docs/sqa_findings.json through existing locks/hooks and a path-limited commit. Preserve unrelated index/worktree edits; no production gate, push or timer change."
+  },
+  "ranked_active_finding_ids": [
     "SQA-286",
     "SQA-277",
     "SQA-283",
@@ -8225,51 +8259,51 @@
     "SQA-247",
     "SQA-262"
   ],
-    "repository": "C:\\Users\\jeffm\\overgo",
-    "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
-    "review_notes": [
-      "Fresh conclusions preceded current report read. SQA-306 is a distinct redundant numerical assertion, not a duplicate of quiet nil matching or query fixture consolidation.",
-      "Concurrent prefetch-drain/drain landed92072025d while publication was waiting for existing ownership. Re-read source, new native case, plan and report; close SQA-305 with +12production/+263test and extra setup costs. Preserve all115 owner comments and triage exactly.",
-      "Rechecked SQA-253/244/247 sources and retained complete candidates without remeasuring or double-counting their established savings. Keep their distinct contracts and canonical IDs.",
-      "No safe new window-test/setup consolidation established. Necessary BF16 storage/transfer coverage growth is disclosed beside the small removable assertion.",
-      "This chat previously implemented Overgo changes. Report-only review, not independent third-party assurance. Unsampled implementation responses remain exactly preserved."
-    ],
-    "reviewed_at": "2026-11-04T20:23:52Z",
+  "repository": "C:\\Users\\jeffm\\overgo",
+  "review_author": "Report-only SQA in a chat that previously implemented Overgo changes. Implementation overlap is disclosed; this is not independent third-party review.",
+  "review_notes": [
+    "Fresh conclusions preceded current report read. SQA-306 is a distinct redundant numerical assertion, not a duplicate of quiet nil matching or query fixture consolidation.",
+    "Concurrent prefetch-drain/drain landed92072025d while publication was waiting for existing ownership. Re-read source, new native case, plan and report; close SQA-305 with +12production/+263test and extra setup costs. Preserve all115 owner comments and triage exactly.",
+    "Rechecked SQA-253/244/247 sources and retained complete candidates without remeasuring or double-counting their established savings. Keep their distinct contracts and canonical IDs.",
+    "No safe new window-test/setup consolidation established. Necessary BF16 storage/transfer coverage growth is disclosed beside the small removable assertion.",
+    "This chat previously implemented Overgo changes. Report-only review, not independent third-party assurance. Unsampled implementation responses remain exactly preserved."
+  ],
+  "reviewed_at": "2026-11-04T20:23:52Z",
+  "reviewed_master": "92072025d35b757f05fba4bba407df0e870510e2",
+  "schema_version": 2,
+  "scope": [
+    "Read repository instructions and committed plan identity first at initial c857f459a, with provisional conclusions before prior rankings/responses. Reconciled concurrent prefetch-drain landing and re-read committed plan at final pin92072025d35b757f05fba4bba407df0e870510e2 (plan blob bba2238bf3f9d25cba0d8574063acf40a35ce160). skill.md blob e5add23887345549e59fc730675ae83f9be950cb remains unchanged.",
+    "Rotated16 production/test files across BF16 cache admission/transfers/lifetime, Qwen window lifetime, query/index/document paging, GUI response streaming/recovery and landing quiet/preflight ownership. Actual selected-file Go AST21644 nodes,101 functions,4302 parser-local bindings; not a recurring census. At final recheck these16 files are unchanged; fresh AST of the two drain files adds1474 nodes/seven functions/324 local bindings. Total18 files:23118 nodes/108 functions/4626 local bindings.",
+    "Typechecked exact complete internal/landing/processes.go with installed standard-library imports:27 definitions,89 uses,8 selections, no stubs. Other resolution is parser-local bindings plus explicit caller/owner inspection, not full CUDA/package type resolution.",
+    "Large-file semantic review is bounded: device_value typed extent/capacity/transfers; query planner selection/count; documents released-content/page/cursor checks; protocol_chat streaming/cancellation; response_control stalled-write cancellation and supporting ownership. Whole-file AST counts are cost accounting, not a claim of a complete audit of every function.",
+    "Read four implementation landings and retained evidence:136993c95 cell windows, a2527370e window peak, c857f459a BF16 cache and concurrent92072025d prefetch drain. Reviewed committed preflight/quiet/failure owners and retained driver waiting evidence. No application tests, model/device workloads, services, gates, benchmarks, profiles, agents, worker messages or production changes."
+  ],
+  "sqa_response": {
     "reviewed_master": "92072025d35b757f05fba4bba407df0e870510e2",
-    "schema_version": 2,
-    "scope": [
-      "Read repository instructions and committed plan identity first at initial c857f459a, with provisional conclusions before prior rankings/responses. Reconciled concurrent prefetch-drain landing and re-read committed plan at final pin92072025d35b757f05fba4bba407df0e870510e2 (plan blob bba2238bf3f9d25cba0d8574063acf40a35ce160). skill.md blob e5add23887345549e59fc730675ae83f9be950cb remains unchanged.",
-      "Rotated16 production/test files across BF16 cache admission/transfers/lifetime, Qwen window lifetime, query/index/document paging, GUI response streaming/recovery and landing quiet/preflight ownership. Actual selected-file Go AST21644 nodes,101 functions,4302 parser-local bindings; not a recurring census. At final recheck these16 files are unchanged; fresh AST of the two drain files adds1474 nodes/seven functions/324 local bindings. Total18 files:23118 nodes/108 functions/4626 local bindings.",
-      "Typechecked exact complete internal/landing/processes.go with installed standard-library imports:27 definitions,89 uses,8 selections, no stubs. Other resolution is parser-local bindings plus explicit caller/owner inspection, not full CUDA/package type resolution.",
-      "Large-file semantic review is bounded: device_value typed extent/capacity/transfers; query planner selection/count; documents released-content/page/cursor checks; protocol_chat streaming/cancellation; response_control stalled-write cancellation and supporting ownership. Whole-file AST counts are cost accounting, not a claim of a complete audit of every function.",
-      "Read four implementation landings and retained evidence:136993c95 cell windows, a2527370e window peak, c857f459a BF16 cache and concurrent92072025d prefetch drain. Reviewed committed preflight/quiet/failure owners and retained driver waiting evidence. No application tests, model/device workloads, services, gates, benchmarks, profiles, agents, worker messages or production changes."
+    "assessment": "51 canonical open,76 resolved,four deferred and two aliases;133 stable IDs. Close SQA-305 after concurrent committed-source recheck. Add SQA-306 for one redundant BF16 assertion; no duplicated obligation.",
+    "new_findings": [
+      "SQA-306"
     ],
-    "sqa_response": {
-      "reviewed_master": "92072025d35b757f05fba4bba407df0e870510e2",
-      "assessment": "51 canonical open,76 resolved,four deferred and two aliases;133 stable IDs. Close SQA-305 after concurrent committed-source recheck. Add SQA-306 for one redundant BF16 assertion; no duplicated obligation.",
-      "new_findings": [
-        "SQA-306"
-      ],
-      "resolved_findings": [
-        "SQA-305"
-      ],
-      "partially_addressed_findings": [],
-      "reopened_findings": [],
-      "deferred_findings": [],
-      "priority_changes": [],
-      "consolidated_findings": [],
-      "evidence": "Fresh16-file AST plus two newly committed drain files:23118 nodes/108 functions/4626 parser-local bindings. Exact complete processes.go type resolution. BF16 hypothetical deletion1332->1273(-59); actual drain growth+12production/+263test. Retained counterfactual evidence only; no SQA execution.",
-      "implementation_response_context": {
-        "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
-        "current_triage_head": "c857f459a89f446c25aa850a196443ad03bb3bc0",
-        "status": "Read115 implementation comments and current triage. Initial SQA-305 response was uncommitted; after92072025d landed, rechecked source and native deciding case before closure. Both owner blocks and all unknown fields remain raw-exact, including their own revision identities."
-      },
-      "refactor": {
-        "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
-        "history_path": "docs/sqa_findings.json",
-        "layout": "Open/deferred findings carry full review recommendations; resolved findings retain closure evidence and costs; consolidated entries are stable aliases to a canonical open obligation. Consolidation is not closure."
-      },
-      "recommendation": "Keep remaining recovery obligations first. Retain the new no-mark drain requirement and its honest setup cost. Delete only the BF16 fixture's implied sorted winner guard when adopted. Existing SQA-253/244/247 own query/page/quiet reductions; no duplicate saving.",
-      "uncertainty": "No safe window-fixture consolidation established after preserving cold/warm ownership. No fresh application execution or runtime measurements. New drain fixture depends on a long enough transfer for the undo signal; retained3/3 results are local, not universal. Other historical findings retain their own revision."
-    }
+    "resolved_findings": [
+      "SQA-305"
+    ],
+    "partially_addressed_findings": [],
+    "reopened_findings": [],
+    "deferred_findings": [],
+    "priority_changes": [],
+    "consolidated_findings": [],
+    "evidence": "Fresh16-file AST plus two newly committed drain files:23118 nodes/108 functions/4626 parser-local bindings. Exact complete processes.go type resolution. BF16 hypothetical deletion1332->1273(-59); actual drain growth+12production/+263test. Retained counterfactual evidence only; no SQA execution.",
+    "implementation_response_context": {
+      "reviewed_commit": "dea7d30a88afa10e35ef04c7a70700b74f0ab03e",
+      "current_triage_head": "c857f459a89f446c25aa850a196443ad03bb3bc0",
+      "status": "Read115 implementation comments and current triage. Initial SQA-305 response was uncommitted; after92072025d landed, rechecked source and native deciding case before closure. Both owner blocks and all unknown fields remain raw-exact, including their own revision identities."
+    },
+    "refactor": {
+      "history_revision": "53a0a3b0cbd411349a022dc61dd89ef09e16da9c",
+      "history_path": "docs/sqa_findings.json",
+      "layout": "Open/deferred findings carry full review recommendations; resolved findings retain closure evidence and costs; consolidated entries are stable aliases to a canonical open obligation. Consolidation is not closure."
+    },
+    "recommendation": "Keep remaining recovery obligations first. Retain the new no-mark drain requirement and its honest setup cost. Delete only the BF16 fixture's implied sorted winner guard when adopted. Existing SQA-253/244/247 own query/page/quiet reductions; no duplicate saving.",
+    "uncertainty": "No safe window-fixture consolidation established after preserving cold/warm ownership. No fresh application execution or runtime measurements. New drain fixture depends on a long enough transfer for the undo signal; retained3/3 results are local, not universal. Other historical findings retain their own revision."
   }
+}

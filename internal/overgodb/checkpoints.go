@@ -194,6 +194,17 @@ func loadCheckpointSet(read func(name string) ([]byte, error)) (catalogState, re
 	return state, anchor, true, ""
 }
 
+// restorer is the restore of a checkpoint body the projection wrote at version: its own, or its earlier version's.
+func (r registeredProjection) restorer(version uint16) (func(data []byte) error, bool) {
+	switch {
+	case version == r.version:
+		return r.view.restore, true
+	case r.earlier != 0 && version == r.earlier:
+		return r.restoreEarlier, true
+	}
+	return nil, false
+}
+
 // loadCheckpoint verifies one member against its header and restores its
 // facet.
 func loadCheckpoint(registered registeredProjection, read func(name string) ([]byte, error)) (replayAnchor, string) {
@@ -209,7 +220,8 @@ func loadCheckpoint(registered registeredProjection, read func(name string) ([]b
 	if err := strictjson.DecodeBytes(line, &header); err != nil {
 		return replayAnchor{}, fmt.Sprintf("checkpoint %s header: %v", registered.name, err)
 	}
-	if header.Name != registered.name || header.Version != registered.version {
+	restore, reads := registered.restorer(header.Version)
+	if header.Name != registered.name || !reads {
 		return replayAnchor{}, fmt.Sprintf("checkpoint %s names %s version %d; this reader speaks version %d",
 			registered.name, header.Name, header.Version, registered.version)
 	}
@@ -223,7 +235,7 @@ func loadCheckpoint(registered registeredProjection, read func(name string) ([]b
 	}
 	anchor := replayAnchor{sequence: header.Sequence, head: header.Head, offset: header.LogOffset}
 	copy(anchor.digest[:], anchorDigest)
-	if err := registered.view.restore(payload); err != nil {
+	if err := restore(payload); err != nil {
 		return replayAnchor{}, fmt.Sprintf("checkpoint %s restore: %v", registered.name, err)
 	}
 	return anchor, ""

@@ -104,7 +104,7 @@ var checkpointShapes = map[string]struct {
 }{
 	"artifacts": {reflect.TypeFor[artifactCheckpointEntry](), "v1 bf6f310aa20dc28e1c29ad0d327594b4"},
 	"contents":  {reflect.TypeFor[contentCheckpointEntry](), "v3 04c2b1e6800c213840721b55884bca71"},
-	"lineage":   {reflect.TypeFor[artifact.Lineage](), "v1 cb0b7aab83b9d910e2fc42021d1bb769"},
+	"lineage":   {reflect.TypeFor[lineageCheckpointBody](), "v2 aad8d0453ad83b314b2b4de7b50885ab"},
 	"causality": {reflect.TypeFor[artifact.CausalLink](), "v1 d3718a8aa40b7c4dff90a8d637a24dce"},
 	"locations": {reflect.TypeFor[artifact.Location](), "v1 bbd2efbaa82a9c37bcd510cd0952a375"},
 	"aliases":   {reflect.TypeFor[snapshotAlias](), "v1 bf35d137cdaaaaf5d6306bd114ce4881"},

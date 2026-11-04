@@ -44,6 +44,10 @@ type registeredProjection struct {
 	name    string
 	version uint16
 	view    projection
+	// earlier is a version before version whose checkpoints the loader still reads, through restoreEarlier; zero for
+	// none.
+	earlier        uint16
+	restoreEarlier func(data []byte) error
 }
 
 // initialProjectionVersion is every projection's first schema
@@ -60,6 +64,10 @@ const contentProjectionVersion = initialProjectionVersion + 2
 // durable part of the commit projection.
 const commitProjectionVersion = initialProjectionVersion + 1
 
+// lineageProjectionVersion advanced when lineage checkpointed as its compact body (lineageCheckpointBody); the loader
+// reads the version-1 body still, which a store holds until its next snapshot.
+const lineageProjectionVersion = initialProjectionVersion + 1
+
 // projections enumerates the seven facet projections in commit-
 // application order; this table is the closed world and the single
 // owner of projection names and versions.
@@ -67,7 +75,10 @@ func projections(state *catalogState) []registeredProjection {
 	return []registeredProjection{
 		{name: "artifacts", version: initialProjectionVersion, view: &state.artifacts},
 		{name: "contents", version: contentProjectionVersion, view: &state.contents},
-		{name: "lineage", version: initialProjectionVersion, view: &state.lineage},
+		{
+			name: "lineage", version: lineageProjectionVersion, view: &state.lineage,
+			earlier: initialProjectionVersion, restoreEarlier: state.lineage.restoreEarlier,
+		},
 		{name: "causality", version: CausalityProjectionVersion, view: &state.causality},
 		{name: "locations", version: initialProjectionVersion, view: &state.locations},
 		{name: "aliases", version: initialProjectionVersion, view: &state.aliases},

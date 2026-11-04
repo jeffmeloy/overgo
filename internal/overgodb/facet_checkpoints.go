@@ -96,18 +96,100 @@ func (f *contentFacet) restore(data []byte) error {
 	return nil
 }
 
-func (f *lineageFacet) checkpoint() ([]byte, error) {
-	edges := make([]artifact.Lineage, 0, f.edges)
-	children := slices.SortedFunc(maps.Keys(f.parents), artifact.CompareID)
-	for _, child := range children {
-		for _, key := range f.parents[child] {
-			edges = append(edges, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
-		}
-	}
-	return json.Marshal(edges)
+// lineageCheckpointBody is lineage's checkpoint: each identity once, in identity order, the relations by name in theirs,
+// and each edge three indexes into them, its child, parent and relation, in the facet's order (by child, then parent,
+// then relation). The version-1 body named both identities of every edge: at 479,694 edges it took 99,302,259 bytes and
+// 625 ms to restore, against 19,810,075 bytes and 138 ms.
+type lineageCheckpointBody struct {
+	IDs       []artifact.ID       `json:"ids"`
+	Relations []artifact.Relation `json:"relations"`
+	Edges     []uint32            `json:"edges"`
 }
 
+// lineageEdgeIndexes is the indexes an edge takes in lineageCheckpointBody.Edges: child, parent and relation, at
+// these offsets from its first.
+const (
+	lineageEdgeIndexes  = 3
+	lineageEdgeParent   = 1
+	lineageEdgeRelation = 2
+)
+
+// lineageEdgeLists is the lists an edge is filed in: its child's parents and its parent's children.
+const lineageEdgeLists = 2
+
+func (f *lineageFacet) checkpoint() ([]byte, error) {
+	children := slices.SortedFunc(maps.Keys(f.parents), artifact.CompareID)
+	identities, relations := map[artifact.ID]uint32{}, map[artifact.Relation]uint32{}
+	for _, child := range children {
+		for _, key := range f.parents[child] {
+			identities[key.child], identities[key.parent], relations[key.relation] = 0, 0, 0
+		}
+	}
+	body := lineageCheckpointBody{
+		IDs: slices.SortedFunc(maps.Keys(identities), artifact.CompareID), Relations: slices.Sorted(maps.Keys(relations)),
+		Edges: make([]uint32, 0, lineageEdgeIndexes*f.edges),
+	}
+	for at, id := range body.IDs {
+		identities[id] = uint32(at)
+	}
+	for at, relation := range body.Relations {
+		relations[relation] = uint32(at)
+	}
+	for _, child := range children {
+		for _, key := range f.parents[child] {
+			body.Edges = append(body.Edges, identities[key.child], identities[key.parent], relations[key.relation])
+		}
+	}
+	return json.Marshal(body)
+}
+
+// restore files each edge at the end of its child's parents and its parent's children: the body holds the edges in
+// the facet's order, so both lists come out in it.
 func (f *lineageFacet) restore(data []byte) error {
+	var body lineageCheckpointBody
+	if err := json.Unmarshal(data, &body); err != nil {
+		return fmt.Errorf("lineage checkpoint: %w", err)
+	}
+	if len(body.Edges)%lineageEdgeIndexes != 0 {
+		return errors.New("lineage checkpoint: an edge is cut short")
+	}
+	parentCounts, childCounts := make([]int, len(body.IDs)), make([]int, len(body.IDs))
+	for at := 0; at < len(body.Edges); at += lineageEdgeIndexes {
+		child, parent, relation := body.Edges[at], body.Edges[at+lineageEdgeParent], body.Edges[at+lineageEdgeRelation]
+		if int64(child) >= int64(len(body.IDs)) || int64(parent) >= int64(len(body.IDs)) || int64(relation) >= int64(len(body.Relations)) {
+			return errors.New("lineage checkpoint: an edge names no identity or relation the body holds")
+		}
+		parentCounts[child]++
+		childCounts[parent]++
+	}
+	// One block holds every list, each sliced to its exact length, so a later edge filed into one moves it out.
+	block := make([]relationKey, lineageEdgeLists*len(body.Edges)/lineageEdgeIndexes)
+	parents, children := make([][]relationKey, len(body.IDs)), make([][]relationKey, len(body.IDs))
+	for id := range body.IDs {
+		parents[id], block = block[:0:parentCounts[id]], block[parentCounts[id]:]
+		children[id], block = block[:0:childCounts[id]], block[childCounts[id]:]
+	}
+	*f = newLineageFacet()
+	for at := 0; at < len(body.Edges); at += lineageEdgeIndexes {
+		child, parent := body.Edges[at], body.Edges[at+lineageEdgeParent]
+		key := relationKey{child: body.IDs[child], parent: body.IDs[parent], relation: body.Relations[body.Edges[at+lineageEdgeRelation]]}
+		parents[child], children[parent] = append(parents[child], key), append(children[parent], key)
+		f.edges++
+	}
+	for at, id := range body.IDs {
+		if len(parents[at]) != 0 {
+			f.parents[id] = parents[at]
+		}
+		if len(children[at]) != 0 {
+			f.children[id] = children[at]
+		}
+	}
+	return nil
+}
+
+// restoreEarlier restores the version-1 body, every edge named by both its identities, which a store keeps until its
+// next snapshot writes the compact one.
+func (f *lineageFacet) restoreEarlier(data []byte) error {
 	var edges []artifact.Lineage
 	if err := json.Unmarshal(data, &edges); err != nil {
 		return fmt.Errorf("lineage checkpoint: %w", err)

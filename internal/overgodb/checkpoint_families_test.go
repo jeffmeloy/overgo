@@ -81,8 +81,9 @@ func newCensusFixture(t *testing.T) censusFixture {
 // leading part of the key of the commit that introduced it, so the alpha
 // schema's two writers are two families and each holds the bytes its record
 // was written in; a bare identity to its kind and that key; a content
-// locator and a lineage edge to the document they belong to; a commit and an
-// alias to the leading part of their key or name. Each family is dated by
+// locator and a lineage edge to the document they belong to, and an identity
+// lineage names to the document it names; a commit and an alias to the
+// leading part of their key or name. Each family is dated by
 // the last commit that wrote to it, and every decode is timed as often as
 // asked.
 func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
@@ -137,9 +138,9 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 	artifactBytes := func(descriptor artifact.Descriptor, sequence uint64) int {
 		return encoded(artifactCheckpointEntry{Descriptor: descriptor, Sequence: sequence})
 	}
-	edge := func(child, parent artifact.Content) int {
-		return encoded(artifact.Lineage{Child: child.Descriptor.ID, Parent: parent.Descriptor.ID, Relation: artifact.RelationDependsOn})
-	}
+	// An edge of lineage's compact body is three indexes, each one digit among four identities and one relation, and
+	// the separator after each.
+	edge := lineageEdgeIndexes * len("0,")
 	want := map[string]map[string]held{
 		"artifacts": {
 			"test/alpha/v1 by alpha/one":            {1, artifactBytes(fixture.alpha.Descriptor, 1), 1},
@@ -148,8 +149,9 @@ func TestCheckpointCensusAttributesEveryByte(t *testing.T) {
 			"test/alpha/v1 by gamma":                {1, artifactBytes(fixture.later.Descriptor, head), head},
 		},
 		"lineage": {
-			"test/alpha/v1 by alpha/one": {1, encoded(artifact.Lineage{Child: fixture.alpha.Descriptor.ID, Parent: fixture.declared.ID, Relation: artifact.RelationDependsOn}), 1},
-			"test/beta/v1 by beta/two":   {1, edge(fixture.other, fixture.first), 2},
+			"test/alpha/v1 by alpha/one":            {2, encoded(fixture.alpha.Descriptor.ID) + edge, 1},
+			"no schema: evidence bare by alpha/one": {1, encoded(fixture.declared.ID), 1},
+			"test/beta/v1 by beta/two":              {3, encoded(fixture.other.Descriptor.ID) + encoded(fixture.first.Descriptor.ID) + edge, 2},
 		},
 		"aliases": {
 			"alpha/head": {1, encoded(snapshotAlias{Name: "alpha/head/1", Target: fixture.alpha.Descriptor.ID}), 1},

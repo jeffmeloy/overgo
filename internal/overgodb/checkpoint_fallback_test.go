@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -76,53 +77,32 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	}
 	restore(t)
 
-	corrupt(t, "lineage", func(data []byte) []byte {
-		newline := 0
-		for index, b := range data {
-			if b == '\n' {
-				newline = index
-				break
+	// An unknown version and an anchor at another head each discard the set, one header field edited.
+	for _, edit := range []struct {
+		member, reason string
+		header         func(*checkpointHeader)
+	}{
+		{"lineage", "version", func(header *checkpointHeader) { header.Version++ }},
+		{"contents", "anchors a different head", func(header *checkpointHeader) { header.Sequence-- }},
+	} {
+		corrupt(t, edit.member, func(data []byte) []byte {
+			line, payload, _ := bytes.Cut(data, []byte{'\n'})
+			var header checkpointHeader
+			if err := json.Unmarshal(line, &header); err != nil {
+				t.Fatal(err)
 			}
-		}
-		var header checkpointHeader
-		if err := json.Unmarshal(data[:newline], &header); err != nil {
-			t.Fatal(err)
-		}
-		header.Version++
-		mutated, err := json.Marshal(header)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return append(append(mutated, '\n'), data[newline+1:]...)
-	})
-	if digest := openAndDigest(t, false, "version"); digest != baseline {
-		t.Fatal("unknown-version fallback answered differently")
-	}
-	restore(t)
-
-	corrupt(t, "contents", func(data []byte) []byte {
-		newline := 0
-		for index, b := range data {
-			if b == '\n' {
-				newline = index
-				break
+			edit.header(&header)
+			mutated, err := json.Marshal(header)
+			if err != nil {
+				t.Fatal(err)
 			}
+			return append(append(mutated, '\n'), payload...)
+		})
+		if digest := openAndDigest(t, false, edit.reason); digest != baseline {
+			t.Fatalf("the fallback for a member that %s answered differently", edit.reason)
 		}
-		var header checkpointHeader
-		if err := json.Unmarshal(data[:newline], &header); err != nil {
-			t.Fatal(err)
-		}
-		header.Sequence--
-		mutated, err := json.Marshal(header)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return append(append(mutated, '\n'), data[newline+1:]...)
-	})
-	if digest := openAndDigest(t, false, "anchors a different head"); digest != baseline {
-		t.Fatal("stale-anchor fallback answered differently")
+		restore(t)
 	}
-	restore(t)
 
 	if err := os.RemoveAll(directory); err != nil {
 		t.Fatal(err)

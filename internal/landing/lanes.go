@@ -143,6 +143,14 @@ var cycleLanes = []lane{
 		},
 		environment: []string{cudaTestEnvironment},
 	},
+	{
+		// The long generated sequences: the store's lifecycles at crashLongSeeds, minutes a commit's checks do not
+		// spend, held to the promises a commit holds a few dozen to.
+		name: "sequences", packages: []string{"./internal/overgodb"}, tags: CycleTags,
+		command: func(string) []string {
+			return []string{"test", "-count=1", "-timeout=0", "./internal/overgodb", "-run", "^TestLongStoreLifecycles$"}
+		},
+	},
 }
 
 // cudaTestEnvironment opts a lane's tests into the real device; without it

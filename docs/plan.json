@@ -144,29 +144,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fault-finding",
-      "title": "Find abnormal-path defects by generated sequences",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "landing-stages adds 184: a change whose plan holds a step the trunk's landed is refused, its trunk history read once a step; long-sequences keeps 60 for its hook in the cycle's checks"
-      },
-      "steps": [
-        {
-          "id": "long-sequences",
-          "title": "Run the long generated sequences in the cycle's checks",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestChecksRunTheLongSequences$'",
-          "rationale": "A commit holds what fits it. The recovery model and 1,500 store seeds, about 4 minutes, belong where hours are already spent. No workflow has a schedule, so nightly has no home; use the checks at cmd/loop/improve.go:517-558. Faults below the host stay on the device lane: *driver.Library has 58 methods, and an interface over it costs several hundred nodes to test a fake, so NaN, Inf and a lost device are injected at trainingBackend, denoiseBackend and evaluation.Runtime.\nServes: lifecycle defects found before a run.\nDisappears: nothing.\nEvidence: the cycle's report.\nBatch: loop.",
-          "depends_on": [
-            "store-durability/crash-points",
-            "store-durability/store-lifecycles"
-          ]
-        }
-      ]
-    },
-    {
       "id": "run-once",
       "title": "Do each piece of a full measurement run's setup once",
       "owner": "master-lead",

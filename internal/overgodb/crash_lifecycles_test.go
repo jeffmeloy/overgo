@@ -25,11 +25,13 @@ import (
 // releases, packs, repeats and stale heads across two writers and a reader, every handle held to a small reference of
 // what the store holds, and a sample of the states a kill leaves in each sequence held to the store's promises.
 
-// A lifecycle run's shape: its seeds, the steps of each, the kill states sampled from each, the pack's limit, a tail a
-// closing writer may leave, and the steps a finding quotes. Of the commits, every crashBlobEvery-th at crashBlobTurn
-// holds a blob under an alias, and at crashOutputTurn an output nothing reaches.
+// A lifecycle run's shape: its seeds, and the long run's, which a full run's checks take (TestLongStoreLifecycles),
+// the steps of each, the kill states sampled from each, the pack's limit, a tail a closing writer may leave, and the
+// steps a finding quotes. Of the commits, every crashBlobEvery-th at crashBlobTurn holds a blob under an alias, and at
+// crashOutputTurn an output nothing reaches.
 const (
 	crashSeeds      = 40
+	crashLongSeeds  = 1500
 	crashSteps      = 60
 	crashSamples    = 6
 	crashPackLimit  = 1 << 20
@@ -363,9 +365,20 @@ func crashRunSequence(t testing.TB, ctx context.Context, directory string, seed 
 	return lines
 }
 
-// TestLifecyclesKeepTheStoresPromises drives crashSeeds generated lifecycles on crashWorkers at once.
+// TestLifecyclesKeepTheStoresPromises drives crashSeeds generated lifecycles, which a commit's checks take.
 func TestLifecyclesKeepTheStoresPromises(t *testing.T) {
 	// Serial: its workers share the process's recorder registry, and it runs alone under the crashpoints tag.
+	crashLifecycles(t, crashSeeds)
+}
+
+// TestLongLifecyclesKeepTheStoresPromises drives crashLongSeeds generated lifecycles, which a full run's checks take.
+func TestLongLifecyclesKeepTheStoresPromises(t *testing.T) {
+	// Serial: its workers share the process's recorder registry, and it runs alone under the crashpoints tag.
+	crashLifecycles(t, crashLongSeeds)
+}
+
+// crashLifecycles drives seeds generated lifecycles on crashWorkers at once, and holds each to the store's promises.
+func crashLifecycles(t *testing.T, seeds int) {
 	ctx := t.Context()
 	base := crashTemp(t)
 	work := make(chan uint64)
@@ -382,13 +395,13 @@ func TestLifecyclesKeepTheStoresPromises(t *testing.T) {
 			}
 		})
 	}
-	for seed := range uint64(crashSeeds) {
+	for seed := range uint64(seeds) {
 		work <- seed + 1
 	}
 	close(work)
 	workers.Wait()
 	slices.Sort(lines)
-	t.Logf("%d lifecycles of %d steps, %d kill states sampled from each, %d findings", crashSeeds, crashSteps, crashSamples, len(lines))
+	t.Logf("%d lifecycles of %d steps, %d kill states sampled from each, %d findings", seeds, crashSteps, crashSamples, len(lines))
 	for _, line := range lines {
 		t.Log(line)
 	}

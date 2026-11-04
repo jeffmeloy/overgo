@@ -30,18 +30,36 @@ type residentAllocation struct {
 	chunk *residentChunk
 }
 
-// residentChunk is one card allocation a program's bound inputs are packed in. The card gives memory in pages, so a
-// chunk is made of whole pages for the input it was made for, costing what that input alone would, and the inputs the
-// program binds after it fill the rest. It is freed once no input in it is held.
+// residentChunk is one card allocation a program's bound inputs are packed in. A chunk is sized to what the card
+// charges the input it was made for, so it costs what that input alone would (residentCharge), and the inputs the
+// program binds after it fill the rest. A small input the card packs at no loss takes a chunk of its own size. It is
+// freed once no input in it is held.
 type residentChunk struct {
 	pointer     driver.DevicePtr
 	bytes, used uint64
 	live        int
 }
 
-// residentPage is the granule the card gives memory in, as measured (memory-bounds/one-allocation): an allocation of
-// five megabytes takes six mebibytes.
-const residentPage = 2 << 20
+// The card's charge for an allocation, measured as free memory's fall over 256 allocations of each size
+// (resident-bytes/measured-granule): up to residentPacked it packs allocations together at no loss; above that, up to
+// residentMidPage, it charges residentMidPage (704 KB took 1 MiB); above that, whole residentPages (1.5 MiB took 2,
+// 3 MiB took 4, 5 MiB took 6).
+const (
+	residentPacked  = 512 << 10
+	residentMidPage = 1 << 20
+	residentPage    = 2 << 20
+)
+
+// residentCharge is what the card charges an allocation of bytes, as measured; ok is false on overflow.
+func residentCharge(bytes uint64) (uint64, bool) {
+	switch {
+	case bytes <= residentPacked:
+		return bytes, true
+	case bytes <= residentMidPage:
+		return residentMidPage, true
+	}
+	return checked.Align(bytes, residentPage)
+}
 
 // residentAlignment is where each packed input begins, the alignment a card allocation itself gives.
 const residentAlignment = 256
@@ -73,21 +91,24 @@ type ResidentProgram struct {
 }
 
 // place finds room for a new input of bytes: in the program's chunk when its rest holds them, else in a new chunk of
-// whole pages.
+// what the card charges the input alone. Only a chunk with room past its input becomes the one the next inputs fill.
 func (p *ResidentProgram) place(state *device.State, bytes uint64) (driver.DevicePtr, *residentChunk, error) {
 	aligned, fits := checked.Align(bytes, residentAlignment)
-	pages, paged := checked.Align(aligned, residentPage)
-	if !fits || !paged {
+	charge, charged := residentCharge(aligned)
+	if !fits || !charged {
 		return 0, nil, errors.New("resident input size overflows")
 	}
-	if p.chunk == nil || p.chunk.used+aligned > p.chunk.bytes {
-		pointer, err := state.Driver.MemAlloc(pages)
+	chunk := p.chunk
+	if chunk == nil || chunk.used+aligned > chunk.bytes {
+		pointer, err := state.Driver.MemAlloc(charge)
 		if err != nil {
 			return 0, nil, err
 		}
-		p.chunk = &residentChunk{pointer: pointer, bytes: pages}
+		chunk = &residentChunk{pointer: pointer, bytes: charge}
+		if charge > aligned {
+			p.chunk = chunk
+		}
 	}
-	chunk := p.chunk
 	placed := chunk.pointer + driver.DevicePtr(chunk.used)
 	chunk.used, chunk.live = chunk.used+aligned, chunk.live+1
 	return placed, chunk, nil
@@ -199,7 +220,7 @@ func (s *ResidentSession) Bind(
 			}
 			if copyErr := state.Driver.MemcpyHtoD(placed, data); copyErr != nil {
 				freed, freeErr := held.drop(state)
-				if freed {
+				if freed && held == program.chunk {
 					program.chunk = nil
 				}
 				return errors.Join(copyErr, freeErr)

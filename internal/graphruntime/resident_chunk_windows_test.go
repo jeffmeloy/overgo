@@ -27,8 +27,9 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 		}
 	}()
 	builder := tensor.NewBuilder()
-	// Seven hundred, three hundred and forty kilobytes, each added to an input of its own size.
-	sizes := []uint64{179200, 76800, 10240}
+	// Six hundred, three hundred and forty kilobytes, which one mebibyte chunk holds, each added to an input of its own
+	// size.
+	sizes := []uint64{153600, 76800, 10240}
 	var inputs, weights, outputs []*tensor.Tensor
 	for index, elements := range sizes {
 		name := string(rune('a' + index))
@@ -88,5 +89,55 @@ func TestAResidentProgramHoldsItsWeightsInOneAllocation(t *testing.T) {
 	}
 	if released.Device.CurrentBytes > before.Device.CurrentBytes || session.StaticBytes() != 0 {
 		t.Fatalf("after release the session holds %d bytes (%d before) and %d static", released.Device.CurrentBytes, before.Device.CurrentBytes, session.StaticBytes())
+	}
+}
+
+// TestAResidentProgramTakesNoMoreThanItsInputs binds one weight into each of three programs and holds what the
+// driver's ledger grows by to what the card charges that weight alone (resident-bytes/measured-granule): a records-sized
+// weight takes its own bytes, not a page; a six hundred kilobyte one the mebibyte the card would charge it; a one and a
+// half mebibyte one the two mebibyte page.
+func TestAResidentProgramTakesNoMoreThanItsInputs(t *testing.T) {
+	cudatest.Require(t)
+	ctx := t.Context()
+	session, err := NewResidentSession(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := session.Close(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+	for _, weight := range []struct {
+		elements, takes uint64
+	}{{64, 256}, {153600, 1 << 20}, {393216, 2 << 20}} {
+		builder := tensor.NewBuilder()
+		input := builder.Input("input", dtype.F32, tensor.MustShape(weight.elements))
+		bound := builder.Input("weight", dtype.F32, tensor.MustShape(weight.elements))
+		out := builder.Add(input, bound)
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		program, err := session.Compile(ctx, "bytes", nil, out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before, err := session.Stats(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.BindF32(ctx, program, "bytes", bound, make([]float32, weight.elements)); err != nil {
+			t.Fatal(err)
+		}
+		after, err := session.Stats(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if took := after.Device.CurrentBytes - before.Device.CurrentBytes; took != weight.takes {
+			t.Fatalf("binding a weight of %d bytes took %d bytes of the card, want %d", 4*weight.elements, took, weight.takes)
+		}
+		if err := session.Release(ctx, program); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

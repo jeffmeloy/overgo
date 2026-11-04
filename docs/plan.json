@@ -49,6 +49,63 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "readme-strata",
+      "title": "The README states today's figures against Strata",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 10,
+        "reason": "Estimate: text, and one entry in the retired-claims table."
+      },
+      "steps": [
+        {
+          "id": "bench-figures",
+          "title": "Replace the Oct 24 Strata figures with today's bench",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestDoctrineHoldsNoRetiredClaim$'",
+          "rationale": "The README's Strata paragraph quotes the bench of 2026-10-24 (Flash-Next 99 to 104 tok/s chat and 91 to 93 agent turns against Strata's 133 to 136 and 145 to 146). Strata's frozen suite 1 (go run ./cmd/benchmark strata) rerun on 2026-11-04 at fa6b30787, warm, served, one card window: chat decode 134.4 tok/s median, a 4K prompt's first output 1.61 s, a 16K prompt's 5.26 s, agent turns 145.3 tok/s, the agent's first turn 0.95 s. The same suite at 0eee1a710, before that day's memory changes, read 135.7, 1.61, 5.26 and 145.1: the changes cost nothing measurable. Restate the paragraph from these figures, and add the stale sentence to TestDoctrineHoldsNoRetiredClaim's retired claims so it does not come back. The table's first-output and throughput cells are the first request after a fresh load, which the paragraph should say beside the warm figures.\nServes: an honest report of the gap.\nDisappears: figures two weeks stale.\nEvidence: the bench JSON of both runs (scratch sbench).\nBatch: docs."
+        }
+      ]
+    },
+    {
+      "id": "prefill-16k",
+      "title": "Find where a 16K prompt's first output trails Strata's",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 60,
+        "reason": "Estimate: measure only; a phase table."
+      },
+      "steps": [
+        {
+          "id": "phase-table",
+          "title": "Time Flash-Next's 16K prefill by phase beside Strata's",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark -count=1 -run '^TestPrefillPhasesAreReportedBesideStratas$'",
+          "rationale": "Strata's frozen suite on 2026-11-04 reads Flash-Next's 16K first output at 5.26 s against Strata's 4.97 to 4.99 s (about 6 percent behind, as on 2026-10-24), while a 4K prompt is 1.61 s against 2.20 to 2.23 and decode is level (chat 134.4 against 133 to 136, agent 145.3 against 145.2 to 146.1). Measure first: Strata prints its prompt time by phase (STRATA_PREFILL_TIMING=1, reference.md), and ours by kernel (nsys, tmp/strata-port/bench/oursprefill.sh). Table both by phase for the 16K prompt, and file the phase that differs as its own step, or retire this row if the gap is inside run-to-run spread.\nServes: first-output at long prompts.\nDisappears: nothing until measured.\nEvidence: a phase table of both engines on one 16K prompt.\nBatch: serving lane."
+        }
+      ]
+    },
+    {
+      "id": "delta-cursor",
+      "title": "A store delta's envelope names the delta it carries",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 40,
+        "reason": "Estimate: the success envelope built from the returned delta."
+      },
+      "steps": [
+        {
+          "id": "envelope-head",
+          "title": "Return the delivered delta's cursor in the HTTP success envelope",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestADeltaEnvelopeNamesTheDeltaItCarries$'",
+          "rationale": "SQA-302 (P2): the store-delta handler (internal/server/store_deltas.go) reads DeltasSince and then the store's live head for the envelope's Head and Sequence. A bounded window (limit 1 after two commits) returns a delta ending at the second commit, truncated, under an envelope naming the third, so a consumer resuming at the envelope skips a commit, and a commit between the two reads does the same. Build a success envelope's Head, Sequence and ProjectionVersion from the returned delta, keep the live head for the resync response, and extend the HTTP fixture with limit 1 and a continuation from the envelope.\nServes: failure-rate: a workbench that follows the store misses no commit.\nDisappears: a second read of the live head on success.\nEvidence: a bounded continuation from the envelope reaches every commit.\nBatch: server."
+        }
+      ]
+    },
+    {
       "id": "kernel-notices",
       "title": "Settle the provenance of code that cites Torch and CUTLASS",
       "owner": "master-lead",

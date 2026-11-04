@@ -154,13 +154,6 @@
       },
       "steps": [
         {
-          "id": "agent-lifecycles",
-          "title": "Drive an agent session through generated failures",
-          "status": "open",
-          "verify": "go test ./internal/agentloop -count=1 -run '^TestGeneratedAgentSessions$'",
-          "rationale": "agent-attempts holds: the prototype passes 40 of 40 seeds, so this step guards it and finds nothing new. Drive read, approve and propose, each plain, broken by the tool, or cancelled in flight, with restore at any point, including between approve and propose. After every operation steps, inspected and preview.Binds equal a small reference. A granted write runs the tool once. A write with no live grant is refused and runs nothing. After a broken propose the step's receipt reads StageFailed, never admitted or running.\nThe harness is in C:/Users/jeffm/Downloads/overgo-fault-prototypes/review-83f4df1fc/serving/agent.\nServes: agent sessions keep working.\nDisappears: nothing.\nEvidence: 150 of 150 seeds green in a prototype, 40 seeds in 1.4 s; removing grantSpent breaks 19 of 40, and closing the receipt on the request's context breaks 7 of 40.\nBatch: serving lane."
-        },
-        {
           "id": "decline-sequences",
           "title": "Hold the decline rule through generated readings",
           "status": "open",

@@ -149,17 +149,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 90,
+        "nodes": 138,
         "reason": "Estimate. Almost all of it is test code and text. doctrine.go's prose falls."
       },
       "steps": [
-        {
-          "id": "session-contract",
-          "title": "The session-start text is held like the doctrine",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -count=1 -run '^TestEveryDoctrineSentenceCitesItsCheck$'",
-          "rationale": "cmd/loophook/doctrine.go is a second doctrine in hand-written prose. TestEveryRuleCitesItsCheck does not read it, which is how 'from its first message' went out of date. Delete the sentences the hooks now state, and hold the rest as rules.\nServes: the loop.\nDisappears: most of doctrineTemplate.\nEvidence: doctrine.go in the sort: stale, unheld and partly held sentences.\nBatch: doctrine."
-        },
         {
           "id": "row-paragraphs",
           "title": "A row's paragraph leaves with its last row",
@@ -185,6 +178,53 @@
           "status": "open",
           "verify": "go test ./internal/guard -count=1 -run '^TestNoSessionWritesIntoTheReferenceTree$'",
           "rationale": "adaptive_new is read-only by rule, and nothing refuses a write: the guard allows any path outside the checkout (internal/guard/guard.go reviewVerdict). skill.md stated it citing TestNoTestReadsAdaptiveNew, which proves only that no Go source names a path into the tree, so one-doctrine/sound-citations narrowed the line to that. Add the tree as a protected write target for Edit, Write and the shell's write sinks, and restore '`adaptive_new` = read-only' to skill.md citing this check.\nServes: the loop.\nDisappears: 'adaptive_new = read-only' as a rule only a session remembers.\nEvidence: the doctrine sort's unsound citation of skill.md's read-only line.\nBatch: guard."
+        }
+      ]
+    },
+    {
+      "id": "session-rules",
+      "title": "The rules the session-start text dropped are held by code",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 380,
+        "reason": "Estimate from the review: about 120 for the landing's reading of dispatch, 60 for each guard rule family, and the rest in the stop path and the message's form."
+      },
+      "steps": [
+        {
+          "id": "landing-follows-dispatch",
+          "title": "A landing takes only what dispatch would give",
+          "status": "open",
+          "verify": "go test ./internal/landing ./internal/plan -count=1 -run '^(TestALandingRefusesWhatDispatchWouldPass|TestAWorkerLandsOnlyItsDispatchedStep)$'",
+          "rationale": "one-doctrine/session-contract dropped 'Do ONLY that step' from the session-start text, since no check held it; this step holds it in code.\nDispatch honours dependencies, lanes and stops, and the landing does not: landing.go:438-463 accepts any open step named on the command line, and plan.Advance (plan.go:504) checks only a holding decision. Refuse a step outside the ready frontier, another lane's row, or any step under a recorded stop. Under a worker's environment refuse any step but the one dispatched. The steps of one batch landing count as siblings.\nServes: the loop.\nDisappears: 'Do ONLY that step' and 'honor dependencies, lanes, acceptance and stops'.\nEvidence: skill.md lines 107 and 108 in the sort; read at landing.go:443.\nBatch: landing."
+        },
+        {
+          "id": "stop-needs-request",
+          "title": "A requested stop needs a request, and a passed stop is reported",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/loophook -count=1 -run '^(TestARequestedStopNeedsARequest|TestAStopThatPassedOnRetryIsReportedNextTurn)$'",
+          "rationale": "one-doctrine/session-contract dropped 'The one sanctioned pause is an explicit stop request' from the session-start text, since no check held it; this step holds it in code.\nA session can record 'requested:\u003canything\u003e' and end the loop (control.go:301 validates the vocabulary only), and stopping twice ends a turn with no stop recorded (cmd/loophook/main.go:217 stuckSinceBlock, kept so the gate never wedges a session). The prompt hook keeps the prompt's words in session state and plan -stop requested refuses when they hold no stop. This is a word match, crude and deterministic. The valve stays; an unresolved block is recorded and printed at the next prompt.\nServes: the loop.\nDisappears: 'a session never pauses itself' as a rule to remember.\nEvidence: skill.md line 126 and doctrine.go in the sort.\nBatch: landing."
+        },
+        {
+          "id": "trunk-and-gate",
+          "title": "A landing goes through the loop and is read unpiped",
+          "status": "open",
+          "verify": "go test ./internal/guard -count=1 -run '^(TestTheTrunkMarkIsTheGatesAlone|TestALandingGoesThroughTheLoop|TestALandingIsReadUnpiped)$'",
+          "rationale": "one-doctrine/session-contract dropped 'Read the exit code UNPIPED' from the session-start text, since no check held it; this step holds it in code.\ngo run ./cmd/gate lands directly and skips the git confirmation and the refusal class. A plain environment variable or git -c core.hooksPath passes the trunk's hook. A landing piped to tail reads the wrong exit code (guard.go:44 allows a filter). Refuse all three, with corpus cases.\nServes: the loop.\nDisappears: 'read the exit code unpiped' and the trunk rule's remaining hole.\nEvidence: skill.md lines 113 and 119, doctrine.go in the sort.\nBatch: guard."
+        },
+        {
+          "id": "row-changes-named",
+          "title": "A landing that removes a row or replaces a check says so and proves it",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^(TestALandingThatDeletesARowNamesIt|TestAReplacedCheckMustFailWithoutTheChange)$'",
+          "rationale": "one-doctrine/session-contract dropped 'A landing may also delete rows it retires; its message says why' from the session-start text, since no check held it; this step holds it in code.\nA landing can delete another row with no trailer (terms.go:16-18), and a plan-only landing can weaken a check with a trailer as its only trace. Extend termsChanged: a removed row gets a trailer and its id appears in the message. Extend addedChecksFail: a replacement check must fail at the commit it builds on.\nServes: the loop.\nDisappears: 'its message says why' as a rule to remember.\nEvidence: doctrine.go and skill.md line 199 in the sort.\nBatch: landing."
+        },
+        {
+          "id": "message-form",
+          "title": "The commit message's form is checked",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^(TestAMessageWithoutItsPredictionIsRefused|TestAnEmptySectionIsRefused|TestAPredictionNamesAMetric|TestAMessageTypesNoMeasuredFigure|TestAMessageCarriesNoCoAuthorTrailer)$'",
+          "rationale": "one-doctrine/session-contract dropped 'type no numbers, and name each scorecard metric by its exact name' from the session-start text, since no check held it; this step holds it in code.\nrequireSections (landing.go:289) checks the labels only: an empty section passes, nothing proves the prediction check exists, and any text counts as a prediction. Require a metric.Columns name or a stated internal reason, refuse typed figures, and refuse a Co-Authored-By trailer, which only memory forbids.\nServes: the loop: a prediction can be compared with the scorecard.\nDisappears: the trailer rule, and 'after every summary re-read this file before the first commit message'.\nEvidence: doctrine.go, skill.md lines 110 and 114 in the sort; owner-doctrine.md:38; grep finds no trailer check.\nBatch: landing."
         }
       ]
     },

@@ -1,85 +1,25 @@
 package main
 
-import (
-	"strings"
+// doctrineText is the overgo turn contract emitted at SessionStart: the part of the doctrine a session needs before its
+// first step, each rule citing the checks that hold it as skill.md's rules do (TestEveryDoctrineSentenceCitesItsCheck).
+// skill.md is the doctrine, and its Judgement section holds what no code can.
+const doctrineText = `OVERGO TURN CONTRACT. skill.md is the doctrine, its Judgement section holds what no code can, and each rule here cites the checks that hold it.
 
-	"overgo/internal/scorecard/metric"
-)
+THE LOOP.
+ 1. ` + "`go run ./cmd/plan -next`" + ` names the step to work, and ` + "`go run ./cmd/plan -prompt`" + ` its contract: its check, its commit and its stops (check: cmd/plan TestDispatchJSONMatchesProse, cmd/plan TestPromptContractProjection).
+ 2. A step is done when its check passes: ` + "`go run ./cmd/plan -verify`" + ` runs it, and a check that skips a test fails (check: cmd/plan TestRunVerifyRejectsSkippedGoTest).
+ 3. A step lands only through ` + "`go run ./cmd/loop -land <item>/<step> -message-file -`" + `, the one way the trunk moves (check: internal/landing TestOnlyALandingMovesTheTrunkInGit, internal/landing TestALandingRefusesATrunkWithoutItsHook).
+ 4. The landing checks the dirty tree through the stages internal/landing's package doc lists, commits it with the step removed from the plan and ends in one verdict (check: internal/landing TestEveryStageFailureLeavesTheTrunkAlone, internal/landing TestLandingCompletesSeveralSteps, cmd/loop TestLandReadsStructuredVerdict).
+ 5. Its message states "Cause:" and "Predicted effect:", and one without either is refused (check: internal/landing TestAMessageWithoutItsSectionsIsRefused).
+ 6. A merge in progress (git merge --no-ff --no-commit <branch>, resolved) lands as the merge, its head joined as a parent (check: internal/landing TestProgressSeesALandedMerge).
 
-// doctrineText is the overgo turn contract emitted at SessionStart so a session
-// is driven by OVERGO's loop and plan, never adaptive_new's. adaptive_new is a
-// reference / comparison / port-source tree only -- read it, never drive from it.
-var doctrineText = strings.Replace(doctrineTemplate, "{metrics}", metricNames(), 1)
+STOPS.
+ 7. The Stop gate blocks a turn-end that leaves the turn's work uncommitted, and any turn-end while the plan holds an open row, except through its valves (check: cmd/loophook TestStopDecision, cmd/loophook TestAStopAfterWorkSinceItsBlockIsBlockedAgain).
+ 8. The one sanctioned pause is a recorded stop, ` + "`go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>`" + ` (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision).
 
-// metricNames lists the scorecard's columns by the names a message predicts
-// them with; the scorecard owns the names.
-func metricNames() string {
-	names := make([]string, len(metric.Columns))
-	for index, name := range metric.Columns {
-		names[index] = string(name)
-	}
-	return strings.Join(names, ", ")
-}
-
-const doctrineTemplate = `OVERGO TURN CONTRACT. This repo is the whole world. adaptive_new is a
-reference / comparison / port-source tree ONLY -- read it to compare or port
-from, never as the control plane, and never modify it.
-
-THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
- 1. #1 is ` + "`go run ./cmd/plan -next`" + `. Do ONLY that step.
- 2. Build it. "Done" is machine-checked: ` + "`go run ./cmd/plan -verify`" + ` exits 0,
-    NOT a prose summary of what you did.
- 3. Land the row with the one sequence that cannot skip a step (never raw git
-    commit during a campaign):
-      go run ./cmd/loop -land <item>/<step> -message-file -
-    with the message on standard input. The small gate checks the dirty tree
-    (the ship set) through the stages internal/landing's package doc lists;
-    it commits with the step removed from the plan and the landing is
-    confirmed from git, ending in one typed outcome. A stale derived file fails its test with the
-    command that regenerates it: run that, then land again.
-    The message states "Cause:" and "Predicted effect:"; the gate refuses one
-    without them and writes what it measured itself, so type no numbers. The
-    predicted effect names, by its exact name, each scorecard metric
-    it improves or holds, where it can:
-      {metrics}
-    A deliberate worsening is stated in words. Work that moves only
-    internal metrics says why it exists.
-    Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
-    above; the commit records both parents. Read the exit code UNPIPED.
- 4. Set a step's verify with -setverify; inject a task with -add (flags
-    BEFORE the positional id for both). A landing may also delete rows it
-    retires; its message says why.
- 5. Refactor the plan from the RESULT of the last task AND any REQUEST:
-    re-scope / re-rank / add / set-verify. A request becomes the new #1
-    AFTER the current work is committed -- it does NOT interrupt in-flight work.
- 6. Repeat: continue to the next #1, never argued turn-by-turn.
-
-STOPS. The Stop gate protects WORK and the LOOP: it blocks a turn-end that
-would orphan turn-created uncommitted work (commit through the gate or
-revert), and it blocks a turn-end while the plan holds ANY open row -- a
-landed commit is necessary progress, never a sanctioned end; the loop runs
-until the plan is EMPTY. A prompt NEVER pauses the loop (system
-doctrine): answer it, then continue the dispatched row in the same turn. The one sanctioned pause is an explicit stop request, recorded with
-go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>.
-
-SCOPE. A bounded request -- a status readout, an explanation, or a review --
-bounds the ANSWER, not the turn: keep the answer to what was asked (no
-inflating it into a campaign), then continue the dispatched row.
-
-SESSIONS. This is an implementing session: it works the dispatched row, and
-the Stop gate holds it to the work its own turns leave uncommitted, judged
-against the snapshot this session took when the turn began. A session that
-only reviews says so in its first message, which opens with the words
-"review session": it is then dispatched no row, lands nothing, edits no file
-the repository tracks (the guard refuses both), and is held to no row. An
-implementing session holds its worktree from its first landing here until a turn
-of its ends with the plan stopped or complete and nothing left uncommitted. A
-second implementing session in that worktree is told so and treated as a
-review session is, until it works in a worktree of its own (git worktree
-add) or begins a message with "take over this worktree". A session in a
-worktree of its own commits with the same command as any: its commit waits
-its turn among the repository's worktrees, is brought up to the trunk, is
-checked on it by the terms its plan then holds, and lands on the trunk,
-whose own checkout follows. The plan's row is removed by that commit, in
-every checkout, never by hand. Such a worktree has only what git carries: its
-data roots are given by environment.`
+SESSIONS.
+ 9. A session whose first message opens with "review session" is held to no row (check: cmd/loophook TestReviewSessionIsNotHeldAndAnyOtherRoleIs).
+ 10. An implementing session holds its worktree from its first landing here until a turn of its ends with the plan stopped or complete and nothing uncommitted (check: cmd/loophook TestOnlyAnImplementingSessionTakesTheHold).
+ 11. A second implementing session in that worktree is sent to a worktree of its own, unless a message of its opens with "take over this worktree" (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn).
+ 12. A session in a worktree of its own lands with the same command: its commit waits its turn among the worktrees, is brought up to the trunk, is checked there by the terms it started with and lands on the trunk, whose checkout follows (check: internal/landing TestCommitsOfTwoWorktreesTakeTurns, internal/landing TestWorktreeCandidateIsIntegratedOntoTheTrunk, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, internal/landing TestTrunkCheckoutFollowsWithItsOwnChangesKept).
+ 13. No Go source names a path into adaptive_new, a reference tree to compare with or port from (check: internal/repoanalysis TestNoTestReadsAdaptiveNew).`

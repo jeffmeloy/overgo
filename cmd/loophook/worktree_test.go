@@ -29,14 +29,17 @@ import (
 // doctrine says, is how one in a worktree of its own commits: by the same
 // command, through the repository's one queue, onto the trunk.
 func TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn(t *testing.T) {
-	for told, said := range map[string]string{"a session sent away": heldNotice("one"), "the doctrine": doctrineTemplate} {
+	for told, said := range map[string]string{"a session sent away": heldNotice("one"), "the doctrine": doctrineText} {
 		// Line breaks read as spaces, so a phrase is found across them.
 		said = strings.Join(strings.Fields(said), " ")
-		for _, want := range []string{"worktree of its own", "on the trunk", "data roots"} {
+		for _, want := range []string{"worktree of its own", "on the trunk"} {
 			if !strings.Contains(said, want) {
 				t.Errorf("%s is not told %q", told, want)
 			}
 		}
+	}
+	if !strings.Contains(strings.Join(strings.Fields(heldNotice("one")), " "), "data roots") {
+		t.Error("a session sent away is not told where its data roots come from")
 	}
 	write := sessionCheckout(t)
 	first, err := os.Getwd()

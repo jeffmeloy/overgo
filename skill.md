@@ -313,6 +313,11 @@ A rule no code can hold stands here, each line saying why, so what the system le
 - keep correctness and quality, because they are too general for one check, and the gate and the scorecard hold their parts
 - question => answer, because answering is a model's act, which a hook can only remind it of
 - instruction => work, because doing an instruction is a model's act
+- a bounded request (a status readout, an explanation, a review) bounds the answer and never the turn, because the size of an answer is a model's
+- a request -> the new #1 once the current work lands, never interrupting it, because the order of a session's work is the session's
+- the plan refactored from the last step's result and any request (re-scope, re-rank, add, set a check), because what a result calls for is read from the result
+- a predicted effect names each scorecard metric it moves or holds by its exact name, where it can, because whether a change moves a metric is read from the change
+- a deliberate worsening => stated in words, and work that moves only internal metrics => its message says why it exists, because the gate reads a message for its sections and never for its intent
 - measured gains of one row => one landing (steps joined by commas) > a gate run each, because the gate lands steps together and choosing to is the session's
 - distribution, geometry or metric assumption (Gaussian, independent, Euclidean, linear interpolation) => justified per model and task, because whether an assumption fits is read from the task, and the checks pin only the defaults
 - reusable hot-path buffers, because which path is hot is measured per change

@@ -154,13 +154,6 @@
       },
       "steps": [
         {
-          "id": "queued-order",
-          "title": "Keep a queued load's refusal when a newer load begins",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -count=1 -run '^TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt$'",
-          "rationale": "SQA-299: fault-finding/queued-load (82985d333) checks a queued load's refusal after the branch that waits on a load in progress. A request that queued on A's load, when A is refused and B's load begins before it wakes, takes B as the load it waited on, loses A's refusal, and launches A again once B ends.\nMove the queued.refusal check above the s.loading branch, after the context and closed checks, reusing the pendingLoad it already holds. Extend the refused-load fixture with A refused, B begun, and A's waiter woken, in a synctest bubble.\nServes: failure-rate and load-time.\nDisappears: a launch of a load already refused.\nEvidence: the waiter answers A's refusal with one launch of A.\nBatch: serving lane."
-        },
-        {
           "id": "agent-lifecycles",
           "title": "Drive an agent session through generated failures",
           "status": "open",

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -90,8 +91,9 @@ type fakeLauncher struct {
 	launched  []string
 	processes map[string]*fakeProcess
 	fail      map[string]error
-	// unready refuses a launched child's Ready, once its loading ends.
+	// unready refuses a launched child's Ready, once its loading ends, and held holds a servable's Ready in place of loading.
 	unready map[string]error
+	held    map[string]chan struct{}
 	// loading, when set, holds each child's Ready until it closes, and started says a launch began.
 	loading chan struct{}
 	started chan struct{}
@@ -108,7 +110,7 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 	if l.started != nil {
 		l.started <- struct{}{}
 	}
-	process := &fakeProcess{loading: l.loading, unready: l.unready[servable.Name], ended: make(chan struct{}), url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
+	process := &fakeProcess{loading: cmp.Or(l.held[servable.Name], l.loading), unready: l.unready[servable.Name], ended: make(chan struct{}), url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
 	if l.processes == nil {
 		l.processes = map[string]*fakeProcess{}
 	}
@@ -425,6 +427,56 @@ func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
 		close(abandoned.loading)
 		if err := <-answers; err != nil || len(abandoned.launched) != 2 {
 			t.Fatalf("the request queued on an abandoned load answered %v after launches %v", err, abandoned.launched)
+		}
+
+		// A newer load begun before a queued request woke is not the load it waited on: whichever of the two requests
+		// queued on the refused load takes the supervisor first, the one for the refused model takes its refusal, so
+		// the model is launched once. The orderings are the scheduler's, so the race is run several times.
+		const orderings = 8
+		for range orderings {
+			// The other model's load is held open, so it is under way when the request for the refused model wakes.
+			other, refusals := Servable{Name: "beta"}, make(chan error, 2)
+			long := make(chan struct{})
+			raced := &fakeLauncher{loading: make(chan struct{}), unready: map[string]error{model.Name: refusal}, held: map[string]chan struct{}{other.Name: long}}
+			swapped, err := New(raced, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() { _, err := swapped.Acquire(t.Context(), model); refusals <- err }()
+			synctest.Wait()
+			served := make(chan error, 1)
+			go func() {
+				lease, err := swapped.Acquire(t.Context(), other)
+				if lease != nil {
+					lease.Release()
+				}
+				served <- err
+			}()
+			go func() { _, err := swapped.Acquire(t.Context(), model); refusals <- err }()
+			synctest.Wait()
+			close(raced.loading)
+			synctest.Wait()
+			close(long)
+			for range 2 {
+				if err := <-refusals; !errors.Is(err, refusal) {
+					t.Fatalf("a request for the refused model answered %v", err)
+				}
+			}
+			if err := <-served; err != nil {
+				t.Fatalf("the request for the other model answered %v", err)
+			}
+			if launched := slices.Collect(func(yield func(string) bool) {
+				for _, name := range raced.launched {
+					if name == model.Name && !yield(name) {
+						return
+					}
+				}
+			}); len(launched) != 1 {
+				t.Fatalf("the refused model was launched %d times beside a newer load, want once", len(launched))
+			}
+			if err := swapped.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 	})
 }

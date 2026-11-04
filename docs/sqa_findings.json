@@ -117,7 +117,9 @@
         "uncertainty": "The proposed test growth is an estimate, not generated or executed code. Reuse the existing synctest bubble/fake launcher and first supervisor; one additional acquire/goroutine and controlled pending-load transition, no real child/store/model setup or additional gate invocation. The landed homogeneous repair itself was +68 production/+409 test nodes; its reported 6->1 launch comparison does not exercise this mixed-model ordering."
       },
       "likely_effort": "Small branch reorder plus one deterministic ordering case in the existing native test.",
-      "plan_references": [],
+      "plan_references": [
+        "fault-finding/queued-order"
+      ],
       "plan_coverage": "New advisory continuation of the landed fault-finding/queued-load repair; that step is pruned at the pin. Do not reopen or edit the plan from SQA.",
       "closure_criteria": [
         "A waiter attached to refused A returns A's exact error even if B becomes loading before that waiter reacquires the mutex; it does not join B or relaunch A.",
@@ -7479,6 +7481,17 @@
         "plan_steps": [
           "run-once/hash-once"
         ]
+      },
+      {
+        "comment": "Landed with fault-finding/queued-order. Acquire reads the refusal of the load a request queued on before it joins a load in progress, so a request for the refused model takes that refusal though a newer load began before it woke. TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt gains the ordering: A refused, B's load held open and under way, both woken requests settled, then B released; the refused model is launched once in each of eight bubbles. With the check back below the branch the case fails every run, the refused model launched twice.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/modelswap TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt"
+        ],
+        "finding_id": "SQA-299",
+        "plan_steps": [
+          "fault-finding/queued-order"
+        ]
       }
     ],
     "experiments": {
@@ -7519,7 +7532,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "b97ef73622b4b888c5390f7d8912ab77eaecf046",
+    "head": "dd1dce514f001d6c4632cd0f78b3dc4ada07c6b7",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8185,6 +8198,13 @@
           "fault-finding"
         ],
         "note": "A P1, filed at once: the review's rows store-durability and fault-finding are filed from its file as it wrote them, first in the plan, store-durability before fault-finding, ahead of the memory work they could corrupt. This commit lands durable-names: the seal and the training checkpoint publish through fsatomic, and a repository rule refuses os.Rename outside fsatomic but for seven declared owners. The other steps follow in order."
+      },
+      "SQA-299": {
+        "action": "implemented",
+        "rows": [
+          "fault-finding/queued-order"
+        ],
+        "note": "Landed with fault-finding/queued-order: the queued refusal is read before the branch that waits on a load in progress, reusing the pendingLoad the request already holds. Awaits the reviewer's closure."
       }
     }
   },

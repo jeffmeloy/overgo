@@ -162,13 +162,15 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		if s.closed {
 			return nil, errors.New("model swap: supervisor is closed")
 		}
+		// The refusal of the load this request queued on is read first: a newer load begun before it woke is not the
+		// one it waited on.
+		if queued != nil && queued.refusal != nil && queued.servable == servable {
+			return nil, queued.refusal
+		}
 		if s.loading != nil {
 			queued = s.loading
 			s.drained.Wait()
 			continue
-		}
-		if queued != nil && queued.refusal != nil && queued.servable == servable {
-			return nil, queued.refusal
 		}
 		s.dropExitedLocked()
 		if err := s.stopUnstoppedLocked(); err != nil {

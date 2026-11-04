@@ -27,6 +27,9 @@ var corpus []byte
 // answerTokens bounds each corpus request's decode: a short answer's routes, the corpus decoding in about a minute.
 const answerTokens = 160
 
+// percent turns the never-routed pairs' fraction into the share the census prints.
+const percent = 100
+
 func main() {
 	clioptions.Main(run)
 }
@@ -74,6 +77,8 @@ func run() error {
 	if err := profile.Write(destination); err != nil {
 		return err
 	}
-	fmt.Printf("wrote %s: %d pairs ranked from %d requests decoding %d tokens\n", destination, len(profile.Pairs), len(requests), decoded)
+	never := len(profile.Pairs) - profile.Routed
+	fmt.Printf("wrote %s: %d pairs ranked from %d requests decoding %d tokens; %d never routed (%.1f%%)\n", destination,
+		len(profile.Pairs), len(requests), decoded, never, percent*float64(never)/float64(max(1, len(profile.Pairs))))
 	return nil
 }

@@ -23,6 +23,9 @@ import (
 type ExpertProfile struct {
 	Layers, Experts uint32
 	Pairs           []ExpertPair
+	// Routed is how many of the first Pairs a run routed, the rest ranked in turn though none did: the census of what a
+	// workload reads of the experts a load pins. A profile read from its file, which holds no counts, has none.
+	Routed int
 }
 
 // ExpertPair names one expert of one routed layer.
@@ -110,7 +113,7 @@ func rankExpertsByRoutes(layers, experts uint32, routes func(layer, expert uint3
 		}
 	}
 	slices.SortStableFunc(routed, func(a, b counted) int { return cmp.Compare(b.count, a.count) })
-	profile := ExpertProfile{Layers: layers, Experts: experts, Pairs: make([]ExpertPair, 0, len(routed)+len(missing))}
+	profile := ExpertProfile{Layers: layers, Experts: experts, Pairs: make([]ExpertPair, 0, len(routed)+len(missing)), Routed: len(routed)}
 	for _, item := range routed {
 		profile.Pairs = append(profile.Pairs, item.pair)
 	}

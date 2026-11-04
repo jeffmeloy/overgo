@@ -73,17 +73,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 160,
+        "nodes": 115,
         "reason": "resident-programs adds 295, measured: a program's chunks of whole pages, placing and letting go of an input in one, and the session freeing each chunk once, doc comments counted. expert-census and drafted-state keep about 80 each"
       },
       "steps": [
-        {
-          "id": "expert-census",
-          "title": "Count how many of Flash-Next's pinned experts a served workload reads",
-          "status": "open",
-          "verify": "go test ./internal/modeldevice -count=1 -run '^TestExpertProfileCountsExpertsNeverRouted$'",
-          "rationale": "Measure only. Every expert is pinned for the engine's life, as Strata does, which took the working set from 25.9 to 57.2 GiB (d7b5a2cf7). An expert no workload routes need not be pinned. The census decides whether a row follows; pinning less reopens a choice made to match the reference.\nServes: host memory, bound 59.5 GB.\nDisappears: nothing.\nEvidence: never-routed share over the bench's suites.\nBatch: Flash-Next lane."
-        },
         {
           "id": "drafted-state",
           "title": "Measure a drafted window's per-position state against replaying its kept tokens",

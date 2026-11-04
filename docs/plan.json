@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 180,
+        "nodes": 19,
         "reason": "stop-needs-request adds 435, measured: 228 for the prompt's stop request (its word match, record and requirement) and 182 in the hook for keeping and reporting a block the valve passed, doc comments counted. The three steps left keep the review's estimate of 60 each"
       },
       "steps": [
-        {
-          "id": "trunk-and-gate",
-          "title": "A landing goes through the loop and is read unpiped",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^(TestTheTrunkMarkIsTheGatesAlone|TestALandingGoesThroughTheLoop|TestALandingIsReadUnpiped)$'",
-          "rationale": "one-doctrine/session-contract dropped 'Read the exit code UNPIPED' from the session-start text, since no check held it; this step holds it in code.\ngo run ./cmd/gate lands directly and skips the git confirmation and the refusal class. A plain environment variable or git -c core.hooksPath passes the trunk's hook. A landing piped to tail reads the wrong exit code (guard.go:44 allows a filter). Refuse all three, with corpus cases.\nServes: the loop.\nDisappears: 'read the exit code unpiped' and the trunk rule's remaining hole.\nEvidence: skill.md lines 113 and 119, doctrine.go in the sort.\nBatch: guard."
-        },
         {
           "id": "row-changes-named",
           "title": "A landing that removes a row or replaces a check says so and proves it",

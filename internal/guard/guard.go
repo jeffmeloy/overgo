@@ -250,6 +250,18 @@ func ruleVerdict(command string) string {
 			"'go run ./cmd/loop -land <item>/<step> -message-file -' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
 	}
+	if any(landsDirectly) {
+		return "go run ./cmd/gate lands without the loop's confirmation from git and its refusal's class: land with " +
+			"'go run ./cmd/loop -land <item>/<step> -message-file -', and preflight with the gate's -preflight"
+	}
+	if any(marksTrunkMove) {
+		return "the trunk moves only by a landing: OVERGO_TRUNK_MOVE is the landing's own mark, and git's core.hooksPath is " +
+			"where the trunk's hook lives; land with 'go run ./cmd/loop -land <item>/<step> -message-file -'"
+	}
+	if pipesLanding(programs) {
+		return "a landing's verdict is its exit code, which a pipe reports as the last filter's: run the landing alone, " +
+			"and read the commit it made with 'git log --oneline -1'"
+	}
 	if keepsLanding(programs) {
 		return "a landing's output is not kept in a file: loop -land prints the lines that decide the outcome, and the " +
 			"commit's 'Measured by the gate' line holds each phase's time; give the message on standard input with " +
@@ -388,7 +400,30 @@ func harmlessSink(target string) bool {
 	return target == "/dev/null" || strings.HasPrefix(target, "&")
 }
 
-// keepsLanding says a landing's output, or that of what it pipes into, goes to a file: a landing's goes to the terminal or a filter.
+// landsDirectly says a command runs the gate to land rather than to preflight: the loop's landing runs the gate itself.
+func landsDirectly(run shellCommand) bool {
+	return run.names("./cmd/gate") && !run.holds("-preflight", "--preflight")
+}
+
+// marksTrunkMove says a command sets the landing's own mark for moving the trunk, or points git at hooks of its choosing.
+func marksTrunkMove(run shellCommand) bool {
+	return slices.ContainsFunc(run.words, func(current word) bool {
+		lower := strings.ToLower(current.text)
+		return strings.HasPrefix(lower, "overgo_trunk_move=") || strings.HasPrefix(lower, "core.hookspath")
+	})
+}
+
+// pipesLanding says a landing's output is piped into another command, whose exit code the shell then reports.
+func pipesLanding(programs []shellCommand) bool {
+	for index, run := range programs {
+		if run.names("./cmd/loop") && run.holds("-land", "--land") && index+1 < len(programs) && programs[index+1].piped {
+			return true
+		}
+	}
+	return false
+}
+
+// keepsLanding says a landing's output, or that of what it pipes into, goes to a file: a landing's goes to the terminal.
 func keepsLanding(programs []shellCommand) bool {
 	for index, run := range programs {
 		if !run.names("./cmd/loop") && !run.names("./cmd/gate") {

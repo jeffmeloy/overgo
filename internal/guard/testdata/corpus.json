@@ -202,7 +202,7 @@
     },
     {
       "name": "windows-path-backslashes-no-heredoc",
-      "command": "go run ./cmd/gate -message-file \"C:\\\\Temp\\\\msg.txt\"",
+      "command": "go run ./cmd/gate -preflight -message-file \"C:\\\\Temp\\\\msg.txt\"",
       "expect": "ALLOW",
       "rule": "heredoc"
     },
@@ -275,8 +275,8 @@
     {
       "name": "land-output-piped-to-a-filter",
       "command": "go run ./cmd/loop -land row/do -message-file - 2>&1 | tail -3",
-      "expect": "ALLOW",
-      "rule": "land-transcript"
+      "expect": "DENY",
+      "rule": "land-unpiped"
     },
     {
       "name": "preflight-output-discarded",
@@ -409,6 +409,42 @@
       "command": "echo report > docs/adaptive_new_parity_report.md",
       "expect": "ALLOW",
       "rule": "reference-tree"
+    },
+    {
+      "name": "land-output-read-alone",
+      "command": "go run ./cmd/loop -land row/do -message-file msg.txt; git log --oneline -1",
+      "expect": "ALLOW",
+      "rule": "land-unpiped"
+    },
+    {
+      "name": "gate-lands-directly",
+      "command": "go run ./cmd/gate -plan row/do -message-file msg.txt",
+      "expect": "DENY",
+      "rule": "land-through-loop"
+    },
+    {
+      "name": "gate-preflight",
+      "command": "go run ./cmd/gate -plan row/do -message-file msg.txt -preflight 2>&1 | tail -4",
+      "expect": "ALLOW",
+      "rule": "land-through-loop"
+    },
+    {
+      "name": "trunk-move-mark-set-by-hand",
+      "command": "OVERGO_TRUNK_MOVE=1 git update-ref refs/heads/master HEAD~1",
+      "expect": "DENY",
+      "rule": "trunk-mark"
+    },
+    {
+      "name": "git-hooks-path-overridden",
+      "command": "git -c core.hooksPath=/dev/null merge --ff-only side",
+      "expect": "DENY",
+      "rule": "trunk-mark"
+    },
+    {
+      "name": "git-config-read",
+      "command": "git config --get core.autocrlf",
+      "expect": "ALLOW",
+      "rule": "trunk-mark"
     }
   ]
 }

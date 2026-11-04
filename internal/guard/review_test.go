@@ -117,7 +117,7 @@ func TestReviewSessionEditsNothingTracked(t *testing.T) {
 		{"an edit of a file the repository would track", "Edit", "", tracked},
 		{"a new file the repository would track", "Write", "", filepath.Join(root, "docs", "review.md")},
 		{"a landing", "Bash", "go run ./cmd/loop -land row/do -message-file - < message.txt", ""},
-		{"the gate itself", "Bash", "go run ./cmd/gate -plan row/do -message-file -", ""},
+		{"the gate's preflight", "Bash", "go run ./cmd/gate -plan row/do -message-file - -preflight", ""},
 	} {
 		if message := call("reviewer", refused.tool, refused.command, refused.path); message == "" {
 			t.Errorf("a review session was allowed %s", refused.name)

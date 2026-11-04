@@ -484,12 +484,19 @@ func (l *landing) landedAgain(ctx context.Context, before, document plan.Plan) e
 			if held[item.ID+"/"+step.ID] {
 				continue
 			}
-			trailer := plan.LandedRowTrailer + ": " + item.ID + "/" + step.ID
-			found, err := gitauthority.Query(ctx, l.Repo, "log", "-1", "--format=%H", "--fixed-strings", "--grep="+trailer, l.builtOn())
+			// The search finds the trailer's text anywhere in a message; the step landed only where a parsed trailer
+			// names it whole, so a step whose name merely contains this one's, or prose quoting it, is no landing.
+			row := item.ID + "/" + step.ID
+			found, err := gitauthority.Query(ctx, l.Repo, "log", "--fixed-strings", "--grep="+plan.LandedRowTrailer+": "+row,
+				"--format=%H %(trailers:key="+plan.LandedRowTrailer+",valueonly,separator=%x1f)", l.builtOn())
 			if err != nil {
 				return err
 			}
-			if landed := strings.TrimSpace(string(found)); landed != "" {
+			for line := range strings.Lines(string(found)) {
+				landed, values, _ := strings.Cut(strings.TrimSpace(line), " ")
+				if !slices.Contains(strings.Split(values, trailerSeparator), row) {
+					continue
+				}
 				return fmt.Errorf("land: the change's plan holds %s/%s, which landed as %.12s: the plan is from before that landing, as a landing killed before it saved its plan leaves it; take the trunk's plan (git checkout HEAD -- %s), make this change's own plan edits again, and file new work under a new step", item.ID, step.ID, landed, plan.Path)
 			}
 		}

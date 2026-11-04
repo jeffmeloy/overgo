@@ -7642,6 +7642,18 @@
         "plan_steps": [
           "landing-identity/whole-trailer"
         ]
+      },
+      {
+        "comment": "Landed with landing-identity/whole-trailer. The check reads each matching commit's Landed-Row values (%(trailers:key=Landed-Row,valueonly)) and compares them whole; a step whose name only begins with the landed one's, and prose quoting the trailer, no longer count as its landing, and the landing it names is still refused.",
+        "disposition": "implemented",
+        "evidence": [
+          "internal/landing TestAStepIsLandedOnlyByItsOwnWholeTrailer",
+          "internal/landing TestEveryStageFailureLeavesTheTrunkAlone"
+        ],
+        "finding_id": "SQA-300",
+        "plan_steps": [
+          "landing-identity/whole-trailer"
+        ]
       }
     ],
     "experiments": {
@@ -7683,7 +7695,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "1deb8f70e1f99df256ddee5e480cfdee4126b665",
+    "head": "2963400a40a3f0ecb91cecb16e1d84cee601d8fd",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -8358,9 +8370,11 @@
         "note": "Landed with fault-finding/queued-order: the queued refusal is read before the branch that waits on a load in progress, reusing the pendingLoad the request already holds. Awaits the reviewer's closure."
       },
       "SQA-300": {
+        "action": "implemented",
         "rows": [
           "landing-identity/whole-trailer"
-        ]
+        ],
+        "note": "Landed with landing-identity/whole-trailer: landedAgain keeps git's fixed-string search as a prefilter and refuses only where a parsed Landed-Row trailer value equals <item>/<step> as a whole string. No regular expression, under the owner's rule; the newest exact landing is found because every prefilter hit is checked, not only the first. Awaits the reviewer's closure."
       }
     }
   },

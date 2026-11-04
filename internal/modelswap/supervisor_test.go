@@ -1,11 +1,13 @@
 package modelswap
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -17,6 +19,8 @@ type fakeProcess struct {
 	stopDone func()
 	// loading holds Ready until it closes; ended closes to say the child ended by itself.
 	loading, ended chan struct{}
+	// unready is what Ready answers once loading ends.
+	unready error
 }
 
 func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
@@ -73,7 +77,7 @@ func (p *fakeProcess) Ready(ctx context.Context) error {
 		case <-ctx.Done():
 		}
 	}
-	return ctx.Err()
+	return cmp.Or(ctx.Err(), p.unready)
 }
 func (p *fakeProcess) Stop() error {
 	p.stopped.Store(true)
@@ -86,6 +90,8 @@ type fakeLauncher struct {
 	launched  []string
 	processes map[string]*fakeProcess
 	fail      map[string]error
+	// unready refuses a launched child's Ready, once its loading ends.
+	unready map[string]error
 	// loading, when set, holds each child's Ready until it closes, and started says a launch began.
 	loading chan struct{}
 	started chan struct{}
@@ -102,7 +108,7 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 	if l.started != nil {
 		l.started <- struct{}{}
 	}
-	process := &fakeProcess{loading: l.loading, ended: make(chan struct{}), url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
+	process := &fakeProcess{loading: l.loading, unready: l.unready[servable.Name], ended: make(chan struct{}), url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
 	if l.processes == nil {
 		l.processes = map[string]*fakeProcess{}
 	}
@@ -349,4 +355,76 @@ func TestStatusAnswersDuringALoad(t *testing.T) {
 	if !closing.processes[model.Name].stopped.Load() {
 		t.Fatal("a child that finished after Close was left running")
 	}
+}
+
+// TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt: requests that queue on a load of their model -- as one naming
+// no model does, since Status names the load -- take that load's refusal, so a refused load is one launch, not one more
+// per request that waited on it.
+func TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		const queued = 5
+		refusal := errors.New("the child died before serving")
+		model := Servable{Name: "alpha"}
+		launcher := &fakeLauncher{loading: make(chan struct{}), unready: map[string]error{model.Name: refusal}}
+		supervisor, err := New(launcher, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer supervisor.Close()
+		answers := make(chan error, queued+1)
+		acquire := func() {
+			lease, err := supervisor.Acquire(t.Context(), model)
+			if lease != nil {
+				lease.Release()
+			}
+			answers <- err
+		}
+		go acquire()
+		synctest.Wait()
+		for range queued {
+			go acquire()
+		}
+		synctest.Wait()
+		close(launcher.loading)
+		for range queued + 1 {
+			if err := <-answers; !errors.Is(err, refusal) {
+				t.Fatalf("a request queued on the refused load answered %v", err)
+			}
+		}
+		if len(launcher.launched) != 1 {
+			t.Fatalf("launched %v, want the one refused load", launcher.launched)
+		}
+
+		// A load its own request gave up on refused nothing: the request queued on it launches its own.
+		abandoned := &fakeLauncher{loading: make(chan struct{})}
+		resumed, err := New(abandoned, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resumed.Close()
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			_, err := resumed.Acquire(ctx, model)
+			answers <- err
+		}()
+		synctest.Wait()
+		go func() {
+			lease, err := resumed.Acquire(t.Context(), model)
+			if lease != nil {
+				lease.Release()
+			}
+			answers <- err
+		}()
+		synctest.Wait()
+		cancel()
+		if err := <-answers; !errors.Is(err, context.Canceled) {
+			t.Fatalf("the abandoned load answered %v", err)
+		}
+		synctest.Wait()
+		close(abandoned.loading)
+		if err := <-answers; err != nil || len(abandoned.launched) != 2 {
+			t.Fatalf("the request queued on an abandoned load answered %v after launches %v", err, abandoned.launched)
+		}
+	})
 }

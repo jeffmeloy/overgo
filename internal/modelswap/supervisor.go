@@ -100,12 +100,19 @@ type Supervisor struct {
 	idle     time.Duration
 	grace    time.Duration
 	current  *upstream
-	// loading is the servable a load outside the lock is bringing up: the device has room for one.
-	loading *Servable
+	// loading is the load outside the lock bringing a child up: the device has room for one.
+	loading *pendingLoad
 	// unstopped is a child whose Stop failed: it may still hold the device, so no child launches until a Stop of it
 	// succeeds, and Close reports it.
 	unstopped *upstream
 	closed    bool
+}
+
+// pendingLoad is one load of a servable, and, once it is over, the refusal it ended in: requests that queued on it take
+// that refusal rather than launching the servable again.
+type pendingLoad struct {
+	servable Servable
+	refusal  error
 }
 
 // New binds a supervisor to its launcher. A zero idle timeout keeps an
@@ -146,6 +153,7 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		}
 	}()
 	var swap SwapTimes
+	var queued *pendingLoad
 	draining := time.Now()
 	for {
 		if err := ctx.Err(); err != nil {
@@ -155,8 +163,12 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 			return nil, errors.New("model swap: supervisor is closed")
 		}
 		if s.loading != nil {
+			queued = s.loading
 			s.drained.Wait()
 			continue
+		}
+		if queued != nil && queued.refusal != nil && queued.servable == servable {
+			return nil, queued.refusal
 		}
 		s.dropExitedLocked()
 		if err := s.stopUnstoppedLocked(); err != nil {
@@ -204,13 +216,18 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (*Lease, er
 		break
 	}
 	swap.Launched = true
-	s.loading = &servable
+	pending := &pendingLoad{servable: servable}
+	s.loading = pending
 	s.mu.Unlock()
 	process, err := s.load(ctx, servable, &swap)
 	s.mu.Lock()
 	s.loading = nil
 	s.drained.Broadcast()
 	if err != nil {
+		// A load its own request gave up on refused nothing: a request that queued on it launches its own.
+		if ctx.Err() == nil {
+			pending.refusal = err
+		}
 		return nil, err
 	}
 	if s.closed {
@@ -274,7 +291,7 @@ func (s *Supervisor) Status() (Servable, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.loading != nil {
-		return *s.loading, true
+		return s.loading.servable, true
 	}
 	s.dropExitedLocked()
 	if s.current == nil {

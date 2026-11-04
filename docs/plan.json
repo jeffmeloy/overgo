@@ -153,20 +153,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 82,
+        "nodes": 14,
         "reason": "Estimates: swap-lifecycles about 180 with both repairs prototyped, queued-load 40, checkpoint-cuts 40, the rest 40. The harnesses are test code."
       },
       "steps": [
-        {
-          "id": "queued-load",
-          "title": "End a request queued on a load with that load's refusal",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -count=1 -run '^TestARefusedLoadIsNotLaunchedAgainByARequestQueuedOnIt$'",
-          "rationale": "New in child-exit. Status names a load (internal/modelswap/supervisor.go:249-250), so a request naming no model queues on it (proxy.go:249-250). When the load is refused, that request launches the model itself (supervisor.go:152-155,160-161). One choice and five reads gave 6 launches and six 503s (reproduced). The page reads /health every 10 s (internal/server/webui/boot.js:322,1400), so a load refused after 10 s repeats while a page is open (read). A queued Acquire for that servable returns the refusal of the load it waited on.\nServes: failure-rate and load-time.\nDisappears: repeated loads.\nEvidence: one launch.\nBatch: serving lane.",
-          "depends_on": [
-            "fault-finding/swap-lifecycles"
-          ]
-        },
         {
           "id": "agent-lifecycles",
           "title": "Drive an agent session through generated failures",

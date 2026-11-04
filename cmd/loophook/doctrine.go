@@ -14,8 +14,8 @@ THE LOOP.
  6. A merge in progress (git merge --no-ff --no-commit <branch>, resolved) lands as the merge, its head joined as a parent (check: internal/landing TestProgressSeesALandedMerge).
 
 STOPS.
- 7. The Stop gate blocks a turn-end that leaves the turn's work uncommitted, and any turn-end while the plan holds an open row, except through its valves (check: cmd/loophook TestStopDecision, cmd/loophook TestAStopAfterWorkSinceItsBlockIsBlockedAgain).
- 8. The one sanctioned pause is a recorded stop, ` + "`go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>`" + ` (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision).
+ 7. The Stop gate blocks a turn-end that leaves the turn's work uncommitted, and any turn-end while the plan holds an open row, except through its valves, and the next prompt reports a block the retry valve passed (check: cmd/loophook TestStopDecision, cmd/loophook TestAStopAfterWorkSinceItsBlockIsBlockedAgain, cmd/loophook TestAStopThatPassedOnRetryIsReportedNextTurn).
+ 8. The one sanctioned pause is a recorded stop, ` + "`go run ./cmd/plan -stop <requested|irreversible|external-prereq>:<detail>`" + `, and a requested one only when the latest prompt asked to stop (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision, internal/plan TestARequestedStopNeedsARequest).
 
 SESSIONS.
  9. A session whose first message opens with "review session" is held to no row (check: cmd/loophook TestReviewSessionIsNotHeldAndAnyOtherRoleIs).

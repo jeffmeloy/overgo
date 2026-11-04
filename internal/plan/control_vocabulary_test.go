@@ -63,7 +63,7 @@ func TestLegacyStopKeepsItsIdentity(t *testing.T) {
 		}
 		return current
 	}
-	if shown := read().String(); !strings.Contains(shown, "reason="+stopRequested+": ") || strings.Contains(shown, "user-stop") {
+	if shown := read().String(); !strings.Contains(shown, "reason="+StopRequested+": ") || strings.Contains(shown, "user-stop") {
 		t.Fatalf("the stop shows as %s, want the current codes", shown)
 	}
 	next := grant

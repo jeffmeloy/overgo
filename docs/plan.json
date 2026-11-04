@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 260,
-        "reason": "landing-follows-dispatch adds 371, measured, against the review's 120: the admission resolves role, worker, mode and stop before reading dispatch, and a comma landing advances its own plan. The other four steps keep the review's estimates: about 80 for the stop path, 60 for each guard rule family, 60 for the message's form"
+        "nodes": 180,
+        "reason": "stop-needs-request adds 435, measured: 228 for the prompt's stop request (its word match, record and requirement) and 182 in the hook for keeping and reporting a block the valve passed, doc comments counted. The three steps left keep the review's estimate of 60 each"
       },
       "steps": [
-        {
-          "id": "stop-needs-request",
-          "title": "A requested stop needs a request, and a passed stop is reported",
-          "status": "open",
-          "verify": "go test ./internal/plan ./cmd/loophook -count=1 -run '^(TestARequestedStopNeedsARequest|TestAStopThatPassedOnRetryIsReportedNextTurn)$'",
-          "rationale": "one-doctrine/session-contract dropped 'The one sanctioned pause is an explicit stop request' from the session-start text, since no check held it; this step holds it in code.\nA session can record 'requested:\u003canything\u003e' and end the loop (control.go:301 validates the vocabulary only), and stopping twice ends a turn with no stop recorded (cmd/loophook/main.go:217 stuckSinceBlock, kept so the gate never wedges a session). The prompt hook keeps the prompt's words in session state and plan -stop requested refuses when they hold no stop. This is a word match, crude and deterministic. The valve stays; an unresolved block is recorded and printed at the next prompt.\nServes: the loop.\nDisappears: 'a session never pauses itself' as a rule to remember.\nEvidence: skill.md line 126 and doctrine.go in the sort.\nBatch: landing."
-        },
         {
           "id": "trunk-and-gate",
           "title": "A landing goes through the loop and is read unpiped",

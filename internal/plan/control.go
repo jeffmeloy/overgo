@@ -274,19 +274,20 @@ func RecordStop(ctx context.Context, event ControlEvent) (ControlEvent, error) {
 // The control vocabulary: a requested stop's reason, and the codes of the resume that retires a stop and of a
 // maintenance grant under one.
 const (
-	stopRequested = "requested"
+	// StopRequested is the reason code of a stop a prompt asked for (RequireStopRequest).
+	StopRequested = "requested"
 	// ResumeCode is the code of the resume that retires a stop.
 	ResumeCode = "resume"
 	// MaintenanceCode is the code of a maintenance grant under a stop.
 	MaintenanceCode = "maintenance"
 )
 
-var validStopReasons = []string{stopRequested, "irreversible", "external-prereq"}
+var validStopReasons = []string{StopRequested, "irreversible", "external-prereq"}
 
 // writtenControlCodes are the codes stop files written before 2026-10-23 hold, which a read judges and shows as the
 // codes that replaced them while each event keeps the identity its written codes give, the ID its stop or grant was
 // issued with: a stop file is each checkout's own state, and its next stop or resume writes it in the current codes.
-var writtenControlCodes = map[string]string{"user-stop": stopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode}
+var writtenControlCodes = map[string]string{"user-stop": StopRequested, "operator-resume": ResumeCode, "operator-maintenance": MaintenanceCode}
 
 // controlCode is the current code of a written one.
 func controlCode(written string) string { return cmp.Or(writtenControlCodes[written], written) }

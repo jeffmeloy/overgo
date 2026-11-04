@@ -129,6 +129,10 @@ func runStop(hookJSON string) int {
 	// Re-attempt valve: a retry passes while the session is as its block found it (stuckSinceBlock).
 	retry := strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`)
 	if retry && stuckSinceBlock(session) {
+		// The valve keeps the gate from wedging a session; the block it passed is kept for the next prompt to report.
+		if err := recordPassedBlock(session); err != nil {
+			fmt.Fprintf(os.Stderr, "stop: the block this stop passed could not be kept for the next prompt: %v\n", err)
+		}
 		return 0
 	}
 	// A review session owns no row and edits nothing tracked (the guard
@@ -168,7 +172,7 @@ func runStop(hookJSON string) int {
 		fmt.Fprintln(os.Stderr, "  "+run)
 	}
 	// A block no retry can read back would hold the session for good: it is let through instead.
-	if err := recordStopBlock(session); err != nil {
+	if err := recordStopBlock(session, verdict+": "+dispatch.Line); err != nil {
 		fmt.Fprintf(os.Stderr, "stop: this block could not be kept, so the stop passes: %v\n", err)
 		return 0
 	}
@@ -183,6 +187,8 @@ func runStop(hookJSON string) int {
 type stopBlock struct {
 	Head  string      `json:"head"`
 	Facts []dirtyFact `json:"facts"`
+	// Reason is the verdict and the dispatched row the block held the session to, which a stop the valve passes reports.
+	Reason string `json:"reason"`
 }
 
 // stopBlockFile is the session's block record, beside its turn-start snapshot; empty when the state directory cannot
@@ -194,8 +200,8 @@ func stopBlockFile(session string) string {
 	return filepath.Join(processlock.StateDirectory, guard.SessionState(session)+"-blocked")
 }
 
-// recordStopBlock records the HEAD and the dirty set a block found, and says when it could not.
-func recordStopBlock(session string) error {
+// recordStopBlock records the HEAD and the dirty set a block found, with its reason, and says when it could not.
+func recordStopBlock(session, reason string) error {
 	facts, err := currentDirtyFacts()
 	if err != nil {
 		return err
@@ -204,7 +210,7 @@ func recordStopBlock(session string) error {
 	if path == "" {
 		return errors.New("no state directory")
 	}
-	data, err := json.Marshal(stopBlock{Head: gitHead(), Facts: facts})
+	data, err := json.Marshal(stopBlock{Head: gitHead(), Facts: facts, Reason: reason})
 	if err != nil {
 		return err
 	}
@@ -226,6 +232,26 @@ func stuckSinceBlock(session string) bool {
 		return false
 	}
 	return block.Head == gitHead() && slices.Equal(block.Facts, facts)
+}
+
+// passedBlockFile is where a stop the valve passed keeps the block it passed, for the session's next prompt.
+func passedBlockFile(session string) string { return stopBlockFile(session) + "-passed" }
+
+// recordPassedBlock keeps the block a stop passed through the valve for the next prompt to report: the turn ended with
+// it unresolved. A later stop finds no block standing and is judged again.
+func recordPassedBlock(session string) error {
+	return os.Rename(stopBlockFile(session), passedBlockFile(session))
+}
+
+// takePassedBlock returns, once, the reason of a block an earlier stop of the session passed through the valve.
+func takePassedBlock(session string) string {
+	path := passedBlockFile(session)
+	raw, err := os.ReadFile(path)
+	var block stopBlock
+	if err != nil || os.Remove(path) != nil || json.Unmarshal(raw, &block) != nil {
+		return ""
+	}
+	return block.Reason
 }
 
 // gateCommitting reports a gate committing now; a test of the stop gate, which
@@ -437,6 +463,13 @@ func measurementRun() string {
 
 func runPrompt(hookJSON string) {
 	input := parseHook(hookJSON)
+	// A requested stop rests on the latest prompt asking for one (plan.RequireStopRequest).
+	if err := plan.NoteStopRequest(".", input.Prompt); err != nil {
+		fmt.Printf("OVERGO: this prompt's request to stop could not be kept: %v\n", err)
+	}
+	if reason := takePassedBlock(input.Session); reason != "" {
+		fmt.Printf("OVERGO STOP PASSED: the last turn ended through the Stop gate's retry valve with its block unresolved (%s); continue that work.\n", reason)
+	}
 	if beginTurn(input) {
 		fmt.Println(reviewNotice)
 		return

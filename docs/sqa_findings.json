@@ -7731,6 +7731,28 @@
         "plan_steps": [
           "session-rules/landing-follows-dispatch"
         ]
+      },
+      {
+        "comment": "session-rules/stop-needs-request touches runPrompt and runStop in cmd/loophook/main.go only to keep a prompt's request to stop and to report a block the retry valve passed; the measurement run's continuation owner this finding concerns is unchanged and stays with unattended-driver.",
+        "disposition": "context",
+        "evidence": [
+          "cmd/loophook TestAStopThatPassedOnRetryIsReportedNextTurn"
+        ],
+        "finding_id": "SQA-271",
+        "plan_steps": [
+          "session-rules/stop-needs-request"
+        ]
+      },
+      {
+        "comment": "session-rules/stop-needs-request leaves the worktree hold (implementer, holdWorktree, runPostCommit) this finding cites unchanged; it stays with unattended-driver/ownership-wait.",
+        "disposition": "context",
+        "evidence": [
+          "cmd/loophook TestAStopThatPassedOnRetryIsReportedNextTurn"
+        ],
+        "finding_id": "SQA-258",
+        "plan_steps": [
+          "session-rules/stop-needs-request"
+        ]
       }
     ],
     "experiments": {
@@ -7772,7 +7794,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "a6d01d69f47c93424074c567e07ed96a292361ed",
+    "head": "4cb7575e5674f4327c1687fdcc9cdebf0ea95825",
     "findings": {
       "SQA-004": {
         "action": "none",

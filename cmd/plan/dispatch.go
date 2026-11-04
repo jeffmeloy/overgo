@@ -52,6 +52,11 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 		}
 		event.ReasonCode = strings.TrimSpace(code)
 		event.Detail = cmp.Or(strings.TrimSpace(detail), event.ReasonCode)
+		if event.ReasonCode == plan.StopRequested {
+			if err := plan.RequireStopRequest(root); err != nil {
+				return err
+			}
+		}
 	} else {
 		expected, err := artifact.ParseID(cmp.Or(c.resumeStop, c.maintenanceStop))
 		if err != nil {

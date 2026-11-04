@@ -139,6 +139,13 @@ func TestStopStatusProjection(t *testing.T) {
 	}
 	stopCLI := cli{stop: true, worker: "stop-command-worker"}
 	var output bytes.Buffer
+	// A requested stop rests on a prompt that asked for it.
+	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err == nil {
+		t.Fatal("a requested stop no prompt asked for was recorded")
+	}
+	if err := plan.NoteStopRequest(root, "pause the loop here"); err != nil {
+		t.Fatal(err)
+	}
 	if err := recordStopControlCommand(root, stopCLI, []string{"requested: operator paused"}, &output); err != nil {
 		t.Fatal(err)
 	}

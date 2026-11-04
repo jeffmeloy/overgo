@@ -107,7 +107,7 @@ func StopLoop(ctx context.Context, root, detail string) error {
 	}
 	_, err = RecordStop(ctx, ControlEvent{
 		Kind: ControlStop, Lane: role, Worker: workbenchWorker, Worktree: filepath.ToSlash(repository), Mode: ExecutionAll,
-		ReasonCode: stopRequested, Detail: detail, CodeCommit: head, Previous: current.ID,
+		ReasonCode: StopRequested, Detail: detail, CodeCommit: head, Previous: current.ID,
 	})
 	return err
 }

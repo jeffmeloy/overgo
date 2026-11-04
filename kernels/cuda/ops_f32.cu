@@ -2725,9 +2725,11 @@ __device__ __forceinline__ void gdn_kh_copy16(float * shared, const float * glob
 // gated_delta_net_keyhead computes gated_delta_net_rows_f32's outputs and final state for VPK value heads a
 // key head, a 128-wide state and one gate a head: each thread holds GDN_KH_ROWS key rows of one value column
 // of each of the key head's value heads, so a token's key and query are read once for the VPK heads, and the
-// inputs of the next GDN_KH_TOKENS tokens arrive by cp.async while these are computed. A token decays the
-// state, takes its key product, updates the state and takes its query product as the rows kernel does; the
-// products sum in another order.
+// inputs of the next GDN_KH_TOKENS tokens arrive by cp.async while these are computed. A token takes its key
+// product of the state before its decay, decays that product, and decays and updates the state in one fused
+// multiply-add a row before its query product, in Strata's order: decaying the state first took a multiply a
+// row and head more, 408 ms of Flash-Next's 16K read against Strata's 269. The products sum in another order
+// than the rows kernel's.
 template <unsigned int VPK>
 __device__ __forceinline__ void gated_delta_net_keyhead(
         const float * query,
@@ -2818,19 +2820,25 @@ __device__ __forceinline__ void gated_delta_net_keyhead(
             for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
                 keys[r] = sk[buffer][i][group * GDN_KH_ROWS + r];
             }
+            float decay[VPK], products[VPK], delta[VPK], queried[VPK];
 #pragma unroll
             for (unsigned int j = 0; j < VPK; ++j) {
-                const float decay = expf(sg[buffer][i][j]);
-                float dot = 0.0f;
+                decay[j] = expf(sg[buffer][i][j]);
+                products[j] = 0.0f;
+                queried[j] = 0.0f;
+            }
 #pragma unroll
-                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
-                    state[j][r] *= decay;
-                    dot += state[j][r] * keys[r];
+            for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+#pragma unroll
+                for (unsigned int j = 0; j < VPK; ++j) {
+                    products[j] = fmaf(state[j][r], keys[r], products[j]);
                 }
-                key_sums[j][group][lane] = dot;
+            }
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
+                key_sums[j][group][lane] = products[j];
             }
             __syncthreads();
-            float queried[VPK];
 #pragma unroll
             for (unsigned int j = 0; j < VPK; ++j) {
                 float dot = 0.0f;
@@ -2838,13 +2846,19 @@ __device__ __forceinline__ void gated_delta_net_keyhead(
                 for (unsigned int g = 0; g < GDN_KH_GROUPS; ++g) {
                     dot += key_sums[j][g][lane];
                 }
-                const float delta = (sv[buffer][i][j][lane] - dot) * sb[buffer][i][j];
-                queried[j] = 0.0f;
+                delta[j] = (sv[buffer][i][j][lane] - decay[j] * dot) * sb[buffer][i][j];
+            }
 #pragma unroll
-                for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
-                    state[j][r] += delta * keys[r];
-                    queried[j] += state[j][r] * sq[buffer][i][group * GDN_KH_ROWS + r];
+            for (unsigned int r = 0; r < GDN_KH_ROWS; ++r) {
+                const float query = sq[buffer][i][group * GDN_KH_ROWS + r];
+#pragma unroll
+                for (unsigned int j = 0; j < VPK; ++j) {
+                    state[j][r] = fmaf(decay[j], state[j][r], keys[r] * delta[j]);
+                    queried[j] = fmaf(state[j][r], query, queried[j]);
                 }
+            }
+#pragma unroll
+            for (unsigned int j = 0; j < VPK; ++j) {
                 query_sums[j][group][lane] = queried[j];
             }
             __syncthreads();

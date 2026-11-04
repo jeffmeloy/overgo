@@ -64,13 +64,6 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestAPromptReadCopiesTheNextGroupsExpertsAhead$'",
           "rationale": "prefill-16k/phase-table: inside Flash-Next's 16K read (16,351 tokens) the card waits 382 ms on expert copies, in 89 gaps of about 3.6 ms between one expert group's down product and the next group's hidden product and 144 short ones before moe_host_slots, each with a copy running through it; the server's host waits 0.34 s in LandExperts for copies to land. Strata's phase timer charges 96 ms to wait copy on the same token ids. The link is far from full: 10.2 GB cross it during the 4.95 s read, about 2 GB/s against the 13.4 GB/s measured, so the copies start late rather than run slow (launchMoEMatrices learns a layer's host experts only from its routes, read back at the layer's host sync, and queues each copy batch one ahead of the batch it feeds). Beside them the CPU computes the few-token experts held on host (planHostExperts, 6 s of CPU across the read), where Strata gives the CPU a share only of chunks under 1,024 tokens. A copy-ahead area tried before (256 MB) cut a 16K stall 0.44 to 0.26 s but evicted 2.6 GB more experts that crossed again, netting nothing (lessons), so read Strata's prompt expert stream first (src/prefill: its 384-slot ring within the 2,044 slots its prompt borrows, which experts it streams and how far ahead it issues them) and port its order. Hold it with a test that a prompt read issues a group's expert copies before the group before it computes. Serves first-output at long prompts."
-        },
-        {
-          "id": "delta-recurrence",
-          "title": "The prompt's gated delta recurrence runs in Strata's time",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1 -run '^TestThePromptDeltaRecurrenceMatchesStratas$'",
-          "rationale": "prefill-16k/phase-table (tmp/prefill-16k/phases.md): the prompt's gated delta recurrence (gated_delta_net_keyhead3_f32, 72 launches for 36 layers in two chunks) takes 408 ms of Flash-Next's 16K read, where Strata's phase timer charges 269 ms to gdn recurrence on the same token ids, the largest gap a single kernel holds. Read Strata's prompt recurrence (src/prefill, gdn_rec_parity.cu and the kernel it checks) and port its chunked form where ours differs, checked against our kernel's outputs on the same inputs. Serves first-output at long prompts."
         }
       ]
     },

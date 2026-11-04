@@ -11,7 +11,6 @@ description: The rules for Overgo development, written as one logical statement 
 - goal = improvement in what the system serves = the scorecard (`go run ./cmd/validate -scorecard`)
 - scorecard columns = `first-output`, `throughput`, `held-out-quality`, `failure-rate`, `load-time`, `peak-device-memory`, `setup-steps` (check: cmd/validate TestScorecardRowsEveryServableModel, cmd/validate TestScorecardHasNoUnexplainedCell)
 - loop = measure -> find the gap -> train or change -> judge on held-out data
-- row filed <=> it closes the loop or speeds the loop or serves inference or serves training
 - progress = each scorecard cell compared with its previous measurement (check: internal/scorecard TestEarlierIsEachCellsNewestEarlierMeasurement, cmd/loop TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain, cmd/validate TestScheduledScorecardPublishesDeltas)
 - never a "passed" state (check: internal/repoanalysis TestRootDocumentsNameOnlyWhatTheTreeHolds, internal/plan TestLivePlanRejectsRetainedCompletionState)
 - `go run ./cmd/loop -improve` = measure -> publish the scorecard -> file each regression as a row (check: cmd/loop TestTheGapsAreFiledOnceTheScorecardPublishes, internal/loop TestCycleFilesDeclinesAndAcceptsNothing, cmd/loop TestScorecardGapsBecomeProposals)
@@ -21,25 +20,18 @@ description: The rules for Overgo development, written as one logical statement 
 - this file and the plan's standing paragraphs = the system's doctrine
 - doctrine = how the system works, which every session and the loop follow and correct on evidence
 - doctrine != any person's preferences or rules (check: cmd/loophook TestDoctrineNamesNoPerson, internal/plan TestControlVocabularyNamesNoPerson)
-- a rule that evidence shows costly or wrong => correct it in the doctrine != cite it as authority
 - requests and models propose (check: internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
 - goals, budgets and stops = inputs the system follows (the plan's intent, resource ceilings, a recorded stop) and never sets itself (check: cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPersistentLoopStop)
 - executable policy admits and activates (check: internal/agenttool TestCandidateCatalogStagesVerifiesAndActivatesExactly, internal/runrecord TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration)
 - OvergoDB holds state
 - the plan holds implementation (check: internal/plan TestSinglePlanAuthority)
-- every change aims at capability or performance or development velocity or memory use
-- bold change > cautious increment (a rewritten slow path, a deleted subsystem, a new kernel, a different data layout)
 - framework = the gate + the held-out scorecard + the cycle
 - the framework catches regressions and broken code (check: cmd/gate TestSmallGateLandsAChange, internal/loop TestCycleFilesDeclinesAndAcceptsNothing)
 - bold change => write the test that would have caught its failure -> let the framework judge
-- never shrink a change to what can be checked by hand
-- never hedge a change with flags or shims
-- never defer a change for fear of breaking what the framework checks
 - refused landing = information != failure (check: internal/landing TestRecoveryDrills)
 - ambition governs the code and never the system's boundaries (check: internal/landing TestChangeIsJudgedByTheTermsItStartedWith, cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked)
 - boundaries = scope, run budgets, stops, pushes and downloads, which the system follows and never changes (check: cmd/loop TestPushPushesTheNamedCommitOnlyWhenAsked, cmd/plan TestEnforceStopReason, internal/landing TestChangeIsJudgedByTheTermsItStartedWith)
 - a row's count = a declared estimate != a limit => a change may raise it with a reason, and raising it or changing a row's check writes old and new in the commit (check: internal/landing TestAChangedCheckOrCountIsWrittenInTheCommit)
-- keep correctness and quality
 - simpler implementation > larger one (check: internal/landing TestItemsGrowthIsChargedAcrossItsLandings, internal/landing TestWrittenCodeIsCountedByKind)
 - ambition = size of the gain != size of the change
 
@@ -78,6 +70,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ## Writing
 
 - a rule = code => it cites the tests that fail when it is broken, or it goes (check: internal/landing TestEveryRuleCitesItsCheck)
+- a rule no code can hold -> the Judgement section, saying why no code holds it (check: internal/landing TestAJudgementLineSaysWhyNoCodeHoldsIt)
 - a semicolon never joins two clauses of a rule, because it hides their relation (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
 - history (a date, a commit id) -> the commit message, never the doctrine (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
 - each rule has one line (check: internal/landing TestTheDoctrineHoldsItsOwnForm)
@@ -127,8 +120,6 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - pause <=> an explicit stop request (`go run ./cmd/plan -stop <reason>:<detail>`, its reasons in the command's help) (check: cmd/plan TestEnforceStopReason, cmd/loophook TestStopDecision, cmd/loop TestPersistentLoopStop)
 - lift a pause = `-resume-stop` (check: cmd/plan TestStopStatusProjection, cmd/loophook TestPersistentStopHook)
 - prompt => answer -> continue (check: cmd/loophook TestBoundedRequestScopesAnswerNotTurn, cmd/loophook TestStopDecision)
-- question => answer (check: cmd/loophook TestBoundedRequestScopesAnswerNotTurn)
-- instruction => work (check: cmd/loophook TestBoundedRequestScopesAnswerNotTurn)
 - one committing session per checkout (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, cmd/loophook TestOnlyAnImplementingSessionTakesTheHold)
 - another session => its own worktree and the commit queue, or review only (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, internal/landing TestTwoWorktreesLandThroughOneQueue, internal/guard TestReviewSessionEditsNothingTracked)
 - never touch another session's work (check: cmd/loophook TestSecondImplementingSessionIsSentToAWorktreeOfItsOwn, internal/guard TestReviewSessionRemovesNothing, cmd/loophook TestOverlappingSessionsKeepTheirOwnTurnSnapshots)
@@ -224,7 +215,6 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - a tuning value (a threshold, a size or a count that trades measured costs: a chunk's tokens, a tile's rows, an expert's admission) => its comment names the cost it minimizes and the measured inputs it is computed from (the link's rate, the bytes a token holds, an expert's bytes, a miss's cost, the request's tokens), because a sweep returns only a point it tried, for one request shape on one machine (2,048-token chunks paid for their slower read after about 700 decoded tokens) (check: internal/repoanalysis TestTuningValuesNameTheirCost)
 - memory a reference frees for another use => taken where the reference takes it (its coldest slots, across layers), because freeing by allocation order took whole layers' hot experts (a release now keeps a freed allocation's hotter experts in colder ones' slots) (check: internal/modeldevice TestReleaseFreesTheColdestClass, internal/modeldevice TestReleaseKeepsTheHottestExperts)
 - memory moved between two uses (a read's arena and the experts) => lent, the part the next use needs taken back, never freed and allocated again, because each allocation waits while Windows clears it and each free moves experts out (freed, a 16K read's arena and the expert releases added about 220 ms to its first token) (check: internal/cuda/executor TestPromptMemoryGivesBackItsLoan, internal/cuda/executor TestDeviceBufferPoolLendsItsFreeBuffers, internal/inference TestAcceleratorTeardownReclaimsPromptLoans)
-- measured gains of one row => one landing (steps joined by commas) > a gate run each (check: internal/landing TestLandingCompletesSeveralSteps)
 
 ## Compute and derived values
 
@@ -238,7 +228,6 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - thresholds, tolerances, sample sizes and optimizer settings = derived from declarations or observations or math (check: internal/trainingprogram TestBuiltinOptimizerPolicyDerivesConfig, internal/server TestDefaultNeighborCountIsDerived)
 - limit with no derivation = arbitrary literal => replace it with a rule (check: internal/landing TestNewPolicyLiteralsIgnoresRenames, internal/repoanalysis TestNoFixedTimers, internal/composition TestOfflinePlanRejectsLiteralPolicy)
 - kept value => record its source, scope and reconsideration condition in the owning contract (check: internal/composition TestOfflinePlanRejectsLiteralPolicy, internal/repoanalysis TestTuningValuesNameTheirCost)
-- distribution, geometry or metric assumption (Gaussian, independent, Euclidean, linear interpolation) => justified per model and task (check: internal/evaluation TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions, internal/server TestAnalyzeStatesDefaultsToSpearman, internal/server TestAnalyzeTensorsReturnsDistributionFreeProfiles)
 
 ## Training
 
@@ -271,7 +260,6 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - keep commits, licenses and artifact identities (check: internal/runrecord TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted, internal/latentimage TestMOSSGoldenProvenance)
 - model-family facts live in artifacts and recipes, never in model-specific code (check: internal/inferencesurface TestServingCodeNamesNoArchitecture, internal/model TestGemma4ProgramUsesNeutralStages)
 - clear errors and cancellation (check: internal/processcontrol TestDeterministicCancellationContracts, internal/workflowruntime TestCancellationCauseReachesTerminalReceipt)
-- reusable hot-path buffers (check: internal/audiodsp TestFrameTraceSteadyStateAllocations, internal/media TestResamplePolyReusesScratchAndRejectsOverlap)
 - `gofmt` and `go vet` (check: internal/landing TestPreflightRunsTheCheapStagesOnly, internal/repoanalysis TestGoStyleCensus)
 - numerical or gradient change => reference comparison (check: internal/latentvideo TestDiTTrainerGradientMatchesFiniteDifference, internal/routedlm TestModalityTransformerGradientMatchesFiniteDifference, internal/optimizer TestDeviceMuonStepPlanMatchesHost)
 
@@ -310,4 +298,25 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - existing homes only (check: internal/repoanalysis TestEntryAuthoritiesHoldOverTheTree, internal/repoanalysis TestAliasMovesHaveOneOwner, internal/repoanalysis TestIdempotentCommitHasOneOwner)
 - never parallel plans, ledgers, schedulers or recovery paths (check: internal/plan TestSinglePlanAuthority, cmd/gate TestClosureLedgerGone, internal/repoanalysis TestReleaseIsTheOnlyRetentionWriter)
 - contracts in docs, measurements in the store, history in Git (check: internal/plan TestAdvanceRemovesCompletedRows, internal/plan TestAcceptedProgressReadsLandingsFromGit, cmd/validate TestScorecardHasNoUnexplainedCell)
-- report = outcome + material measurements + checks + remaining obligations (check: cmd/loop TestARunRecordsItsEnd, cmd/loop TestCycleReportsWhatItCreditedAndEachPhaseWall)
+
+## Judgement
+
+A rule no code can hold stands here, each line saying why, so what the system leaves to a model reads as its own section and shrinks as code takes its rules.
+
+- row filed <=> it closes the loop or speeds the loop or serves inference or serves training, because a row states its work and never its purpose
+- a rule that evidence shows costly or wrong => correct it in the doctrine != cite it as authority, because how evidence is weighed against a rule comes before any change
+- every change aims at capability or performance or development velocity or memory use, because the gate reads a message for its labels and never for its aim
+- bold change > cautious increment (a rewritten slow path, a deleted subsystem, a new kernel, a different data layout), because the size of a change is chosen before its diff exists
+- never shrink a change to what can be checked by hand, because what a change leaves out is absent from its diff
+- never hedge a change with flags or shims, because code cannot tell a hedge from a real option
+- never defer a change for fear of breaking what the framework checks, because a deferral leaves no trace in code
+- keep correctness and quality, because they are too general for one check, and the gate and the scorecard hold their parts
+- question => answer, because answering is a model's act, which a hook can only remind it of
+- instruction => work, because doing an instruction is a model's act
+- measured gains of one row => one landing (steps joined by commas) > a gate run each, because the gate lands steps together and choosing to is the session's
+- distribution, geometry or metric assumption (Gaussian, independent, Euclidean, linear interpolation) => justified per model and task, because whether an assumption fits is read from the task, and the checks pin only the defaults
+- reusable hot-path buffers, because which path is hot is measured per change
+- report = outcome + material measurements + checks + remaining obligations, because a session's report to its reader is prose
+- a port adopts the reference's structure as the general one where it is better > fitting the reference's mechanism into ours => port the unit literally -> prove it costs here what it costs in the reference, because which structure is better is read from both
+- hand step = system defect -> file the row, fix the system and use its path, because a step done by hand leaves nothing the system reads
+- parts proved apart != the path proved => one real model through the whole path before claiming it, because which path a claim rests on is read from the claim

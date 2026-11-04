@@ -24,6 +24,9 @@ var ruleLine = regexp.MustCompile(`^\s*(- |\d+\. )`)
 // holds: every other list line is a rule.
 var definitionSections = []string{"# Intent", "## Terms"}
 
+// judgementSection is the section of skill.md whose rules no code can hold, each saying why in its because clause.
+const judgementSection = "## Judgement"
+
 // TestEveryRuleCitesItsCheck holds the doctrine to rules that are code: every rule line of skill.md outside its
 // definitions, and every standing paragraph of the plan, cites the tests that fail when the rule is broken, each a
 // test that exists in the package named, or the rule goes. The review of 2026-10-30 found the run-order rule
@@ -78,7 +81,7 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 			section = strings.TrimSpace(line)
 			continue
 		}
-		if ruleLine.MatchString(line) && !slices.Contains(definitionSections, section) {
+		if ruleLine.MatchString(line) && !slices.Contains(definitionSections, section) && section != judgementSection {
 			check("skill.md:"+strconv.Itoa(number+1), line)
 		}
 	}
@@ -99,6 +102,37 @@ func TestEveryRuleCitesItsCheck(t *testing.T) {
 		for sentence := range strings.SplitSeq(sentenceEnd.ReplaceAllString(paragraph.Text, ".\n$1"), "\n") {
 			check("docs/plan.json standing paragraph "+strconv.Itoa(index), sentence)
 		}
+	}
+}
+
+// TestAJudgementLineSaysWhyNoCodeHoldsIt holds each rule of skill.md's Judgement section to a because clause saying why
+// no code holds it, and to no citation of a check, since a rule a check holds belongs with the rules that cite theirs.
+// The section is what the system leaves to a model, read at a glance.
+func TestAJudgementLineSaysWhyNoCodeHoldsIt(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.Join("..", "..", "skill.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	section, judged := "", 0
+	for number, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "#") {
+			section = strings.TrimSpace(line)
+			continue
+		}
+		if section != judgementSection || !ruleLine.MatchString(line) {
+			continue
+		}
+		judged++
+		if _, why, said := strings.Cut(line, " because "); !said || strings.TrimSpace(why) == "" {
+			t.Errorf("skill.md:%d is judgement and says no reason no code holds it: %s", number+1, line)
+		}
+		if strings.Contains(line, "(check:") {
+			t.Errorf("skill.md:%d is judgement and cites a check, so it belongs with the rules that cite theirs: %s", number+1, line)
+		}
+	}
+	if judged == 0 {
+		t.Errorf("skill.md has no %s section of rules", judgementSection)
 	}
 }
 

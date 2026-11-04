@@ -7654,6 +7654,17 @@
         "plan_steps": [
           "landing-identity/whole-trailer"
         ]
+      },
+      {
+        "comment": "one-doctrine/judgement-section moves skill.md's judgement lines into a ## Judgement section and leaves the Gate and cycle citations this finding names untouched; it stays with compact-tests/exact-folds.",
+        "disposition": "context",
+        "evidence": [
+          "skill.md ## Judgement"
+        ],
+        "finding_id": "SQA-270",
+        "plan_steps": [
+          "one-doctrine/judgement-section"
+        ]
       }
     ],
     "experiments": {
@@ -7695,7 +7706,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "2963400a40a3f0ecb91cecb16e1d84cee601d8fd",
+    "head": "df6e1e93f0edd016141833c8ccebbda4eb87abc9",
     "findings": {
       "SQA-004": {
         "action": "none",

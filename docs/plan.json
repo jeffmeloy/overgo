@@ -154,13 +154,6 @@
       },
       "steps": [
         {
-          "id": "judgement-section",
-          "title": "Judgement is one labelled section",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestAJudgementLineSaysWhyNoCodeHoldsIt$'",
-          "rationale": "Add a ## Judgement section to skill.md, exempt from TestEveryRuleCitesItsCheck, where each line says why no code can hold it. Move in the lines the sort binned judgement. A rule with no check is then visibly a rule with no check, and the section's size measures how much of the system still rests on a model. The line-by-line sort is C:/Users/jeffm/Downloads/doctrine_sort.json.\nServes: the loop.\nDisappears: rules that cite a test that cannot hold them, such as 'question =\u003e answer'.\nEvidence: 20 skill.md and doctrine lines binned judgement, and 18 lessons.\nBatch: doctrine."
-        },
-        {
           "id": "sound-citations",
           "title": "No rule cites a check that does not prove it",
           "status": "open",

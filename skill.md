@@ -153,6 +153,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 ### Plan and SQA
 
 - `docs/plan.json` = sole dispatch authority (check: internal/plan TestSinglePlanAuthority)
+- a landing that removes a step it does not land => its message names the step and its commit a Retired-Row trailer, and a check put in a step's place fails on the commit the change builds on (check: internal/landing TestALandingThatDeletesARowNamesIt, internal/landing TestAReplacedCheckMustFailWithoutTheChange)
 
 ## Evidence
 

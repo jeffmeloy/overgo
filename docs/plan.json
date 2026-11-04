@@ -54,17 +54,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 19,
-        "reason": "stop-needs-request adds 435, measured: 228 for the prompt's stop request (its word match, record and requirement) and 182 in the hook for keeping and reporting a block the valve passed, doc comments counted. The three steps left keep the review's estimate of 60 each"
+        "nodes": 60,
+        "reason": "row-changes-named adds 228, measured, against the review's 60: comparing the trunk's plan with the change's for removed steps and replaced checks, the message's naming and the trailer, doc comments counted. message-form keeps the review's 60"
       },
       "steps": [
-        {
-          "id": "row-changes-named",
-          "title": "A landing that removes a row or replaces a check says so and proves it",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^(TestALandingThatDeletesARowNamesIt|TestAReplacedCheckMustFailWithoutTheChange)$'",
-          "rationale": "one-doctrine/session-contract dropped 'A landing may also delete rows it retires; its message says why' from the session-start text, since no check held it; this step holds it in code.\nA landing can delete another row with no trailer (terms.go:16-18), and a plan-only landing can weaken a check with a trailer as its only trace. Extend termsChanged: a removed row gets a trailer and its id appears in the message. Extend addedChecksFail: a replacement check must fail at the commit it builds on.\nServes: the loop.\nDisappears: 'its message says why' as a rule to remember.\nEvidence: doctrine.go and skill.md line 199 in the sort.\nBatch: landing."
-        },
         {
           "id": "message-form",
           "title": "The commit message's form is checked",

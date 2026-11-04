@@ -429,6 +429,7 @@ func (l *landing) row(ctx context.Context) error {
 		}
 	}
 	// A plan the commit it builds on does not hold has no terms to change.
+	var replaced []string
 	if heldErr == nil {
 		before, err := plan.Parse(held)
 		if err != nil {
@@ -437,6 +438,17 @@ func (l *landing) row(ctx context.Context) error {
 		l.changedTerms = termsChanged(before, document)
 		if err := l.landedAgain(ctx, before, document); err != nil {
 			return err
+		}
+		// A merge's removed steps are the other line's landings, carried with their own trailers.
+		if len(l.merging) == 0 {
+			var removed []string
+			removed, replaced = rowChanges(before, document)
+			for _, row := range removed {
+				if !strings.Contains(string(l.Message), row) {
+					return fmt.Errorf("land: the change removes %s from the plan without landing it: its message names it and says why", row)
+				}
+				l.changedTerms = append(l.changedTerms, retiredRowTrailer+": "+row)
+			}
 		}
 	}
 	named, err := rows(l.Ref)
@@ -452,7 +464,7 @@ func (l *landing) row(ctx context.Context) error {
 			return fmt.Errorf("land: %w", err)
 		}
 	}
-	l.advanced, l.verifiers, l.added = document, nil, nil
+	l.advanced, l.verifiers, l.added = document, nil, replaced
 	l.counts = make(map[string]plan.Budget, len(document.Items))
 	for _, item := range document.Items {
 		l.counts[item.ID] = item.Budget

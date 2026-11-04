@@ -78,6 +78,9 @@ type GatedDeltaWindowAttributes struct {
 	Commit bool
 	// Layers is the layers a commit advances (Builder.GatedDeltaCommitLayers), zero where a node predates it.
 	Layers uint32
+	// SiLU gates a window step's outputs by SiLU(z), the qwen35 family's gated-delta layers', where unset by sigmoid(z),
+	// Flash-Next's, which Strata's verify kernels hold.
+	SiLU bool
 }
 
 // CommitLayers is the layers a commit advances, one for a node that names none.
@@ -118,11 +121,11 @@ func (b *Builder) GatedDeltaWindowConv(history, qkv, weights *Tensor, keyHeads, 
 // mean square (gamma, epsilon) and gated by sigmoid(z); the output is [width, value heads, tokens], and the state is
 // left as it was. Given kept, an I32 [1] holding n, it is the kernel's kept form: the outputs of the first n tokens and
 // the state after them, written in place (a one-token window's own commit).
-func (b *Builder) GatedDeltaWindowStep(state, rows, gate, beta, z, gamma, kept *Tensor, keyHeads, valueHeads uint32, epsilon float32) *Tensor {
+func (b *Builder) GatedDeltaWindowStep(state, rows, gate, beta, z, gamma, kept *Tensor, keyHeads, valueHeads uint32, epsilon float32, silu bool) *Tensor {
 	if b.err != nil {
 		return nil
 	}
-	attributes := GatedDeltaWindowAttributes{KeyHeads: keyHeads, ValueHeads: valueHeads, Epsilon: epsilon}
+	attributes := GatedDeltaWindowAttributes{KeyHeads: keyHeads, ValueHeads: valueHeads, Epsilon: epsilon, SiLU: silu}
 	channels := attributes.channels()
 	if !gatedDeltaWindowState(state, valueHeads) || !gatedDeltaWindowRows(rows, channels) || gamma == nil ||
 		gamma.Type != dtype.F32 || gamma.Shape != MustShape(GatedDeltaWindowWidth) ||

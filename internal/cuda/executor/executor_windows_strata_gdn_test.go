@@ -59,7 +59,6 @@ func TestStrataGatedDeltaWindowParity(t *testing.T) {
 		return float32s(buffers.read(t, pointer, 4*words))
 	}
 	count := func(n int) driver.DevicePtr { return buffers.upload(t, int32Bytes([]int32{int32(n)})) }
-	run := func(launch func(*device.State, functionSet) error) { buffers.run(t, launch) }
 	row := func(values []float32, token, size int) []float32 { return values[token*size : (token+1)*size] }
 	type window struct{ qkv, rows, gate, beta, z []float32 }
 	upload := func(w window, tokens int) strataGatedDeltaWindow {
@@ -76,18 +75,18 @@ func TestStrataGatedDeltaWindowParity(t *testing.T) {
 		}
 	}
 	conv := func(history driver.DevicePtr, w strataGatedDeltaWindow, tokens int, commit bool) {
-		run(func(state *device.State, functions functionSet) error {
+		buffers.run(t, func(state *device.State, functions functionSet) error {
 			return launchStrataGatedDeltaConv(state, functions, history, weightsBuffer, w, int32(channels), keyHeads, epsilon, 0, int32(tokens), commit)
 		})
 	}
 	step := func(stateBuffer, kept driver.DevicePtr, w strataGatedDeltaWindow, tokens int) {
-		run(func(state *device.State, functions functionSet) error {
-			return launchStrataGatedDeltaStep(state, functions, stateBuffer, gammaBuffer, kept, w, int32(channels), keyHeads, valueHeads, epsilon, int32(tokens), 0)
+		buffers.run(t, func(state *device.State, functions functionSet) error {
+			return launchStrataGatedDeltaStep(state, functions, stateBuffer, gammaBuffer, kept, w, int32(channels), keyHeads, valueHeads, epsilon, int32(tokens), 0, false)
 		})
 	}
 	commit := func(history, stateBuffer driver.DevicePtr, w strataGatedDeltaWindow, kept int) {
 		keptBuffer := count(kept)
-		run(func(state *device.State, functions functionSet) error {
+		buffers.run(t, func(state *device.State, functions functionSet) error {
 			return launchStrataGatedDeltaCommit(state, functions, history, stateBuffer, keptBuffer, w, int32(channels), keyHeads, valueHeads)
 		})
 	}

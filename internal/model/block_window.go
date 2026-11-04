@@ -23,7 +23,7 @@ type WindowBinding struct {
 // convolution the kernels are compiled for, its convolution, alpha and beta stored F32 for the fused gates.
 func (s Spec) HoldsGatedDeltaWindow(plan LayerPlan, weights LayerWeights) bool {
 	f32 := func(info *gguf.TensorInfo) bool { return info != nil && info.Type == gguf.DTypeF32 }
-	return plan.Recurrent && plan.AttentionGraph.deltaProjection == gatedDeltaSeparateSigmoid &&
+	return plan.Recurrent && windowGatesBy(plan.AttentionGraph.deltaProjection) &&
 		s.SSMStateSize == tensor.GatedDeltaWindowWidth && s.SSMConvKernel == tensor.GatedDeltaWindowKernel &&
 		f32(weights.SSMConv1D) && f32(weights.SSMAlpha) && f32(weights.SSMBeta)
 }
@@ -96,9 +96,16 @@ func (p CompiledLayerProgram) Commit(builder *tensor.Builder, after *tensor.Tens
 	return after, builder.Err()
 }
 
+// windowGatesBy reports whether a verify window gates a layer of the delta policy: Flash-Next's by sigmoid(z), and the
+// qwen35 family's, whose separate projections gate by SiLU(z), by SiLU.
+func windowGatesBy(policy gatedDeltaPolicy) bool {
+	return policy == gatedDeltaSeparateSigmoid || policy == gatedDeltaSeparateProjections
+}
+
 // buildGatedDeltaWindow is a gated-delta layer's verify window, verify.cpp record_window's gated-delta section: the qkv
 // rows, Strata's window conv over the history where it sits, the fused gates, the gate projection and Strata's window
-// recurrence over the state where it sits, normed and gated by sigmoid(z), then the output projection. A one-token
+// recurrence over the state where it sits, normed and gated by sigmoid(z) or the qwen35 family's SiLU(z), then the
+// output projection. A one-token
 // window's conv and recurrence keep its token (the conv's commit, the recurrence's kept form at one); a longer window
 // leaves both for its commit, which replays the rows it keeps.
 func buildGatedDeltaWindow(
@@ -112,7 +119,7 @@ func buildGatedDeltaWindow(
 		return DenseBlockResult{}, err
 	}
 	stateWidth, keyHeads, valueHeads := uint64(spec.SSMStateSize), spec.SSMGroupCount, spec.SSMTimeStepRank
-	if deltaPolicy != gatedDeltaSeparateSigmoid || stateWidth != tensor.GatedDeltaWindowWidth ||
+	if !windowGatesBy(deltaPolicy) || stateWidth != tensor.GatedDeltaWindowWidth ||
 		spec.SSMConvKernel != tensor.GatedDeltaWindowKernel || tokens == 0 || tokens > tensor.GatedDeltaWindowTokens ||
 		!tensor.GatedDeltaFused(stateWidth, uint64(spec.SSMConvKernel), tokens, weights.SSMConv1D.Type, weights.SSMAlpha.Type, weights.SSMBeta.Type) ||
 		window.One == nil {
@@ -128,7 +135,8 @@ func buildGatedDeltaWindow(
 	if commit {
 		kept = window.One
 	}
-	outputs := builder.GatedDeltaWindowStep(ssmState, rows, gate, beta, z, weights.SSMNorm, kept, keyHeads, valueHeads, spec.RMSNormEpsilon)
+	outputs := builder.GatedDeltaWindowStep(ssmState, rows, gate, beta, z, weights.SSMNorm, kept, keyHeads, valueHeads, spec.RMSNormEpsilon,
+		deltaPolicy == gatedDeltaSeparateProjections)
 	attention := builder.MulMat(weights.SSMOutput, builder.Reshape(outputs, uint64(spec.SSMInnerSize), tokens))
 	if err := builder.Err(); err != nil {
 		return DenseBlockResult{}, err

@@ -59,14 +59,15 @@ extern "C" __global__ void __launch_bounds__(STRATA_GDN_S) strata_gdn_conv_l2_mu
 }
 
 // ---- gdn_step_norm_multi_kernel<ALL_OUT, Q = false>: the recurrence of one value head (blockIdx.x) from the state over
-// the window's tokens, each token's output normed (gamma, eps) and gated by sigmoid(z). ALL_OUT reads the state and
+// the window's tokens, each token's output normed (gamma, eps) and gated by sigmoid(z), or by SiLU(z) where silu is
+// set (the qwen35 family's gated-delta layers, which Strata's source does not serve). ALL_OUT reads the state and
 // leaves it; otherwise the recurrence runs over the kept count's tokens (all of them without one), outputs from
 // t_out_begin, and with a kept count writes the state after them. Launch: grid value heads, block (128, 4).
 template <bool ALL_OUT>
 __device__ __forceinline__ void strata_gdn_step_norm_body(
         float * __restrict__ state, const float * __restrict__ hbuf, int C, const float * __restrict__ gate,
         const float * __restrict__ beta, const float * __restrict__ z, const float * __restrict__ gamma, float eps,
-        float * __restrict__ y, int h_k, int h_v, int T, const int32_t * __restrict__ n_keep, int t_out_begin) {
+        float * __restrict__ y, int h_k, int h_v, int T, const int32_t * __restrict__ n_keep, int t_out_begin, int silu) {
     const int S = STRATA_GDN_S, RG = STRATA_GDN_RG, RPG = STRATA_GDN_RPG;
     __shared__ float sk[2][STRATA_GDN_S], sq[2][STRATA_GDN_S];
     __shared__ float red_kv[STRATA_GDN_RG][STRATA_GDN_S];
@@ -147,7 +148,8 @@ __device__ __forceinline__ void strata_gdn_step_norm_body(
             const float ss = wsum[0] + wsum[1] + wsum[2] + wsum[3];
             const float scale = rsqrtf(ss / (float) S + eps);
             const float zz = z[(size_t) t * value_dim + head * S + col];
-            const float yv = oc * scale * gam * (1.0f / (1.0f + __expf(-zz)));
+            const float sig = 1.0f / (1.0f + __expf(-zz));
+            const float yv = oc * scale * gam * (silu ? zz * sig : sig);
             y[(size_t) t * value_dim + head * S + col] = yv;
         }
     }
@@ -171,15 +173,15 @@ __device__ __forceinline__ void strata_gdn_step_norm_body(
 extern "C" __global__ void __launch_bounds__(STRATA_GDN_S * STRATA_GDN_RG) strata_gdn_step_norm_multi_all(
         float * __restrict__ state, const float * __restrict__ hbuf, int C, const float * __restrict__ gate,
         const float * __restrict__ beta, const float * __restrict__ z, const float * __restrict__ gamma, float eps,
-        float * __restrict__ y, int h_k, int h_v, int T) {
-    strata_gdn_step_norm_body<true>(state, hbuf, C, gate, beta, z, gamma, eps, y, h_k, h_v, T, nullptr, 0);
+        float * __restrict__ y, int h_k, int h_v, int T, int silu) {
+    strata_gdn_step_norm_body<true>(state, hbuf, C, gate, beta, z, gamma, eps, y, h_k, h_v, T, nullptr, 0, silu);
 }
 
 extern "C" __global__ void __launch_bounds__(STRATA_GDN_S * STRATA_GDN_RG) strata_gdn_step_norm_multi_kept(
         float * __restrict__ state, const float * __restrict__ hbuf, int C, const float * __restrict__ gate,
         const float * __restrict__ beta, const float * __restrict__ z, const float * __restrict__ gamma, float eps,
-        float * __restrict__ y, int h_k, int h_v, int T, const int32_t * __restrict__ n_keep, int t_out_begin) {
-    strata_gdn_step_norm_body<false>(state, hbuf, C, gate, beta, z, gamma, eps, y, h_k, h_v, T, n_keep, t_out_begin);
+        float * __restrict__ y, int h_k, int h_v, int T, const int32_t * __restrict__ n_keep, int t_out_begin, int silu) {
+    strata_gdn_step_norm_body<false>(state, hbuf, C, gate, beta, z, gamma, eps, y, h_k, h_v, T, n_keep, t_out_begin, silu);
 }
 
 // The most layers one launch of the layers' commits takes (gdn_commit_layers' n_layers): a table's entries. Strata

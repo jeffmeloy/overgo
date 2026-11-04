@@ -73,16 +73,23 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 26,
-        "reason": "resident-programs adds 295, measured: a program's chunks of whole pages, placing and letting go of an input in one, and the session freeing each chunk once, doc comments counted. expert-census and drafted-state keep about 80 each"
+        "nodes": 383,
+        "reason": "Estimate: a SiLU form of the window step (about 40 nodes and its kernel lines), window gates from quantized alpha and beta (about 150), and the cell runner windows, a patch of about 200 production nodes kept in tmp/memory-bounds/cell-windows.patch."
       },
       "steps": [
         {
-          "id": "window-verify",
-          "title": "Verify the qwen35 family's drafts in Strata's window verifier",
+          "id": "quantized-window-gates",
+          "title": "A gated-delta verify window takes its gates from quantized alpha and beta",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35GatedDeltaLayersHoldTheWindow$'",
+          "rationale": "memory-bounds/window-verify read Qwen3.5-9B-Q8_0 and Qwen3.8-27B-UD-Q6_K: both hold ssm_alpha and ssm_beta in Q8_0, a 128-wide state and a 4-tap convolution, while the window's fused gates (tensor.GatedDeltaFused, GatedDeltaGates) take F32 alpha and beta only. Compute a window's packed gates from quantized alpha and beta as the plain layer computes them, so the family's layers hold the window (HoldsGatedDeltaWindow), held by a test that the hermetic qwen35 hybrid's layers hold it and its window's output matches its plain step's. Serves: peak-device-memory, as a step toward cell-windows."
+        },
+        {
+          "id": "cell-windows",
+          "title": "Verify the qwen35 family's drafts in Strata's window verifier over its attention cells",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -count=1 -run '^TestQwen35DraftsVerifyInAWindow$'",
-          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its widest verify span over three drafted chat answers held two positions, whose 48 recurrent layers' states took 156,893,184 bytes (about 78 MB a position, 3.27 MB a layer), and whose hidden rows and selections another 156,934,152. Each of its two span slots is 627,654,912 bytes, about 1.17 GiB together, the bulk of the 1.30 GiB drafting was measured to cost (d184ff653). Strata's verifier, which internal/inference/qsa_window.go already runs for QSA runners, reads a sequence's fixed state where it sits, keeps each window's rows at the runner's own addresses, and commits the kept tokens. It keeps no state for each position, and it already handles gated-delta layers, which the qwen35 family's recurrent layers are. Verify the qwen35 family's drafts in that window, and retire their span slots.\nServes: peak-device-memory for the drafting qwen35 models (Qwen3.8-27B, Qwen3.5-4B, Bonsai-27B).\nDisappears: the span slots' per-position states on the qwen35 family.\nEvidence: the 27B's drafted peak against its plain peak, and the drafted text equal to the plain greedy text.\nBatch: serving lane."
+          "rationale": "memory-bounds/drafted-state priced the qwen35 family's drafted windows on Qwen3.8-27B: its two span slots of every position's state took 627,654,912 bytes each, about 1.17 GiB of the 1.30 GiB drafting costs. Strata's verifier keeps no state a position: its windows read the sequence's fixed state where it sits and replay the kept tokens at their commit. memory-bounds/window-verify wrote the cell runner's side, kept as tmp/memory-bounds/cell-windows.patch with its test: attentionCells holds the live state as qsaCells does (deviceCacheStorage.windowLive), the live state skips the layers over attention cells, whose keys and values the window writes in place, the commit takes the storage and a QSA runner's geometry only where it has one, and qsaWindowSet admits a cell runner. Apply it once the window holds the family's layers (silu-window-gate, quantized-window-gates); TestQwen35DraftsVerifyInAWindow holds a drafted request to the plain one's tokens with no span slot taken. Serves: peak-device-memory for Qwen3.8-27B, Qwen3.5-4B and Bonsai-27B when they draft."
         }
       ]
     },

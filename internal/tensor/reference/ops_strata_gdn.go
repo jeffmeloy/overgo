@@ -99,6 +99,9 @@ func gatedDeltaWindowStep(node *tensor.Tensor, inputs []Value) (Value, error) {
 		base := (token*int(attributes.ValueHeads) + head) * width
 		for column, value := range values {
 			gated := 1 / (1 + float32(math.Exp(float64(-z[base+column]))))
+			if attributes.SiLU {
+				gated *= z[base+column]
+			}
 			output[base+column] = value * scale * gamma[column] * gated
 		}
 	})

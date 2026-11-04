@@ -2292,7 +2292,7 @@
         },
         {
           "path": "kernels/cuda/strata_gdn.cuh",
-          "sha256": "fca928179eb7e04ee0136df0bc7f28d17d05fd53f2504c0c41eef8e48b58504d"
+          "sha256": "c857bc89129026a8b9811622ce6ace48bd48d83ecebccf04e30da7a6fdd97cb8"
         },
         {
           "path": "kernels/cuda/strata_iq_experts.cuh",
@@ -2316,7 +2316,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/strata_qsa.ptx",
-      "assetSha256": "b819f1c9776a9dd3e94e5661e616a22a6ebef40dd1dd447480f33afdf3ab21be",
+      "assetSha256": "9ed6ba014378718d8c5469335f00ee87a617eb2e1695feaa80e4aa4e0a80e090",
       "compilerFlags": [
         "-ptx",
         "-arch=compute_89",
@@ -2711,6 +2711,7 @@
             ".u64",
             ".u32",
             ".u32",
+            ".u32",
             ".u32"
           ],
           "functions": [
@@ -2732,6 +2733,7 @@
             ".u32",
             ".u32",
             ".u64",
+            ".u32",
             ".u32"
           ],
           "functions": [

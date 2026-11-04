@@ -273,7 +273,7 @@ func (w *strataRoundWindow) gdnMixer(layer StrataRoundLayer, gi int64, il *bool)
 		kept = w.one
 	}
 	if err := launchStrataGatedDeltaStep(w.state, w.functions, layer.State, layer.SSMNorm, kept, window, int32(c),
-		int32(s.KeyHeads), int32(hv), strataRoundEpsilon, int32(n), 0); err != nil {
+		int32(s.KeyHeads), int32(hv), strataRoundEpsilon, int32(n), 0, false); err != nil {
 		return err
 	}
 	if err := launchStrataNativeQuantizeQ81(w.state, w.functions, w.y, w.xq, int32(zv), int32(n)); err != nil {

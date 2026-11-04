@@ -43,17 +43,18 @@ func launchStrataGatedDeltaConv(state *device.State, functions functionSet, hist
 // launchStrataGatedDeltaStep launches gdn_step_norm_multi: its every-output form without a kept count, its kept form
 // (outputs from outFirst, the state written after the kept count) with one.
 func launchStrataGatedDeltaStep(state *device.State, functions functionSet, stateBuffer, gamma, kept driver.DevicePtr,
-	window strataGatedDeltaWindow, channels, keyHeads, valueHeads int32, epsilon float32, tokens, outFirst int32) error {
+	window strataGatedDeltaWindow, channels, keyHeads, valueHeads int32, epsilon float32, tokens, outFirst int32, silu bool) error {
 	grid := driver.Dim3{X: uint32(valueHeads), Y: 1, Z: 1}
 	block := driver.Dim3{X: strataGatedDeltaWidth, Y: strataGatedDeltaRowGroups, Z: 1}
+	gated := kernelBool(silu)
 	if kept == 0 {
 		return launchGridABI(state, functions[kernelStrataGdnStepNormMultiAll], grid, block,
 			&stateBuffer, &window.rows, &channels, &window.gate, &window.beta, &window.z, &gamma, &epsilon, &window.outputs,
-			&keyHeads, &valueHeads, &tokens)
+			&keyHeads, &valueHeads, &tokens, &gated)
 	}
 	return launchGridABI(state, functions[kernelStrataGdnStepNormMultiKept], grid, block,
 		&stateBuffer, &window.rows, &channels, &window.gate, &window.beta, &window.z, &gamma, &epsilon, &window.outputs,
-		&keyHeads, &valueHeads, &tokens, &kept, &outFirst)
+		&keyHeads, &valueHeads, &tokens, &kept, &outFirst, &gated)
 }
 
 // launchStrataGatedDeltaCommit launches gdn_conv_commit and gdn_step_commit over the kept count, in place.
@@ -98,7 +99,7 @@ func launchGatedDeltaWindowStep(state *device.State, functions functionSet, node
 	}
 	return launchStrataGatedDeltaStep(state, functions, pointers.input(tensor.GatedDeltaWindowStepState),
 		pointers.input(tensor.GatedDeltaWindowStepGamma), kept, window, int32(rows.Dims[0]), int32(attributes.KeyHeads),
-		int32(attributes.ValueHeads), attributes.Epsilon, int32(rows.Dims[1]), 0)
+		int32(attributes.ValueHeads), attributes.Epsilon, int32(rows.Dims[1]), 0, attributes.SiLU)
 }
 
 // strataGatedDeltaCommitLayers is the most layers one launch of the layers' commit kernels takes, their tables' entries

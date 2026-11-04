@@ -7698,6 +7698,17 @@
         "plan_steps": [
           "one-doctrine/row-paragraphs"
         ]
+      },
+      {
+        "comment": "boundaries-in-code/reference-tree adds one rule line to skill.md and leaves the Gate and cycle citations this finding names untouched; it stays with compact-tests/exact-folds.",
+        "disposition": "context",
+        "evidence": [
+          "internal/guard TestNoSessionWritesIntoTheReferenceTree"
+        ],
+        "finding_id": "SQA-270",
+        "plan_steps": [
+          "boundaries-in-code/reference-tree"
+        ]
       }
     ],
     "experiments": {
@@ -7739,7 +7750,7 @@
     ],
   "master_lead_triage": {
     "at": "2026-11-04",
-    "head": "712ee25ac4f32b88305fc5e3459bfcd6c4977aac",
+    "head": "e6061a367dfbbef56ed54c12c9f12a750267bc69",
     "findings": {
       "SQA-004": {
         "action": "none",

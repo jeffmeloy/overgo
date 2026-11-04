@@ -256,6 +256,7 @@ A line of this file reads by this notation, and cites the tests that hold its ru
 - models, store and checkpoints live in `OVERGO_DATA_ROOT`, outside the module (check: internal/dataroot TestEnvBaseWinsAndNamesAllRoots)
 - `build/` lives in the checkout, ignored by git (check: cmd/loop TestLeftoversListsEveryDeclaredPlaceWithItsRule)
 - llama.cpp for pinned behavior (check: internal/quant TestQuantizeMatchesPinnedGGMLReference, internal/hostexpert TestQuantizersRoundAsGGML, internal/tokenizer TestUpstreamTokenizerCorpus)
+- `adaptive_new` = read-only: no session writes into it (check: internal/guard TestNoSessionWritesIntoTheReferenceTree)
 - no Go source names a path into `adaptive_new` (check: internal/repoanalysis TestNoTestReadsAdaptiveNew)
 - keep commits, licenses and artifact identities (check: internal/runrecord TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted, internal/latentimage TestMOSSGoldenProvenance)
 - model-family facts live in artifacts and recipes, never in model-specific code (check: internal/inferencesurface TestServingCodeNamesNoArchitecture, internal/model TestGemma4ProgramUsesNeutralStages)

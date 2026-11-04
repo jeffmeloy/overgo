@@ -49,25 +49,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "boundaries-in-code",
-      "title": "No session writes into the reference tree",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "Estimate: one guard rule family, about 60 nodes, as the review sized each."
-      },
-      "steps": [
-        {
-          "id": "reference-tree",
-          "title": "No session writes into the reference tree",
-          "status": "open",
-          "verify": "go test ./internal/guard -count=1 -run '^TestNoSessionWritesIntoTheReferenceTree$'",
-          "rationale": "adaptive_new is read-only by rule, and nothing refuses a write: the guard allows any path outside the checkout (internal/guard/guard.go reviewVerdict). skill.md stated it citing TestNoTestReadsAdaptiveNew, which proves only that no Go source names a path into the tree, so one-doctrine/sound-citations narrowed the line to that. Add the tree as a protected write target for Edit, Write and the shell's write sinks, and restore '`adaptive_new` = read-only' to skill.md citing this check.\nServes: the loop.\nDisappears: 'adaptive_new = read-only' as a rule only a session remembers.\nEvidence: the doctrine sort's unsound citation of skill.md's read-only line.\nBatch: guard."
-        }
-      ]
-    },
-    {
       "id": "session-rules",
       "title": "The rules the session-start text dropped are held by code",
       "owner": "master-lead",

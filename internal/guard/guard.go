@@ -36,6 +36,15 @@ var findDeleteVerbs = []string{"chmod", "del", "mv", "rm", "rmdir", "shred", "un
 // protectedPaths are the data paths nothing deletes or moves, forward slashes for both separators.
 var protectedPaths = []string{"checkpoints/", "datasets/", "docs/repodb", "experiments/", "models/", "overgodb-store", "repodb-store"}
 
+// referenceTree is the tree ports are read from and compared with, beside the checkout: no session writes into it.
+const referenceTree = "adaptive_new"
+
+// creatingVerbs are the programs that write every path they name, besides those that delete or move.
+var creatingVerbs = []string{"mkdir", "tee", "touch", "truncate"}
+
+// copyVerbs are the programs that write only the last path they name, reading the others.
+var copyVerbs = []string{"copy", "copy-item", "cp"}
+
 // shellNames are the programs -c hands a command to.
 var shellNames = []string{"bash", "dash", "ksh", "mksh", "sh", "zsh"}
 
@@ -52,8 +61,9 @@ type ToolCall struct {
 	ToolName  string `json:"tool_name"`
 	Session   string `json:"session_id"`
 	ToolInput struct {
-		Command string `json:"command"`
-		Path    string `json:"file_path"`
+		Command  string `json:"command"`
+		Path     string `json:"file_path"`
+		Notebook string `json:"notebook_path"`
 	} `json:"tool_input"`
 }
 
@@ -152,6 +162,9 @@ func Verdict(call ToolCall, root string) (message string, wrapped bool) {
 	if message := reviewVerdict(call, root); message != "" {
 		return message, false
 	}
+	if referencePath(cmp.Or(call.ToolInput.Path, call.ToolInput.Notebook)) {
+		return referenceRefusal, false
+	}
 	for index, command := range payloads(call.ToolInput.Command, 0) {
 		if m := ruleVerdict(command); m != "" {
 			return m, index > 0
@@ -220,6 +233,9 @@ func ruleVerdict(command string) string {
 	if any(touchesProtected) {
 		return "delete/move/chmod under a protected data path (models/, datasets/, checkpoints/, experiments/, docs/repodb/, overgodb-store)"
 	}
+	if any(writesReference) {
+		return referenceRefusal
+	}
 	if any(findDeletes) {
 		return "find with -delete or -exec <delete-verb> over a protected data path; the delete target is the " +
 			"substituted {} so no verb rule can see it -- ask the user"
@@ -248,6 +264,34 @@ func ruleVerdict(command string) string {
 			"root that moves the root folder's time, and go test reruns every suite that stats it; build with -o bin/<name>.exe"
 	}
 	return ""
+}
+
+// referenceRefusal is why a write into the reference tree is refused.
+const referenceRefusal = referenceTree + " is the reference tree, read to compare with or port from: nothing writes into it; write the port here"
+
+// referencePath says a path lies in the reference tree: one of its segments, by either separator, names the tree.
+func referencePath(path string) bool {
+	return slices.Contains(strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' }), referenceTree)
+}
+
+// writesReference says a command writes into the reference tree: it sends output there, or a program that deletes,
+// moves, creates, edits in place or copies onto what it names names a path there. Reading the tree is any session's.
+func writesReference(run shellCommand) bool {
+	if slices.ContainsFunc(run.sinks, referencePath) {
+		return true
+	}
+	if len(run.words) == 0 {
+		return false
+	}
+	program, targets := programName(run.words[0].text), run.words[1:]
+	switch {
+	case slices.Contains(copyVerbs, program) && len(targets) > 0:
+		targets = targets[len(targets)-1:]
+	case program == "sed" && slices.ContainsFunc(targets, func(current word) bool { return strings.HasPrefix(current.text, "-i") }):
+	case !slices.Contains(protectedVerbs, program) && !slices.Contains(creatingVerbs, program):
+		return false
+	}
+	return slices.ContainsFunc(targets, func(current word) bool { return referencePath(current.text) || referencePath(current.spelled) })
 }
 
 // invokesPowerShell says a command names PowerShell outside a quotation.

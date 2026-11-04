@@ -352,7 +352,7 @@
     },
     {
       "name": "go-build-command-after-cd",
-      "command": "cd /c/Users/jeffm/overgo \u0026\u0026 go build ./cmd/plan",
+      "command": "cd /c/Users/jeffm/overgo && go build ./cmd/plan",
       "expect": "DENY",
       "rule": "binary-into-root"
     },
@@ -373,6 +373,42 @@
       "command": "go build ./internal/landing ./cmd/loophook",
       "expect": "ALLOW",
       "rule": "binary-into-root"
+    },
+    {
+      "name": "reference-tree-redirect-into-it",
+      "command": "go doc ./internal/model > C:/Users/jeffm/adaptive_new/model_doc.txt",
+      "expect": "DENY",
+      "rule": "reference-tree"
+    },
+    {
+      "name": "reference-tree-copy-onto-it",
+      "command": "cp internal/model/model.go C:/Users/jeffm/adaptive_new/internal/model/model.go",
+      "expect": "DENY",
+      "rule": "reference-tree"
+    },
+    {
+      "name": "reference-tree-edit-in-place",
+      "command": "sed -i s/old/new/ C:/Users/jeffm/adaptive_new/internal/model/model.go",
+      "expect": "DENY",
+      "rule": "reference-tree"
+    },
+    {
+      "name": "reference-tree-read",
+      "command": "grep -rn \"func Forward\" C:/Users/jeffm/adaptive_new/internal",
+      "expect": "ALLOW",
+      "rule": "reference-tree"
+    },
+    {
+      "name": "reference-tree-copy-out-of-it",
+      "command": "cp C:/Users/jeffm/adaptive_new/internal/model/model.go tmp/port/model.go",
+      "expect": "ALLOW",
+      "rule": "reference-tree"
+    },
+    {
+      "name": "reference-tree-similar-name",
+      "command": "echo report > docs/adaptive_new_parity_report.md",
+      "expect": "ALLOW",
+      "rule": "reference-tree"
     }
   ]
 }

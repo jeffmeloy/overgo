@@ -407,12 +407,11 @@ reason: Finite-difference tests and a hyper-connection backward assembled in a t
 group training-test-entries
 class: test-held
 surface: outside
-declarations: 4
-lines: 44
+declarations: 1
+lines: 3
 members: internal/adaptertrain/linear_ctc.go
-members: internal/adaptertrain/model.go Model.Restore Model.RestoreWeights Model.WeightSnapshot
-reason: WeightSnapshot of the two adapter trainers is how the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity compare weights, and Model's Restore and RestoreWeights resume the E4B adapter only in internal/adaptiveparity's test, since cmd/train's route adapter writes checkpoints it never resumes from.
-reason: compact-production/adapter-resume gives the route adapter a resume of its checkpoint, which reaches Restore and RestoreWeights, and the tests compare the weights SaveWeights writes, in a commit that verifies the claim gemma-e4b-real-adapter-training again, since it binds internal/adaptertrain/model.go whole.
+reason: LinearCTC.WeightSnapshot is how the cancellation and refusal tests of internal/adaptertrain and internal/audioparity hold a step that failed or was cancelled to the weights before it, where no checkpoint boundary stands and SaveWeights refuses to write.
+reason: It stays while those tests read weights no checkpoint can hold, and goes when the trainer gives them back at a boundary it records.
 
 group trainingdata-image-test-inputs
 class: test-held

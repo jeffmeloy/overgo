@@ -191,9 +191,6 @@ prototype internal/speechactivity/execution.go Detector.ProcessStream
 prototype internal/speechactivity/execution.go Detector.decode
 prototype internal/speechactivity/execution.go Detector.restore
 test-held internal/adaptertrain/linear_ctc.go LinearCTC.WeightSnapshot
-test-held internal/adaptertrain/model.go Model.Restore
-test-held internal/adaptertrain/model.go Model.RestoreWeights
-test-held internal/adaptertrain/model.go Model.WeightSnapshot
 test-held internal/agenttool/stream.go StreamEvent.ArtifactContent
 test-held internal/agenttool/stream.go StreamTerminal.ArtifactContent
 test-held internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch

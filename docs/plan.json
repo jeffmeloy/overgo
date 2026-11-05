@@ -68,26 +68,6 @@
       ]
     },
     {
-      "id": "compact-production",
-      "title": "Remove production code that nothing needs",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 9671,
-        "reason": "held-claims measured at -364 production nodes: GenerateLatents, AtLeast, RunKey and TrainDeviceResident go with their tests on live entries; adaptertrain's resume entries wait for adapter-resume."
-      },
-      "steps": [
-        {
-          "id": "adapter-resume",
-          "title": "cmd/train's route adapter resumes its checkpoint, and the adapter tests compare saved weights",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestRouteAdapterResumesItsCheckpoint$'",
-          "rationale": "held-claims left internal/adaptertrain's test-held entries (training-test-entries in docs/verification/unreached-declarations.txt): Model.Restore and Model.RestoreWeights resume the E4B route adapter only in internal/adaptiveparity/e4b_training_cuda_windows_test.go, since cmd/train's route adapter (cmd/train/route_adapter_windows.go) publishes checkpoints through trainingprogram.PublishCheckpoint and never resumes from one, while the claim gemma-e4b-real-adapter-training states exact checkpoint resume; and WeightSnapshot of Model and LinearCTC is how the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity compare weights.\nChange: cmd/train's route adapter takes a checkpoint to resume, loads it with trainingprogram.LoadCheckpoint, restores its weights and optimizer state through RestoreWeights and Restore, and continues the run, so a resumed run and an uninterrupted one write the same weights; the resume tests compare the weights SaveWeights writes, and WeightSnapshot goes; the claim gemma-e4b-real-adapter-training is verified again on the device, since it binds internal/adaptertrain/model.go whole.\nServes: an owner's trained adapter resumes from the checkpoint the owner selects.\nDisappears: three test-held entries and the group.\nEvidence: the route adapter's resume test; the claim verifies again.\nBatch: device lane for the claim."
-        }
-      ]
-    },
-    {
       "id": "compact-tests",
       "title": "Shrink the test code",
       "class": "consolidation",

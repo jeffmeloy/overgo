@@ -3,6 +3,7 @@
 package adaptiveparity_test
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math"
 	"os"
@@ -171,8 +172,18 @@ func TestGemmaE4BRealTraining(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if !slices.Equal(continuous.WeightSnapshot(), resumed.WeightSnapshot()) ||
-		!reflect.DeepEqual(continuous.Snapshot(), resumed.Snapshot()) {
+	saved := func(trained *adaptertrain.Model) []byte {
+		path := filepath.Join(t.TempDir(), trainingprogram.CheckpointWeights)
+		if err := trained.SaveWeights(path); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	if !bytes.Equal(saved(continuous), saved(resumed)) || !reflect.DeepEqual(continuous.Snapshot(), resumed.Snapshot()) {
 		t.Fatal("E4B checkpoint resume differs from uninterrupted Muon trajectory")
 	}
 

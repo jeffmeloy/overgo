@@ -136,6 +136,9 @@ type routeSession struct {
 	// verification reads the checkpoint's identity and nothing else of it, so
 	// the session records the checkpoint's document and keeps no file.
 	proof bool
+	// resumed is the checkpoint the run continues, whose run plan starts from
+	// it rather than from the session's model.
+	resumed *trainingprogram.Checkpoint
 }
 
 // generationContract is the contract of a trainer that steps kind from
@@ -358,26 +361,7 @@ func (session routeSession) settle(ctx context.Context, err *error) {
 // supplies the dataset authority the run plan binds. A proof's session
 // identifies the checkpoint and records its document, keeping no file.
 func (session routeSession) publish(ctx context.Context, target string, program trainingprogram.TrainingProgram, state hostoptimizer.State, stream trainingdata.StreamState, write func(stage string) error) (trainingprogram.Checkpoint, error) {
-	policies, err := trainingprogram.PoliciesFromRecipe(session.authority.Program.Definition())
-	if err != nil {
-		return trainingprogram.Checkpoint{}, err
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, session.store, policies.Objective)
-	if err != nil {
-		return trainingprogram.Checkpoint{}, err
-	}
-	// A model built from nothing starts from its scratch construction; any
-	// other starts from the model the session trains.
-	initial := trainingprogram.InitialStateSpec{Model: session.model}
-	if session.scratch != nil {
-		initial = trainingprogram.InitialStateSpec{Scratch: session.scratch}
-	}
-	plan, err := trainingprogram.CompileTrainingRunPlanFromRepository(ctx, session.store, trainingprogram.RunSpec{
-		Recipe: session.recipe, Initial: initial,
-		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
-		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
-		Policies: policies, Program: program,
-	})
+	plan, objective, err := session.runPlan(ctx, program)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
@@ -431,4 +415,55 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 		*session.published = checkpoint.ID()
 	}
 	return checkpoint, nil
+}
+
+// runPlan compiles the plan the session's run trains program under, with the
+// objective the session's recipe names: a model built from nothing starts
+// from its scratch construction, a resumed run from its checkpoint, and any
+// other from the model the session trains.
+func (session routeSession) runPlan(ctx context.Context, program trainingprogram.TrainingProgram) (trainingprogram.TrainingRunPlan, trainingprogram.ObjectiveDocument, error) {
+	policies, err := trainingprogram.PoliciesFromRecipe(session.authority.Program.Definition())
+	if err != nil {
+		return trainingprogram.TrainingRunPlan{}, trainingprogram.ObjectiveDocument{}, err
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, session.store, policies.Objective)
+	if err != nil {
+		return trainingprogram.TrainingRunPlan{}, trainingprogram.ObjectiveDocument{}, err
+	}
+	initial := trainingprogram.InitialStateSpec{Model: session.model}
+	switch {
+	case session.scratch != nil:
+		initial = trainingprogram.InitialStateSpec{Scratch: session.scratch}
+	case session.resumed != nil:
+		initial = trainingprogram.InitialStateSpec{Checkpoint: session.resumed.ID()}
+	}
+	plan, err := trainingprogram.CompileTrainingRunPlanFromRepository(ctx, session.store, trainingprogram.RunSpec{
+		Recipe: session.recipe, Initial: initial,
+		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
+		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
+		Policies: policies, Program: program,
+	})
+	return plan, objective, err
+}
+
+// resume loads the checkpoint at directory a run of this session published
+// and holds it to the plan the session continues it under, its stream where
+// a run of updates text records stops; the run then continues from it.
+func (session *routeSession) resume(ctx context.Context, directory string, program trainingprogram.TrainingProgram) (trainingprogram.Checkpoint, error) {
+	checkpoint, err := trainingprogram.LoadCheckpoint(directory)
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	stream, err := trainingworkflow.TextStream(session.data, uint64(checkpoint.Optimizer.Step))
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	session.resumed = &checkpoint
+	plan, _, err := session.runPlan(ctx, program)
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	return checkpoint, trainingprogram.ValidateResume(plan, checkpoint, trainingprogram.ResumeAuthority{
+		Model: session.model, Stream: trainingprogram.DatasetState(stream), OptimizerPlan: program.OptimizerIdentity(),
+	})
 }

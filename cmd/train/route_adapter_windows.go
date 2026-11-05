@@ -25,8 +25,9 @@ import (
 func init() { trainRoutes["adapter"] = trainAdapter }
 
 // adapterTraining is what the adapter route reports: the layer trained, the
-// example rows, the adapter's parameters, every step's loss and the
-// checkpoint the trained adapter published.
+// example rows, the adapter's parameters, the loss of every step the run
+// took, from where a resumed checkpoint stopped, and the checkpoint the
+// trained adapter published.
 type adapterTraining struct {
 	Layer      uint32      `json:"layer"`
 	Rows       int         `json:"rows"`
@@ -37,13 +38,17 @@ type adapterTraining struct {
 
 // trainAdapter is the adapter route: bounded artifact-declared adapter
 // training of one layer of a GGUF model on a teacher-forced text dataset, as
-// a supervised session whose trained adapter publishes as a checkpoint.
+// a supervised session whose trained adapter publishes as a checkpoint. A
+// run that resumes such a checkpoint restores its weights and optimizer
+// state and takes the updates left, so it ends where an uninterrupted run
+// would.
 func trainAdapter(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelPath := flags.String("model", "", "GGUF model")
 	datasetPath := flags.String("dataset", "", "UTF-8 teacher-forced text dataset")
 	layer := flags.Uint("layer", 0, "adapter layer")
 	steps := clioptions.IntOverride(flags, "steps", "required update steps")
 	out := flags.String("out", "", "directory the trained adapter's checkpoint publishes to")
+	resume := flags.String("resume", "", "checkpoint this route published, whose weights and optimizer state the run continues to -steps updates")
 	storePath := flags.String("store", "", "OvergoDB for the session observation, recipe authority and checkpoint record; empty resolves through the data root")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -87,12 +92,28 @@ func trainAdapter(ctx context.Context, flags *flag.FlagSet, args []string) (err 
 	if err != nil {
 		return err
 	}
+	done := 0
+	if *resume != "" {
+		checkpoint, err := session.resume(ctx, *resume, trained.Program())
+		if err != nil {
+			return err
+		}
+		if done = int(checkpoint.Optimizer.Step); done >= plan.Updates() {
+			return fmt.Errorf("%s: the checkpoint took %d updates, and the run asks for %d", flags.Name(), done, plan.Updates())
+		}
+		if err := trained.RestoreWeights(*resume); err != nil {
+			return err
+		}
+		if err := trained.Restore(adaptertrain.State{Optimizer: checkpoint.Optimizer}); err != nil {
+			return err
+		}
+	}
 	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, worker.Close()) }()
-	result := adapterTraining{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates())}
+	result := adapterTraining{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates()-done)}
 	runErr := func() error {
 		for index := range result.Losses {
 			if err := ctx.Err(); err != nil {

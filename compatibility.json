@@ -514,13 +514,13 @@
      "contains": "func LoadArtifact(",
      "path": "internal/adaptertrain/model.go",
      "role": "source",
-     "identity": "file:sha256:eb703de5811b6d19e107a7f3b82e0bcc5ffd24186af48853fbf9c8c0c49e5a58"
+     "identity": "file:sha256:c90bcec4a897c3f1387d92492ff8ca861cb6af239e5c577065750657cbb6dfbc"
     },
     {
      "contains": "func TestGemmaE4BRealTraining(",
      "path": "internal/adaptiveparity/e4b_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:506ce0f64829bcfabaf32326f41276e5c1689f73dfd1bf1599f06d42ffbf6ee3"
+     "identity": "evidence:sha256:679c6158459cdf8d8b10e248ea6658b9807864fd66d42f9a8751923f9e0d55e2"
     }
    ],
    "id": "gemma-e4b-real-adapter-training",

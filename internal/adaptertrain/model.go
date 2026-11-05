@@ -390,6 +390,3 @@ func (m *Model) RestoreWeights(directory string) error {
 func CheckpointWeightsPath(stage string) string {
 	return filepath.Join(stage, trainingprogram.CheckpointWeights)
 }
-
-// WeightSnapshot returns evidence-only copies for exact-resume comparison.
-func (m *Model) WeightSnapshot() []float32 { return append([]float32(nil), m.weights...) }

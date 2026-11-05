@@ -48,6 +48,13 @@ type ResidentImagePipeline struct {
 	mu               sync.Mutex
 	conditioning     *ResidentConditioning
 	latent           *residentLatent
+	// conditioned keeps the fused text of the session's recent prompts on the
+	// host, and conditioningUpload places one on the device again for a prompt
+	// met again, which then places neither the text encoder nor the fusion.
+	conditioned        conditioningCache
+	conditioningUpload *graphruntime.ResidentProgram
+	conditioningInput  *tensor.Tensor
+	conditioningOutput *tensor.Tensor
 }
 
 // ResidentConditioning owns fused text conditioning on the pipeline device.
@@ -105,6 +112,23 @@ func NewResidentImagePipeline(
 		return nil, err
 	}
 	pipeline.bridgePointers = make([]driver.DevicePtr, len(bridgeInputs))
+	// The cache holds two prompts' conditioning, so a session that alternates
+	// two encodes each once.
+	limit, ok := checked.ProductInt(tensor.PairedExtent, fusion.T.Hidden, fusion.TextSeq)
+	if !ok {
+		return nil, errors.New("resident image pipeline: conditioning cache limit overflows")
+	}
+	pipeline.conditioned = conditioningCache{limit: limit}
+	pipeline.conditioningInput, pipeline.conditioningOutput, err = conditioningUploadGraph(fusion)
+	if err != nil {
+		return nil, err
+	}
+	pipeline.conditioningUpload, err = runtime.Compile(
+		ctx, "resident image conditioning upload", nil, pipeline.conditioningOutput,
+	)
+	if err != nil {
+		return nil, err
+	}
 	if err := pipeline.loadText(ctx); err != nil {
 		return nil, err
 	}
@@ -292,8 +316,11 @@ func selectedHiddenBridge(program *EncoderProgram, outputSeq int) ([]*tensor.Ten
 	return inputs, output, nil
 }
 
+// Condition makes the conditioning of the prompt the pipeline was compiled
+// for, from the rows of its tokens, and keeps it for the prompt met again.
 func (p *ResidentImagePipeline) Condition(
 	ctx context.Context,
+	prompt string,
 	embedRows []float32,
 ) (*ResidentConditioning, error) {
 	if p == nil {
@@ -309,6 +336,9 @@ func (p *ResidentImagePipeline) Condition(
 	}
 	conditioning, err := p.fuse(ctx, embedRows)
 	if err != nil {
+		return nil, err
+	}
+	if err := p.keep(ctx, prompt, conditioning); err != nil {
 		return nil, err
 	}
 	if err := p.prepareGeneration(ctx); err != nil {
@@ -333,12 +363,14 @@ func (p *ResidentImagePipeline) retain(ctx context.Context, conditioning *Reside
 
 // Recondition gives a session that has made a picture another prompt: the
 // rows of its tokens and the three programs compiled under its mask. The
-// text encoder and the fusion are placed on the device again, the prompt's
-// conditioning replaces the one before it, and they are retired; the denoiser
-// compiled for the prompt takes the weights the session holds, so none of
-// them is loaded again. An error leaves the pipeline to be closed.
+// prompt's conditioning replaces the one before it, placed from the host for
+// a prompt the session keeps (recall), else made by the text encoder and the
+// fusion placed on the device again and retired; the denoiser compiled for the
+// prompt takes the weights the session holds, so none of them is loaded
+// again. An error leaves the pipeline to be closed.
 func (p *ResidentImagePipeline) Recondition(
 	ctx context.Context,
+	prompt string,
 	encoder *EncoderProgram,
 	fusion *FusionProgram,
 	denoiser *DenoiserProgram,
@@ -361,10 +393,7 @@ func (p *ResidentImagePipeline) Recondition(
 	}
 	p.conditioning.outputs, p.conditioning.pipeline, p.conditioning = nil, nil, nil
 	p.Encoder, p.Fusion, p.Denoiser = encoder, fusion, denoiser
-	if err := p.loadText(ctx); err != nil {
-		return err
-	}
-	conditioning, err := p.fuse(ctx, embedRows)
+	conditioning, err := p.recall(ctx, prompt, embedRows)
 	if err != nil {
 		return err
 	}
@@ -373,6 +402,56 @@ func (p *ResidentImagePipeline) Recondition(
 		return fmt.Errorf("resident image pipeline: another prompt's denoiser: %w", err)
 	}
 	return p.retain(ctx, conditioning)
+}
+
+// recall gives the pipeline's prompt its conditioning: the one the session
+// keeps for it, placed from the host, else the one the text encoder and the
+// fusion make, which the session then keeps.
+func (p *ResidentImagePipeline) recall(ctx context.Context, prompt string, embedRows []float32) (*ResidentConditioning, error) {
+	if fused, kept := p.conditioned.lookup(prompt); kept {
+		outputs, err := p.runtime.Retain(ctx, p.conditioningUpload, map[*tensor.Tensor]reference.Value{
+			p.conditioningInput: {Shape: p.conditioningInput.Shape, Data: fused},
+		}, nil)
+		if err != nil {
+			return nil, fmt.Errorf("resident image pipeline: place kept conditioning: %w", err)
+		}
+		value, ok := outputs.Value(p.conditioningOutput)
+		if !ok {
+			return nil, errors.Join(errors.New("resident image pipeline: kept conditioning is unavailable"), outputs.Release(ctx))
+		}
+		return &ResidentConditioning{pipeline: p, outputs: outputs, value: value}, nil
+	}
+	if err := p.loadText(ctx); err != nil {
+		return nil, err
+	}
+	conditioning, err := p.fuse(ctx, embedRows)
+	if err != nil {
+		return nil, err
+	}
+	return conditioning, p.keep(ctx, prompt, conditioning)
+}
+
+// keep holds a prompt's conditioning on the host for the prompt met again; an
+// error releases the conditioning.
+func (p *ResidentImagePipeline) keep(ctx context.Context, prompt string, conditioning *ResidentConditioning) error {
+	fused, err := conditioning.outputs.CopyToHost(ctx, p.Fusion.Fused)
+	if err != nil {
+		return errors.Join(fmt.Errorf("resident image pipeline: keep conditioning: %w", err), conditioning.outputs.Release(ctx))
+	}
+	p.conditioned.store(prompt, fused.Data)
+	return nil
+}
+
+// conditioningUploadGraph places a prompt's kept conditioning on the device as
+// the fusion left it: a scale by one, which changes no value.
+func conditioningUploadGraph(fusion *FusionProgram) (*tensor.Tensor, *tensor.Tensor, error) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("kept_conditioning", dtype.F32, fusion.Fused.Shape)
+	output := builder.Scale(input, tensor.UnitScale)
+	if err := builder.Err(); err != nil {
+		return nil, nil, fmt.Errorf("resident image pipeline: conditioning upload: %w", err)
+	}
+	return input, output, nil
 }
 
 // fuse runs the pipeline's prompt through the text encoder and the fusion,
@@ -716,7 +795,8 @@ func (p *ResidentImagePipeline) Close(ctx context.Context) error {
 	}
 	err := errors.Join(releaseErr, p.runtime.Close(ctx))
 	p.runtime = nil
-	p.bridge, p.fusion, p.timestep, p.denoiser, p.upload = nil, nil, nil, nil, nil
+	p.bridge, p.fusion, p.timestep, p.denoiser, p.upload, p.conditioningUpload = nil, nil, nil, nil, nil, nil
+	p.conditioned = conditioningCache{}
 	p.vaeBridge, p.vae = nil, nil
 	return err
 }

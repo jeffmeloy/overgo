@@ -272,7 +272,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 		if err != nil {
 			return err
 		}
-		if err := g.pipeline.Recondition(ctx, prompt.encoder, prompt.fusion, prompt.denoiser, prompt.embed); err != nil {
+		if err := g.pipeline.Recondition(ctx, request.Prompt, prompt.encoder, prompt.fusion, prompt.denoiser, prompt.embed); err != nil {
 			return err
 		}
 		g.embed = prompt.embed
@@ -297,7 +297,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
 	if g.pipeline.conditioning == nil {
-		if _, err := g.pipeline.Condition(ctx, g.embed); err != nil {
+		if _, err := g.pipeline.Condition(ctx, g.request.Prompt, g.embed); err != nil {
 			return nil, err
 		}
 	}

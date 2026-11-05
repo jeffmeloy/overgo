@@ -68,25 +68,6 @@
       ]
     },
     {
-      "id": "time-and-memory",
-      "title": "Cut host memory, run time and media peak memory",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 179,
-        "reason": "trained-precision measured at 621 nodes: the typed safetensors save, the served types read from the base, the F32 weights kept for a resume and their restore; krea-prompt-cache keeps about 180, the share the row's estimate gave it."
-      },
-      "steps": [
-        {
-          "id": "krea-prompt-cache",
-          "title": "Keep a Krea prompt's text conditioning for a prompt met again",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -count=1 -run '^TestAKreaPromptMetAgainPlacesNoTextEncoder$'",
-          "rationale": "memory-bounds/text-one-block ran both image encoders a layer at a time and left Krea without the conditioning cache MOSS's rotary path has (internal/latentimage/conditioning_cache.go): a Krea session keeps the one prompt it last fused, so a request that returns to an earlier prompt, or alternates two, runs the text encoder again. Krea's new prompt took about 3 s in the lease that encodes it (docs/verification/media-stage-peaks.json, krea new prompt, model session leased), against 0.01 s for the same prompt on a new seed.\nKeep a Krea prompt's selected-layer rows on the host as MOSS keeps its hidden states, bounded the same way, and fuse a prompt met again from them, placing no encoder layer. Hold the picture to the one its prompt makes when encoded fresh, byte for byte.\nServes: first-output for image generation on a prompt met again.\nDisappears: nothing.\nEvidence: the test, and a repeated prompt's prepare time in the next stage record.\nBatch: media lane."
-        }
-      ]
-    },
-    {
       "id": "memo-close",
       "title": "Cancel a pending memo publication before the server waits for it to close",
       "owner": "master-lead",

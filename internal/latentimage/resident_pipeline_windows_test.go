@@ -65,7 +65,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 		}
 	}()
 	embed := f32slice(syntheticEncoderEmbed(fixtureSeq, encoderSpec.Hidden))
-	conditioning, err := pipeline.Condition(ctx, embed)
+	conditioning, err := pipeline.Condition(ctx, "a fixture", embed)
 	if err != nil {
 		t.Fatal(err)
 	}

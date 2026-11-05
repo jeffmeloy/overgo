@@ -629,9 +629,7 @@
         "uncertainty": "No new matched full-run wall/peak. Within-run mutated bytes deliberately retain earlier digest; next begin rehashes. Package peak remains cumulative at callback, not isolated package or tree memory. New long-sequence cycle lane separately adds +35production/+259test and predicted~3minutes; count against any future whole-run savings."
       },
       "likely_effort": "Model selection implemented; remaining paired-requirement ownership and setup/lane consolidation remain with the existing plan owner.",
-      "plan_references": [
-        "run-once/past-adoptions"
-      ],
+      "plan_references": [],
       "plan_coverage": "Committed 632be4f13 lands run-once/run-wall and transfers the remaining adoption/lane work to run-once/past-adoptions. The implementation-owned response/reference is preserved. No SQA plan change.",
       "closure_criteria": [
         "Name retained owner for each paired requirement before removing a standing invocation; preserve numerical differences and original assertions.",
@@ -7582,7 +7580,7 @@
   ],
   "master_lead_triage": {
     "at": "2026-11-05",
-    "head": "3f8f7d16925fd53ccc63d94b33158b8624124657",
+    "head": "a2c0f365cde52225f4a1c69e92a6e3a1829f8453",
     "findings": {
       "SQA-004": {
         "action": "none",
@@ -7822,11 +7820,9 @@
         "note": "Lead's judgement: no change. The corpus and the catalog are already read before Ready, so the only readiness left needs a model load, and a load per guard cell in the preflight is the second all-model workload this finding refuses. The fit it asked about was repaired in 8e911e1eb and passes at the required 2048 rung. A guard that breaks again is reported by its cell, with partial results kept."
       },
       "SQA-266": {
-        "action": "existing-row",
-        "rows": [
-          "run-once/past-adoptions"
-        ],
-        "note": "run-once/run-wall landed the measurement: each lane package's wall and the lane's peak process memory by its end go into the run record's running phase. The move of what guards only a past adoption, which this finding asks for, is run-once/past-adoptions, read from the next full run's package walls."
+        "action": "deferred",
+        "rows": [],
+        "note": "run-once/past-adoptions is retired: its evidence, each cycle lane package's wall and peak, is what the next full run records (run-once/run-wall), and a full run starts only when the plan is empty; the 2026-10-31 run kept no walls (.overgo-runtime/lane_walls.json is empty), and the overlaps the review named are unverified without them. The lead files the step again from that run's record. The finding stays open."
       },
       "SQA-232": {
         "action": "implemented",

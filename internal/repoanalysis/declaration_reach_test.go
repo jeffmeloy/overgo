@@ -200,7 +200,7 @@ type commandReach struct {
 	support func(directory string) bool
 }
 
-// reachFromCommands walks a snapshot's production files from its commands.
+// reachFromCommands walks a snapshot's production files from its commands by names, for the record schema reading, which follows a schema by name through the values that hold it; the census of declarations walks types (reachTypes).
 //   - a file whose build constraint needs ignoreTag is no part of the package beside it and is no root
 //   - a generated file is walked for what it reaches
 //   - test-support package = no main package, whose every importing production file outside it is in a test-support package and none in a main package (the rule of landing.newUnconsumedExports)
@@ -313,41 +313,21 @@ func reachFromCommands(snapshot gosyntax.Snapshot, outside map[string]bool) (com
 	return commandReach{files, walk.walked, testSupport}, nil
 }
 
-// unreachedDeclarations lists the functions and methods of a snapshot's production files that no command reaches, and counts the ones it read.
-//   - universe = top-level functions and methods of the files reachFromCommands walks, outside generated files and test-support packages
-//   - the walk reads names, never types, so the list is a lower bound
-func unreachedDeclarations(snapshot gosyntax.Snapshot, outside map[string]bool) ([]unreached, int, error) {
-	reach, err := reachFromCommands(snapshot, outside)
+// unreachedDeclarations lists the functions and methods of the module at root that no command reaches, and counts the ones it read.
+//   - universe = the functions and methods reachTypes reads, of the host's build
+func unreachedDeclarations(ctx context.Context, root string, outside map[string]bool) ([]unreached, int, error) {
+	reach, err := reachTypes(ctx, root, outside)
 	if err != nil {
 		return nil, 0, err
 	}
 	var list []unreached
-	universe := 0
-	for _, file := range reach.files {
-		if generated, _ := file.source.Generated(); generated || reach.support(file.directory) {
-			continue
-		}
-		for _, declaration := range file.syntax.Decls {
-			function, isFunction := declaration.(*ast.FuncDecl)
-			if !isFunction {
-				continue
-			}
-			universe++
-			if reach.walked[function] {
-				continue
-			}
-			name, from := function.Name.Name, function.Pos()
-			if function.Recv != nil {
-				name = receiverType(function) + "." + name
-			}
-			if function.Doc != nil {
-				from = function.Doc.Pos()
-			}
-			list = append(list, unreached{file.source.Path + " " + name, file.source.Line(function.End()) - file.source.Line(from) + 1})
+	for _, function := range reach.functions {
+		if !reach.entered[function.at] {
+			list = append(list, unreached{function.key, function.lines})
 		}
 	}
 	slices.SortFunc(list, func(a, b unreached) int { return strings.Compare(a.key, b.key) })
-	return list, universe, nil
+	return list, len(reach.functions), nil
 }
 
 // outsidePackages is the go list query for the directory of every package outside the module that a package of the module links.
@@ -441,10 +421,13 @@ func listDrift(found, kept []string) (missing, stale []string) {
 	return missing, stale
 }
 
+// checkoutRoot is the checkout beside the tests.
+const checkoutRoot = "../.."
+
 // checkoutSource returns the Go files of the checkout's commands and packages, and the interface methods declared outside the module.
 func checkoutSource(t *testing.T) (gosyntax.Snapshot, map[string]bool) {
 	t.Helper()
-	const root = "../.."
+	const root = checkoutRoot
 	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
@@ -712,79 +695,9 @@ const unreachedList = "unreached_declarations.txt"
 //   - a listed declaration that a command reaches, or that the tree no longer declares, is refused
 //   - every entry carries one of sortClasses, and belongs to one group of sortRecord of that class
 //   - every group states the declarations it holds, their lines and its side of the inference surface as the walk and inferencesurface.Packages give them
-//   - each fixture row pins one rule of the walk, of the list or of the record on invented files
+//   - each fixture row pins one rule of the list or of the record on invented files, and TestTheReachWalkReadsTypes the walk's
 func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	t.Parallel()
-	const command = "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() { lib.Use() }\n"
-	for _, row := range []struct {
-		rule  string
-		files map[string]string
-		want  []string
-	}{
-		{"one name reaches the declaration of each build-tag twin, and each twin is listed by its file", map[string]string{
-			"internal/lib/lib.go":          "package lib\n\nfunc Use() int { return free() }\n",
-			"internal/lib/free_windows.go": "//go:build windows\n\npackage lib\n\nfunc free() int { return 1 }\n\nfunc spare() {}\n",
-			"internal/lib/free_unix.go":    "//go:build !windows\n\npackage lib\n\nfunc free() int { return 2 }\n\nfunc spare() {}\n",
-		}, []string{"internal/lib/free_unix.go spare", "internal/lib/free_windows.go spare"}},
-		{"a package variable reaches the function it holds, called or not", map[string]string{
-			"internal/lib/lib.go": "package lib\n\nvar held = map[string]func(){\"start\": start}\n\nfunc Use() {}\n\nfunc start() {}\n\nfunc idle() {}\n",
-		}, []string{"internal/lib/lib.go idle"}},
-		{"a method is reached through its receiver type and its name", map[string]string{
-			"cmd/tool/main.go": "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() {\n\tvar local struct{ grow int }\n\t_, _ = local.grow, lib.Box{}.Area()\n}\n",
-			"internal/lib/lib.go": "package lib\n\ntype Box struct{}\n\nfunc (Box) Area() int { return 1 }\n\nfunc (Box) Spare() int { return 2 }\n\nfunc (*Box) String() string { return \"\" }\n\nfunc (Box) grow() {}\n\n" +
-				"type Lid[T any] struct{}\n\nfunc (*Lid[T]) Area() int { return 3 }\n",
-		}, []string{"internal/lib/lib.go Box.Spare", "internal/lib/lib.go Box.grow", "internal/lib/lib.go Lid.Area"}},
-		{"an interface reaches the method it declares, called or not", map[string]string{
-			"internal/lib/lib.go": "package lib\n\ntype node interface{ isNode() }\n\ntype leaf struct{}\n\nfunc (leaf) isNode() {}\n\nfunc (leaf) spare() {}\n\nfunc Use() node { return leaf{} }\n",
-		}, []string{"internal/lib/lib.go leaf.spare"}},
-		{"a function only a test calls is listed", map[string]string{
-			"internal/lib/lib.go":      "package lib\n\nfunc Use() {}\n\nfunc OnlyTested() {}\n",
-			"internal/lib/lib_test.go": "package lib\n\nfunc TestOnly(t *testing.T) { OnlyTested() }\n",
-		}, []string{"internal/lib/lib.go OnlyTested"}},
-		{"a test-support package is skipped, and what it alone calls is listed", map[string]string{
-			"internal/lib/lib.go":          "package lib\n\nfunc Use() {}\n\nfunc OnlySupport() {}\n",
-			"internal/libtest/libtest.go":  "package libtest\n\nimport (\n\t\"overgo/internal/deep\"\n\t\"overgo/internal/lib\"\n)\n\nfunc Fixture() { deep.Helper(); lib.OnlySupport() }\n\nfunc spare() {}\n",
-			"internal/deep/deep.go":        "package deep\n\nfunc Helper() {}\n\nfunc spare() {}\n",
-			"internal/other/other_test.go": "package other\n\nimport \"overgo/internal/libtest\"\n\nfunc TestOther(t *testing.T) { libtest.Fixture() }\n",
-		}, []string{"internal/lib/lib.go OnlySupport"}},
-		{"an init of a package a command links reaches what it calls", map[string]string{
-			"cmd/tool/main.go":    "package main\n\nimport \"overgo/internal/lib\"\n\nfunc main() { println(lib.Name) }\n",
-			"internal/lib/lib.go": "package lib\n\nconst Name = \"lib\"\n\nfunc init() { register() }\n\nfunc register() {}\n\nfunc spare() {}\n",
-		}, []string{"internal/lib/lib.go spare"}},
-		{"a main file no build selects is no root, no part of the package beside it, and not listed", map[string]string{
-			"internal/lib/lib.go": "package lib\n\nfunc Use() {}\n\nfunc emit() {}\n",
-			"internal/lib/gen.go": "//go:build ignore\n\npackage main\n\nfunc main() { emit() }\n\nfunc emit() {}\n",
-		}, []string{"internal/lib/lib.go emit"}},
-		{"a generated file reaches what it calls and is not listed", map[string]string{
-			"internal/lib/lib.go":          "package lib\n\nfunc Use() {}\n\nfunc fromGenerated() {}\n\nfunc spare() {}\n",
-			"internal/lib/zz_generated.go": "// Code generated by fixture. DO NOT EDIT.\n\npackage lib\n\nfunc init() { fromGenerated() }\n\nfunc unused() {}\n",
-		}, []string{"internal/lib/lib.go spare"}},
-		{"a local that shadows a function, and a field key of its name, reach nothing", map[string]string{
-			"internal/lib/lib.go": "package lib\n\ntype options struct{ limit int }\n\nfunc limit() int { return 1 }\n\nfunc scale() int { return 2 }\n\nfunc Use() options { scale := 3; return options{limit: scale} }\n",
-		}, []string{"internal/lib/lib.go limit", "internal/lib/lib.go scale"}},
-		{"a package is followed by the name it is imported as, and a local of that name is no package", map[string]string{
-			"cmd/tool/main.go":       "package main\n\nimport (\n\t\"overgo/internal/go-lib\"\n\tpeer \"overgo/internal/peer\"\n)\n\nfunc main() {\n\tlib.Use()\n\tpeer.Use()\n\tpeer := struct{ Spare func() }{}\n\tpeer.Spare()\n}\n",
-			"internal/go-lib/lib.go": "package lib\n\nfunc Use() {}\n\nfunc Spare() {}\n",
-			"internal/peer/peer.go":  "package peer\n\nfunc Use() {}\n\nfunc Spare() {}\n",
-		}, []string{"internal/go-lib/lib.go Spare", "internal/peer/peer.go Spare"}},
-	} {
-		contents := map[string][]byte{"cmd/tool/main.go": []byte(command)}
-		for name, content := range row.files {
-			contents[name] = []byte(content)
-		}
-		snapshot, err := gosyntax.Snapshot{}.Overlay(contents)
-		if err != nil {
-			t.Fatal(err)
-		}
-		found, _, err := unreachedDeclarations(snapshot, map[string]bool{"String": true})
-		var keys []string
-		for _, declaration := range found {
-			keys = append(keys, declaration.key)
-		}
-		if err != nil || !slices.Equal(keys, row.want) {
-			t.Errorf("%s: unreached = %q, %v, want %q", row.rule, keys, err, row.want)
-		}
-	}
 	if missing, stale := listDrift([]string{"a", "b"}, []string{"b", "c"}); !slices.Equal(missing, []string{"a"}) || !slices.Equal(stale, []string{"c"}) {
 		t.Errorf("the comparison names %q as unreached and unlisted and %q as listed and reached, want a and c", missing, stale)
 	}
@@ -863,7 +776,7 @@ func TestEveryProcessDeclarationIsReachedByACommand(t *testing.T) {
 	}
 
 	snapshot, outside := checkoutSource(t)
-	found, universe, err := unreachedDeclarations(snapshot, outside)
+	found, universe, err := unreachedDeclarations(t.Context(), checkoutRoot, outside)
 	if err != nil {
 		t.Fatal(err)
 	}

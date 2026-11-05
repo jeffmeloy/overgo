@@ -7,7 +7,7 @@ read by: TestEveryProcessDeclarationIsReachedByACommand and TestEveryProcessReco
 What was asked.
 The plan's row consumer-checks, step sort-unreached, asked for a class and a reason on every line of the two lists.
 A later commit then deletes, wires or moves a group from this record, and judges nothing again.
-The first list is the census of step declarations, which walks names from every command and keeps each production function and method the walk does not enter.
+The first list is the census of step declarations, which walks the host build by types from every command and keeps each production function and method the walk does not enter.
 The second list keeps each record schema that no declaration the walk enters writes.
 This record sorts the 509 declarations and the 24 schemas into groups.
 A group is the declarations and schemas of one file or one feature that share a class and a reason.
@@ -38,6 +38,12 @@ A test that calls a declaration to check that declaration alone holds nothing li
 A test that compares a live path against a declaration, or reaches a live path through it, holds live behaviour, and the declaration is test-held.
 The walk reads names and never types, so both lists are lower bounds.
 
+Read by types.
+compact-production/typed-walk replaced the census's walk of names with one of types (TestTheReachWalkReadsTypes), which selects a method as the type checker resolves it, so a name two types share no longer keeps both.
+It found 218 declarations more, each sorted by whether a test reaches it, directly or through another declaration only tests reach: 62 that nothing reaches are dead and 138 that tests reach are test-held, in four groups by class and side, and 18 join the group that held their file.
+It takes the rules the shadowed groups named: a function that takes a testing.TB is test support, and a lane reaches what the tests it runs name in its own package, so testskip-helpers and webui-lane-harness left the record.
+The schema list keeps its reading of names.
+
 How to read a group.
 A group opens with the word group and its name, and an empty line ends it.
 class is one of the five classes, and every line of a list that the group holds opens with the same word.
@@ -67,8 +73,8 @@ reason: The recovery that called them is deleted and no command writes a resolut
 group composite-generation-evidence
 class: prototype
 surface: inside
-declarations: 9
-lines: 290
+declarations: 11
+lines: 298
 members: internal/inference/composite_generation.go
 members: internal/inference/representation_bridge.go ProductionComposition.ForwardArm materializedZero
 members: internal/composition/composite_generation_evidence.go
@@ -90,8 +96,8 @@ reason: No command builds a composition recipe or the resources it opens with, s
 group composition-unapplied
 class: prototype
 surface: inside
-declarations: 10
-lines: 356
+declarations: 16
+lines: 560
 members: internal/inference/composite_generation_surface.go
 members: internal/composition/execution_plan.go
 members: internal/inference/external_cross_attention.go
@@ -104,8 +110,8 @@ reason: The lead keeps it as a prototype, since the review of 2026-10-12 holds t
 group controller-promotion
 class: prototype
 surface: outside
-declarations: 4
-lines: 60
+declarations: 6
+lines: 64
 members: internal/controllertrain/promotion.go
 members: internal/controllertrain/train_cuda_windows.go
 schemas: internal/controllertrain/promotion.go overgo/controller-promotion/v1
@@ -297,8 +303,8 @@ reason: TriggerContractFor is how tests of internal/runrecord and of internal/wo
 group outside-test-entries
 class: test-held
 surface: outside
-declarations: 3
-lines: 32
+declarations: 5
+lines: 58
 members: internal/capabilityruntime/run_key.go
 members: internal/runrecord/resource_fitness_comparison.go
 reason: RunKey keys a run for a build that counted no identity, over the live RunKeyOf (internal/capabilityruntime/run_key.go:71), and tests of four packages enter through it, among them internal/speechsynth/recovery_test.go, whose bytes docs/verification/specialized-coverage.json pins, so those tests take RunKeyOf, and RunKey is deleted, in the commit that pins that record again.
@@ -355,8 +361,8 @@ reason: The remote stage adapter that classed its attempts by it is deleted, so 
 group speech-activity-stream
 class: prototype
 surface: outside
-declarations: 2
-lines: 140
+declarations: 4
+lines: 176
 members: internal/speechactivity/execution.go
 schemas: internal/speechactivity/execution.go overgo/audio-activity-state/v1
 schemas: internal/speechactivity/profile.go overgo/speech-activity-profile/v1
@@ -366,8 +372,8 @@ reason: No command opens an activity stream and nothing but a test publishes its
 group store-test-observers
 class: test-held
 surface: outside
-declarations: 7
-lines: 116
+declarations: 8
+lines: 122
 members: internal/overgodb/causality.go
 members: internal/overgodb/commit_delta.go
 members: internal/overgodb/storage_classes.go
@@ -384,15 +390,6 @@ schemas: internal/evaluation/scaling_fit.go overgo/scaling-fit/v1
 schemas: internal/trainingworkflow/health_classifier.go overgo/training-health-classification/v1
 reason: A function value that a package variable holds takes each schema's type (internal/evaluation/effective_speedup.go:55, internal/trainingworkflow/health_operator.go:62), and tests alone call it and make the documents it reads.
 reason: The walk enters every package variable, so it counts both readers and the records they write (overgo/effective-speedup/v1, overgo/training-health-operator-decision/v1) as reached, and each schema is deleted with its reader and that record once a group holds them.
-
-group testskip-helpers
-class: shadowed
-surface: outside
-declarations: 3
-lines: 22
-members: internal/testskip/testskip.go
-reason: Each takes a testing.TB and skips a test, and commands import the package for its environment name alone (cmd/webui-lane/main.go:74, internal/landing/lanes.go:113), which keeps the walk from counting the package as test support.
-reason: The walk lacks the rule that a function with a testing.TB parameter is test support in whatever package declares it.
 
 group text-old-entry-points
 class: test-held
@@ -415,10 +412,10 @@ reason: Finite-difference tests and a hyper-connection backward assembled in a t
 group training-test-entries
 class: test-held
 surface: outside
-declarations: 3
-lines: 35
+declarations: 5
+lines: 74
 members: internal/adaptertrain/linear_ctc.go
-members: internal/adaptertrain/model.go
+members: internal/adaptertrain/model.go Model.Restore Model.RestoreWeights Model.WeightSnapshot
 members: internal/speechsynth/generate.go
 reason: WeightSnapshot of the two adapter trainers is read by the resume tests of internal/adaptertrain, internal/audioparity and internal/adaptiveparity, and GenerateLatents is the entry of tests over the live generation loop (internal/speechsynth/generate.go:67).
 reason: The tests take the live entry in a commit that verifies the claims again and pins the tests again, because the claims gemma-e4b-real-adapter-training and pocket-tts-production-oracle of compatibility.json bind internal/adaptertrain/model.go and internal/speechsynth/generate.go whole, the second by the name GenerateLatents, and docs/verification/specialized-coverage.json pins four tests that call GenerateLatents.
@@ -432,24 +429,178 @@ members: internal/trainingdata/image.go
 reason: SelectStructuredImageCrops builds the corpus of one real-checkpoint test of the live diffusion trainer, and Image decodes the examples of the live image processor for the multimodal training matrix test.
 reason: Each stays where it is, because SelectStructuredImageCrops is called by a test of internal/diffusionimage and reads the unexported normalizedCHW, and Image is called by internal/adaptiveparity/multimodal_training_cuda_windows_test.go, which the claim repodb-multimodal-training-objective-matrix of compatibility.json binds whole to a device test.
 
+group typed-dead-inside
+class: dead
+surface: inside
+declarations: 26
+lines: 138
+members: internal/composition/authority.go BridgeDefinition.Batch
+members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAEvidence.Batch
+members: internal/composition/composite_generation_promotion.go CompositeGenerationPromotion.ValidateIdentity CompositeGenerationPromotionAuthority.Load CompositeGenerationPromotionAuthority.Parse
+members: internal/composition/offline_generation.go OfflineArtifactGenerationEvidence.Batch
+members: internal/composition/offline_materialization.go OfflineArtifactObservation.ValidateIdentity
+members: internal/composition/representation_bridge_promotion.go RepresentationBridgePromotion.Batch RepresentationBridgePromotionPolicy.Identity
+members: internal/hostmath/hybrid_stack.go HybridStackBackward
+members: internal/inference/rank.go Runner.Rank
+members: internal/modelartifact/tensor_measurement.go TensorMeasurementDocument.ValidateIdentity
+members: internal/modelrecipe/audio_contract.go AudioContractDocument.ValidateIdentity
+members: internal/modelrecipe/model_definition.go ModelDefinitionDocument.Batch
+members: internal/modelrecipe/profile_derivation.go CatalogProfileDerivation.ValidateIdentity
+members: internal/projector/cogvlm.go cogVLMVisionRunner.Spec
+members: internal/projector/deepseekocr.go DeepSeekOCRRunner.Spec
+members: internal/projector/deepseekocr2.go deepSeekOCR2Runner.Spec
+members: internal/projector/gemma3nvision.go gemma3nVisionRunner.Spec
+members: internal/projector/granite4vision.go granite4VisionRunner.Spec
+members: internal/projector/llama4vision.go llama4VisionRunner.Spec
+members: internal/projector/mimovl.go miMoVLRunner.Spec
+members: internal/recipe/decision.go Decision.ValidateIdentity
+members: internal/representation/contract.go Contract.Batch
+members: internal/tokenizer/vocabulary_artifact.go VocabularyArtifact.Batch VocabularyArtifact.ValidateIdentity
+reason: The name walk kept each through another declaration of its name, a Batch, a ValidateIdentity, a Spec or a Forward that a reached type has, and read by types no command and no test reaches it (TestTheReachWalkReadsTypes).
+reason: Nothing calls it, so it goes with dead-declarations, with the interface method that lists it where one does.
+
+group typed-dead-outside
+class: dead
+surface: outside
+declarations: 36
+lines: 226
+members: internal/adaptertrain/model.go Model.Layer
+members: internal/agenttool/manual.go TransportKind.Valid
+members: internal/dataset/transform.go DatasetTransform.ValidateIdentity
+members: internal/e4btrain/model.go Model.SaveWeights Model.TrainedTensor
+members: internal/evaluation/retrieval_quality.go retrievalEvaluation.ValidateIdentity
+members: internal/evaluation/text_target.go textTargetPlan.Content textTargetReport.Content
+members: internal/finding/document.go Document.ValidateIdentity
+members: internal/hybridtrain/stack.go hostBackwardPass.Backward hostForwardPass.Forward
+members: internal/latentvideo/denoiser.go DenoiserProgram.Denoise DenoiserProgram.Forward DenoiserProgram.ProjectContext DenoiserProgram.weightFeeds DenoiserWeights.decoded graphRunnerBackend.ForwardHead graphRunnerBackend.ProjectBranchContexts
+members: internal/latentvideo/denoiser_session.go DenoiserCUDASession.Denoise
+members: internal/latentvideo/reference_edit_runtime_cuda_windows.go referenceEditRuntime.Plan
+members: internal/latentvideo/vae_session.go vaeDecoderCUDASession.Profile
+members: internal/loop/strategy.go Strategy.ValidateIdentity
+members: internal/plan/plan.go Plan.Digest
+members: internal/runrecord/advisory.go Advisory.ValidateIdentity
+members: internal/runrecord/gate.go GateResult.ValidateIdentity
+members: internal/runrecord/improvement.go improvementDecision.ValidateIdentity
+members: internal/runrecord/interaction_efficiency.go EfficiencyTrace.Batch
+members: internal/runrecord/lifecycle.go gateLifecycle.ValidateIdentity
+members: internal/runrecord/moe_router_coverage.go moERouterObservationCoverage.ValidateIdentity
+members: internal/runrecord/observation_chunk.go ObservationChunk.ValidateIdentity
+members: internal/speechrecognition/profile.go ExecutionProfile.ValidateIdentity
+members: internal/trainingprogram/authority.go ScratchConstruction.RNGStreams
+members: internal/trainingprogram/improvement.go ImprovementProposal.Components
+members: internal/trainingprogram/mechanism_candidate.go MechanismCandidate.Owner
+members: internal/trainingprogram/session_plan.go TrainingSessionPlan.ObjectiveScale
+members: internal/workflowruntime/tool.go ToolExecutor.RecipeID
+reason: The name walk kept each through another declaration of its name, a Batch, a ValidateIdentity, a Spec or a Forward that a reached type has, and read by types no command and no test reaches it (TestTheReachWalkReadsTypes).
+reason: Nothing calls it, so it goes with dead-declarations, with the interface method that lists it where one does.
+
+group typed-test-held-inside
+class: test-held
+surface: inside
+declarations: 51
+lines: 595
+members: internal/composition/authority.go CompositionAuthority.Batch CompositionRecipe.Batch definitionLineage
+members: internal/composition/composite_generation_cuda.go CompositeGenerationCUDAAuthority.New CompositeGenerationCUDAAuthority.Parse
+members: internal/composition/offline_artifact.go OfflineArtifactPlan.Batch
+members: internal/composition/offline_execution.go OfflineTensorExecutionPlan.Batch OfflineTensorResourcePolicy.Batch
+members: internal/composition/proposal.go BridgeProposal.Batch
+members: internal/composition/representation_bridge_promotion.go RepresentationBridgePromoter.Parse
+members: internal/cuda/device/trace.go LaunchTrace.Data
+members: internal/cuda/executor/executor.go Executor.Execute Executor.ExecuteProgram
+members: internal/graphruntime/feeds.go AddHostWeights
+members: internal/hostmath/attention_batched.go GroupedBidirectionalAttentionF64
+members: internal/hostmath/axis_rotary.go AxisRotaryGridTableF64
+members: internal/hostmath/media_codec.go ApplyRotaryInterleavedF64
+members: internal/inference/continuous_batch.go ContinuousBatch.Snapshot
+members: internal/inference/runner.go Runner.Forward
+members: internal/media/codec.go CodecProgram.Names
+members: internal/model/architecture.go ArchitectureProfile.FeedForwardNormTensor ArchitectureProfile.PostNormTensors ArchitectureProfile.equal
+members: internal/model/cache_projection_program.go cacheProjectionProgram.Build
+members: internal/model/layer_plan.go CompiledLayerProgram.Spec ModelPlan.Projection
+members: internal/model/projection_program.go projectionOutputs.valid projectionProgram.Build
+members: internal/modelartifact/tensor_measurement.go TensorMeasurementDocument.Content
+members: internal/modeldevice/device_weights.go DeviceWeights.Do
+members: internal/modelrecipe/audio_contract.go AudioContractDocument.Batch
+members: internal/modelrecipe/candidate_materialization.go CandidateMaterialization.ValidateIdentity
+members: internal/modelrecipe/model_prototype.go ModelPrototype.ValidateIdentity
+members: internal/operatoraction/action.go Action.Validate Block.Validate
+members: internal/operatoraction/approval.go ApprovalRequest.Binds
+members: internal/projector/audio_profile.go AudioProjectionProfile.Content
+members: internal/projector/gemma4.go Gemma4Runner.Spec
+members: internal/projector/gemma4tower.go Gemma4TowerRunner.Spec
+members: internal/recipe/catalog.go Catalog.Modules
+members: internal/recipe/definition.go Definition.Content
+members: internal/recipe/lifecycle.go LifecycleEvent.Validate
+members: internal/strataspec/draft_policy.go DraftPolicy.Chain DraftPolicy.ChainRate
+members: internal/tensor/reference/program.go Inputs.Bind
+members: internal/tensor/tensor.go Builder.Nodes
+members: internal/tensorstats/tensorstats.go ValueAccumulator.Finite ValueAccumulator.Total
+members: internal/tokenizer/vocabulary_artifact.go NewVocabularyArtifact Vocab.Artifact Vocab.roles
+reason: The name walk kept each through another declaration of its name, and read by types only tests reach it, by name or through another declaration only tests reach (TestTheReachWalkReadsTypes).
+reason: It is unwired under the operator's rule, and test-held-deletions reads its tests, then moves it beside them or has them take the live path, or gives it a route.
+
+group typed-test-held-outside
+class: test-held
+surface: outside
+declarations: 87
+lines: 1227
+members: internal/agenttool/stream.go StreamEvent.ArtifactContent StreamTerminal.ArtifactContent
+members: internal/benchmarkrecord/comparison.go BenchmarkComparisonRecord.Batch BenchmarkComparisonRecord.ValidateIdentity
+members: internal/controllertrain/corpus.go Corpus.PublicationBatch Corpus.Split
+members: internal/dataset/agent_retrieval.go AgentRetrievalBuilder.Build AgentRetrievalBuilder.BuildWithWork AgentRetrievalBuilder.Search AgentRetrievalPolicy.Identify agentRetrievalAlias agentRetrievalChunks requireAgentRetrievalSourceDocument resolveAgentRetrievalBuildBudget validateAgentRetrievalDocument
+members: internal/dataset/capability_episode.go CapabilityEpisodeProjection.ValidateIdentity
+members: internal/densecausal/frozen.go Model.WeightBytes
+members: internal/densecausal/train.go Model.Train
+members: internal/devicemath/cuda_scope_windows.go cudaScope.functions
+members: internal/diffusionimage/resident_forward.go ResidentForward.Execute ResidentForward.Stats
+members: internal/evaluation/heldout_verdict.go heldoutVerdict.Content
+members: internal/evaluation/knowledge_promotion.go knowledgePromotionEvidence.ValidateIdentity
+members: internal/evaluation/suite.go CompiledSuite.Plan
+members: internal/hostoptimizer/optimizer.go Optimizer.Momentum
+members: internal/hybridtrain/stack.go Model.packGradients builder.mat builder.randn
+members: internal/latentimage/denoiser.go Denoiser.Forward Denoiser.attention Denoiser.fusionBlock Denoiser.headRMSAndRope Denoiser.ropeTable Denoiser.swiGLU Denoiser.textConditioning Denoiser.timestepConditioning Denoiser.w dense geluTanh rmsNormZeroCentered sigmoidF64 siluF64
+members: internal/latentimage/denoiser_program.go DenoiserProgram.Forward DenoiserProgram.hostFeeds
+members: internal/latentimage/resident_pipeline_cuda_windows.go ResidentImagePipeline.Latent ResidentImagePipeline.ResidentBytes
+members: internal/latentvideo/reference_edit_denoiser_session_windows.go referenceEditDenoiserCUDASession.ExecutionStats
+members: internal/modelswap/catalog.go CatalogResolver.Progress
+members: internal/overgodb/blobs.go blobStore.has
+members: internal/peft/peft.go Adapter.Delta
+members: internal/plan/batch_flush.go BatchFlush.Advance
+members: internal/routedlm/generationstack_cuda_windows.go DeviceGenerationSession.Stats
+members: internal/runrecord/causal_context.go CausalContext.Derive NewCausalRoot
+members: internal/runrecord/failure_observation.go FailureObservation.Content
+members: internal/runrecord/generation.go GenerationRecord.ValidateIdentity
+members: internal/runrecord/improvement.go improvementAdmission.Batch improvementDecision.Batch
+members: internal/runrecord/model_verification.go ModelVerification.Content
+members: internal/runrecord/publication_key.go uniquePublicationKey
+members: internal/runrecord/record.go Evaluation.Batch
+members: internal/runrecord/routing_decision.go RoutingDecision.ValidateIdentity
+members: internal/runrecord/stimulus_followup.go StimulusFollowupAuthority.Admit
+members: internal/scratchmodel/construction.go Construction.Parameters Construction.Weights Construction.weightView
+members: internal/scratchtrain/resident_cuda_windows.go ResidentTrainer.Lifecycle
+members: internal/sensenovarecipe/runtime_cuda_windows.go Generator.Stats
+members: internal/seriesforecast/train.go Trainer.Loss Trainer.ParameterCount
+members: internal/speechactivity/boundary.go BoundaryPolicy.Process BoundaryPolicy.advance BoundaryPolicy.end BoundaryPolicy.smooth BoundaryPolicy.validate
+members: internal/speechrecognition/profile.go ExecutionProfile.Batch
+members: internal/speechrecognition/resident.go Transducer.BindDevice
+members: internal/speechrecognition/session.go Session.Snapshot
+members: internal/speechsynth/trainer.go JointTrainer.GradientL2
+members: internal/tabularicl/train.go Trainer.ParameterCount
+members: internal/thoughtbank/decode.go FastWeightBankLMDecodeState.MemBank
+members: internal/torchrng/torchrng.go Stream.Offset
+members: internal/trainingprogram/authority.go ScratchConstruction.DerivationProfile TrainingProgram.Operators TrainingProgram.Preference TrainingRunPlan.Signature
+members: internal/workflowruntime/audio_stream.go AudioStreamPolicy.Batch
+reason: The name walk kept each through another declaration of its name, and read by types only tests reach it, by name or through another declaration only tests reach (TestTheReachWalkReadsTypes).
+reason: It is unwired under the operator's rule, and test-held-deletions reads its tests, then moves it beside them or has them take the live path, or gives it a route.
+
 group wavtokenizer-waveform
 class: prototype
 surface: inside
-declarations: 6
-lines: 141
+declarations: 7
+lines: 144
 members: internal/inference/audio_waveform.go
 members: internal/inference/sequence_forward.go Runner.DecodeAudioTokens
 members: internal/model/audio_waveform_plan.go
 members: internal/model/layer_plan.go ModelPlan.AudioWaveform
 reason: It is the generator of the wavtokenizer-dec family, from audio tokens through feature frames to samples, and compatibility.json states that family's real-model fixture is pending.
 reason: Served speech is another family (internal/mediacapability/capabilities.go:167), so no live path does this work.
-
-group webui-lane-harness
-class: shadowed
-surface: outside
-declarations: 4
-lines: 94
-members: internal/webuilane/legs.go
-members: internal/webuilane/browser.go
-reason: cmd/webui-lane runs the browser tests as a child, hands them the directory Leg writes to (cmd/webui-lane/main.go:169) and requires the records it reads back (main.go:182), so a lane reaches Leg and the browser waits those tests call.
-reason: The walk lacks the rule that a declaration of a lane's own package named by a test of a package the lane runs (main.go:190) is reached by that lane.

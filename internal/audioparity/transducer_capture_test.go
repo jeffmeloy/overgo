@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func TestTransducerCapturePublication(t *testing.T) {
@@ -51,10 +52,7 @@ func TestTransducerCapturePublication(t *testing.T) {
 	}
 	capture.Runtime.Sources = map[string]string{"reference.py": sourceID.DigestHex()}
 	writeReport := func(c transducerCapture) {
-		t.Helper()
-		data, err := json.Marshal(c)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, os.WriteFile(reportPath, data, 0o600))
+		testutil.WriteJSON(t, reportPath, c)
 	}
 	writeReport(capture)
 	golden, err := PublishTransducerCapture(t.Context(), store, reportPath, sourcePath, tensorPath)

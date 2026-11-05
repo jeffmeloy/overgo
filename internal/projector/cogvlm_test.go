@@ -61,12 +61,7 @@ func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyCogVLM(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*cogVLMVisionRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*cogVLMVisionRunner](t, writeTinyCogVLM(t, false))
 }
 
 func TestCogVLMCUDAMatchesCPU(t *testing.T) {

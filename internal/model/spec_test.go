@@ -974,9 +974,7 @@ func TestReadLagunaSpecPreservesPerLayerHeadsAndHybridRoPE(t *testing.T) {
 
 func TestReadOpenELMSpecPreservesPerLayerWidths(t *testing.T) {
 	array := func(key string, values []uint32) gguf.Metadata {
-		return gguf.Metadata{Key: key, Value: gguf.Value{
-			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: values,
-		}}
+		return gguf.ArrayMetadata(key, gguf.ValueTypeUint32, values)
 	}
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "openelm"),
@@ -1002,9 +1000,7 @@ func TestReadOpenELMSpecPreservesPerLayerWidths(t *testing.T) {
 
 func TestReadDeciSpecPreservesSparseLayerSchedule(t *testing.T) {
 	array := func(key string, values []uint32) gguf.Metadata {
-		return gguf.Metadata{Key: key, Value: gguf.Value{
-			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: values,
-		}}
+		return gguf.ArrayMetadata(key, gguf.ValueTypeUint32, values)
 	}
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "deci"),

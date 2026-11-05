@@ -31,19 +31,8 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, dialog: (document.querySelector('.capture-dialog') || {}).textContent, state: (document.querySelector('.capture-dialog') || {dataset: {}}).dataset.state, rows: [...document.querySelectorAll('.attachment-row')].map((row) => row.textContent.slice(0, 160))})`, &page)
-			t.Fatalf("%s: %v; page: %s", expression, err, page)
-		}
-	}
-	activate := func(text string) {
-		t.Helper()
-		check(`(() => {const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===` + strconv.Quote(text) + `&&!node.hidden);if(!button||button.disabled)return false;button.focus();return document.activeElement===button;})()`)
-		pressKey(t, ctx, browser, "Enter", 13)
-	}
+	settle := browserSettle(t, ctx, browser)
+	activate := captureDialogActivate(t, ctx, browser)
 	capture := func(state string) {
 		t.Helper()
 		for _, viewport := range []webuilane.Viewport{{Name: "desktop", Width: 1280, Height: 900}, {Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 390, Height: 380}, {Name: "small-phone", Width: 320, Height: 568}} {

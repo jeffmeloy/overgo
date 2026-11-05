@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
 
@@ -72,9 +73,7 @@ func (f heldoutFixture) publishObjective(commit heldoutCommit) {
 func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) heldoutFixture {
 	t.Helper()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte("overgo/heldout-verdict-test/"+role))
-		testcheck.NoError(t, err)
-		return id
+		return testutil.ArtifactID(t, kind, "overgo/heldout-verdict-test/"+role)
 	}
 	source := derived(artifact.KindDataset, "dataset")
 	var records []dataset.Record
@@ -129,9 +128,7 @@ func heldoutTraining(t *testing.T, store artifact.Repository, source, training a
 	t.Helper()
 	ctx := t.Context()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte("overgo/heldout-training-test/"+role))
-		testcheck.NoError(t, err)
-		return id
+		return testutil.ArtifactID(t, kind, "overgo/heldout-training-test/"+role)
 	}
 	const parameters = 4
 	plan, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})

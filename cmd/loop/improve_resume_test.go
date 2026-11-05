@@ -68,14 +68,7 @@ func TestChecksRunBeforeTheCells(t *testing.T) {
 		err := measurePhases(filepath.Join(t.TempDir(), cycleStateFile), "commit|store|obligations", io.Discard, func() error {
 			ran = append(ran, "filed")
 			return nil
-		}, nil, func(_ []string, arguments ...string) error {
-			phase := strings.Join(arguments, " ")
-			ran = append(ran, phase)
-			if phase == failing {
-				return errors.New("refused")
-			}
-			return nil
-		})
+		}, nil, phaseRecorder(&ran, &failing, "refused"))
 		if !slices.Equal(ran, want) || (err != nil) != (failing != "") || err != nil && !strings.Contains(err.Error(), failing) {
 			t.Errorf("a failing %q: ran %q with error %v, want %q and only a failed check named", failing, ran, err, want)
 		}
@@ -92,14 +85,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	var ran []string
 	var failing string
-	validate := func(_ []string, arguments ...string) error {
-		phase := strings.Join(arguments, " ")
-		ran = append(ran, phase)
-		if phase == failing {
-			return errors.New("ended")
-		}
-		return nil
-	}
+	validate := phaseRecorder(&ran, &failing, "ended")
 	cycle := func(key, failPhase string) ([]string, error) {
 		ran, failing = nil, failPhase
 		err := measurePhases(state, key, io.Discard, nil, nil, validate)
@@ -222,14 +208,7 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 	t.Parallel()
 	var order []string
 	failing := ""
-	validate := func(_ []string, arguments ...string) error {
-		phase := strings.Join(arguments, " ")
-		order = append(order, phase)
-		if phase == failing {
-			return errors.New("ended")
-		}
-		return nil
-	}
+	validate := phaseRecorder(&order, &failing, "ended")
 	refuse := false
 	filed := func() error {
 		order = append(order, "filed")
@@ -259,5 +238,17 @@ func TestTheGapsAreFiledOnceTheScorecardPublishes(t *testing.T) {
 	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, nil, validate)
 	if want := []string{preflight, lanes, "filed"}; !slices.Equal(order, want) {
 		t.Errorf("the interrupted cycle's credited publication: ran %q, want %q", order, want)
+	}
+}
+
+// phaseRecorder runs each validation phase it is asked for into ran, and fails the phase *failing names with message.
+func phaseRecorder(ran *[]string, failing *string, message string) func([]string, ...string) error {
+	return func(_ []string, arguments ...string) error {
+		phase := strings.Join(arguments, " ")
+		*ran = append(*ran, phase)
+		if phase == *failing {
+			return errors.New(message)
+		}
+		return nil
 	}
 }

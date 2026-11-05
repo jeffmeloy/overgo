@@ -98,9 +98,7 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 
 func writeAudioMeasurementJSON(t *testing.T, path string, value any) {
 	t.Helper()
-	data, err := json.Marshal(value)
-	testcheck.NoError(t, err)
-	testcheck.NoError(t, os.WriteFile(path, data, 0600))
+	testutil.WriteJSON(t, path, value)
 }
 
 type audioMeasuredProcess struct {

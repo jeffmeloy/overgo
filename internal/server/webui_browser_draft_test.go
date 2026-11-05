@@ -21,14 +21,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	defer server.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	settle := func(predicate string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, predicate); err != nil {
-			var page string
-			_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &page)
-			t.Fatalf("%v; page: %s", err, page)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle(`!!document.querySelector('#panel-chat .composer')`)
 	// A draft written before model selection must not become this recipe's draft.

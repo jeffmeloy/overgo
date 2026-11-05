@@ -75,14 +75,7 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 	defer server.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: overgo.errors, hash: location.hash, text: document.body.innerText.slice(0, 600)})`, &page)
-			t.Fatalf("%s: %v; %s", expression, err, page)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	// Effort is measured at the desktop layout, where the navigation stands beside the conversation.
 	testcheck.NoError(t, webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]))
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)

@@ -85,9 +85,7 @@ func offlineGenerationPlan(t *testing.T, operator OfflineArtifactOperator) Offli
 
 func mustOfflineExecutionPlan(t *testing.T, value OfflineTensorExecutionPlan) OfflineTensorExecutionPlan {
 	t.Helper()
-	plan, err := offlineTensorExecutionPlanCodec.New(value)
-	testcheck.NoError(t, err)
-	return plan
+	return testcheck.Must(offlineTensorExecutionPlanCodec.New(value))(t)
 }
 
 func offlineGenerationDirectory(t *testing.T) string {

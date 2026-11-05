@@ -234,30 +234,15 @@ func TestTransformerBlockBackwardFiniteDiff(t *testing.T) {
 		analytic float64
 		loss     func(delta float32) float64
 	}{
-		{"dAttnScale", float64(grads["block.learned_residual_scale_attn"][0]), func(delta float32) float64 {
-			save := blk.attentionScale
-			blk.attentionScale += delta
-			defer func() { blk.attentionScale = save }()
-			return loss()
-		}},
-		{"dMLPScale", float64(grads["block.learned_residual_scale_mlp"][0]), func(delta float32) float64 {
-			save := blk.mlpScale
-			blk.mlpScale += delta
-			defer func() { blk.mlpScale = save }()
-			return loss()
-		}},
+		{"dAttnScale", float64(grads["block.learned_residual_scale_attn"][0]), nudged(&blk.attentionScale, loss)},
+		{"dMLPScale", float64(grads["block.learned_residual_scale_mlp"][0]), nudged(&blk.mlpScale, loss)},
 		{"dAlphaO", float64(grads["block.attn.o_proj.alpha"][0]), func(delta float32) float64 {
 			save := blk.attention.AlphaO
 			blk.attention.AlphaO += float64(delta)
 			defer func() { blk.attention.AlphaO = save }()
 			return loss()
 		}},
-		{"dMLPAlpha", float64(grads["block.mlp.0.alpha"][0]), func(delta float32) float64 {
-			save := blk.mlpAlpha
-			blk.mlpAlpha += delta
-			defer func() { blk.mlpAlpha = save }()
-			return loss()
-		}},
+		{"dMLPAlpha", float64(grads["block.mlp.0.alpha"][0]), nudged(&blk.mlpAlpha, loss)},
 	}
 	for _, check := range scalarChecks {
 		num := (check.loss(eps) - check.loss(-eps)) / (2 * eps)
@@ -279,4 +264,14 @@ func TestPoolAndUpsampleBackwardFiniteDiff(t *testing.T) {
 	dxUp := upsampleNearest2xBackward(dOutUp, b, c, h, w)
 	upLoss := func() float64 { return dotLoss(dOutUp, upsampleNearest2x(x, b, c, h, w)) }
 	finiteDiffCheck(t, "upsample2x dx", x, dxUp, spotIndices(len(x)), upLoss)
+}
+
+// nudged is loss with *field moved by delta, then put back.
+func nudged(field *float32, loss func() float64) func(delta float32) float64 {
+	return func(delta float32) float64 {
+		save := *field
+		*field += delta
+		defer func() { *field = save }()
+		return loss()
+	}
 }

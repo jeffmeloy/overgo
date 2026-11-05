@@ -17,9 +17,7 @@ func openImageProjectorAs[T Projector](path string, options OpenOptions) (T, err
 // testSession compiles the prompt session for a hermetic runner fixture.
 func testSession(t *testing.T, source Projector) Session {
 	t.Helper()
-	session, err := NewSession(source)
-	testcheck.NoError(t, err)
-	return session
+	return testcheck.Must(NewSession(source))(t)
 }
 
 func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {

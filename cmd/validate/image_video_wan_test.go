@@ -96,14 +96,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	read := func(id artifact.ID) []byte {
-		t.Helper()
-		content, found, err := artifact.ReadContent(t.Context(), store, id)
-		if err != nil || !found {
-			t.Fatal("missing Wan content", id, err)
-		}
-		return content.Data
-	}
+	read := evidenceReader(t, store, "Wan content")
 	decode := func(id artifact.ID, value any) {
 		t.Helper()
 		testcheck.NoError(t, json.Unmarshal(read(id), value))

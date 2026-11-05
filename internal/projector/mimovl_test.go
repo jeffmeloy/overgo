@@ -10,23 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
-	"overgo/internal/tokenizer"
 )
-
-type mimoVLPromptTokenizer struct{ texts []string }
-
-func (t *mimoVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	t.texts = append(t.texts, text)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for len(text) > 0 {
-		if strings.HasPrefix(text, qwen3VLImagePad) {
-			ids, text = append(ids, 8), text[len(qwen3VLImagePad):]
-		} else {
-			ids, text = append(ids, 1), text[1:]
-		}
-	}
-	return ids, nil
-}
 
 func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
@@ -43,19 +27,14 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*miMoVLRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*miMoVLRunner](t, writeTinyMiMoVL(t, tinyMiMoVLTensors(false)))
 }
 
 func TestMiMoVLPromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	testcheck.NoError(t, err)
 	defer runner.Close()
-	tok := &mimoVLPromptTokenizer{}
+	tok := &recordingPromptTokenizer{pad: qwen3VLImagePad}
 	prompt, err := testSession(t, runner).BuildImagePrompt(
 		t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
 	)

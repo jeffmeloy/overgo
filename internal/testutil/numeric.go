@@ -9,6 +9,15 @@ import (
 	"overgo/internal/testcheck"
 )
 
+// Map is each of values converted, in their order.
+func Map[In, Out any](values []In, convert func(In) Out) []Out {
+	converted := make([]Out, len(values))
+	for index, value := range values {
+		converted[index] = convert(value)
+	}
+	return converted
+}
+
 type Float interface {
 	~float32 | ~float64
 }

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 func pipelineFixture(t *testing.T) string {
@@ -34,9 +35,7 @@ func pipelineFixture(t *testing.T) string {
 
 func pipelineWrite(t *testing.T, root, name, body string) {
 	t.Helper()
-	path := filepath.Join(root, filepath.FromSlash(name))
-	testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-	testcheck.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	testutil.WriteTextFile(t, root, name, body, 0o600)
 }
 
 func TestPipelineInventoryDeterministic(t *testing.T) {

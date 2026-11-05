@@ -367,7 +367,5 @@ func inferenceBridgeContract(
 
 func inferenceBridgeValue(t *testing.T, shape tensor.Shape, data []float32) reference.Value {
 	t.Helper()
-	value, err := reference.NewValue(shape, data)
-	testcheck.NoError(t, err)
-	return value
+	return testcheck.Must(reference.NewValue(shape, data))(t)
 }

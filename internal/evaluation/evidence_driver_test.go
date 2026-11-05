@@ -115,43 +115,27 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 			t.Fatal("another valid production check was accepted as the incumbent goal")
 		}
 	})
-	t.Run("foreign admission", func(t *testing.T) {
-		request := fixture.request
-		request.Candidates = []evidenceDriverCandidate{{
-			Candidate: fixture.composition.ID(), Admission: fixture.codeAdmission.ID,
-		}}
-		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
-			t.Fatal("candidate paired with a foreign admission was accepted")
-		}
-	})
-	t.Run("unadmitted candidate", func(t *testing.T) {
-		request := fixture.request
-		request.Candidates = []evidenceDriverCandidate{{
-			Candidate: fixture.unadmitted.ID(),
-			Admission: testutil.ArtifactID(t, artifact.KindEvidence, "absent driver admission"),
-		}}
-		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
-			t.Fatal("unadmitted candidate was accepted")
-		}
-	})
-	t.Run("admitted candidate unrelated to goal", func(t *testing.T) {
-		request := fixture.request
-		request.Candidates = []evidenceDriverCandidate{{
-			Candidate: fixture.unrelated.ID(), Admission: fixture.unrelatedPermit.ID,
-		}}
-		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
-			t.Fatal("admitted candidate with a foreign baseline goal was accepted")
-		}
-	})
-	t.Run("candidate evaluation intent differs", func(t *testing.T) {
-		request := fixture.request
-		request.Candidates = []evidenceDriverCandidate{{
-			Candidate: fixture.invalidIntent.ID(), Admission: fixture.invalidPermit.ID,
-		}}
-		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
-			t.Fatal("candidate with a mismatched typed evaluation intent was accepted")
-		}
-	})
+	for _, refused := range []struct {
+		name, accepted string
+		candidate      evidenceDriverCandidate
+	}{
+		{"foreign admission", "candidate paired with a foreign admission was accepted",
+			evidenceDriverCandidate{Candidate: fixture.composition.ID(), Admission: fixture.codeAdmission.ID}},
+		{"unadmitted candidate", "unadmitted candidate was accepted",
+			evidenceDriverCandidate{Candidate: fixture.unadmitted.ID(), Admission: testutil.ArtifactID(t, artifact.KindEvidence, "absent driver admission")}},
+		{"admitted candidate unrelated to goal", "admitted candidate with a foreign baseline goal was accepted",
+			evidenceDriverCandidate{Candidate: fixture.unrelated.ID(), Admission: fixture.unrelatedPermit.ID}},
+		{"candidate evaluation intent differs", "candidate with a mismatched typed evaluation intent was accepted",
+			evidenceDriverCandidate{Candidate: fixture.invalidIntent.ID(), Admission: fixture.invalidPermit.ID}},
+	} {
+		t.Run(refused.name, func(t *testing.T) {
+			request := fixture.request
+			request.Candidates = []evidenceDriverCandidate{refused.candidate}
+			if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
+				t.Fatal(refused.accepted)
+			}
+		})
+	}
 	t.Run("stale incumbent", func(t *testing.T) {
 		stale := newEvidenceDriverFixture(t)
 		previous := stale.production.model

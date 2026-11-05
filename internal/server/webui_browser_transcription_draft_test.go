@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"overgo/internal/overgodb"
@@ -28,19 +27,8 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, rows: [...document.querySelectorAll('.attachment-row')].map((row) => row.textContent.slice(0, 200)), draft: (document.querySelector('.composer textarea') || {}).value, dialog: (document.querySelector('.capture-dialog') || {}).textContent})`, &page)
-			t.Fatalf("%s: %v; page: %s", expression, err, page)
-		}
-	}
-	activate := func(text string) {
-		t.Helper()
-		check(`(() => {const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===` + strconv.Quote(text) + `&&!node.hidden);if(!button||button.disabled)return false;button.focus();return document.activeElement===button;})()`)
-		pressKey(t, ctx, browser, "Enter", 13)
-	}
+	settle := browserSettle(t, ctx, browser)
+	activate := captureDialogActivate(t, ctx, browser)
 	settle(`!!document.querySelector('.composer textarea')`)
 	// A synthetic microphone drives the real recorder; the served model declares transcription; the
 	// route answers through the API client, which the journey observes and paces.

@@ -166,16 +166,12 @@ func architectureRSISnapshot(t *testing.T) gosyntax.Snapshot {
 
 func architectureRSIOverlay(t *testing.T, snapshot gosyntax.Snapshot, overlay map[string][]byte) gosyntax.Snapshot {
 	t.Helper()
-	candidate, err := snapshot.Overlay(overlay)
-	testcheck.NoError(t, err)
-	return candidate
+	return testcheck.Must(snapshot.Overlay(overlay))(t)
 }
 
 func architectureRSIAudit(t *testing.T, snapshot gosyntax.Snapshot) repoanalysis.ProductionAuthorityReport {
 	t.Helper()
-	report, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
-	testcheck.NoError(t, err)
-	return report
+	return testcheck.Must(repoanalysis.AuditProductionAuthorityBoundaries(snapshot))(t)
 }
 
 func requireArchitectureFinding(t *testing.T, report repoanalysis.ProductionAuthorityReport, family, kind string) {

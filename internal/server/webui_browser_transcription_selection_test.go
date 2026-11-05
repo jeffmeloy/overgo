@@ -91,14 +91,7 @@ func TestWebUIBrowserTranscriptionSelection(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var state string
-			_ = browser.Evaluate(ctx, `JSON.stringify({page:document.body.innerText,errors:overgo.errors})`, &state)
-			t.Fatalf("%s: %v; %s", expression, err, state)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {const input=document.querySelector('.composer textarea');input.value='Keep my draft';input.dispatchEvent(new Event('input'));const bytes=Uint8Array.from(atob(` + strconv.Quote(base64.StdEncoding.EncodeToString(fixture.wave)) + `),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'spoken-note.wav',{type:'audio/wav'}));document.querySelector('.composer').dispatchEvent(new DragEvent('drop',{dataTransfer:transfer,bubbles:true}));return true;})()`)
 	capture := func(state string) {

@@ -136,9 +136,7 @@ func TestRewardDeviceRouteTakesARealStepOnTheHost(t *testing.T) {
 	testcheck.NoError(t, err)
 	loaded := func(directory string) *densecausal.Model {
 		t.Helper()
-		model, err := loadTrainableModel(directory)
-		testcheck.NoError(t, err)
-		return model
+		return testcheck.Must(loadTrainableModel(directory))(t)
 	}
 	// margin is how far a model puts the best answer above the worst: the
 	// difference of the logarithms of the probabilities it gives them after the prompt.

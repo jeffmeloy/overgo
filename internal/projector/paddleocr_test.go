@@ -35,12 +35,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*paddleOCRRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*paddleOCRRunner](t, writeTinyPaddleOCR(t, tinyPaddleOCRTensors()))
 }
 
 func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {

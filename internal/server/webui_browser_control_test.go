@@ -26,14 +26,7 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
 	defer func() { _ = handler.Close(); server.Close() }()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	settle := func(predicate string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, predicate); err != nil {
-			var page string
-			_ = browser.Evaluate(t.Context(), "document.body.innerText", &page)
-			t.Fatalf("%v; page: %s", err, page)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	next := func() context.Context {
 		t.Helper()
 		select {

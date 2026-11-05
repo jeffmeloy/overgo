@@ -31,12 +31,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*llama4VisionRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*llama4VisionRunner](t, writeTinyLlama4Vision(t, tinyLlama4VisionTensors()))
 }
 
 func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {

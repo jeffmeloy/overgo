@@ -31,7 +31,7 @@ func TestWebUIBrowserConversationActions(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := browserSettleShowing(t, ctx, browser)
+	settle := browserSettle(t, ctx, browser)
 	finish := func() {
 		t.Helper()
 		select {

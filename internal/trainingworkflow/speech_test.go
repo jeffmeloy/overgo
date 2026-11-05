@@ -187,9 +187,7 @@ func TestSpeechCheckpointPublication(t *testing.T) {
 	testcheck.NoError(t, os.WriteFile(filepath.Join(voiceDirectory, "fixture.safetensors"), voice, 0o600))
 	load := func() *speechsynth.Synthesizer {
 		t.Helper()
-		s, err := speechsynth.LoadSynthesizer(directory)
-		testcheck.NoError(t, err)
-		return s
+		return testcheck.Must(speechsynth.LoadSynthesizer(directory))(t)
 	}
 	read := func(s *speechsynth.Synthesizer) speechsynth.Audio {
 		t.Helper()

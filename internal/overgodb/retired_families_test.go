@@ -31,9 +31,7 @@ func familyBatch(t *testing.T, family retiredFamily, ordinal int) (artifact.Batc
 	body := fmt.Appendf(nil, `{"family":%q,"keyed":%q,"ordinal":%d}`, family.name, family.keyed, ordinal)
 	document := func(contract artifact.DocumentContract) artifact.Content {
 		t.Helper()
-		content, err := contract.ContentBytes(body)
-		testcheck.NoError(t, err)
-		return content
+		return testcheck.Must(contract.ContentBytes(body))(t)
 	}
 	kept := document(keptContract)
 	switch family.keyed {

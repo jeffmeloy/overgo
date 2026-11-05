@@ -75,25 +75,22 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "exact-folds folds test bodies repeated across packages into shared test support, testutil's ParseID, JSON, ReadTypedJSON, Closer, Metadata, NormalVector, NormalVectorAbout, Float32s and XorShift and testprocess's ChildStopper, which the gate counts as production; recipe.Connect and WeightedSequence.Weighs serve production and tests, and the support packages' own error checks in one call pay part of it."
+        "reason": "param-folds folds test bodies of a few values repeated across packages into shared test support the gate counts as production: testcheck.Must, testutil.Map, testutil.HubModelInfo and the doc of testutil.WriteJSON, testutil's own JSON writer now exported."
       },
       "steps": [
-        {
-          "id": "param-folds",
-          "title": "Fold test bodies that differ in at most three values",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestBodyOfThreeValuesRepeatsThreeTimes$'",
-          "rationale": "227 folds of at most three parameters, free of claims, 38,550 nodes gross and about 20,312 net; the largest is status-then-decode, 58 sites in internal/server. Drop any fold whose parameter is a behaviour, since that is two meanings in one body.\nServes: development velocity.\nDisappears: repeated bodies.\nEvidence: test-code nodes.\nBatch: per package, as the row before.",
-          "depends_on": [
-            "compact-tests/exact-folds"
-          ]
-        },
         {
           "id": "sqa-reductions",
           "title": "Land the register's test reductions",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -count=1 -run '^TestTheRegistersTestReductionsLand$'",
           "rationale": "compact-tests/exact-folds folded every test body that stood three times or more, by the check it filed, and left the register's test reductions its text named, each a merge of tests or a removal its finding states rather than a repeated body: SQA-276, 237, 236, 235, 253, 269, 270, 216, 204, 207, 209, 220, 166, 188, 174, 222, 225, 226, 252, 255, 230, 233 and 240, and SQA-310, one read of the checkout for the repeat, forwarder and test-repeat checks.\nChange: each finding's recommended change, in the test owner it names, the merged tests keeping every case and the removed ones only those another check implies; SQA-310's one module load serving the checks of internal/repoanalysis that read the checkout. TestTheRegistersTestReductionsLand holds that no finding of docs/sqa_findings.json this step names stays open with its cited test file unchanged since the finding's commit.\nServes: development velocity and test-code size.\nDisappears: the duplicated test bodies and redundant checks the findings name.\nEvidence: test-code nodes on the gate's line; each finding annotated implemented.\nBatch: host lane, with whichever device packages a finding names in the device lane."
+        },
+        {
+          "id": "statement-folds",
+          "title": "Fold runs of statements repeated in the tests",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 -run '^TestNoTestStatementRunRepeatsThreeTimes$'",
+          "rationale": "compact-tests/param-folds folded the test bodies of a few values that stood three times or more, read whole as exact-folds reads them, and left what its own estimate counted beyond them: 227 folds and about 20,312 nodes net, mostly runs of statements repeated inside bodies that differ elsewhere, the largest a response's status check followed by the decode of its body, 58 sites in internal/server.\nChange: a run of statements of twenty syntax nodes or more that stands three times or more across the module's tests, alike or differing in at most parameterLeast values, folds into one helper its sites call; TestNoTestStatementRunRepeatsThreeTimes reads each body's runs of consecutive statements by the bodyShape the repeat checks use and refuses any that stands more than twice, with the same exclusions as the body checks. Drop any fold whose parameter is a behaviour, since that is two meanings in one body.\nServes: development velocity and test-code size.\nDisappears: repeated statement runs.\nEvidence: test-code nodes on the gate's line.\nBatch: per package, host lane, leaving the files whose change runs the device lane in full."
         }
       ]
     },

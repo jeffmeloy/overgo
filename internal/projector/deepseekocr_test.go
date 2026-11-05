@@ -10,23 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/testcheck"
-	"overgo/internal/tokenizer"
 )
-
-type deepSeekOCRPromptTokenizer struct{ texts []string }
-
-func (t *deepSeekOCRPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	t.texts = append(t.texts, text)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for len(text) > 0 {
-		if strings.HasPrefix(text, DeepSeekOCRImagePad) {
-			ids, text = append(ids, 8), text[len(DeepSeekOCRImagePad):]
-		} else {
-			ids, text = append(ids, 1), text[1:]
-		}
-	}
-	return ids, nil
-}
 
 func TestDeepSeekOCRTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
@@ -82,7 +66,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*DeepSeekOCRRunner](writeTinyDeepSeekOCR(t, false), OpenOptions{})
 	testcheck.NoError(t, err)
 	defer runner.Close()
-	tok := &deepSeekOCRPromptTokenizer{}
+	tok := &recordingPromptTokenizer{pad: DeepSeekOCRImagePad}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	testcheck.NoError(t, err)
 	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 3)+"after" {
@@ -94,12 +78,7 @@ func TestDeepSeekOCRPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyDeepSeekOCR(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*DeepSeekOCRRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*DeepSeekOCRRunner](t, writeTinyDeepSeekOCR(t, false))
 }
 
 func TestDeepSeekOCRCUDAMatchesCPU(t *testing.T) {

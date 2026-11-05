@@ -74,14 +74,7 @@ func TestWebUIBrowserAudioStartup(t *testing.T) {
 	defer server.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	settle := func(predicate string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, predicate); err != nil {
-			var state string
-			_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &state)
-			t.Fatalf("%v; %s", err, state)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	check := func(predicate string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, predicate) }
 	settle(`!!document.querySelector('.mode-controls select[aria-label="voice"]')`)
 	check(`!document.querySelector('.composer select[aria-label="mode"]') && !overgo.capabilities().recipe && !document.querySelector('#cold-start')`)

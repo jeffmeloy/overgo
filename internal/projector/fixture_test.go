@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testcheck"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -33,6 +34,37 @@ func rewriteProjectorFixture(
 ) {
 	t.Helper()
 	testutil.WriteGGUF(t, path, metadata, tensors)
+}
+
+// recordingPromptTokenizer records each text it tokenizes and gives token 8 for each image pad in it and 1 for each
+// other byte.
+type recordingPromptTokenizer struct {
+	pad   string
+	texts []string
+}
+
+func (recorder *recordingPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
+	recorder.texts = append(recorder.texts, text)
+	ids := make([]tokenizer.TokenID, 0, len(text))
+	for len(text) > 0 {
+		if strings.HasPrefix(text, recorder.pad) {
+			ids, text = append(ids, 8), text[len(recorder.pad):]
+		} else {
+			ids, text = append(ids, 1), text[1:]
+		}
+	}
+	return ids, nil
+}
+
+// requireOpensAs opens the projector written at path and requires it to be a Runner.
+func requireOpensAs[Runner any](t *testing.T, path string) {
+	t.Helper()
+	projector, err := OpenAs[Projector](t.Context(), path, OpenOptions{})
+	testcheck.NoError(t, err)
+	defer projector.Close()
+	if _, ok := projector.(Runner); !ok {
+		t.Fatalf("projector type = %T", projector)
+	}
 }
 
 // imagePromptTokenizer preserves each fixture's image marker and token ID.

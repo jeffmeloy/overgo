@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // The checkpoint's generation_config.json sampling is extracted with its
@@ -14,8 +15,7 @@ import (
 func TestModelConfigExtractsDeclaredSampling(t *testing.T) {
 	directory := t.TempDir()
 	write := func(name, content string) {
-		t.Helper()
-		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o644))
+		testutil.WriteTextFile(t, directory, name, content)
 	}
 	write("generation_config.json", `{"bos_token_id":2,"eos_token_id":[1,106],"do_sample":true,"temperature":1.0,"top_k":64,"top_p":0.95}`)
 	_, generation, sources, err := ReadModelConfigComponents(directory)

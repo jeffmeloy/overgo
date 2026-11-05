@@ -1,7 +1,6 @@
 package repoanalysis
 
 import (
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"overgo/internal/gosyntax"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
@@ -22,8 +22,7 @@ func TestNoFixedTimers(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write := func(name, content string) {
-		t.Helper()
-		testcheck.NoError(t, os.WriteFile(filepath.Join(root, name), []byte(content), 0o644))
+		testutil.WriteTextFile(t, root, name, content)
 	}
 	write("fixed.go", `package probe
 import ("context"; "time")

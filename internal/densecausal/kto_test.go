@@ -33,9 +33,7 @@ func TestKTOGradientHoldsTheKLEstimateFixed(t *testing.T) {
 	examples := ktoExamples(t, golden.Tokens)
 	score := func(model *Model, sequence trainingdata.PreferenceSequence) sequencescore.Score {
 		t.Helper()
-		result, err := model.SequenceLogProb(sequence)
-		testcheck.NoError(t, err)
-		return result
+		return testcheck.Must(model.SequenceLogProb(sequence))(t)
 	}
 	// The policy is whichever model gives the mismatched sequences more
 	// mass than the other, so z0 is positive rather than clamped to zero.

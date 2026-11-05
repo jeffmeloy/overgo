@@ -244,9 +244,7 @@ func (fixture ktoFixture) examples(t *testing.T, membership dataset.Membership) 
 // loadKTOModel loads the dense model at directory.
 func loadKTOModel(t *testing.T, directory string) *densecausal.Model {
 	t.Helper()
-	model, err := densecausal.Load(directory)
-	testcheck.NoError(t, err)
-	return model
+	return testcheck.Must(densecausal.Load(directory))(t)
 }
 
 // ktoScores scores each example and its mismatched sequence under policy

@@ -71,7 +71,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 		testcheck.NoError(t, err)
 		defer runner.Close()
-		tok := &mimoVLPromptTokenizer{}
+		tok := &recordingPromptTokenizer{pad: qwen3VLImagePad}
 		prompt, err := testSession(t, runner).BuildImagesPrompt(
 			t.Context(), tok,
 			[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 4, 4))},

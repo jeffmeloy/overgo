@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,10 +37,7 @@ func TestModelRegistrationIsAtomicIdempotentAndInactive(t *testing.T) {
 	declaration := filepath.Join(t.TempDir(), "registration.json")
 	repository := t.TempDir()
 	write := func(values []modelRegistration) {
-		t.Helper()
-		data, err := json.Marshal(values)
-		testcheck.NoError(t, err)
-		testcheck.NoError(t, os.WriteFile(declaration, data, 0o600))
+		testutil.WriteJSON(t, declaration, values)
 	}
 	args := []string{"-repo", repository, "-root", root, "-spec", declaration}
 	write([]modelRegistration{specification})

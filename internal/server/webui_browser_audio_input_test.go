@@ -47,14 +47,7 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 			defer browser.Close()
 			testcheck.NoError(t, browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL}, nil))
 			check := func(p string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, p) }
-			settle := func(p string) {
-				t.Helper()
-				if err := browser.Eventually(ctx, p); err != nil {
-					var state string
-					_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &state)
-					t.Fatalf("%v; %s", err, state)
-				}
-			}
+			settle := browserSettle(t, ctx, browser)
 			select {
 			case <-initial:
 			case <-ctx.Done():

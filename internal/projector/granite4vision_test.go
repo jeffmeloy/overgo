@@ -32,12 +32,7 @@ func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*granite4VisionRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*granite4VisionRunner](t, writeTinyGranite4Vision(t, tinyGranite4VisionTensors()))
 }
 
 func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {

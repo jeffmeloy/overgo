@@ -28,19 +28,8 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var state string
-			_ = browser.Evaluate(ctx, `document.body.innerText`, &state)
-			t.Fatalf("%s: %v; %s", expression, err, state)
-		}
-	}
-	activate := func(label string) {
-		t.Helper()
-		check(`(()=>{const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===` + strconv.Quote(label) + `&&!node.hidden);if(!button||button.disabled)return false;button.focus();return true;})()`)
-		pressKey(t, ctx, browser, "Enter", 13)
-	}
+	settle := browserSettle(t, ctx, browser)
+	activate := captureDialogActivate(t, ctx, browser)
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(()=>{
   window.micNativeContext=window.AudioContext;window.micContexts=[];window.micTracks=[];window.micRequests=[];window.micMode='normal';window.micFile=null;

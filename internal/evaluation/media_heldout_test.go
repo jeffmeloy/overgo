@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
 
@@ -32,9 +33,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	testcheck.NoError(t, err)
 	defer store.Close()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte("overgo/media-heldout-test/"+role))
-		testcheck.NoError(t, err)
-		return id
+		return testutil.ArtifactID(t, kind, "overgo/media-heldout-test/"+role)
 	}
 	source := derived(artifact.KindDataset, "dataset")
 	var records []dataset.Record

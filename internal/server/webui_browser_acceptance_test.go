@@ -485,15 +485,13 @@ func browserSettle(t *testing.T, ctx context.Context, browser *webuilane.Browser
 	}
 }
 
-// browserSettleShowing is browserSettle that fails with the page's text and recorded errors.
-func browserSettleShowing(t *testing.T, ctx context.Context, browser *webuilane.Browser) func(expression string) {
-	return func(expression string) {
+// captureDialogActivate presses Enter on the capture dialog's shown, enabled button whose text is text, once that
+// button holds the focus.
+func captureDialogActivate(t *testing.T, ctx context.Context, browser *webuilane.Browser) func(text string) {
+	return func(text string) {
 		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var state string
-			_ = browser.Evaluate(t.Context(), `JSON.stringify({text:document.body.innerText,errors:overgo.errors})`, &state)
-			t.Fatalf("%v: %s", err, state)
-		}
+		assertBrowserPredicate(t, ctx, browser, `(() => {const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===`+strconv.Quote(text)+`&&!node.hidden);if(!button||button.disabled)return false;button.focus();return document.activeElement===button;})()`)
+		pressKey(t, ctx, browser, "Enter", 13)
 	}
 }
 

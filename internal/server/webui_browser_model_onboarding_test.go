@@ -63,14 +63,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	defer server.Close()
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#library")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: overgo.errors, library: document.querySelector("#panel-library") && document.querySelector("#panel-library").innerText.slice(0, 800)})`, &page)
-			t.Fatalf("%s: %v; %s", expression, err, page)
-		}
-	}
+	settle := browserSettle(t, ctx, browser)
 	testcheck.NoError(t, webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]))
 	settle(`!!document.querySelector('#panel-library.active input[aria-label="Search the Hugging Face hub"]') && overgo.api.inFlight() === 0`)
 	effort, requests := measureEffort(t, ctx, browser, settle, onboardingTask)

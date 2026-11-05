@@ -359,9 +359,7 @@ func TestObjectiveAuthorityLadder(t *testing.T) {
 func TestObjectiveEvidenceAcceptsEvaluationReports(t *testing.T) {
 	t.Parallel()
 	derived := func(kind artifact.Kind, role string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte("overgo/objective-evidence-test/"+role))
-		testcheck.NoError(t, err)
-		return id
+		return testutil.ArtifactID(t, kind, "overgo/objective-evidence-test/"+role)
 	}
 	spec := ObjectiveSpec{
 		Name: "table-evidence", Kind: ObjectiveTablePrediction,

@@ -541,9 +541,7 @@ func supervisedArmDescriptors(arms ...modelrecipe.CandidateMaterializedArm) []ar
 
 func identifySupervisedJSON(t *testing.T, kind artifact.Kind, value any) artifact.ID {
 	t.Helper()
-	id, err := artifact.JSONID(kind, value)
-	testcheck.NoError(t, err)
-	return id
+	return testcheck.Must(artifact.JSONID(kind, value))(t)
 }
 
 func supervisedDocumentContent(

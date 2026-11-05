@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 const (
@@ -63,10 +62,7 @@ func TestPythonLivesOnlyInItsIgnoredPlace(t *testing.T) {
 		}
 	}
 	write := func(name, content string) {
-		t.Helper()
-		path := filepath.Join(root, filepath.FromSlash(name))
-		testcheck.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
-		testcheck.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		testutil.WriteTextFile(t, root, name, content, 0o600)
 	}
 	git("init", "--quiet")
 	write(".gitignore", "/"+pythonPlace+"\n")

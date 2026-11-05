@@ -1174,9 +1174,7 @@ func TestReadPhi3LongRoPESpec(t *testing.T) {
 
 func TestReadApertusSpecWithLayerXIELU(t *testing.T) {
 	floatArray := func(key string, values ...float32) gguf.Metadata {
-		return gguf.Metadata{Key: key, Value: gguf.Value{
-			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: values,
-		}}
+		return gguf.ArrayMetadata(key, gguf.ValueTypeFloat32, values)
 	}
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "apertus"),

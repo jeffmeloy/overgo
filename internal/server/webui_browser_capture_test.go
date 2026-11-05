@@ -39,11 +39,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 			t.Fatalf("%s: %s", expression, state)
 		}
 	}
-	activate := func(text string) {
-		t.Helper()
-		check(`(() => {const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===` + strconv.Quote(text) + `&&!node.hidden);if(!button||button.disabled)return false;button.focus();return true;})()`)
-		pressKey(t, ctx, browser, "Enter", 13)
-	}
+	activate := captureDialogActivate(t, ctx, browser)
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {window.captureOld=document.querySelector('.composer');document.querySelector('#settings-toggle').click();const key=document.querySelector('#api-key');key.value=` + strconv.Quote(testAPIKey) + `;key.dispatchEvent(new Event('change'));document.querySelector('#settings-dialog').close();return true;})()`)
 	settle(`!!document.querySelector('.composer .attach-button') && document.querySelector('.composer')!==captureOld`)

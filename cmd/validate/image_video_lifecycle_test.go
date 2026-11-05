@@ -77,14 +77,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	read := func(id artifact.ID) []byte {
-		t.Helper()
-		content, found, err := artifact.ReadContent(t.Context(), store, id)
-		if err != nil || !found {
-			t.Fatal("missing lifecycle evidence", id, err)
-		}
-		return content.Data
-	}
+	read := evidenceReader(t, store, "lifecycle evidence")
 	var protocol struct {
 		Source     string   `json:"source_base"`
 		Acceptance []string `json:"acceptance"`

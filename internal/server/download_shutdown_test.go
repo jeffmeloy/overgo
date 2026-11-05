@@ -2,9 +2,6 @@ package server
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +16,7 @@ import (
 
 	"overgo/internal/hfhub"
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // TestDownloadShutdownOwnership pins the one download shutdown owner:
@@ -30,17 +28,9 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	t.Parallel()
 	transferStarted := make(chan struct{})
 	weights := []byte("weights")
-	digest := sha256.Sum256(weights)
 	var requests atomic.Int64
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(response).Encode(map[string]any{
-			"id": "acme/tiny", "sha": "rev0",
-			"siblings": []map[string]any{{"rfilename": "weights.bin", "lfs": map[string]any{
-				"sha256": hex.EncodeToString(digest[:]), "size": len(weights),
-			}}},
-		})
-	})
+	mux.HandleFunc("GET /api/models/acme/tiny", testutil.HubModelInfo("weights.bin", weights))
 	mux.HandleFunc("GET /acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("ETag", `"weights-v1"`)
 		if requests.Add(1) == 1 {

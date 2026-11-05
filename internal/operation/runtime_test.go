@@ -172,11 +172,7 @@ func TestReporterTextStaysBounded(t *testing.T) {
 // lengths is each text's length, for a failure message that would otherwise
 // print a text as long as the bound.
 func lengths(texts []string) []int {
-	result := make([]int, len(texts))
-	for index, text := range texts {
-		result[index] = len(text)
-	}
-	return result
+	return testutil.Map(texts, func(text string) int { return len(text) })
 }
 
 func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {

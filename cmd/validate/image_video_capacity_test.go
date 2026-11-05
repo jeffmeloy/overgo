@@ -174,14 +174,7 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	testcheck.NoError(t, err)
 	defer store.Close()
-	read := func(id artifact.ID) []byte {
-		t.Helper()
-		content, found, err := artifact.ReadContent(t.Context(), store, id)
-		if err != nil || !found {
-			t.Fatal("missing capacity evidence", id, err)
-		}
-		return content.Data
-	}
+	read := evidenceReader(t, store, "capacity evidence")
 	protocol := read(bundle.Protocol)
 	current, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity_protocol.json"))
 	if err != nil || checkMediaProtocolIdentity(current, bundle.ProtocolSHA) != nil {
@@ -336,5 +329,17 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	}
 	if len(bundle.Processing) != len([]string{"first", "repeat"}) {
 		t.Fatal("missing report/export repeat")
+	}
+}
+
+// evidenceReader reads the content store holds under id, failing the test on missing what when it holds none.
+func evidenceReader(t *testing.T, store artifact.Reader, what string) func(id artifact.ID) []byte {
+	return func(id artifact.ID) []byte {
+		t.Helper()
+		content, found, err := artifact.ReadContent(t.Context(), store, id)
+		if err != nil || !found {
+			t.Fatal("missing "+what, id, err)
+		}
+		return content.Data
 	}
 }

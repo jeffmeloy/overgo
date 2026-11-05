@@ -1,11 +1,8 @@
 package modelartifact
 
 import (
-	"os"
-	"path/filepath"
+	"overgo/internal/testutil"
 	"testing"
-
-	"overgo/internal/testcheck"
 )
 
 // TestARecordedConfigNamesItsWeights holds a model's recorded config to the
@@ -18,8 +15,7 @@ import (
 func TestARecordedConfigNamesItsWeights(t *testing.T) {
 	t.Parallel()
 	write := func(directory, name, content string) {
-		t.Helper()
-		testcheck.NoError(t, os.WriteFile(filepath.Join(directory, name), []byte(content), 0o600))
+		testutil.WriteTextFile(t, directory, name, content, 0o600)
 	}
 	base, copied, trained := t.TempDir(), t.TempDir(), t.TempDir()
 	for _, directory := range []string{base, copied, trained} {

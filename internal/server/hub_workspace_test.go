@@ -1,8 +1,6 @@
 package server
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,25 +11,18 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // hubTestServer serves one model repository with a digest-declared file, the
 // same shape the workbench's discovery surface consumes.
 func hubTestServer(t *testing.T, weights []byte) *httptest.Server {
 	t.Helper()
-	digest := sha256.Sum256(weights)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/models", func(response http.ResponseWriter, request *http.Request) {
 		_ = json.NewEncoder(response).Encode([]map[string]any{{"id": "acme/tiny", "downloads": 3}})
 	})
-	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(response).Encode(map[string]any{
-			"id": "acme/tiny", "sha": "rev0",
-			"siblings": []map[string]any{{"rfilename": "weights.bin", "lfs": map[string]any{
-				"sha256": hex.EncodeToString(digest[:]), "size": len(weights),
-			}}},
-		})
-	})
+	mux.HandleFunc("GET /api/models/acme/tiny", testutil.HubModelInfo("weights.bin", weights))
 	mux.HandleFunc("GET /acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write(weights)
 	})

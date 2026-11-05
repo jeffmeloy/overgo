@@ -26,7 +26,7 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
 	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := browserSettleShowing(t, ctx, browser)
+	settle := browserSettle(t, ctx, browser)
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {
    window.mobileVisible=node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;};

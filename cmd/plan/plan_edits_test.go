@@ -65,9 +65,7 @@ func editFixture(t *testing.T, document plan.Plan) (root string, written []byte)
 // planBytes reads a plan file whole.
 func planBytes(t *testing.T, path string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	testcheck.NoError(t, err)
-	return data
+	return testcheck.Must(os.ReadFile(path))(t)
 }
 
 // editedPlan loads the plan of root as the command left it.

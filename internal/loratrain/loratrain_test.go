@@ -476,9 +476,5 @@ func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
 }
 
 func widen(values []float32) []float64 {
-	wide := make([]float64, len(values))
-	for index, value := range values {
-		wide[index] = float64(value)
-	}
-	return wide
+	return testutil.Map(values, func(value float32) float64 { return float64(value) })
 }

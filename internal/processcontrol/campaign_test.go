@@ -53,9 +53,7 @@ func TestCampaignRunningFollowsOwnerLock(t *testing.T) {
 	root := t.TempDir()
 	running := func() bool {
 		t.Helper()
-		live, err := CampaignRunning(root)
-		testcheck.NoError(t, err)
-		return live
+		return testcheck.Must(CampaignRunning(root))(t)
 	}
 	if running() {
 		t.Fatal("worktree without a supervisor reported a campaign")

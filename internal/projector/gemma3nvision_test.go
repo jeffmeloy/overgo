@@ -12,23 +12,7 @@ import (
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testcheck"
-	"overgo/internal/tokenizer"
 )
-
-type gemma3nPromptTokenizer struct{ texts []string }
-
-func (t *gemma3nPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	t.texts = append(t.texts, text)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for len(text) > 0 {
-		if strings.HasPrefix(text, gemma3nImagePad) {
-			ids, text = append(ids, 8), text[len(gemma3nImagePad):]
-		} else {
-			ids, text = append(ids, 1), text[1:]
-		}
-	}
-	return ids, nil
-}
 
 func TestGemma3nVisionTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
@@ -45,7 +29,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
 	testcheck.NoError(t, err)
 	defer runner.Close()
-	tok := &gemma3nPromptTokenizer{}
+	tok := &recordingPromptTokenizer{pad: gemma3nImagePad}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	testcheck.NoError(t, err)
 	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<start_of_image>"+strings.Repeat(gemma3nImagePad, 256)+"<end_of_image>") ||
@@ -58,12 +42,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyGemma3nVision(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*gemma3nVisionRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*gemma3nVisionRunner](t, writeTinyGemma3nVision(t, false))
 }
 
 func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {

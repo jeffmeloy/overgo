@@ -37,7 +37,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	testcheck.NoError(t, err)
 	defer runner.Close()
-	tok := &deepSeekOCRPromptTokenizer{}
+	tok := &recordingPromptTokenizer{pad: DeepSeekOCRImagePad}
 	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	testcheck.NoError(t, err)
 	if len(tok.texts) < 2 || tok.texts[0] != "before"+strings.Repeat(DeepSeekOCRImagePad, 2)+"after" {
@@ -49,12 +49,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*deepSeekOCR2Runner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*deepSeekOCR2Runner](t, writeTinyDeepSeekOCR2(t, false))
 }
 
 func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {

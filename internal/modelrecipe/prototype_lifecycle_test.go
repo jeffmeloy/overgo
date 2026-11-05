@@ -124,56 +124,28 @@ func TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt(t *testing.T) {
 
 	tests := map[string]func(*runrecord.StageReceipt){
 		"invocation": func(value *runrecord.StageReceipt) { value.Invocation = nil },
-		"boundary": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
-			binding.Boundary = invocation.BoundaryAgent
-			value.Invocation = &binding
-		},
-		"kind": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
-			binding.Kind = invocation.MutationModelActivation
-			value.Invocation = &binding
-		},
-		"action": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
-			binding.Action = string(invocation.MutationRollback)
-			value.Invocation = &binding
-		},
-		"arguments": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		"boundary":   withInvocation(func(binding *invocation.ReceiptBinding) { binding.Boundary = invocation.BoundaryAgent }),
+		"kind":       withInvocation(func(binding *invocation.ReceiptBinding) { binding.Kind = invocation.MutationModelActivation }),
+		"action":     withInvocation(func(binding *invocation.ReceiptBinding) { binding.Action = string(invocation.MutationRollback) }),
+		"arguments": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Arguments = testutil.ArtifactID(t, artifact.KindEvidence, "substituted-verification-arguments")
-			value.Invocation = &binding
-		},
-		"effect": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		}),
+		"effect": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Effect = testutil.ArtifactID(t, artifact.KindEvidence, "substituted-verification-effect")
-			value.Invocation = &binding
-		},
-		"preflight": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		}),
+		"preflight": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Preflight = testutil.ArtifactID(t, artifact.KindEvidence, "substituted-verification-preflight")
-			value.Invocation = &binding
-		},
-		"inspection": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		}),
+		"inspection": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Inspection = testutil.ArtifactID(t, artifact.KindEvidence, "substituted-verification-inspection")
-			value.Invocation = &binding
-		},
-		"ceiling": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		}),
+		"ceiling": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Ceiling = testutil.ArtifactID(t, artifact.KindRecipe, "substituted-verification-ceiling")
-			value.Invocation = &binding
-		},
-		"authority": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
+		}),
+		"authority": withInvocation(func(binding *invocation.ReceiptBinding) {
 			binding.Authority = testutil.ArtifactID(t, artifact.KindEvidence, "substituted-verification-authority")
-			value.Invocation = &binding
-		},
-		"head": func(value *runrecord.StageReceipt) {
-			binding := *value.Invocation
-			binding.Head = artifact.CommitID{}
-			value.Invocation = &binding
-		},
+		}),
+		"head": withInvocation(func(binding *invocation.ReceiptBinding) { binding.Head = artifact.CommitID{} }),
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -442,4 +414,13 @@ func (repository *conflictingLifecycleRepository) Commit(
 		return artifact.CommitID{}, err
 	}
 	return repository.Repository.Commit(ctx, batch)
+}
+
+// withInvocation edits a copy of a stage receipt's invocation binding and gives the receipt the copy.
+func withInvocation(edit func(*invocation.ReceiptBinding)) func(*runrecord.StageReceipt) {
+	return func(value *runrecord.StageReceipt) {
+		binding := *value.Invocation
+		edit(&binding)
+		value.Invocation = &binding
+	}
 }

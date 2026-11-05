@@ -33,12 +33,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenAs[Projector](t.Context(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
-	testcheck.NoError(t, err)
-	defer projector.Close()
-	if _, ok := projector.(*hunyuanVLRunner); !ok {
-		t.Fatalf("projector type = %T", projector)
-	}
+	requireOpensAs[*hunyuanVLRunner](t, writeTinyHunyuanVL(t, tinyHunyuanVLTensors()))
 }
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {

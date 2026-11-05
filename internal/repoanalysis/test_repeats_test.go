@@ -148,3 +148,43 @@ func TestNoTestBodyRepeatsThreeTimes(t *testing.T) {
 		t.Errorf("%d test bodies stand more than %d times, so fold each into one body its cases share", over, testRepeatMost)
 	}
 }
+
+// TestNoTestBodyOfThreeValuesRepeatsThreeTimes holds the module's tests to testRepeatMost bodies of one skeleton that
+// differ in a value or more and at most parameterLeast, read as TestParameterRepeatsStayUnderTheirCeiling reads
+// production's: a third such body is a case of one body that takes those values as its parameters, except the group
+// testParameterHeld names, which must still stand.
+func TestNoTestBodyOfThreeValuesRepeatsThreeTimes(t *testing.T) {
+	t.Parallel()
+	groups, _ := bodyRepeats(testBodies(t, checkoutRoot), parameterLeast)
+	over, held := 0, false
+	for _, group := range groups {
+		if len(group)-1 <= testRepeatMost {
+			continue
+		}
+		files := make([]string, 0, len(group)-1)
+		for _, site := range group[1:] {
+			file, _, _ := strings.Cut(site, ":")
+			files = append(files, file)
+		}
+		slices.Sort(files)
+		if slices.Equal(files, testParameterHeld) {
+			held = true
+			continue
+		}
+		over++
+		t.Errorf("%s nodes x%d: %s", group[0], len(group)-1, strings.Join(group[1:], " "))
+	}
+	if over > 0 {
+		t.Errorf("%d test bodies of a few values stand more than %d times, so fold each into one body that takes them", over, testRepeatMost)
+	}
+	if !held {
+		t.Errorf("the group testParameterHeld names, %q, no longer stands more than %d times, so drop it", testParameterHeld, testRepeatMost)
+	}
+}
+
+// testParameterHeld are the files of the one group of test bodies of a few values that stands three times: the fakes'
+// reads of a field under their own lock, modeldevice's free device memory and server's loop status and device memory,
+// each a field of a type of its own, which no helper over values can take.
+var testParameterHeld = []string{
+	"internal/modeldevice/expert_residency_test.go", "internal/server/loop_status_test.go", "internal/server/memory_tiers_test.go",
+}

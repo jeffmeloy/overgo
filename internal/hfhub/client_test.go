@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/testcheck"
+	"overgo/internal/testutil"
 )
 
 // hubFixture serves a minimal hub: one model with an LFS weights file and a
@@ -143,15 +144,7 @@ func TestHubDownloadRefusesTamperedBytes(t *testing.T) {
 	destination := t.TempDir()
 	// A lying hub declares the digest of one content and serves another.
 	mux := http.NewServeMux()
-	digest := sha256.Sum256(weights)
-	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(response).Encode(map[string]any{
-			"id": "acme/tiny", "sha": "rev0",
-			"siblings": []map[string]any{{"rfilename": "model.safetensors", "lfs": map[string]any{
-				"sha256": hex.EncodeToString(digest[:]), "size": len(weights),
-			}}},
-		})
-	})
+	mux.HandleFunc("GET /api/models/acme/tiny", testutil.HubModelInfo("model.safetensors", weights))
 	mux.HandleFunc("GET /acme/tiny/resolve/rev0/model.safetensors", func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte("differently sized"))
 	})

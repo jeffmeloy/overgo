@@ -99,24 +99,9 @@ func TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority(t *testing.T) {
 		name   string
 		mutate func(*testing.T, *projectionAuthorityFixture) *InteractionTrace
 	}{
-		{name: "task", mutate: func(t *testing.T, fixture *projectionAuthorityFixture) *InteractionTrace {
-			fixture.attempt = replaceProjectionAttempt(t, fixture.attempt, func(value *AttemptRecord) {
-				value.TaskContract = testutil.ArtifactID(t, artifact.KindRecipe, "foreign-task")
-			})
-			return nil
-		}},
-		{name: "strategy", mutate: func(t *testing.T, fixture *projectionAuthorityFixture) *InteractionTrace {
-			fixture.attempt = replaceProjectionAttempt(t, fixture.attempt, func(value *AttemptRecord) {
-				value.StrategyID = testutil.ArtifactID(t, artifact.KindProfile, "foreign-strategy")
-			})
-			return nil
-		}},
-		{name: "gate-recipe", mutate: func(t *testing.T, fixture *projectionAuthorityFixture) *InteractionTrace {
-			fixture.attempt = replaceProjectionAttempt(t, fixture.attempt, func(value *AttemptRecord) {
-				value.Recipe = testutil.ArtifactID(t, artifact.KindRecipe, "foreign-gate-recipe")
-			})
-			return nil
-		}},
+		{name: "task", mutate: foreignAttempt(func(value *AttemptRecord, id artifact.ID) { value.TaskContract = id }, artifact.KindRecipe, "foreign-task")},
+		{name: "strategy", mutate: foreignAttempt(func(value *AttemptRecord, id artifact.ID) { value.StrategyID = id }, artifact.KindProfile, "foreign-strategy")},
+		{name: "gate-recipe", mutate: foreignAttempt(func(value *AttemptRecord, id artifact.ID) { value.Recipe = id }, artifact.KindRecipe, "foreign-gate-recipe")},
 		{name: "trajectory", mutate: func(t *testing.T, fixture *projectionAuthorityFixture) *InteractionTrace {
 			return new(newProjectionTrace(t, "foreign-trajectory", projectionFixtureEvents(t, "foreign", "candidate/a"),
 				fixture.trace.TaskContract, fixture.trace.Strategy, fixture.trace.Recipe))
@@ -534,5 +519,16 @@ func commitProjectionAuthorities(t *testing.T, store *overgodb.Store, key string
 		Key: key, Artifacts: descriptors, Contents: contents, Lineage: lineage,
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// foreignAttempt gives a fixture's attempt, through set, the identifier of a foreign kind artifact named name, and
+// leaves the fixture's trace its own.
+func foreignAttempt(set func(*AttemptRecord, artifact.ID), kind artifact.Kind, name string) func(*testing.T, *projectionAuthorityFixture) *InteractionTrace {
+	return func(t *testing.T, fixture *projectionAuthorityFixture) *InteractionTrace {
+		fixture.attempt = replaceProjectionAttempt(t, fixture.attempt, func(value *AttemptRecord) {
+			set(value, testutil.ArtifactID(t, kind, name))
+		})
+		return nil
 	}
 }
